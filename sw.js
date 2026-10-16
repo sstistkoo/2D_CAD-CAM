@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v505';
+const CACHE_NAME = 'skica-v523';
 const ASSETS = [
   './',
   './index.html',
@@ -282,6 +282,7 @@ const ASSETS = [
   './js/storage/exportImage.js',
   './js/storage/fileIO.js',
   './js/storage/projectManager.js',
+  './js/storage/settingsStore.js',
   './js/storage/svgCanvasContext.js',
   './js/toolLibrary.js',
   './js/tools/anchorClick.js',
@@ -331,6 +332,28 @@ const ASSETS = [
   './js/trigSolver.js',
   './js/types.js',
   './js/ui.js',
+  './js/ui/calculator.js',
+  './js/ui/cncJump.js',
+  './js/ui/colorPicker.js',
+  './js/ui/drawingHistory.js',
+  './js/ui/gridAngleDialogs.js',
+  './js/ui/helpTheme.js',
+  './js/ui/intersectionList.js',
+  './js/ui/launchers.js',
+  './js/ui/layerList.js',
+  './js/ui/notesDialog.js',
+  './js/ui/nullPoint.js',
+  './js/ui/objectList.js',
+  './js/ui/properties/arcCircle.js',
+  './js/ui/properties/index.js',
+  './js/ui/properties/line.js',
+  './js/ui/properties/polyline.js',
+  './js/ui/properties/rect.js',
+  './js/ui/properties/text.js',
+  './js/ui/settingsDialog.js',
+  './js/ui/statusButtons.js',
+  './js/ui/toolbar.js',
+  './js/ui/trigCalc.js',
   './js/utils.js',
   './dxf-json.html',
   './eslint.config.js',

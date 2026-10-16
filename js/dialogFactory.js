@@ -79,7 +79,7 @@ export function makeOverlay(type, title, bodyHTML, windowClass, opts = {}) {
   document.body.appendChild(overlay);
   overlay.querySelector(".calc-close-btn").addEventListener("click", () => overlay.remove());
   if (closeOnBackdrop) {
-    overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+    closeOnBackdropClick(overlay, () => overlay.remove());
   }
   if (closeOnEsc) {
     const _escHandler = (e) => { if (e.key === 'Escape') overlay.remove(); };
@@ -105,6 +105,21 @@ export function onOverlayRemoved(overlay, cleanup) {
   new MutationObserver((_, obs) => {
     if (!document.body.contains(overlay)) { cleanup(); obs.disconnect(); }
   }).observe(document.body, { childList: true });
+}
+
+/**
+ * Klik na pozadí okna (`backdrop`) zavolá `close` — jen když i stisk začal na
+ * pozadí. Po tažení z okna (označování textu v poli, posuvník) puštěném nad
+ * pozadím vznikne `click` na společném předkovi = pozadí, a okna se dřív
+ * zavírala i s rozdělanou prací. Používat všude místo
+ * `addEventListener('click', e => { if (e.target === backdrop) … })`.
+ * @param {HTMLElement} backdrop
+ * @param {(e: MouseEvent) => void} close
+ */
+export function closeOnBackdropClick(backdrop, close) {
+  let downOnBackdrop = false;
+  backdrop.addEventListener('pointerdown', (e) => { downOnBackdrop = e.target === backdrop; });
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop && downOnBackdrop) close(e); });
 }
 
 /**
@@ -162,9 +177,7 @@ export function makeInputOverlay(innerHTML) {
   overlay.innerHTML = innerHTML;
   stripAutofocusOnTouch(overlay);
   document.body.appendChild(overlay);
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay) overlay.remove();
-  });
+  closeOnBackdropClick(overlay, () => overlay.remove());
   const _escHandler = (e) => { if (e.key === 'Escape') overlay.remove(); };
   document.addEventListener('keydown', _escHandler);
   onOverlayRemoved(overlay, () => document.removeEventListener('keydown', _escHandler));

@@ -1860,10 +1860,57 @@ body {
   flex-shrink: 0;
 }
 
+/* Desktop: pravý panel (#sidebar) je fixed přes celou výšku (300 px) a leží
+   i nad stavovým řádkem — obsah řádku proto končí u jeho levého okraje. Dřív
+   pod ním při šířce okna pod ~1250 px mizela tlačítka (Nastavení, Editor, VK).
+   Když se položky nevejdou, přejdou CELÉ na další řádek (nezalomí se uvnitř). */
+@media (min-width: 901px) {
+  #statusbar {
+    padding-right: 310px;
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  #statusbar > * {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
 .statusbar-ind-group {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+}
+
+/* Volná zóna na konci stavového řádku: nápověda k nástroji (vlevo) a název
+   projektu (vpravo). flex-basis 0 → bere jen zbylé volné místo, takže ostatní
+   položky se kvůli ní neposunou ani nepřejdou na další řádek. Záporný margin
+   vyruší mezeru `gap` navíc, padding ji vrátí jako odsazení obsahu. Texty se
+   zkracují „…“, celý hint je v title. Selektor s #statusbar kvůli specificitě
+   (desktopové `#statusbar > *` výš jinak přebije flex). */
+#statusbar > .statusbar-fill {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-left: -20px;
+  padding-left: 20px;
+  display: flex;
+  gap: 20px;
+  overflow: hidden;
+}
+#statusHint,
+#statusProject {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#statusHint {
+  flex: 0 1 auto;
+  color: var(--ctp-overlay0);
+}
+#statusProject {
+  flex: 0 1000 auto;
+  margin-left: auto;
 }
 
 .statusbar-btn {

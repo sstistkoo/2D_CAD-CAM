@@ -8,6 +8,7 @@ import { updateObjectList, updateProperties, updateLayerList, updateStatusProjec
 import { calculateAllIntersections } from '../geometry.js';
 import { saveProjectToDB, loadProjectFromDB, deleteProjectFromDB, getAllProjects, setMeta, getMeta } from '../idb.js';
 import { deepClone, expandPolylineObjects } from '../utils.js';
+import { saveSettings } from './settingsStore.js';
 
 // ── Pomocné funkce ──
 
@@ -36,6 +37,7 @@ function _buildProjectData() {
     machineType: state.machineType,
     xDisplayMode: state.xDisplayMode,
     flipX: state.flipX,
+    flipZ: state.flipZ,
     mirrorPreview: state.mirrorPreview,
     showContourGaps: state.showContourGaps,
     layers: state.layers,
@@ -126,6 +128,7 @@ function _loadProjectData(data) {
 export async function saveProject({ quiet = false } = {}) {
   const data = _buildProjectData();
   await setMeta('currentProjectData', data);
+  saveSettings();
   await _saveToProjects(state.projectName, data);
   showToast("Projekt uložen", undefined, { quiet });
   updateStatusProject();

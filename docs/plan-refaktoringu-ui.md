@@ -1,10 +1,150 @@
 # Plán: rozdělení `js/ui.js`
 
-> Stav 16. 10. 2026: **5 312 ř.**, strop v `tests/file-size-budget.test.js` = 5 312 (+15).
+> **HOTOVO 16. 10. 2026:** `ui.js` 5 312 → **156 ř.** (rozcestník), kód v 16 modulech
+> `js/ui/` + balíku `js/ui/properties/` (6 souborů). Po opravě č. 10 (ukládání
+> nastavení přesunuto do `js/storage/settingsStore.js`) **128 ř.**, strop
+> v `file-size-budget` = 128.
+> „Nalezené chyby" níž: všech 10 opraveno 16. 10. (č. 7–10 nalezeny při opravách).
+>
+> Výchozí stav 16. 10. 2026: **5 312 ř.**, strop v `tests/file-size-budget.test.js` = 5 312 (+15).
 > Zadal uživatel 16. 10. jako samostatnou práci na nové sezení (CLAUDE.md:
 > refaktoring obřího souboru = vědomé rozhodnutí). Postup stejný jako u
 > simulátoru (`docs/plan-rozdeleni-cam-simulatoru.md`) a `geometry.js`
 > (7b0622c): **od toho, u čeho nejméně hrozí, že něco přestane fungovat**, a s testy.
+
+## Stav
+
+| Krok | Commit | ui.js po kroku | Test |
+|---|---|---|---|
+| Fáze 0 — pojistky | `test(ui): pojistky…` | 5 312 | `ui-api` (exporty, bridge, 92 listenerů, DOM při načtení, stráže) |
+| 1a poznámky → `js/ui/notesDialog.js` | `refactor(ui): poznámky…` | 4 947 | `ui-notes` |
+| 1d kalkulačka → `js/ui/calculator.js` (+ `initCalcButtons()`) | `refactor(ui): kalkulačka…` | 4 437 | `ui-calculator` |
+| 1c Trigonometrie → `js/ui/trigCalc.js` | `refactor(ui): Trigonometrie…` | 4 216 | `ui-trig` |
+| 1b spouštěcí tlačítka → `js/ui/launchers.js` (+ `initLauncherButtons()`) | `refactor(ui): spouštěcí tlačítka…` | 4 162 | `ui-launchers` |
+| 1e výběr barvy → `js/ui/colorPicker.js` | `refactor(ui): výběr barvy…` | 3 709 | `ui-color-picker` |
+| 2b-1 dialogy mřížky a úhlu → `js/ui/gridAngleDialogs.js` | `refactor(ui): dialogy mřížky…` | 3 620 | `ui-grid-angle-dialogs` |
+| 2b-2 nulový bod → `js/ui/nullPoint.js` (+ `initNullPointButtons()`) | `refactor(ui): nulový bod…` | 3 456 | `ui-null-point` |
+| 2b-3 Smazat vše + historie → `js/ui/drawingHistory.js` (+ `initClearAllButton()`) | `refactor(ui): Smazat vše a historie…` | 3 300 | `ui-drawing-history` |
+| 2a Nastavení → `js/ui/settingsDialog.js` | `refactor(ui): Nastavení…` | 2 797 | `ui-settings` |
+| 2c průsečíky + `togglePanel` → `js/ui/intersectionList.js` | `refactor(ui): seznam průsečíků…` | 2 648 | `ui-intersection-list` |
+| 2d vrstvy → `js/ui/layerList.js` (+ `initLayerButtons()`) | `refactor(ui): seznam vrstev…` | 2 529 | `ui-layer-list` |
+| 2e seznam objektů → `js/ui/objectList.js`, skok do CNC → `js/ui/cncJump.js` | `refactor(ui): seznam objektů…` | 1 873 | `ui-object-list` |
+| 3a lišta, `setTool`, hinty, přídavek → `js/ui/toolbar.js` (+ `initToolbar()`) | `refactor(ui): lišta nástrojů…` | 1 579 | `ui-toolbar` |
+| 3b přepínače stavového řádku → `js/ui/statusButtons.js` (+ `initStatusButtons()`) | `refactor(ui): přepínače stavového řádku…` | 1 338 | `ui-status-buttons` |
+| 3c název projektu, nápověda, motiv → `js/ui/helpTheme.js` (+ `initHelpButtons()`) | `refactor(ui): nápověda a motiv…` | 1 272 | `ui-help-theme` |
+| 4-0 charakterizace panelu vlastností (generativní, 16 scénářů / 190 akcí) | `test(ui): charakterizace panelu vlastností…` | 1 272 | `ui-properties` |
+| 4 panel vlastností → `js/ui/properties/` (kostra `index.js` + `line`, `arcCircle`, `rect`, `polyline`, `text`) | `refactor(ui): panel vlastností…` | **156** | `ui-properties` |
+
+1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
+se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
+`getCalcLastResult()` (jediná změněná řádka mimo hlavičky/importy).
+`_lastFocusedInput` (píše ho focusin listener při načtení, čte `openCalculator`)
+je stav modulu `calculator.js`, listener v `initCalcButtons()`.
+
+1b: místo samotné `openDrawCncEditor` (4 ř.) celý souvislý blok listenerů
+spouštěcích tlačítek (CNC kalkulačky, Trigonometrie, ✏️ Editor, VK/číselné
+zadání, CAM, AI, 📝) — čte jen importy a nic zvenku ho nečte. ui.js tím
+přestal importovat `cnc-calcs.js`, `combinedModal.js`, `aiPanel.js`;
+pořadí vyhodnocení modulů s kódem při načtení (od `app.js`) ověřeno
+nástrojem níž — beze změny.
+
+Pořadí vyhodnocení: post-order DFS přes statické importy od `js/app.js`
+(jako prohlížeč), vypsat moduly s kódem při načtení a porovnat s commitem
+před rozdělením (0bc0338). Přesun importu nesmí přeskládat moduly s kódem
+při načtení. (Skript ve scratchpadu sezení, babel parser — snadno znovu.)
+
+2b se dělala před 2a a ve třech modulech (`gridAngleDialogs`, `nullPoint`,
+`drawingHistory`): Nastavení volá neexportovanou `showHistoryDialog` — po 2b
+ji bere ze sourozeneckého `./drawingHistory.js`, export ui.js se neměnil.
+
+3b: funkce byly v ui.js prokládané kódem při načtení. Blok se rozdělil podle
+AST (každý příkaz i s komentáři nad ním): deklarace funkcí na úroveň modulu,
+ostatní příkazy v původním pořadí do `initStatusButtons()`; kontrola proložením
+zpět = původní text. Deklarace se vyzvednou, takže na jejich pořadí nezáleží.
+
+Fáze 4: měření (AST) ukázalo, že žádná větev `switch (obj.type)` nepřepisuje
+sdílené lokální proměnné — všechny jen čtou `obj`, `tbody`, `H`, `V` a pomocníky
+řádků. Každá větev je jeden blok s jediným `break` na konci → tělo bloku doslova
+(jen o 4 mezery méně odsazené, řádky uvnitř víceřádkového template literalu beze
+změny) jako `export function xProps({ obj, tbody, … })`; kostra volá `xProps(ctx)`.
+Bod (3 ř.) zůstal v kostře. Kontrola: větve zpět = původní řádky, diff kostry
+jen `export` u `_afterGeomEdit`, řádek `ctx` a volání větví.
+
+Při stěhování: `npm run sw` spouštět s `LC_ALL=cs_CZ.UTF-8` (generátor řadí
+`localeCompare` podle systému — v C locale přeskládá „ch…" soubory a diff sw.js
+se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvislý
+úsek `git show HEAD:js/ui.js`.
+
+## Nalezené chyby (opravit zvlášť, ne při stěhování)
+
+1. ✅ **Opraveno 16. 10.** — **Poznámky: Escape v poli Hledat zavřel celé okno**,
+   ne jen lištu hledání (keydown bublal na `document` k ESC `makeOverlay`
+   / `events.js`). Při opravě se našla horší příčina: po prvním napsaném znaku
+   `doSearch` přesunul fokus do editoru a **další písmena přepsala označený
+   nález v poznámce** (Escape pak přicházel už z editoru). Teď: psaní a Enter
+   v poli hledání nechají fokus v poli (nález se v editoru označí a posune),
+   Escape zavře jen lištu a vrátí fokus do editoru na označený nález; ▲/▼
+   přejdou do editoru jako dřív. Test `ui-notes`.
+2. ✅ **Opraveno 16. 10.** — **Výběr barvy: každé otevření přidalo na `window`
+   listenery `mousemove` a `mouseup`** (tažení v SV ploše) a nikdy je neodebralo.
+   Teď se odeberou přes `onOverlayRemoved`, ať se okno zavře jakkoli. Test
+   `ui-color-picker` (počítá aktivní listenery po všech cestách zavření).
+3. ✅ **Opraveno 16. 10.** — **Mrtvé odkazy na tlačítka:** `btnSnapGrid`,
+   `btnAngleSnap`, `btnSnapPts`, `btnDims`, `btnCoordMode`, `btnXDisplay`,
+   `btnMachineType`, `btnHistory`, `btnSettings`, `btnCalcInt` nejsou
+   v `index.html` (ui.js na ně věší listenery přes `?.`). Všechny funkce kromě
+   dvou mají náhradu (indikátory `.coord-ind`, klávesa S, Nastavení, automatický
+   výpočet průsečíků). **Dialogy Velikost mřížky a Krok úhlového snapu** šly
+   otevřít jen pravým klikem na chybějící `btnSnapGrid`/`btnAngleSnap`. Teď
+   pravý klik na indikátory # / ∠ ve stavovém řádku (desktop; na mobilu je
+   dlouhé podržení přesný ukazatel a hodnoty jsou v Nastavení). Dialogy po
+   změně překreslí, obnoví indikátory a uloží nastavení (dřív jen do paměti).
+   Odkazy na chybějící tlačítka zůstaly — nic nedělají a nevadí. Testy
+   `ui-status-buttons`, `ui-grid-angle-dialogs`.
+4. ✅ **Opraveno 16. 10.** — **Nulový bod: toast po nastavení ukazoval „ΔX: 0 ΔZ: 0"**
+   místo souřadnic bodu (`fmtStatusCoords` až po přepnutí do INC vůči právě
+   nastavenému bodu). Teď se poloha formátuje v ABS předem. Test `ui-null-point`.
+5. ✅ **Opraveno 16. 10.** — **Hinty ani název projektu se nikde nezobrazovaly:**
+   `setHint` / `resetHint` (19 importérů) zapisují do `#statusHint`
+   a `updateStatusProject` do `#statusProject` — ani jeden prvek v `index.html`
+   nebyl. Teď jsou ve „volné zóně" na konci stavového řádku (`flex-basis: 0`:
+   bere jen zbylé místo, ostatní položky se neposunou — ověřeno polohami při
+   1000–1600 px); texty se zkracují „…", celý hint v `title`. Při 1280–1440 px
+   je místa málo (hint zkrácený / skrytý), od ~1600 px celý. Na mobilu je
+   stavový řádek skrytý jako dřív. Testy `ui-toolbar`, `ui-help-theme`.
+6. ✅ **Opraveno 16. 10.** — **Auto-uložení rozkreslené kontury při přepnutí
+   nástroje dělalo dva záznamy Zpět** (`setTool` volal `pushUndo()` a `addObject()`
+   ho volá znovu — první Zpět vrátilo konturu, druhé nic). Nadbytečný
+   `pushUndo()` v `js/ui/toolbar.js` odebrán. Test `ui-toolbar`.
+7. ✅ **Opraveno 16. 10.** — **Výběr barvy: puštění myši mimo dialog po tažení
+   (SV plocha, posuvníky) picker zrušilo** i s barvou — `click` po tažení vznikne
+   na společném předkovi, pozadí overlaye. Teď „klik mimo" zruší jen tehdy, když
+   i stisk začal na pozadí (`pointerdown`). Test `ui-color-picker`.
+8. ✅ **Opraveno 16. 10.** — **Totéž ve všech oknech:** označení textu v poli
+   (nebo tažení posuvníku) z okna ven a puštění nad pozadím okno zavřelo —
+   Nastavení, kalkulačky, poznámky, vstupní dialogy, nápověda, dialogy CAM
+   simulátoru, okna editorů. Nalezeno při č. 7. Společný helper
+   `closeOnBackdropClick()` v `js/dialogFactory.js` (zavře jen se stiskem na
+   pozadí) nahradil všech 25 míst (13 v CAM simulátoru); `tests/dialog-backdrop.test.js` hlídá, že
+   v `js/` žádné nové okno nezavírá klikem na pozadí bez něj.
+9. ✅ **Opraveno 16. 10.** — **Tlačítka stavového řádku pod pravým panelem:**
+   na desktopu je `#sidebar` fixed přes celou výšku a překrývá i stavový řádek;
+   při šířce okna pod ~1250 px pod ním zmizelo ⚙️ Nastavení, pod ~1050 px i
+   ✏️ Editor a ✏️ VK (nešly použít). Nalezeno při č. 5. Obsah stavového řádku
+   teď končí u okraje panelu a položky, které se nevejdou, přejdou celé na
+   druhý řádek. Při šířce ≥ 1280 px beze změny. `tests/statusbar-layout.test.js`
+   (stráž CSS), rozložení ověřeno v prohlížeči.
+10. ✅ **Opraveno 16. 10.** — **Nastavení se po obnovení stránky ztrácelo:**
+   ukládalo se jen do rozkresleného výkresu a `tryAutoLoad` (app.js) ho
+   obnovilo jen s neprázdným výkresem — po „Smazat vše" nebo na čisté stránce
+   zmizelo. Tolerance úhlového snapu, snap k bodům a otočení osy Z se
+   neukládaly vůbec, otočení os a náhled zrcadlení se při startu neobnovily
+   a přepínače z klávesnice (S, D, N, I…) se neukládaly. Teď vlastní
+   `js/storage/settingsStore.js` (localStorage `skica-settings`, synchronně —
+   stihne se i při obnovení stránky), obnoví se vždy; starší data se vezmou
+   z uloženého výkresu. Projekt nese i `flipZ` (dřív se při otevření
+   vynulovalo). `tests/settings-store.test.js`, ověřeno v prohlížeči
+   (obnovení stránky, Smazat vše, zavření karty, migrace).
 
 ## Co v souboru je (měřeno 16. 10.)
 

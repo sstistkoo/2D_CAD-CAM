@@ -41,7 +41,13 @@ index.html
 │   ├── toolLibrary.js     # Správa toolů
 │   ├── stockTools.js      # Pomocné nástroje pro soustruh
 │   ├── touch.js           # Touch ovládání
-│   ├── ui.js              # Panely, seznamy, property panel
+│   ├── ui.js              # Rozcestník UI — exporty z ui/*.js + kód při načtení
+│   ├── ui/                # UI podle témat (importovat přes ui.js): notesDialog,
+│   │                      #   calculator, trigCalc, launchers, colorPicker, gridAngleDialogs,
+│   │                      #   nullPoint, drawingHistory, settingsDialog, intersectionList,
+│   │                      #   layerList, objectList, cncJump, toolbar, statusButtons,
+│   │                      #   helpTheme, properties/ (kostra index.js + line, arcCircle,
+│   │                      #   rect, polyline, text)
 │   ├── dialogs/           # Ovládací prvky
 │   ├── tools/             # Registry nástrojů (handle*Click)
 │   ├── calculators/       # CAM generátory, g-code, nápověda, ... │   ├── lib/                # Font loader (DXF text)
@@ -82,7 +88,15 @@ bridge.updateObjectList = () => updateObjectList();
 
 Bridge se inicializuje při startu v:
 - `js/events.js` – nástroje (`handleLineClick`, `measureSelection`, ...)
-- `js/ui.js` – UI aktualizace (`updateObjectList`, `renderAll`, ...)
+- `js/ui.js` – UI aktualizace (`updateObjectList`, `renderAll`, ...). Od 16. 10. 2026
+  rozcestník — kód je v `js/ui/*.js` podle témat (`docs/plan-refaktoringu-ui.md`);
+  `ui.js` má stejné exporty jako dřív a kód při načtení (bridge, listenery) v
+  původním pořadí — moduly mají `initXxx()` a ui.js je volá. Panel vlastností:
+  `js/ui/properties/index.js` (kostra) + větve podle typu (`line.js` …), které
+  dostávají `ctx` (`obj`, `tbody`, `H`, `V`, pomocníci řádků). Nový kód do modulu
+  svého tématu, v ui.js jen import / export / `initXxx()`. Zvenku importovat jen z `ui.js`, nikdy z `js/ui/*` (12 testů mockuje
+  `../js/ui.js`). Moduly v `js/ui/` nemají kód při načtení — listenery věší
+  `ui.js`. Hlídá `tests/ui-api.test.js` (exporty, bridge, pořadí listenerů).
 - `js/geometry.js` – geometrické operace (`calculateAllIntersections`); od 16. 10. 2026
   rozcestník — kód je v `js/geometry/*.js` podle témat (výběr klikem, hit-test,
   průsečíky + odložený CNC export, tečny, tečné kružnice/Apollonius, přímky +
@@ -1355,6 +1369,7 @@ Segment {
 | Modul | Účel |
 |-------|------|
 | `storage/autoSave.js` | Automatické ukládání do IndexedDB |
+| `storage/settingsStore.js` | Nastavení aplikace zvlášť od výkresu (localStorage `skica-settings`, synchronně — stihne se i při `pagehide`): `SETTINGS_KEYS` + kontrola hodnot, `saveSettings` (volá `persistSettings` v ui.js, `saveProject`, skrytí/zavření stránky), `restoreSettings(currentProjectData)` při startu vždy (chybějící klíče z výkresu = migrace starších dat). Nové nastavení ve `state` přidat do jeho `SCHEMA`, jinak se neuloží. Test `settings-store` |
 | `storage/projectManager.js` | CRUD projektů, seznamy |
 | `storage/fileIO.js` | Import/export souborů |
 | `storage/exportImage.js` | Export PNG / SVG (SVG geometrie přes Maker.js) |

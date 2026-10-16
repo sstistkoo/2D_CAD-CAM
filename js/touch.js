@@ -168,11 +168,11 @@ const DIM_IND_TITLE = { all: 'vše', intersections: 'pouze průsečíky', dimens
 export function updateCoordBarIndicators() {
   document.querySelectorAll(".ind-grid").forEach(el => {
     el.classList.toggle("active", !!state.snapToGrid);
-    el.title = `Mřížka (snap): ${state.snapToGrid ? 'ON' : 'OFF'} (${state.gridSize}) – klik přepne`;
+    el.title = `Mřížka (snap): ${state.snapToGrid ? 'ON' : 'OFF'} (${state.gridSize}) – klik přepne, pravý klik: velikost mřížky`;
   });
   document.querySelectorAll(".ind-angle").forEach(el => {
     el.classList.toggle("active", !!state.angleSnap);
-    el.title = `Úhlový snap: ${state.angleSnap ? 'ON' : 'OFF'} (${state.angleSnapStep}°) – klik přepne`;
+    el.title = `Úhlový snap: ${state.angleSnap ? 'ON' : 'OFF'} (${state.angleSnapStep}°) – klik přepne, pravý klik: krok úhlu`;
   });
   const dm = state.showDimensions;
   document.querySelectorAll(".ind-dims").forEach(el => {

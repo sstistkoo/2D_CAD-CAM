@@ -67,6 +67,10 @@ Herní nástroje seskupené do sekcí:
 - Indikátory mřížky/úhlu/kót (# ∠ 📐) – vypnutá funkce je ztlumená, ne skrytá
 - Tlačítka: ⊕ Centr (vycentrovat výkres), 🔢 (zadání objektu – číselně / VK
   kontura), ⚙️ Nastavení
+- Na konci lišty (do volného místa): nápověda k aktuálnímu nástroji (co
+  kliknout) a název projektu. Když se nevejdou, zkrátí se „…“ — celá nápověda
+  je v popisku po najetí myší. Na užším okně přejdou tlačítka i tyhle texty na
+  druhý řádek lišty.
 
 #### Klikací indikátory
 Všechny indikátory (v dolní liště na desktopu i v horní liště na mobilu) jsou
@@ -85,6 +89,12 @@ kvůli přepnutí nemusí otvírat ⚙️ Nastavení:
 Indikátor kót nese i písmeno aktuálního režimu: **📐V** vše, **📐P** průsečíky,
 **📐K** kóty, **📐–** skryté. Popisek (tooltip, na mobilu i precision pointer)
 vždy ukazuje aktuální hodnotu a co klik udělá.
+
+**Pravý klik** na **#** nebo **∠** v dolní liště (desktop) otevře dialog
+*Velikost mřížky*, resp. *Krok úhlového snapu* (předvolby 15/30/45/90°, vlastní
+krok a tolerance přichycení). Na mobilu je dlouhé podržení vyhrazené přesnému
+ukazateli — velikost mřížky a krok úhlu se tam nastaví v ⚙️ Nastavení →
+# Mřížka a snap.
 
 ### Mobilní ovládání
 - Spodní lišta s hlavními tlačítky
@@ -1703,6 +1713,11 @@ Nastavení API klíčů: ☰ → **Nastavení** → **AI nastavení**
 ### Automatické ukládání
 - Projekt se ukládá do **IndexedDB** každých 2 sekundy po změně
 - Při zavření/znovu otevření se obnoví automaticky
+- **Nastavení** (mřížka, snapy, krok a tolerance úhlu, kóty, motiv, R/⌀,
+  ABS/INC, typ stroje, otočení os, desetinná místa…) se ukládá **zvlášť od
+  výkresu** — hned po změně i při zavření stránky — a po znovuotevření se
+  obnoví vždy, i když je výkres prázdný. Otevřený projekt přinese svoje
+  nastavení (typ stroje, osy, snapy) a to pak platí dál.
 
 ### Uložit jako
 1. Klikni **☰** → **Uložit projekt**

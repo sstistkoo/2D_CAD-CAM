@@ -4,6 +4,7 @@
 // z camSimulator.js (blok „Modal ⚙️ Geometrie", docs/plan-rozdeleni-cam-
 // simulatoru.md) — stav simulátoru a jeho funkce se předávají parametrem;
 // stav okna (zoom, záložka, režimy kreslení) žije v closure jednoho otevření.
+import { closeOnBackdropClick } from '../../../dialogFactory.js';
 import { state, showToast } from '../../../state.js';
 import { catalogSizeRowHTML } from '../catalogInsertSize.js';
 import { createHolderCadDraw } from './holderCadDraw.js';
@@ -60,7 +61,7 @@ export function createToolGeometryDialog({ S, toolUi, overlay, escAttr, pushHist
     // to řeší state._toolCleanup zaregistrovaný při startu kreslení).
     function onKeyDown(e) { if (e.key === 'Escape' && !state.holderDrawMode) closeDialog(); }
     document.addEventListener('keydown', onKeyDown);
-    dlg.addEventListener('click', e => { if (e.target === dlg) closeDialog(); });
+    closeOnBackdropClick(dlg, () => closeDialog());
 
     function clampZoom(z) { return Math.max(0.4, Math.min(12, z)); }
     function resetView() { viewZoom = 1; viewPanX = 0; viewPanY = 0; redrawCanvas(); }

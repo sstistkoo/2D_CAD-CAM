@@ -2,6 +2,7 @@
 // natočení celého nože, strana obrysu držáku (kreslení od bodu destičky).
 // Vyňato z toolGeometryDialog.js (docs/plan-rozdeleni-cam-simulatoru.md) —
 // okno a stav se předávají parametrem.
+import { closeOnBackdropClick } from '../../../dialogFactory.js';
 import { showToast } from '../../../state.js';
 import { chamferProfileCorner, wireAngleCompass } from '../insertPreview.js';
 
@@ -51,7 +52,7 @@ export function createGeomPopups({ S, pushHistory, applyChange, geomUi, redrawCa
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') apply(); });
     angInp.addEventListener('keydown', e => { if (e.key === 'Enter') apply(); });
     popup.querySelector('#geom-chamfer-cancel').addEventListener('click', () => popup.remove());
-    popup.addEventListener('click', e => { if (e.target === popup) popup.remove(); });
+    closeOnBackdropClick(popup, () => popup.remove());
     inp.focus(); inp.select();
   }
 
@@ -95,7 +96,7 @@ export function createGeomPopups({ S, pushHistory, applyChange, geomUi, redrawCa
       applyChange();
     });
     popup.querySelector('#geom-rotate-close').addEventListener('click', () => popup.remove());
-    popup.addEventListener('click', e => { if (e.target === popup) popup.remove(); });
+    closeOnBackdropClick(popup, () => popup.remove());
   }
 
   // Jako showRotateToolPopup, ale natáčí CELÝ NŮŽ (destička + držák) —
@@ -135,7 +136,7 @@ export function createGeomPopups({ S, pushHistory, applyChange, geomUi, redrawCa
       applyChange();
     });
     popup.querySelector('#geom-knife-close').addEventListener('click', () => popup.remove());
-    popup.addEventListener('click', e => { if (e.target === popup) popup.remove(); });
+    closeOnBackdropClick(popup, () => popup.remove());
   }
 
   // Popup pro přidávání bodů jedné strany obrysu držáku — Délka + Polární
@@ -214,7 +215,7 @@ export function createGeomPopups({ S, pushHistory, applyChange, geomUi, redrawCa
     });
     const finishSide = () => { geomUi.currentDrawSide = null; popup.remove(); redrawCanvas(); };
     popup.querySelector('#geom-side-done').addEventListener('click', finishSide);
-    popup.addEventListener('click', e => { if (e.target === popup) finishSide(); });
+    closeOnBackdropClick(popup, () => finishSide());
     lenInp.focus();
   }
 

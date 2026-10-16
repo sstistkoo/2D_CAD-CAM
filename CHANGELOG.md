@@ -9,6 +9,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Nastavení se po obnovení stránky už neztrácí.** Ukládalo se jen spolu
+  s rozkresleným výkresem a obnovilo se jen tehdy, když výkres nebyl prázdný —
+  po „Smazat vše" nebo bez výkresu se vrátilo na výchozí. Tolerance úhlového
+  snapu, snap k bodům a otočení osy Z se neukládaly vůbec, otočení os
+  a náhled zrcadlení se při startu neobnovily a přepnutí klávesou (S, D, N,
+  I…) se neuložilo. Teď se nastavení ukládá zvlášť od výkresu (hned po
+  změně, při autosave i při zavření nebo obnovení stránky) a při startu se
+  obnoví vždy; nastavení ze starší verze se převezme z uloženého výkresu.
+  Projekt nově nese i otočení osy Z. `js/storage/settingsStore.js`, test
+  `settings-store`.
+
+- **Dolní lišta ukazuje nápovědu k nástroji a název projektu.** Obojí se
+  zapisovalo do prvků, které v aplikaci nebyly. Teď jsou na konci dolní lišty
+  ve volném místě (ostatní položky se neposunou); když se nevejdou, zkrátí se
+  „…“ a celá nápověda je v popisku. `index.html`, `css/style.css`, testy
+  `ui-toolbar`, `ui-help-theme`.
+- **Tlačítka v dolní liště už nemizí pod pravým panelem.** Při užším okně
+  (pod ~1250 px) se ⚙️ Nastavení, při ještě užším i ✏️ Editor a ✏️ VK
+  schovaly pod pravý panel a nedaly se použít. Dolní lišta teď končí u okraje
+  panelu a co se nevejde, přejde na druhý řádek. `css/style.css`, test
+  `statusbar-layout`.
+- **Dialogy Velikost mřížky a Krok úhlového snapu jdou zase otevřít.** Šly
+  jen pravým klikem na tlačítka snapu, která v aplikaci nejsou. Teď pravý
+  klik na indikátor **#** / **∠** v dolní liště (desktop). Po změně se mřížka
+  překreslí, indikátor ukáže novou hodnotu a nastavení se uloží (dřív zůstalo
+  jen v paměti). `js/ui/statusButtons.js`, `js/ui/gridAngleDialogs.js`,
+  testy `ui-status-buttons`, `ui-grid-angle-dialogs`.
+- **Okna se nezavřou, když tažení z nich skončí nad pozadím.** Označení
+  textu v poli (nebo tažení posuvníku) z okna ven a puštění myši nad tmavým
+  pozadím okno zavřelo — Nastavení, kalkulačky, poznámky, vstupní dialogy,
+  nápověda, dialogy CAM simulátoru i editorů. Klik na pozadí teď okno zavře
+  jen tehdy, když i stisk začal na pozadí. Společný `closeOnBackdropClick()`
+  v `js/dialogFactory.js`, test `dialog-backdrop`.
+- **Výběr barvy: tažení puštěné mimo okno ho už nezruší.** Po tažení
+  v barevné ploše nebo posuvníku (odstín, tloušťka, průhlednost) a puštění
+  myši nad pozadím se okno zavřelo a barva se vrátila. Klik mimo okno teď
+  zruší výběr jen tehdy, když i stisk začal mimo okno. `js/ui/colorPicker.js`,
+  test `ui-color-picker`.
+- **Kontura uložená přepnutím nástroje jde vrátit jedním Zpět.** Rozkreslená
+  kontura se při přepnutí na jiný nástroj uloží; dřív k tomu vznikly dva
+  záznamy Zpět (první konturu vrátil, druhý nic). `js/ui/toolbar.js`, test
+  `ui-toolbar`.
+- **Nulový bod: hláška ukazuje polohu bodu.** Po nastavení nulového bodu
+  hláška vždy psala „Nulový bod: ΔX: 0 ΔZ: 0" (souřadnice se formátovaly až
+  vůči právě nastavenému bodu). Teď ukáže absolutní polohu, např.
+  „Nulový bod: X: 4 Z: 12 ∠15°". `js/ui/nullPoint.js`, test `ui-null-point`.
+- **Výběr barvy: nehromadí listenery při každém otevření.** Každé otevření okna
+  výběru barvy (barva vrstvy, objektu, Vybarvit) přidalo na `window` dva
+  listenery pro tažení v ploše a už je neodebralo. Teď se odeberou při zavření
+  okna. `js/ui/colorPicker.js`, test `ui-color-picker`.
+- **Poznámky: hledání už nepřepisuje text poznámky a Escape nezavře okno.**
+  Po prvním napsaném znaku v poli Hledat skočil kurzor do poznámky a další
+  písmena přepsala označený nález (hledání „ahoj" v „ahoj světe" udělalo
+  „hojhoj světe"). Psaní a Enter teď zůstávají v poli hledání (nález se
+  v poznámce označí a posune), Escape zavře jen lištu hledání a vrátí kurzor
+  na označený nález — dřív zavřel celé okno. `js/ui/notesDialog.js`, test
+  `ui-notes`.
 - **CAM čelně, kulatá: do plného materiálu pod úhlem zanoření, ne kolmo.**
   Průchod jde do plného materiálu nejvýš o ap·tan(úhel zanoření) pod dno
   předchozí vrstvy (při 45° o ap), další zase o ap níž (pravidlo 6). Dřív pod
@@ -83,6 +140,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Rozdělení `js/ui.js`** (5 312 ř.) do `js/ui/` (`docs/plan-refaktoringu-ui.md`).
+  Kód přesunutý beze změny, `ui.js` zůstává rozcestníkem (156 ř.) se stejnými
+  exporty a s kódem při načtení (bridge, listenery) v původním pořadí — moduly
+  v `js/ui/` mají `initXxx()`. 16 modulů + balík: poznámky, kalkulačka, Trigonometrie,
+  spouštěcí tlačítka, výběr barvy, dialogy mřížky/úhlu, nulový bod, Smazat vše
+  a historie, Nastavení, průsečíky, vrstvy, seznam objektů, skok do CNC kódu,
+  lišta nástrojů, přepínače stavového řádku, nápověda a motiv a panel vlastností
+  (`js/ui/properties/`: kostra + větve podle typu objektu). Pojistky
+  `tests/ui-api.test.js` + harness `tests/helpers/uiDom.mjs` (exporty, klíče
+  `bridge`, pořadí listenerů při načtení, stráže importů a kódu při načtení)
+  a 16 charakterizačních testů `tests/ui-*.test.js` (panel vlastností
+  generativně: 16 scénářů, 190 akcí), všechny psané a ověřené na kódu před
+  přesunem. Nalezené chyby (neopraveno, zapsáno v plánu): Escape v hledání
+  poznámek zavře okno, únik listenerů výběru barvy, tlačítka bez prvků
+  v `index.html` (dialogy mřížky/úhlu nedosažitelné, hinty a název projektu se
+  nezobrazují), toast nulového bodu „ΔX: 0 ΔZ: 0", dvojí Zpět při auto-uložení
+  kontury.
 - **Rozdělení `js/geometry.js`** (2 554 ř.) do `js/geometry/` podle témat
   (výběr klikem, hit-test, průsečíky, tečny, tečné kružnice, přímky + offset,
   transformace, zaoblení/sražení). Kód přesunutý beze změny, `geometry.js`

@@ -3,6 +3,7 @@
 // hloubku H, úhel profilu) a přepne na záložku Závit. Vyňato z camSimulator.js
 // (blok „thread picker dialog", docs/plan-rozdeleni-cam-simulatoru.md) —
 // stav simulátoru a jeho funkce se předávají parametrem.
+import { closeOnBackdropClick } from '../../../dialogFactory.js';
 import { showToast } from '../../../state.js';
 import { threadProfileDepth } from '../threadHelpers.js';
 import { isoThreadInsertByCode } from '../../isoThreadInserts.js';
@@ -95,7 +96,7 @@ export function createThreadPicker({ S, pushHistory, autoPickToolFor, applyChang
 
     filterEl.addEventListener('input', renderRows);
     dlg.querySelector('#thr-pick-close').addEventListener('click', () => dlg.remove());
-    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.remove(); });
+    closeOnBackdropClick(dlg, () => dlg.remove());
     renderTypes(); renderRows();
     filterEl.focus();
   }

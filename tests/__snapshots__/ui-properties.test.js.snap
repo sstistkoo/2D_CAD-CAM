@@ -1,0 +1,5265 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`panel vlastností > arc: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Oblouk",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Oblouk 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Oblouk",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Oblouk",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Oblouk 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Oblouk",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Oblouk 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Oblouk",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Oblouk 1>",
+      ],
+      "prvek": "input[text] „S.ZS.XrStart°Konec°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.cx": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Oblouk",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Oblouk 1>",
+      ],
+      "prvek": "input[text] „S.ZS.XrStart°Konec°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.cy": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Oblouk",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Oblouk 1>",
+      ],
+      "prvek": "input[text] „S.ZS.XrStart°Konec°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.r": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Oblouk",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Oblouk 1>",
+      ],
+      "prvek": "input[text] „S.ZS.XrStart°Konec°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.startAngle": 0.122173,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Oblouk",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Oblouk 1>",
+      ],
+      "prvek": "input[text] „S.ZS.XrStart°Konec°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.endAngle": 0.122173,
+      },
+      "zpet": 1,
+    },
+  ],
+  "panel": [
+    "Typ │ Oblouk",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Oblouk 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "<text 5.000> <text 2.000> <text 4.000> <text 0.00> <text 90.00>",
+  ],
+}
+`;
+
+exports[`panel vlastností > circle: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kružnice",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Kružnice 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kružnice",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Kružnice",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kružnice 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kružnice",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kružnice 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kružnice",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kružnice 1>",
+      ],
+      "prvek": "input[text] „S.ZS.Xr⌀8.000Obvod25.133" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.cx": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kružnice",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kružnice 1>",
+      ],
+      "prvek": "input[text] „S.ZS.Xr⌀8.000Obvod25.133" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.cy": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kružnice",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kružnice 1>",
+      ],
+      "prvek": "input[text] „S.ZS.Xr⌀8.000Obvod25.133" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.r": 7,
+      },
+      "zpet": 1,
+    },
+  ],
+  "panel": [
+    "Typ │ Kružnice",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Kružnice 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "<text 5.000> <text 2.000> <text 4.000>",
+  ],
+}
+`;
+
+exports[`panel vlastností > constr: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "input[radio] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout false",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x1": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y1": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "input[checkbox] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "input[radio] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "input[checkbox] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 6.26072,
+        "0.y2": 3.131036,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Konstrukční",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Konstrukční 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 11.096666,
+        "0.y2": 1.362499,
+      },
+      "zpet": 1,
+    },
+  ],
+  "panel": [
+    "Typ │ Konstrukční",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Konstrukční 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "<radio propAnchor=1 ✓> <text 0.000> <text 0.000> <checkbox> <radio propAnchor=2> <text 10.000> <text 5.000> <checkbox> <text 11.180> <text 26.57>",
+  ],
+}
+`;
+
+exports[`panel vlastností > line: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[radio] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout false",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x1": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y1": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[checkbox] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[radio] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[checkbox] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 6.26072,
+        "0.y2": 3.131036,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 11.096666,
+        "0.y2": 1.362499,
+      },
+      "zpet": 1,
+    },
+  ],
+  "panel": [
+    "Typ │ Úsečka",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Úsečka 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "<radio propAnchor=1 ✓> <text 0.000> <text 0.000> <checkbox> <radio propAnchor=2> <text 10.000> <text 5.000> <checkbox> <text 11.180> <text 26.57>",
+  ],
+}
+`;
+
+exports[`panel vlastností > line-inc: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[radio] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout false",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x1": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y1": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[checkbox] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[radio] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[checkbox] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 6.26072,
+        "0.y2": 3.131036,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 11.096666,
+        "0.y2": 1.362499,
+      },
+      "zpet": 1,
+    },
+  ],
+  "panel": [
+    "Typ │ Úsečka",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Úsečka 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "<radio propAnchor=1 ✓> <text 0.000> <text 0.000> <checkbox> <radio propAnchor=2> <text 10.000> <text 5.000> <checkbox> <text 11.180> <text 26.57>",
+  ],
+}
+`;
+
+exports[`panel vlastností > line-karusel-prumer: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[radio] „📌X1Z1 📌X2Z2DélkaÚhel°" change: zaškrtnout false",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌X1Z1 📌X2Z2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x1": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌X1Z1 📌X2Z2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y1": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[checkbox] „📌X1Z1 📌X2Z2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[radio] „📌X1Z1 📌X2Z2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌X1Z1 📌X2Z2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌X1Z1 📌X2Z2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[checkbox] „📌X1Z1 📌X2Z2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌X1Z1 📌X2Z2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 6.26072,
+        "0.y2": 3.131036,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Úsečka 1>",
+      ],
+      "prvek": "input[text] „📌X1Z1 📌X2Z2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 11.096666,
+        "0.y2": 1.362499,
+      },
+      "zpet": 1,
+    },
+  ],
+  "panel": [
+    "Typ │ Úsečka",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Úsečka 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "<radio propAnchor=1 ✓> <text 0.000> <text 0.000> <checkbox> <radio propAnchor=2> <text 10.000> <text 5.000> <checkbox> <text 11.180> <text 26.57>",
+  ],
+}
+`;
+
+exports[`panel vlastností > none: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [],
+  "panel": [
+    "Není vybrán objekt",
+  ],
+}
+`;
+
+exports[`panel vlastností > point: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Bod",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Bod 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Bod",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Bod",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Bod 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Bod",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Bod 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Bod",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Bod 1>",
+      ],
+      "prvek": "input[text] „Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Bod",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Bod 1>",
+      ],
+      "prvek": "input[text] „X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y": 7,
+      },
+      "zpet": 1,
+    },
+  ],
+  "panel": [
+    "Typ │ Bod",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Bod 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "Z │ <text 3.000>",
+    "X │ <text 4.000>",
+  ],
+}
+`;
+
+exports[`panel vlastností > polyline: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "tr „S1" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        0,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[checkbox] „S1" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        0,
+        [
+          [
+            0,
+            [
+              0,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "tr „S2" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[checkbox] „S2" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "tr „S3" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[checkbox] „S3" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V1 X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 7,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V1 Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 7,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V2 X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 7,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V2 Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 7,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V3 X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 7,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V3 Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 7,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V4 X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 7,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V4 Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 7,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+  ],
+  "panel": [
+    "Typ │ Kontura",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Kontura 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "Vrcholů │ 4",
+    "Uzavřená │ Ne",
+    "Celková délka │ 28.828",
+    "Segmentů │ 3 (1 oblouků)",
+    "S1 <checkbox> │ úsečka, 10.00 mm",
+    "S2 <checkbox> │ oblouk, 8.83 mm",
+    "S3 <checkbox> │ úsečka, 10.00 mm",
+    "V1 X │ <text 0.000>",
+    "V1 Z │ <text 0.000>",
+    "V2 X │ <text 10.000>",
+    "V2 Z │ <text 0.000>",
+    "V3 X │ <text 10.000>",
+    "V3 Z │ <text 8.000>",
+    "V4 X │ <text 20.000>",
+    "V4 Z │ <text 8.000>",
+  ],
+}
+`;
+
+exports[`panel vlastností > polyline-segment: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „Start Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 7,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „Start X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 7,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „Konec Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 7,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „Konec X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 7,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „Bulge" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [],
+      ],
+      "vykres": {
+        "0.bulges": [
+          0,
+          7,
+          0,
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "button[submit] „← Zpět na konturu" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+  ],
+  "panel": [
+    "Typ │ Kontura",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Kontura 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "Režim │ Editace segmentu",
+    "Segment │ 2 / 3",
+    "Typ │ Oblouk",
+    "Start Z │ <text 10.000>",
+    "Start X │ <text 0.000>",
+    "Konec Z │ <text 10.000>",
+    "Konec X │ <text 8.000>",
+    "Poloměr │ 5.800",
+    "Délka oblouku │ 8.828",
+    "Střed X │ 5.800",
+    "Střed Z │ 4.000",
+    "Bulge │ <text 0.400>",
+    "<button ← Zpět na konturu>",
+  ],
+}
+`;
+
+exports[`panel vlastností > polyline-segmenty: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "tr „S1" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        0,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[checkbox] „S1" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "tr „S2" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[checkbox] „S2" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "tr „S3" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[checkbox] „S3" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        0,
+        [
+          [
+            0,
+            [
+              0,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V1 X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 7,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V1 Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 7,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V2 X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 7,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V2 Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 7,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V3 X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 7,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V3 Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 7,
+          },
+          {
+            "x": 20,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V4 X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 7,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V4 Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              0,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+          {
+            "x": 20,
+            "y": 7,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+  ],
+  "panel": [
+    "Typ │ Kontura",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Kontura 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "Vrcholů │ 4",
+    "Uzavřená │ Ne",
+    "Celková délka │ 28.828",
+    "Segmentů │ 3 (1 oblouků)",
+    "S1 <checkbox ✓> │ úsečka, 10.00 mm",
+    "S2 <checkbox> │ oblouk, 8.83 mm",
+    "S3 <checkbox ✓> │ úsečka, 10.00 mm",
+    "V1 X │ <text 0.000>",
+    "V1 Z │ <text 0.000>",
+    "V2 X │ <text 10.000>",
+    "V2 Z │ <text 0.000>",
+    "V3 X │ <text 10.000>",
+    "V3 Z │ <text 8.000>",
+    "V4 X │ <text 20.000>",
+    "V4 Z │ <text 8.000>",
+  ],
+}
+`;
+
+exports[`panel vlastností > polyline-uzavrena: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "tr „S1" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        0,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[checkbox] „S1" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        0,
+        [
+          [
+            0,
+            [
+              0,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "tr „S2" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[checkbox] „S2" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "tr „S3" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[checkbox] „S3" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V1 X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 7,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V1 Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 7,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V2 X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 7,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V2 Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 7,
+          },
+          {
+            "x": 10,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V3 X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 7,
+            "y": 8,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Kontura",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Kontura 1>",
+      ],
+      "prvek": "input[text] „V3 Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.vertices": [
+          {
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 0,
+          },
+          {
+            "x": 10,
+            "y": 7,
+          },
+        ],
+      },
+      "zpet": 1,
+    },
+  ],
+  "panel": [
+    "Typ │ Kontura",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Kontura 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "Vrcholů │ 3",
+    "Uzavřená │ Ano",
+    "Celková délka │ 31.145",
+    "Segmentů │ 3 (1 oblouků)",
+    "S1 <checkbox> │ úsečka, 10.00 mm",
+    "S2 <checkbox> │ úsečka, 8.00 mm",
+    "S3 <checkbox> │ oblouk, 13.15 mm",
+    "V1 X │ <text 0.000>",
+    "V1 Z │ <text 0.000>",
+    "V2 X │ <text 10.000>",
+    "V2 Z │ <text 0.000>",
+    "V3 X │ <text 10.000>",
+    "V3 Z │ <text 8.000>",
+  ],
+}
+`;
+
+exports[`panel vlastností > rect: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „📌 Z1" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x1": 7,
+        "0.x2": 37,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „X1" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y1": 7,
+        "0.y2": 17,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „📌 Z2" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x1": -23,
+        "0.x2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „X2" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y1": -3,
+        "0.y2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „Šířka" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „Výška" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „Úhel (°)" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.rotation": 0.122173,
+        "0.x1": -0.721154,
+        "0.x2": 29.278846,
+        "0.y1": 1.790771,
+        "0.y2": 11.790771,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[checkbox] „S1" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        0,
+        [
+          [
+            0,
+            [
+              0,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[checkbox] „S2" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        1,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[checkbox] „S3" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[checkbox] „S4" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        3,
+        [
+          [
+            0,
+            [
+              3,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+  ],
+  "panel": [
+    "Typ │ Obdélník",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Obdélník 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "<radio propRectAnchor=1 ✓> │ <text 0.000>",
+    "X1 │ <text 0.000>",
+    "<radio propRectAnchor=2> │ <text 30.000>",
+    "X2 │ <text 10.000>",
+    "Šířka │ <text 30.000>",
+    "Výška │ <text 10.000>",
+    "<radio propRotPivot=anchor ✓> <radio propRotPivot=center>",
+    "Úhel (°) │ <text 0.00>",
+    "Roh 1: Z=0.000 X=0.000 Roh 2: Z=30.000 X=0.000 Roh 3: Z=30.000 X=10.000 Roh 4: Z=0.000 X=10.000",
+    "S1 <checkbox> │ úsečka, 30.00 mm",
+    "S2 <checkbox> │ úsečka, 10.00 mm",
+    "S3 <checkbox> │ úsečka, 30.00 mm",
+    "S4 <checkbox> │ úsečka, 10.00 mm",
+  ],
+}
+`;
+
+exports[`panel vlastností > rect-strana: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „📌 Z1" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.x1": 7,
+        "0.x2": 37,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „X1" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.y1": 7,
+        "0.y2": 17,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „📌 Z2" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.x1": -23,
+        "0.x2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „X2" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.y1": -3,
+        "0.y2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „Šířka" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.x2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „Výška" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.y2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[text] „Úhel (°)" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [
+          [
+            0,
+            [
+              1,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {
+        "0.rotation": 0.122173,
+        "0.x1": -0.721154,
+        "0.x2": 29.278846,
+        "0.y1": 1.790771,
+        "0.y2": 11.790771,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[checkbox] „S1" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        0,
+        [
+          [
+            0,
+            [
+              1,
+              0,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[checkbox] „S2" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[checkbox] „S3" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        2,
+        [
+          [
+            0,
+            [
+              1,
+              2,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Obdélník",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Obdélník 1>",
+      ],
+      "prvek": "input[checkbox] „S4" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        3,
+        [
+          [
+            0,
+            [
+              1,
+              3,
+            ],
+          ],
+        ],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+  ],
+  "panel": [
+    "Typ │ Obdélník",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Obdélník 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "<radio propRectAnchor=1 ✓> │ <text 0.000>",
+    "X1 │ <text 0.000>",
+    "<radio propRectAnchor=2> │ <text 30.000>",
+    "X2 │ <text 10.000>",
+    "Šířka │ <text 30.000>",
+    "Výška │ <text 10.000>",
+    "<radio propRotPivot=anchor ✓> <radio propRotPivot=center>",
+    "Úhel (°) │ <text 0.00>",
+    "Roh 1: Z=0.000 X=0.000 Roh 2: Z=30.000 X=0.000 Roh 3: Z=30.000 X=10.000 Roh 4: Z=0.000 X=10.000",
+    "S1 <checkbox> │ úsečka, 30.00 mm",
+    "S2 <checkbox ✓> │ úsečka, 10.00 mm",
+    "S3 <checkbox> │ úsečka, 30.00 mm",
+    "S4 <checkbox> │ úsečka, 10.00 mm",
+  ],
+}
+`;
+
+exports[`panel vlastností > text: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select Kontura|*Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "select „Profil" change: výběr Polotovar",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Nové jméno>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva objektu",
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "input[text] „Z" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "input[text] „X" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "input[text] „Velikost" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.fontSize": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "input[text] „Rotace°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.rotation": 0.122173,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "input[text] „Rozpal" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.letterSpacing": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "input[text] „Text" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Text "Nové jméno"",
+        "0.text": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "select „Písmo" change: výběr Arial",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.fontFamily": "Arial, sans-serif",
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "button[submit] „Zarovnání" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.textAlign": "left",
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "button[submit] „Zarovnání" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.textAlign": "center",
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "button[submit] „Zarovnání" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.textAlign": "right",
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "input[checkbox] „Styl" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.bold": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "span „Styl" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.bold": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "input[checkbox] „Styl" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.italic": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "span „Styl" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.italic": true,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Typ │ Text",
+        "Profil │ <select *Kontura|Polotovar>",
+        "Název │ <text Text 1>",
+      ],
+      "prvek": "button[submit] „📝 Otevřít editor textu" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+  ],
+  "panel": [
+    "Typ │ Text",
+    "Profil │ <select *Kontura|Polotovar>",
+    "Název │ <text Text 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "Z │ <text 1.000>",
+    "X │ <text 2.000>",
+    "Velikost │ <text 14.000>",
+    "Rotace° │ <text 0.000>",
+    "Rozpal │ <text 0.000>",
+    "Text │ <text Ahoj>",
+    "Písmo │ <select *Consolas|Arial|Times|Courier|Verdana|Georgia>",
+    "Zarovnání │ <button ⫷> <button ☰> <button ⫸>",
+    "Styl │ <checkbox> <checkbox>",
+    "<button 📝 Otevřít editor textu>",
+  ],
+}
+`;
+
+exports[`panel vlastností > vice-objektu: snímek panelu a účinek každého prvku 1`] = `
+{
+  "akce": [
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *Kontura|Polotovar>",
+      ],
+      "prvek": "select „Profil" change: výběr Kontura",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.isStock": false,
+        "1.isStock": false,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "input[text] „Název" change: hodnota Nové jméno",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.name": "Nové jméno",
+      },
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": "Barva (2 objektů)",
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "button[button] „Barva" click: klik",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "select „Vrstva" change: výběr Konstrukce",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.layer": 1,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "input[radio] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout false",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x1": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y1": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "input[checkbox] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "input[radio] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.y2": 7,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "input[checkbox] „📌Z1X1 📌Z2X2DélkaÚhel°" change: zaškrtnout true",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {},
+      "zpet": 0,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 6.26072,
+        "0.y2": 3.131036,
+      },
+      "zpet": 1,
+    },
+    {
+      "hlaska": null,
+      "okno": null,
+      "panelPo": [
+        "Vybráno 2 objektů",
+        "Typ │ Úsečka",
+        "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+      ],
+      "prvek": "input[text] „📌Z1X1 📌Z2X2DélkaÚhel°" change: hodnota 7",
+      "textDialog": undefined,
+      "vyber": [
+        0,
+        [
+          0,
+          1,
+        ],
+        null,
+        [],
+      ],
+      "vykres": {
+        "0.x2": 11.096666,
+        "0.y2": 1.362499,
+      },
+      "zpet": 1,
+    },
+  ],
+  "panel": [
+    "Vybráno 2 objektů",
+    "Typ │ Úsečka",
+    "Profil │ <select *— smíšené —|Kontura|Polotovar>",
+    "Název │ <text Úsečka 1>",
+    "Barva │ <button >",
+    "Vrstva │ <select *Kontura|Konstrukce|Kóty|Polotovar>",
+    "<radio propAnchor=1 ✓> <text 0.000> <text 0.000> <checkbox> <radio propAnchor=2> <text 10.000> <text 5.000> <checkbox> <text 11.180> <text 26.57>",
+  ],
+}
+`;

@@ -3,7 +3,7 @@
 // ║  Editor CNC drah pro obrábění se zvýrazněním syntaxe        ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { makeOverlay } from '../dialogFactory.js';
+import { makeOverlay, closeOnBackdropClick } from '../dialogFactory.js';
 import { openCamSimulator } from './camSimulator.js';
 import { showToast } from '../state.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
@@ -42,7 +42,7 @@ function confirmStaleCodeOverwrite() {
     const cleanup = (val) => { ov.remove(); resolve(val); };
     ov.querySelector('[data-r="overwrite"]').addEventListener('click', () => cleanup(true));
     ov.querySelector('[data-r="keep"]').addEventListener('click', () => cleanup(false));
-    ov.addEventListener('click', e => { if (e.target === ov) cleanup(false); });
+    closeOnBackdropClick(ov, () => cleanup(false));
   });
 }
 
@@ -1839,13 +1839,9 @@ export function openCamEditor(initialCode, jumpLine) {
   mergeFileInput.addEventListener('change', handleMergeLoad);
 
   // Close menu modal on click outside card
-  $('menuModal').addEventListener('click', e => {
-    if (e.target === $('menuModal')) $('menuModal').style.display = 'none';
-  });
+  closeOnBackdropClick($('menuModal'), () => { $('menuModal').style.display = 'none'; });
   // Close numpad modal on click outside card
-  numModal.addEventListener('click', e => {
-    if (e.target === numModal) numModal.style.display = 'none';
-  });
+  closeOnBackdropClick(numModal, () => { numModal.style.display = 'none'; });
 
   // ── Cleanup ────────────────────────────────────────────────
   new MutationObserver((_, obs) => {
