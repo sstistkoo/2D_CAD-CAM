@@ -6,6 +6,26 @@
 > simulátoru (`docs/plan-rozdeleni-cam-simulatoru.md`) a `geometry.js`
 > (7b0622c): **od toho, u čeho nejméně hrozí, že něco přestane fungovat**, a s testy.
 
+## Stav
+
+| Krok | Commit | ui.js po kroku | Test |
+|---|---|---|---|
+| Fáze 0 — pojistky | `test(ui): pojistky…` | 5 312 | `ui-api` (exporty, bridge, 92 listenerů, DOM při načtení, stráže) |
+| 1a poznámky → `js/ui/notesDialog.js` | `refactor(ui): poznámky…` | 4 947 | `ui-notes` |
+
+Při stěhování: `npm run sw` spouštět s `LC_ALL=cs_CZ.UTF-8` (generátor řadí
+`localeCompare` podle systému — v C locale přeskládá „ch…" soubory a diff sw.js
+se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvislý
+úsek `git show HEAD:js/ui.js`.
+
+## Nalezené chyby (opravit zvlášť, ne při stěhování)
+
+1. **Poznámky: Escape v poli Hledat zavře celé okno**, ne jen lištu hledání —
+   keydown bublá z inputu na `document` k ESC handleru `makeOverlay`
+   (obsah se uloží, takže se nic neztratí). Oprava: `e.stopPropagation()`
+   u Escape v `searchInput` keydown. Test `ui-notes` teď stávající chování
+   charakterizuje — při opravě ho upravit.
+
 ## Co v souboru je (měřeno 16. 10.)
 
 ui.js NENÍ jedna funkce jako simulátor: 79 top-level deklarací + **731 ř. kódu,

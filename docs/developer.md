@@ -41,7 +41,8 @@ index.html
 │   ├── toolLibrary.js     # Správa toolů
 │   ├── stockTools.js      # Pomocné nástroje pro soustruh
 │   ├── touch.js           # Touch ovládání
-│   ├── ui.js              # Panely, seznamy, property panel
+│   ├── ui.js              # Panely, seznamy, property panel (rozděluje se do ui/)
+│   ├── ui/                # bloky vyňaté z ui.js: notesDialog (importovat přes ui.js)
 │   ├── dialogs/           # Ovládací prvky
 │   ├── tools/             # Registry nástrojů (handle*Click)
 │   ├── calculators/       # CAM generátory, g-code, nápověda, ... │   ├── lib/                # Font loader (DXF text)
@@ -82,7 +83,12 @@ bridge.updateObjectList = () => updateObjectList();
 
 Bridge se inicializuje při startu v:
 - `js/events.js` – nástroje (`handleLineClick`, `measureSelection`, ...)
-- `js/ui.js` – UI aktualizace (`updateObjectList`, `renderAll`, ...)
+- `js/ui.js` – UI aktualizace (`updateObjectList`, `renderAll`, ...). Od 16. 10. 2026
+  se rozděluje do `js/ui/*.js` (`docs/plan-refaktoringu-ui.md`); `ui.js` zůstává
+  rozcestníkem se stejnými exporty a kódem při načtení (listenery) na původních
+  místech. Zvenku importovat jen z `ui.js`, nikdy z `js/ui/*` (12 testů mockuje
+  `../js/ui.js`). Moduly v `js/ui/` nemají kód při načtení — listenery věší
+  `ui.js`. Hlídá `tests/ui-api.test.js` (exporty, bridge, pořadí listenerů).
 - `js/geometry.js` – geometrické operace (`calculateAllIntersections`); od 16. 10. 2026
   rozcestník — kód je v `js/geometry/*.js` podle témat (výběr klikem, hit-test,
   průsečíky + odložený CNC export, tečny, tečné kružnice/Apollonius, přímky +

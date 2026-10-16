@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v505';
+const CACHE_NAME = 'skica-v506';
 const ASSETS = [
   './',
   './index.html',
@@ -331,6 +331,7 @@ const ASSETS = [
   './js/trigSolver.js',
   './js/types.js',
   './js/ui.js',
+  './js/ui/notesDialog.js',
   './js/utils.js',
   './dxf-json.html',
   './eslint.config.js',

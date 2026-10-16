@@ -182,8 +182,8 @@ docs/                 # developer.md, user-guide.md
   jádro uvnitř jedné funkce `openCamSimulator`, sdílí stav přes closure —
   nový kód jako modul do `js/calculators/cam/sim/`, kterému se `S`
   a callbacky předají parametrem; vzory v `docs/plan-rozdeleni-cam-simulatoru.md`;
-  zbytek jádra se dál NEROZDĚLUJE, rozhodnutí uživatele 16. 10.), `ui.js` 5312 (plán rozdělení:
-  `docs/plan-refaktoringu-ui.md`, začne se v novém sezení),
+  zbytek jádra se dál NEROZDĚLUJE, rozhodnutí uživatele 16. 10.), `ui.js` 5312 → rozděluje se do `js/ui/` (16. 10.; plán a stav:
+  `docs/plan-refaktoringu-ui.md`),
   `render.js` 3115, `cam/ops/roughLong.js` 3119, `cncEditor.js` 2918,
   `geometry.js` 2553 → rozcestník 74 (rozděleno 16. 10. do `js/geometry/`), `vkContour.js` 2347. Nemusí se kvůli tomu nic
   přepisovat — pravidlo se týká jen NOVÉHO kódu. Nelze-li kód jinak
