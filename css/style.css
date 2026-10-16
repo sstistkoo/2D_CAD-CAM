@@ -1860,6 +1860,22 @@ body {
   flex-shrink: 0;
 }
 
+/* Desktop: pravý panel (#sidebar) je fixed přes celou výšku (300 px) a leží
+   i nad stavovým řádkem — obsah řádku proto končí u jeho levého okraje. Dřív
+   pod ním při šířce okna pod ~1250 px mizela tlačítka (Nastavení, Editor, VK).
+   Když se položky nevejdou, přejdou CELÉ na další řádek (nezalomí se uvnitř). */
+@media (min-width: 901px) {
+  #statusbar {
+    padding-right: 310px;
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  #statusbar > * {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
 .statusbar-ind-group {
   display: flex;
   gap: 4px;

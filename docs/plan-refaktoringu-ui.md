@@ -123,6 +123,13 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    `closeOnBackdropClick()` v `js/dialogFactory.js` (zavře jen se stiskem na
    pozadí) nahradil všech 25 míst (13 v CAM simulátoru); `tests/dialog-backdrop.test.js` hlídá, že
    v `js/` žádné nové okno nezavírá klikem na pozadí bez něj.
+9. ✅ **Opraveno 16. 10.** — **Tlačítka stavového řádku pod pravým panelem:**
+   na desktopu je `#sidebar` fixed přes celou výšku a překrývá i stavový řádek;
+   při šířce okna pod ~1250 px pod ním zmizelo ⚙️ Nastavení, pod ~1050 px i
+   ✏️ Editor a ✏️ VK (nešly použít). Nalezeno při č. 5. Obsah stavového řádku
+   teď končí u okraje panelu a položky, které se nevejdou, přejdou celé na
+   druhý řádek. Při šířce ≥ 1280 px beze změny. `tests/statusbar-layout.test.js`
+   (stráž CSS), rozložení ověřeno v prohlížeči.
 
 ## Co v souboru je (měřeno 16. 10.)
 

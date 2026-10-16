@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Tlačítka v dolní liště už nemizí pod pravým panelem.** Při užším okně
+  (pod ~1250 px) se ⚙️ Nastavení, při ještě užším i ✏️ Editor a ✏️ VK
+  schovaly pod pravý panel a nedaly se použít. Dolní lišta teď končí u okraje
+  panelu a co se nevejde, přejde na druhý řádek. `css/style.css`, test
+  `statusbar-layout`.
 - **Dialogy Velikost mřížky a Krok úhlového snapu jdou zase otevřít.** Šly
   jen pravým klikem na tlačítka snapu, která v aplikaci nejsou. Teď pravý
   klik na indikátor **#** / **∠** v dolní liště (desktop). Po změně se mřížka
