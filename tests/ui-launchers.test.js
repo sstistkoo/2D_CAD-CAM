@@ -89,11 +89,11 @@ describe('spouštěcí tlačítka', () => {
     expect(onBody).not.toHaveBeenCalled();   // stopPropagation
   });
 
-  it('VK a číselné zadání sdílí okno, liší se záložkou; AI panel', () => {
-    click('btnOpenVk');
+  it('číselné zadání otevírá sdílené okno (VK je jeho záložka); AI panel', () => {
     click('btnNumInput');
     click('desktopNumInput');
-    expect(combined.showCombinedModal.mock.calls).toEqual([['vk'], ['num'], ['num']]);
+    expect(combined.showCombinedModal.mock.calls).toEqual([['num'], ['num']]);
+    expect(document.getElementById('btnOpenVk')).toBeNull();   // v pravém panelu byl duplikát
     click('btnOpenAI');
     expect(ai.openAIPanel).toHaveBeenCalledTimes(1);
   });

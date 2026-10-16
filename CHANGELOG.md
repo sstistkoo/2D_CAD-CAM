@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Pravý panel: z „Další kalkulačky" zmizelo tlačítko VK Kontura.** Bylo
+  to duplikát – VK se otevírá z okna „Zadání objektu" na výkresu (🔢 Zadat /
+  ✏️ VK, záložka VK). `index.html`, `js/ui/launchers.js`, testy, dokumentace.
+- **Pravý panel: CNC Kód je po načtení sbalený.** Otevře se klepnutím na
+  hlavičku (a při otevření se kód přegeneruje). Šipka ▸/▾ u CNC Kódu
+  a Objektů se teď při klepnutí správně přepíná (byla ve `<span>`, který
+  se přeskakoval). `index.html`, `css/style.css`, `js/ui/intersectionList.js`.
+- **Tolerance: úchylky ve „Vlastních úchylkách" jde zadat v mm i µm.**
+  Tlačítko mm/µm pod popiskem Rozmezí přepíná jednotku a přepočte už
+  zadané hodnoty; výsledek zůstává stejný. Volba se pamatuje.
+  `js/calculators/tolerance.js`, `css/style.css`, test `tolerance-units`.
+- **Mobil: ve výběru textu by nemělo být „Přeložit".** Stránka je označena
+  `translate="no"` (a `notranslate`), takže Chrome na Androidu nemá
+  nabízet překlad vybraného textu. Vyjmout/Kopírovat/Vložit zůstává (je to
+  systémové menu). `index.html`.
+- **Tolerance: okno se nezavře klepnutím mimo ně** (jen křížkem nebo Esc).
+  Na mobilu se s otevřenou klávesnicí posune úplně nahoru (přes pravý panel),
+  aby byl vidět výsledek. Tlačítka ± u Rozmezí zůstávají (iOS klávesnice
+  nemá minus). `js/calculators/tolerance.js`.
+
 ### Fixed
 
 - **Nulový bod se po obnovení stránky obnoví spolu s INC.** Po „Smazat vše"

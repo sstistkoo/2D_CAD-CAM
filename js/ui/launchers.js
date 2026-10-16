@@ -46,8 +46,7 @@ export function initLauncherButtons() {
     document.body.classList.remove("toolbar-open");
     openDrawCncEditor();
   });
-  // VK i číselné zadání sdílí jedno okno – liší se jen výchozí záložkou.
-  document.getElementById("btnOpenVk")?.addEventListener("click", () => showCombinedModal('vk'));
+  // VK i číselné zadání sdílí jedno okno – VK je druhá záložka okna „Zadání objektu" (z pravého panelu se už nespouští).
   document.getElementById("btnNumInput")?.addEventListener("click", () => showCombinedModal('num'));
   document.getElementById("desktopNumInput")?.addEventListener("click", () => showCombinedModal('num'));
   document.getElementById("btnOpenCam").addEventListener("click", () => {

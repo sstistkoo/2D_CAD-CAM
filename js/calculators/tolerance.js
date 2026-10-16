@@ -68,7 +68,8 @@ export function openToleranceCalc() {
       '<button class="tol-toggle" data-mode="shaft">Hřídel</button>' +
     '</div>' +
     '<div class="tol-custom-row" data-id="tolCustom" hidden>' +
-      '<span class="tol-range-lbl">Rozmezí</span>' +
+      '<div class="tol-range-col"><span class="tol-range-lbl">Rozmezí</span>' +
+        '<button type="button" class="tol-unit" data-id="tolUnit" tabindex="-1" title="Přepnout jednotku úchylek (mm / µm)">mm</button></div>' +
       '<label class="tol-dev"><button type="button" class="tol-sign" tabindex="-1" title="Přepnout znaménko">±</button><input type="text" inputmode="decimal" data-id="tolUp" placeholder="např. -0,255"></label>' +
       '<label class="tol-dev"><button type="button" class="tol-sign" tabindex="-1" title="Přepnout znaménko">±</button><input type="text" inputmode="decimal" data-id="tolLo" placeholder="např. -0,304"></label>' +
     '</div>' +
@@ -79,18 +80,23 @@ export function openToleranceCalc() {
     '<div class="cnc-result tol-res" id="tolResult">Zadejte rozměr…</div>' +
     '<div class="cnc-actions"><button class="cnc-btn cnc-btn-copy">📋 Kopírovat</button></div>';
 
-  var overlay = makeOverlay("tolerance", "📏 Tolerance", body);
+  // Nezavírat klepnutím mimo okno (jen křížkem / Esc) – rozdělané zadání by se snadno ztratilo
+  var overlay = makeOverlay("tolerance", "📏 Tolerance", body, null, { closeOnBackdrop: false });
   if (!overlay) return;
 
   // Mobil: okno se drží nad softwarovou klávesnicí (visualViewport) a zadávané pole
   // se po vysunutí klávesnice odroluje do viditelné části
   var vv = window.visualViewport;
   if (vv && isTouchDevice()) {
+    var baseH = Math.max(vv.height, window.innerHeight);
     var fitWin = function() {
       overlay.style.top = vv.offsetTop + "px";
       overlay.style.height = vv.height + "px";
+      // Klávesnice nahoře → okno úplně nahoru (překryje i pravý panel), ať je vidět výsledek
+      var kbOpen = vv.height < baseH - 120;
+      overlay.style.paddingTop = kbOpen ? "4px" : "";
       var w = overlay.querySelector(".calc-window");
-      if (w) w.style.maxHeight = Math.max(200, vv.height - 48) + "px";
+      if (w) w.style.maxHeight = Math.max(200, vv.height - (kbOpen ? 8 : 48)) + "px";
     };
     vv.addEventListener("resize", fitWin);
     vv.addEventListener("scroll", fitWin);
@@ -127,6 +133,14 @@ export function openToleranceCalc() {
   var inpUp = overlay.querySelector('[data-id="tolUp"]');
   var inpLo = overlay.querySelector('[data-id="tolLo"]');
   var customRow = overlay.querySelector('[data-id="tolCustom"]');
+  var btnUnit = overlay.querySelector('[data-id="tolUnit"]');
+  // Jednotka vlastních úchylek: mm (výchozí) nebo µm; výpočet i výsledek jedou dál v mm
+  var devUm = false;
+  function applyUnitUI() {
+    btnUnit.textContent = devUm ? "µm" : "mm";
+    inpUp.placeholder = devUm ? "např. -255" : "např. -0,255";
+    inpLo.placeholder = devUm ? "např. -304" : "např. -0,304";
+  }
   var isoBlocks = overlay.querySelectorAll('[data-id="tolIsoClass"],[data-id="tolIsoIT"]');
   var isCustom = false;
   var isHole = true;
@@ -181,7 +195,7 @@ export function openToleranceCalc() {
   function saveState() {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
-        custom: isCustom, hole: isHole, dim: inpDim.value, up: inpUp.value, lo: inpLo.value,
+        custom: isCustom, um: devUm, hole: isHole, dim: inpDim.value, up: inpUp.value, lo: inpLo.value,
         cls: { hole: getGridVal(gridClass) && isHole ? getGridVal(gridClass) : savedCls.hole,
                shaft: getGridVal(gridClass) && !isHole ? getGridVal(gridClass) : savedCls.shaft },
         it: getGridVal(gridIT)
@@ -200,7 +214,8 @@ export function openToleranceCalc() {
     var r, tolLabel;
     if (isCustom) {
       if (inpUp.value === "" || inpLo.value === "") { resultEl.textContent = "Zadejte horní i dolní úchylku…"; return; }
-      var up = safeEvalMath(inpUp.value), lo = safeEvalMath(inpLo.value);
+      var devK = devUm ? 1000 : 1;
+      var up = safeEvalMath(inpUp.value) / devK, lo = safeEvalMath(inpLo.value) / devK;
       if (!isFinite(up) || !isFinite(lo)) { resultEl.textContent = "Neplatná úchylka"; return; }
       if (up < lo) { var tmp = up; up = lo; lo = tmp; } // zadáno naopak → přizpůsobit
       var f3 = function(v) { return (v > 0 ? "+" : "") + String(parseFloat(v.toFixed(4))); };
@@ -256,6 +271,19 @@ export function openToleranceCalc() {
       inp.dispatchEvent(new Event("input"));
     });
   });
+  // Přepnutí mm ↔ µm přepočte už zadané hodnoty, ať zůstanou stejné
+  btnUnit.addEventListener("mousedown", function(e) { e.preventDefault(); });
+  btnUnit.addEventListener("click", function() {
+    var k = devUm ? 0.001 : 1000; // původní jednotka → nová
+    [inpUp, inpLo].forEach(function(inp) {
+      if (inp.value.trim() === "") return;
+      var v = safeEvalMath(inp.value);
+      if (isFinite(v)) inp.value = String(parseFloat((v * k).toFixed(6)));
+    });
+    devUm = !devUm;
+    applyUnitUI();
+    calc();
+  });
   inpUp.addEventListener("input", calc);
   inpLo.addEventListener("input", calc);
 
@@ -274,6 +302,7 @@ export function openToleranceCalc() {
     }
     inpDim.value = st.dim || ""; inpUp.value = st.up || ""; inpLo.value = st.lo || "";
     isHole = st.hole !== false;
+    devUm = !!st.um; applyUnitUI();
     btnHole.classList.toggle("tol-active", isHole);
     btnShaft.classList.toggle("tol-active", !isHole);
     gridClass.innerHTML = isHole ? holeBtns : shaftBtns;
