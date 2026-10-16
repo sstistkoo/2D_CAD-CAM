@@ -13,9 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `translate="no"` (a `notranslate`), takže Chrome na Androidu nemá
   nabízet překlad vybraného textu. Vyjmout/Kopírovat/Vložit zůstává (je to
   systémové menu). `index.html`.
-- **Tolerance: u „Vlastní úchylky" zmizela tlačítka ±.** Pole Rozmezí má
-  jen vstupní políčka, minus se píše přímo. `js/calculators/tolerance.js`,
-  `css/style.css`.
+- **Tolerance: okno se nezavře klepnutím mimo ně** (jen křížkem nebo Esc).
+  Na mobilu se s otevřenou klávesnicí posune úplně nahoru (přes pravý panel),
+  aby byl vidět výsledek. Tlačítka ± u Rozmezí zůstávají (iOS klávesnice
+  nemá minus). `js/calculators/tolerance.js`.
 
 ### Fixed
 

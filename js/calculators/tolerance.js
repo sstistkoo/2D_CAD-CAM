@@ -69,8 +69,8 @@ export function openToleranceCalc() {
     '</div>' +
     '<div class="tol-custom-row" data-id="tolCustom" hidden>' +
       '<span class="tol-range-lbl">Rozmezí</span>' +
-      '<label class="tol-dev"><input type="text" inputmode="decimal" data-id="tolUp" placeholder="např. -0,255"></label>' +
-      '<label class="tol-dev"><input type="text" inputmode="decimal" data-id="tolLo" placeholder="např. -0,304"></label>' +
+      '<label class="tol-dev"><button type="button" class="tol-sign" tabindex="-1" title="Přepnout znaménko">±</button><input type="text" inputmode="decimal" data-id="tolUp" placeholder="např. -0,255"></label>' +
+      '<label class="tol-dev"><button type="button" class="tol-sign" tabindex="-1" title="Přepnout znaménko">±</button><input type="text" inputmode="decimal" data-id="tolLo" placeholder="např. -0,304"></label>' +
     '</div>' +
     '<div class="cnc-field cnc-field-full" data-id="tolIsoClass"><span>Třída</span>' +
       '<div class="tol-grid tol-class-grid" data-id="tolClass">' + holeBtns + '</div></div>' +
@@ -79,18 +79,23 @@ export function openToleranceCalc() {
     '<div class="cnc-result tol-res" id="tolResult">Zadejte rozměr…</div>' +
     '<div class="cnc-actions"><button class="cnc-btn cnc-btn-copy">📋 Kopírovat</button></div>';
 
-  var overlay = makeOverlay("tolerance", "📏 Tolerance", body);
+  // Nezavírat klepnutím mimo okno (jen křížkem / Esc) – rozdělané zadání by se snadno ztratilo
+  var overlay = makeOverlay("tolerance", "📏 Tolerance", body, null, { closeOnBackdrop: false });
   if (!overlay) return;
 
   // Mobil: okno se drží nad softwarovou klávesnicí (visualViewport) a zadávané pole
   // se po vysunutí klávesnice odroluje do viditelné části
   var vv = window.visualViewport;
   if (vv && isTouchDevice()) {
+    var baseH = Math.max(vv.height, window.innerHeight);
     var fitWin = function() {
       overlay.style.top = vv.offsetTop + "px";
       overlay.style.height = vv.height + "px";
+      // Klávesnice nahoře → okno úplně nahoru (překryje i pravý panel), ať je vidět výsledek
+      var kbOpen = vv.height < baseH - 120;
+      overlay.style.paddingTop = kbOpen ? "4px" : "";
       var w = overlay.querySelector(".calc-window");
-      if (w) w.style.maxHeight = Math.max(200, vv.height - 48) + "px";
+      if (w) w.style.maxHeight = Math.max(200, vv.height - (kbOpen ? 8 : 48)) + "px";
     };
     vv.addEventListener("resize", fitWin);
     vv.addEventListener("scroll", fitWin);
@@ -246,6 +251,16 @@ export function openToleranceCalc() {
   }
 
   inpDim.addEventListener("input", calc);
+  // Číselná klávesnice (hlavně iOS) nemá minus → tlačítko ± přepne znaménko
+  overlay.querySelectorAll(".tol-sign").forEach(function(b) {
+    b.addEventListener("mousedown", function(e) { e.preventDefault(); }); // nesebrat focus poli
+    b.addEventListener("click", function() {
+      var inp = b.parentNode.querySelector("input");
+      var v = inp.value.trim();
+      inp.value = v.charAt(0) === "-" ? v.slice(1) : "-" + v.replace(/^\+/, "");
+      inp.dispatchEvent(new Event("input"));
+    });
+  });
   inpUp.addEventListener("input", calc);
   inpLo.addEventListener("input", calc);
 

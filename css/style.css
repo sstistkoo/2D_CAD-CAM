@@ -4552,6 +4552,7 @@ body {
 .tol-free > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ctp-subtext1); padding: 6px 0; }
 .tol-free[open] > summary { margin-bottom: 6px; }
 .tol-dev { flex: 1 1 0; min-width: 0; display: flex; align-items: stretch; gap: 4px; font-size: 12px; color: var(--ctp-subtext0); }
+.tol-sign { flex: 0 0 auto; width: 34px; border: 1px solid var(--ctp-surface1); border-radius: 6px; background: var(--ctp-surface0); color: var(--ctp-text); font-size: 16px; cursor: pointer; }
 .tol-dev input {
   width: 100%; min-width: 0; box-sizing: border-box; text-align: center;
   font-size: 16px; font-family: "Consolas", monospace;
