@@ -2,8 +2,8 @@
 // ║  SKICA – UI panely, toolbar, hinty                          ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { COLORS, applyThemeColors } from './constants.js';
-import { state, showToast, pushUndo, undo, redo, axisLabels, toDisplayAngle } from './state.js';
+import { COLORS } from './constants.js';
+import { state, pushUndo, undo, redo, axisLabels, toDisplayAngle } from './state.js';
 import { typeLabel, bulgeToArc, safeEvalMath, getRectCorners, textPathIndex, textPathIdFromIndex } from './utils.js';
 import { renderAll, renderAllDebounced } from './render.js';
 import { bridge } from './bridge.js';
@@ -28,6 +28,7 @@ import {
   toggleXDisplay, updateMachineTypeBtn, toggleMachineType,
   initStatusButtons,
 } from './ui/statusButtons.js';
+import { updateStatusProject, showHelp, hideHelp, toggleHelp, checkFirstRunHelp, applyTheme, initHelpButtons } from './ui/helpTheme.js';
 
 // ── Bridge registrace (rozbíjí cyklickou závislost geometry ↔ ui) ──
 bridge.updateProperties = () => updateProperties();
@@ -1260,76 +1261,9 @@ initLauncherButtons();   // CNC kalkulačky, Trigonometrie, ✏️ Editor, VK, C
 export { showGridSizeDialog, showAngleSnapDialog };
 
 
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  Statusbar – název projektu                                  ║
-// ╚══════════════════════════════════════════════════════════════╝
-
-/** Aktualizuje název projektu ve stavovém řádku. */
-export function updateStatusProject() {
-  const el = document.getElementById('statusProject');
-  if (el) el.textContent = 'Projekt: ' + (state.projectName || 'Bez názvu');
-}
-
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  Help overlay                                                ║
-// ╚══════════════════════════════════════════════════════════════╝
-
-/** Zobrazí nápovědu (modal). */
-export function showHelp() {
-  const overlay = document.getElementById('helpOverlay');
-  if (overlay) overlay.classList.add('visible');
-}
-
-/** Skryje nápovědu. */
-export function hideHelp() {
-  const overlay = document.getElementById('helpOverlay');
-  if (overlay) overlay.classList.remove('visible');
-}
-
-/** Přepne viditelnost nápovědy. */
-export function toggleHelp() {
-  const overlay = document.getElementById('helpOverlay');
-  if (!overlay) return;
-  if (overlay.classList.contains('visible')) {
-    hideHelp();
-  } else {
-    showHelp();
-  }
-}
-
-// Help close button
-document.getElementById('helpCloseBtn')?.addEventListener('click', hideHelp);
-
-// Help overlay click on background
-document.getElementById('helpOverlay')?.addEventListener('click', (e) => {
-  if (e.target.id === 'helpOverlay') hideHelp();
-});
-
-// Help toolbar button
-document.getElementById('btnHelp')?.addEventListener('click', toggleHelp);
-
-// ── First-run help ──
-/** Zkontroluje a zobrazí nápovědu při prvním spuštění. */
-export async function checkFirstRunHelp() {
-  const shown = await getMeta('helpShown');
-  if (!shown) {
-    showHelp();
-    setMeta('helpShown', '1');
-  }
-}
-
-// ══════════════════════════════════════════════════════════════
-// ║  Nastavení – dialog s konfigurací aplikace                ║
-// ══════════════════════════════════════════════════════════════
-
-/** Aplikuje aktuální motiv na CSS i canvas barvy. */
-export function applyTheme() {
-  const isLight = state.theme === 'light';
-  document.body.classList.toggle('light-theme', isLight);
-  applyThemeColors(state.theme);
-  renderAll();
-  showToast(isLight ? 'Světlý motiv' : 'Tmavý motiv');
-}
+// ── Název projektu, nápověda, motiv → js/ui/helpTheme.js ──
+export { updateStatusProject, showHelp, hideHelp, toggleHelp, checkFirstRunHelp, applyTheme };
+initHelpButtons();
 
 // ── Dialog ⚙️ Nastavení → js/ui/settingsDialog.js ──
 document.getElementById('btnSettings')?.addEventListener('click', showSettingsDialog);

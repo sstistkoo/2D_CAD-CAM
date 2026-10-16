@@ -103,7 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `js/ui/objectList.js` a skok do CNC kódu → `js/ui/cncJump.js` (test
   `ui-object-list`), lišta nástrojů a `setTool` → `js/ui/toolbar.js` (test
   `ui-toolbar`), přepínače stavového řádku a indikátory →
-  `js/ui/statusButtons.js` (test `ui-status-buttons`).
+  `js/ui/statusButtons.js` (test `ui-status-buttons`), název projektu, nápověda
+  a motiv → `js/ui/helpTheme.js` (test `ui-help-theme`).
 - **Rozdělení `js/geometry.js`** (2 554 ř.) do `js/geometry/` podle témat
   (výběr klikem, hit-test, průsečíky, tečny, tečné kružnice, přímky + offset,
   transformace, zaoblení/sražení). Kód přesunutý beze změny, `geometry.js`

@@ -25,6 +25,7 @@
 | 2e seznam objektů → `js/ui/objectList.js`, skok do CNC → `js/ui/cncJump.js` | `refactor(ui): seznam objektů…` | 1 873 | `ui-object-list` |
 | 3a lišta, `setTool`, hinty, přídavek → `js/ui/toolbar.js` (+ `initToolbar()`) | `refactor(ui): lišta nástrojů…` | 1 579 | `ui-toolbar` |
 | 3b přepínače stavového řádku → `js/ui/statusButtons.js` (+ `initStatusButtons()`) | `refactor(ui): přepínače stavového řádku…` | 1 338 | `ui-status-buttons` |
+| 3c název projektu, nápověda, motiv → `js/ui/helpTheme.js` (+ `initHelpButtons()`) | `refactor(ui): nápověda a motiv…` | 1 272 | `ui-help-theme` |
 
 1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
 se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
@@ -82,10 +83,11 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
    formátuje `fmtStatusCoords(wx, wy)` (relativně k právě nastavenému bodu).
    Oprava: formátovat absolutně (před přepnutím). Test `ui-null-point` to
    charakterizuje.
-5. **Hinty se nikde nezobrazují:** `setHint` / `resetHint` (19 importérů)
-   zapisují do `#statusHint`, který v `index.html` není (a podle historie
-   nikdy nebyl). Rozhodnout s uživatelem: přidat prvek do stavového řádku,
-   nebo hinty odebrat. Test `ui-toolbar` prvek přidává jen pro charakterizaci.
+5. **Hinty ani název projektu se nikde nezobrazují:** `setHint` / `resetHint`
+   (19 importérů) zapisují do `#statusHint` a `updateStatusProject` do
+   `#statusProject` — ani jeden prvek v `index.html` není (`#statusHint` podle
+   historie nikdy nebyl). Rozhodnout s uživatelem: přidat prvek do stavového řádku,
+   nebo hinty odebrat. Testy `ui-toolbar` / `ui-help-theme` prvky přidávají jen pro charakterizaci.
 6. **Auto-uložení rozkreslené kontury při přepnutí nástroje dělá dva záznamy
    Zpět** — `setTool` volá `pushUndo()` a `addObject()` ho volá znovu (první
    Zpět vrátí konturu, druhé nic). Tužka má jen ten z `addObject`. Oprava:
