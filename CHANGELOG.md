@@ -98,7 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ui-null-point`), Smazat vše a historie smazaných výkresů →
   `js/ui/drawingHistory.js` (test `ui-drawing-history`), dialog Nastavení →
   `js/ui/settingsDialog.js` (test `ui-settings`), seznam průsečíků a rozbalování
-  panelů → `js/ui/intersectionList.js` (test `ui-intersection-list`).
+  panelů → `js/ui/intersectionList.js` (test `ui-intersection-list`), seznam
+  vrstev → `js/ui/layerList.js` (test `ui-layer-list`).
 - **Rozdělení `js/geometry.js`** (2 554 ř.) do `js/geometry/` podle témat
   (výběr klikem, hit-test, průsečíky, tečny, tečné kružnice, přímky + offset,
   transformace, zaoblení/sražení). Kód přesunutý beze změny, `geometry.js`

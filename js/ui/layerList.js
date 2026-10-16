@@ -1,0 +1,141 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  SKICA – Seznam vrstev a tlačítka vrstev                     ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// Vyňato z js/ui.js beze změny (16. 10. 2026, docs/plan-refaktoringu-ui.md,
+// Fáze 2d). Listenery ➕ / 🗑 vrstvy jsou v initLayerButtons() — volá ji
+// js/ui.js na původním místě (pořadí listenerů). Kód aplikace importuje jen
+// z js/ui.js (updateLayerList), nikdy z js/ui/* napřímo.
+
+import { COLORS } from '../constants.js';
+import { state, showToast } from '../state.js';
+import { renderAll } from '../render.js';
+import { openLayerColorPicker } from './colorPicker.js';
+import { updateObjectList } from '../ui.js';
+
+// ── Vrstvy ──
+// Vlastní SVG ikony (místo emoji 👁/👁‍🗨, které se na některých systémech
+// vykreslují monochromně černou barvou a splývají s tmavým pozadím panelu).
+const ICON_EYE_OPEN = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICON_EYE_OFF = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a19.4 19.4 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a19.5 19.5 0 0 1-2.29 3.44M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+/** Aktualizuje seznam vrstev v panelu. */
+export function updateLayerList() {
+  const ul = document.getElementById("layerList");
+  if (!ul) return;
+  ul.innerHTML = "";
+  state.layers.forEach((layer) => {
+    const li = document.createElement("li");
+    li.className = "layer-row" + (layer.id === state.activeLayer ? " active" : "");
+
+    // Color dot – otevře vlastní popover (7 barev duhy + vlastní), místo
+    // holého nativního input[type=color] (do jehož popupu nejde nic přidat).
+    const colorDot = document.createElement("button");
+    colorDot.type = "button";
+    colorDot.className = "layer-color-dot";
+    colorDot.style.background = layer.color;
+    colorDot.title = "Změnit barvu vrstvy";
+    colorDot.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openLayerColorPicker(layer, colorDot);
+    });
+
+    // Name (inline editable)
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "layer-name";
+    nameSpan.textContent = layer.name;
+    nameSpan.title = "Klikněte pro přejmenování";
+    nameSpan.addEventListener("dblclick", () => {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "layer-name-input";
+      input.value = layer.name;
+      nameSpan.replaceWith(input);
+      input.focus();
+      input.select();
+      const finish = () => {
+        const val = input.value.trim();
+        if (val) layer.name = val;
+        input.replaceWith(nameSpan);
+        nameSpan.textContent = layer.name;
+      };
+      input.addEventListener("blur", finish);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") input.blur();
+        if (e.key === "Escape") { input.value = layer.name; input.blur(); }
+        e.stopPropagation();
+      });
+    });
+
+    // Visibility toggle
+    const visBtn = document.createElement("button");
+    visBtn.className = "layer-icon-btn" + (layer.visible ? "" : " off");
+    visBtn.innerHTML = layer.visible ? ICON_EYE_OPEN : ICON_EYE_OFF;
+    visBtn.title = layer.visible ? "Skrýt vrstvu" : "Zobrazit vrstvu";
+    visBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      layer.visible = !layer.visible;
+      updateLayerList();
+      renderAll();
+    });
+
+    // Lock toggle
+    const lockBtn = document.createElement("button");
+    lockBtn.className = "layer-icon-btn" + (layer.locked ? " on" : "");
+    lockBtn.innerHTML = layer.locked ? "🔒" : "🔓";
+    lockBtn.title = layer.locked ? "Odemknout vrstvu" : "Zamknout vrstvu";
+    lockBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      layer.locked = !layer.locked;
+      updateLayerList();
+    });
+
+    // Active radio
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "activeLayer";
+    radio.className = "layer-radio";
+    radio.checked = layer.id === state.activeLayer;
+    radio.title = "Nastavit jako aktivní vrstvu";
+    radio.addEventListener("change", () => {
+      state.activeLayer = layer.id;
+      updateLayerList();
+    });
+
+    li.appendChild(radio);
+    li.appendChild(colorDot);
+    li.appendChild(nameSpan);
+    li.appendChild(visBtn);
+    li.appendChild(lockBtn);
+    ul.appendChild(li);
+  });
+}
+
+/** Listenery tlačítek panelu vrstev (při načtení — volá js/ui.js na původním místě). */
+export function initLayerButtons() {
+  // Layer panel buttons
+  document.getElementById("btnAddLayer").addEventListener("click", () => {
+    const id = state.nextLayerId++;
+    state.layers.push({ id, name: `Vrstva ${id}`, color: COLORS.text, visible: true, locked: false });
+    updateLayerList();
+    showToast(`Vrstva ${id} přidána`);
+  });
+
+  document.getElementById("btnDelLayer").addEventListener("click", () => {
+    if (state.activeLayer === 0) {
+      showToast("Nelze smazat vrstvu 0 (Kontura)");
+      return;
+    }
+    const idx = state.layers.findIndex(l => l.id === state.activeLayer);
+    if (idx === -1) return;
+    const delId = state.activeLayer;
+    state.layers.splice(idx, 1);
+    // Move objects from deleted layer to layer 0
+    state.objects.forEach(obj => { if (obj.layer === delId) obj.layer = 0; });
+    state.activeLayer = 0;
+    updateLayerList();
+    updateObjectList();
+    renderAll();
+    showToast("Vrstva smazána, objekty přesunuty na vrstvu Kontura");
+  });
+}
