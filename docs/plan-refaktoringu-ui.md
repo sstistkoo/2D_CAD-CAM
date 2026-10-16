@@ -19,6 +19,7 @@
 | 2b-1 dialogy mřížky a úhlu → `js/ui/gridAngleDialogs.js` | `refactor(ui): dialogy mřížky…` | 3 620 | `ui-grid-angle-dialogs` |
 | 2b-2 nulový bod → `js/ui/nullPoint.js` (+ `initNullPointButtons()`) | `refactor(ui): nulový bod…` | 3 456 | `ui-null-point` |
 | 2b-3 Smazat vše + historie → `js/ui/drawingHistory.js` (+ `initClearAllButton()`) | `refactor(ui): Smazat vše a historie…` | 3 300 | `ui-drawing-history` |
+| 2a Nastavení → `js/ui/settingsDialog.js` | `refactor(ui): Nastavení…` | 2 797 | `ui-settings` |
 
 1d se dělala před 1c: Trigonometrie čte `_calcLastResult` kalkulačky — stav
 se stěhuje s funkcí, která ho píše (pravidlo 6), Trigonometrie ho čte přes
@@ -37,6 +38,10 @@ Pořadí vyhodnocení: post-order DFS přes statické importy od `js/app.js`
 (jako prohlížeč), vypsat moduly s kódem při načtení a porovnat s commitem
 před rozdělením (0bc0338). Přesun importu nesmí přeskládat moduly s kódem
 při načtení. (Skript ve scratchpadu sezení, babel parser — snadno znovu.)
+
+2b se dělala před 2a a ve třech modulech (`gridAngleDialogs`, `nullPoint`,
+`drawingHistory`): Nastavení volá neexportovanou `showHistoryDialog` — po 2b
+ji bere ze sourozeneckého `./drawingHistory.js`, export ui.js se neměnil.
 
 Při stěhování: `npm run sw` spouštět s `LC_ALL=cs_CZ.UTF-8` (generátor řadí
 `localeCompare` podle systému — v C locale přeskládá „ch…" soubory a diff sw.js
