@@ -137,7 +137,8 @@ Testy jsou v `tests/` – unit i integrační (např. CAM g-code, DXF, gear).
 │   ├── constants.js    # Barvy, počítadla
 │   ├── canvas.js       # Canvas 2D rendering
 │   ├── bridge.js       # AutoCenter, store
-│   ├── geometry.js     # Geometrické operace (intersection, fillet, chamfer)
+│   ├── geometry.js     # Rozcestník geometrických operací (kód v geometry/*.js)
+│   ├── geometry/       # Výběr, průsečíky, tečny, offset, transformace, fillet/chamfer
 │   ├── dxf.js          # DXF import + export (1k+ řádek, SI format)
 │   ├── cnc-calcs.js    # CNC kalkulačky: ohyby, otáčky, tolerance, ...
 │   ├── toolLibrary.js  # Správa nástrojů

@@ -22,7 +22,7 @@ const BUDGET = {
   'render.js': 3115,
   'calculators/cam/ops/roughLong.js': 3119,
   'calculators/cncEditor.js': 2918,
-  'geometry.js': 2553,
+  'geometry.js': 74,   // rozcestník (rozděleno 16. 10. do js/geometry/) — kód sem nepřidávat
   'calculators/vkContour.js': 2347,
   'storage/fileIO.js': 1988,
   'calculators/camEditor.js': 1897,

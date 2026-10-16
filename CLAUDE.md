@@ -84,7 +84,9 @@ js/
   types.js            # JSDoc typové definice (registry/typy)
   constants.js        # barvy, prahy, počítadla
   bridge.js           # zprostředkovatel mezi moduly (AutoCenter, store)
-  geometry.js         # průsečíky, fillet, chamfer, constraints
+  geometry.js         # rozcestník geometrie (exporty z geometry/*.js)
+  geometry/           # výběr, hit-test, průsečíky, tečny, tečné kružnice,
+                      #   přímky+offset, transformace, zaoblení/sražení
   canvas.js           # 2D kontext, transformace
   render.js           # překreslení celého výkresu
   dxf.js              # DXF import/export
@@ -182,7 +184,7 @@ docs/                 # developer.md, user-guide.md
   a callbacky předají parametrem; vzory v `docs/plan-rozdeleni-cam-simulatoru.md`;
   zbytek jádra se dál NEROZDĚLUJE, rozhodnutí uživatele 16. 10.), `ui.js` 5312,
   `render.js` 3115, `cam/ops/roughLong.js` 3119, `cncEditor.js` 2918,
-  `geometry.js` 2553, `vkContour.js` 2347. Nemusí se kvůli tomu nic
+  `geometry.js` 2553 → rozcestník 74 (rozděleno 16. 10. do `js/geometry/`), `vkContour.js` 2347. Nemusí se kvůli tomu nic
   přepisovat — pravidlo se týká jen NOVÉHO kódu. Nelze-li kód jinak
   umístit, nejdřív se zeptej uživatele.
   Hlídá to `tests/file-size-budget.test.js` (běží v `test:cad`): stropy souborů

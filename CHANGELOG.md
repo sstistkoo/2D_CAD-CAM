@@ -83,6 +83,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Rozdělení `js/geometry.js`** (2 554 ř.) do `js/geometry/` podle témat
+  (výběr klikem, hit-test, průsečíky, tečny, tečné kružnice, přímky + offset,
+  transformace, zaoblení/sražení). Kód přesunutý beze změny, `geometry.js`
+  zůstává rozcestníkem se stejnými exporty. Nový test
+  `tests/geometry-api.test.js` (seznam exportů + dosud netestované funkce:
+  výběr objektu, tečné kružnice, zaoblení úsečky s obloukem, okamžitý CNC export).
 - **Testy okna CAM simulátoru a jeho rozdělení** (`docs/plan-rozdeleni-cam-simulatoru.md`):
   harness `tests/helpers/simUi.mjs` (happy-dom, záznam kreslení) a testy
   `tests/sim-ui-*.test.js`; z `camSimulator.js` (11 716 → ~10 970 ř.) přestěhované

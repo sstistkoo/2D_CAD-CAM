@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v504';
+const CACHE_NAME = 'skica-v505';
 const ASSETS = [
   './',
   './index.html',
@@ -251,6 +251,14 @@ const ASSETS = [
   './js/gcodeNormalize.js',
   './js/geom/geomCore.js',
   './js/geometry.js',
+  './js/geometry/fillet.js',
+  './js/geometry/hitDistance.js',
+  './js/geometry/intersections.js',
+  './js/geometry/linesOffset.js',
+  './js/geometry/select.js',
+  './js/geometry/tangentCircles.js',
+  './js/geometry/tangents.js',
+  './js/geometry/transforms.js',
   './js/idb.js',
   './js/lib/browser.maker.js',
   './js/lib/dxf-parser.min.js',

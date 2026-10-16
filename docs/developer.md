@@ -31,7 +31,9 @@ index.html
 │   ├── types.js           # JSDoc typové definice (neexportuje kód)
 │   ├── constants.js       # Barvy, prahy, stavy
 │   ├── bridge.js          # Zprostředkovatel mezi moduly (AutoCenter, store)
-│   ├── geometry.js        # Průsečíky, fillet, chamfer, constraints
+│   ├── geometry.js        # Rozcestník geometrie — exporty z geometry/*.js
+│   ├── geometry/          # select, hitDistance, intersections, tangents,
+│   │                      #   tangentCircles, linesOffset, transforms, fillet
 │   ├── canvas.js          # Canvas 2D kontext, transformace
 │   ├── render.js          # Překreslování celého výkresu
 │   ├── dxf.js             # DXF import + export
@@ -81,7 +83,12 @@ bridge.updateObjectList = () => updateObjectList();
 Bridge se inicializuje při startu v:
 - `js/events.js` – nástroje (`handleLineClick`, `measureSelection`, ...)
 - `js/ui.js` – UI aktualizace (`updateObjectList`, `renderAll`, ...)
-- `js/geometry.js` – geometrické operace (`calculateAllIntersections`)
+- `js/geometry.js` – geometrické operace (`calculateAllIntersections`); od 16. 10. 2026
+  rozcestník — kód je v `js/geometry/*.js` podle témat (výběr klikem, hit-test,
+  průsečíky + odložený CNC export, tečny, tečné kružnice/Apollonius, přímky +
+  offset, transformace, zaoblení/sražení). Importovat dál z `geometry.js`; nová
+  funkce do modulu svého tématu a do seznamu exportů rozcestníku. Veřejné
+  rozhraní hlídá `tests/geometry-api.test.js` (snapshot seznamu exportů).
 - `js/touch.js` – mobilní tlačítka
 - `js/storage/fileIO.js` a `js/storage/projectManager.js` – souborové dialogy
 
