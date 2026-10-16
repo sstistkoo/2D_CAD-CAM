@@ -27,11 +27,6 @@ let savedBridge;
 
 beforeAll(async () => {
   installUiDom();
-  // #statusHint v index.html není (hinty se nikde nezobrazují — nález č. 5
-  // v plánu); pro charakterizaci setHint/resetHint ho test přidá.
-  const hint = document.createElement('span');
-  hint.id = 'statusHint';
-  document.body.appendChild(hint);
   ui = await import('../js/ui.js');
   ({ state } = await import('../js/state.js'));
   ({ bridge } = await import('../js/bridge.js'));
@@ -116,6 +111,13 @@ describe('setTool', () => {
     expect([state.objects.length, state.undoStack.length]).toEqual([2, 1]);
     undo();
     expect(state.objects.map(o => o.type)).toEqual(['point']);
+  });
+
+  it('hint je ve volné zóně stavového řádku (dřív #statusHint nebyl — nález č. 5)', () => {
+    const hint = document.querySelector('#statusbar > .statusbar-fill > #statusHint');
+    expect(hint).toBeTruthy();
+    ui.setHint('Klikněte na počáteční bod úsečky');
+    expect(hint.title).toBe('Klikněte na počáteční bod úsečky');   // celý text i při zkrácení
   });
 
   it('refreshToolbarActive, setHint, resetHint', () => {

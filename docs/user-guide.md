@@ -67,6 +67,10 @@ Herní nástroje seskupené do sekcí:
 - Indikátory mřížky/úhlu/kót (# ∠ 📐) – vypnutá funkce je ztlumená, ne skrytá
 - Tlačítka: ⊕ Centr (vycentrovat výkres), 🔢 (zadání objektu – číselně / VK
   kontura), ⚙️ Nastavení
+- Na konci lišty (do volného místa): nápověda k aktuálnímu nástroji (co
+  kliknout) a název projektu. Když se nevejdou, zkrátí se „…“ — celá nápověda
+  je v popisku po najetí myší. Na užším okně přejdou tlačítka i tyhle texty na
+  druhý řádek lišty.
 
 #### Klikací indikátory
 Všechny indikátory (v dolní liště na desktopu i v horní liště na mobilu) jsou

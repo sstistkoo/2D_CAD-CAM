@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Dolní lišta ukazuje nápovědu k nástroji a název projektu.** Obojí se
+  zapisovalo do prvků, které v aplikaci nebyly. Teď jsou na konci dolní lišty
+  ve volném místě (ostatní položky se neposunou); když se nevejdou, zkrátí se
+  „…“ a celá nápověda je v popisku. `index.html`, `css/style.css`, testy
+  `ui-toolbar`, `ui-help-theme`.
 - **Tlačítka v dolní liště už nemizí pod pravým panelem.** Při užším okně
   (pod ~1250 px) se ⚙️ Nastavení, při ještě užším i ✏️ Editor a ✏️ VK
   schovaly pod pravý panel a nedaly se použít. Dolní lišta teď končí u okraje

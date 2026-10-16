@@ -1,9 +1,8 @@
 # Plán: rozdělení `js/ui.js`
 
 > **HOTOVO 16. 10. 2026:** `ui.js` 5 312 → **156 ř.** (rozcestník), kód v 16 modulech
-> `js/ui/` + balíku `js/ui/properties/` (6 souborů), strop v `file-size-budget` = 156. Zbývá jen
-> „Nalezené chyby" níž: č. 1, 2, 4, 6 opraveny 16. 10.; č. 3, 5 čekají na
-> rozhodnutí uživatele, č. 7 nalezena při opravě č. 2.
+> `js/ui/` + balíku `js/ui/properties/` (6 souborů), strop v `file-size-budget` = 156.
+> „Nalezené chyby" níž: všech 9 opraveno 16. 10. (č. 7–9 nalezeny při opravách).
 >
 > Výchozí stav 16. 10. 2026: **5 312 ř.**, strop v `tests/file-size-budget.test.js` = 5 312 (+15).
 > Zadal uživatel 16. 10. jako samostatnou práci na nové sezení (CLAUDE.md:
@@ -103,11 +102,14 @@ se zanese šumem). Kontrolní skript doslovnosti: úsek modulu musí být souvis
 4. ✅ **Opraveno 16. 10.** — **Nulový bod: toast po nastavení ukazoval „ΔX: 0 ΔZ: 0"**
    místo souřadnic bodu (`fmtStatusCoords` až po přepnutí do INC vůči právě
    nastavenému bodu). Teď se poloha formátuje v ABS předem. Test `ui-null-point`.
-5. **Hinty ani název projektu se nikde nezobrazují:** `setHint` / `resetHint`
-   (19 importérů) zapisují do `#statusHint` a `updateStatusProject` do
-   `#statusProject` — ani jeden prvek v `index.html` není (`#statusHint` podle
-   historie nikdy nebyl). Rozhodnout s uživatelem: přidat prvek do stavového řádku,
-   nebo hinty odebrat. Testy `ui-toolbar` / `ui-help-theme` prvky přidávají jen pro charakterizaci.
+5. ✅ **Opraveno 16. 10.** — **Hinty ani název projektu se nikde nezobrazovaly:**
+   `setHint` / `resetHint` (19 importérů) zapisují do `#statusHint`
+   a `updateStatusProject` do `#statusProject` — ani jeden prvek v `index.html`
+   nebyl. Teď jsou ve „volné zóně" na konci stavového řádku (`flex-basis: 0`:
+   bere jen zbylé místo, ostatní položky se neposunou — ověřeno polohami při
+   1000–1600 px); texty se zkracují „…", celý hint v `title`. Při 1280–1440 px
+   je místa málo (hint zkrácený / skrytý), od ~1600 px celý. Na mobilu je
+   stavový řádek skrytý jako dřív. Testy `ui-toolbar`, `ui-help-theme`.
 6. ✅ **Opraveno 16. 10.** — **Auto-uložení rozkreslené kontury při přepnutí
    nástroje dělalo dva záznamy Zpět** (`setTool` volal `pushUndo()` a `addObject()`
    ho volá znovu — první Zpět vrátilo konturu, druhé nic). Nadbytečný

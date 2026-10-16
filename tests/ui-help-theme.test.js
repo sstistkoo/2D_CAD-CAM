@@ -15,10 +15,6 @@ const toast = () => document.querySelector('.toast')?.textContent;
 
 beforeAll(async () => {
   installUiDom();
-  // #statusProject v index.html není (nález č. 5 v plánu) — test ho přidá.
-  const sp = document.createElement('span');
-  sp.id = 'statusProject';
-  document.body.appendChild(sp);
   ui = await import('../js/ui.js');
   ({ state } = await import('../js/state.js'));
   ({ COLORS } = await import('../js/constants.js'));
@@ -26,6 +22,10 @@ beforeAll(async () => {
 afterEach(() => { help().classList.remove('visible'); });
 
 describe('stavový řádek a nápověda', () => {
+  it('název projektu je ve stavovém řádku (dřív #statusProject nebyl — nález č. 5)', () => {
+    expect(document.querySelector('#statusbar #statusProject')).toBeTruthy();
+  });
+
   it('název projektu', () => {
     state.projectName = 'Hřídel';
     ui.updateStatusProject();

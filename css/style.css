@@ -1882,6 +1882,37 @@ body {
   flex-shrink: 0;
 }
 
+/* Volná zóna na konci stavového řádku: nápověda k nástroji (vlevo) a název
+   projektu (vpravo). flex-basis 0 → bere jen zbylé volné místo, takže ostatní
+   položky se kvůli ní neposunou ani nepřejdou na další řádek. Záporný margin
+   vyruší mezeru `gap` navíc, padding ji vrátí jako odsazení obsahu. Texty se
+   zkracují „…“, celý hint je v title. Selektor s #statusbar kvůli specificitě
+   (desktopové `#statusbar > *` výš jinak přebije flex). */
+#statusbar > .statusbar-fill {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-left: -20px;
+  padding-left: 20px;
+  display: flex;
+  gap: 20px;
+  overflow: hidden;
+}
+#statusHint,
+#statusProject {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#statusHint {
+  flex: 0 1 auto;
+  color: var(--ctp-overlay0);
+}
+#statusProject {
+  flex: 0 1000 auto;
+  margin-left: auto;
+}
+
 .statusbar-btn {
   background: var(--ctp-surface0);
   color: var(--ctp-text);

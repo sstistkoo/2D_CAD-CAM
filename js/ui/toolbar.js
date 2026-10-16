@@ -280,7 +280,7 @@ export function activateFilletChamfer() {
 /** @param {string} text */
 export function setHint(text) {
   const el = document.getElementById("statusHint");
-  if (el) el.textContent = text;
+  if (el) { el.textContent = text; el.title = text; }   // title = celý text, když se zkrátí
 }
 
 /** Obnoví nápovědu pro aktuální nástroj. */
