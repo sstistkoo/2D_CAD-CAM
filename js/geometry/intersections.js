@@ -2,6 +2,7 @@
 // Vyňato z js/geometry.js (16. 10. 2026); geometry.js je rozcestník se stejnými
 // exporty, importuje se dál odtamtud.
 import { state } from '../state.js';
+import { getFaceLayers } from '../faceView/faceLayer.js';
 import { isAngleBetween, bulgeToArc, getRectCorners, getNearestPointOnObject } from '../utils.js';
 import { renderAll } from '../render.js';
 import { bridge } from '../bridge.js';
@@ -265,7 +266,11 @@ export function flushAutoCncExport() {
 /** Přepočítá všechny průsečíky mezi objekty. */
 export function calculateAllIntersections() {
   const pts = [];
-  const objs = state.objects;
+  // Skrytá čela bokorysu (js/faceView/) leží na stejném místě jako aktuální —
+  // jejich průsečíky by se na něm ukazovaly a chytal by se na ně SNAP.
+  // (Skryté vrstvy profilu se počítají dál — export CNC z nich ořezává.)
+  const hiddenFace = new Set(getFaceLayers().filter(l => !l.visible).map(l => l.id));
+  const objs = hiddenFace.size ? state.objects.filter(o => !hiddenFace.has(o.layer)) : state.objects;
   for (let i = 0; i < objs.length; i++) {
     if (objs[i].isDimension || objs[i].isCoordLabel || objs[i].skipIntersections) continue;
     for (let j = i + 1; j < objs.length; j++) {

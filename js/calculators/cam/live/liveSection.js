@@ -3,7 +3,7 @@
 // jako obdélník Ø díry × hloubka na r, radiální díra jako obdélník od pláště
 // dovnitř ve výšce Z, kapsa / drážka jako obdélník přes svůj rozsah poloměrů.
 // Jen náhled — úběr materiálu soustružení se tím nemění.
-import { getLiveOps, livePositions } from './liveModel.js';
+import { getLiveOps, livePositions, faceOut } from './liveModel.js';
 
 /** @param f snímek z drawCanvas.js ({ S, ctx, toScreen, prms }) */
 export function drawLiveSectionLayer(f) {
@@ -18,6 +18,7 @@ export function drawLiveSectionLayer(f) {
   };
   ctx.save();
   ops.forEach(op => {
+    const zEnd = op.zTop - faceOut(op) * op.depth;   // dno díry (čelo zleva → hloubka do +Z)
     if (op.kind === 'mill') {
       const tr = op.toolD / 2;
       let r0, r1;
@@ -28,13 +29,13 @@ export function drawLiveSectionLayer(f) {
         const dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy;
         const t = L2 > 0 ? Math.max(0, Math.min(1, -(x1 * dx + y1 * dy) / L2)) : 0;
         r0 = Math.max(0, Math.hypot(x1 + dx * t, y1 + dy * t) - tr); r1 = Math.max(...ends) + tr;
-        rect(r0, r1, op.zTop, op.zTop - op.depth, 'rgba(203,166,247,0.22)', '#cba6f7');
+        rect(r0, r1, op.zTop, zEnd, 'rgba(203,166,247,0.22)', '#cba6f7');
       } else {
         const seen = new Set();
         livePositions(op).forEach(p => {
           const k = p.r.toFixed(2); if (seen.has(k)) return; seen.add(k);
           r0 = Math.max(0, p.r - op.holeD / 2); r1 = p.r + op.holeD / 2;
-          rect(r0, r1, op.zTop, op.zTop - op.depth, 'rgba(203,166,247,0.22)', '#cba6f7');
+          rect(r0, r1, op.zTop, zEnd, 'rgba(203,166,247,0.22)', '#cba6f7');
         });
       }
       return;
@@ -48,10 +49,10 @@ export function drawLiveSectionLayer(f) {
         rect(rX - op.depth, rX, p.z - hd, p.z + hd, 'rgba(148,226,213,0.22)', '#94e2d5');
       } else {
         const k = p.r.toFixed(2); if (seen.has(k)) return; seen.add(k);
-        rect(p.r - hd, p.r + hd, op.zTop, op.zTop - op.depth, 'rgba(250,179,135,0.22)', '#fab387');
+        rect(p.r - hd, p.r + hd, op.zTop, zEnd, 'rgba(250,179,135,0.22)', '#fab387');
         // Špička vrtáku 118°.
-        const tip = toScreen(p.r, op.zTop - op.depth - hd * 0.6);
-        const a = toScreen(p.r - hd, op.zTop - op.depth), b = toScreen(p.r + hd, op.zTop - op.depth);
+        const tip = toScreen(p.r, zEnd - faceOut(op) * hd * 0.6);
+        const a = toScreen(p.r - hd, zEnd), b = toScreen(p.r + hd, zEnd);
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(tip.x, tip.y); ctx.lineTo(b.x, b.y);
         ctx.strokeStyle = '#fab387'; ctx.lineWidth = 1; ctx.stroke();
       }

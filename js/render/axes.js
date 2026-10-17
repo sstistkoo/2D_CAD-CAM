@@ -4,6 +4,7 @@
 import { ctx, drawCanvas, screenToWorld, worldToScreen } from '../canvas.js';
 import { COLORS, GRID_BASE_STEP, GRID_MIN_PX, LINE_WIDTH } from '../constants.js';
 import { displayX, state } from '../state.js';
+import { hideMainAxisLabel } from '../faceView/faceReference.js';
 
 // ── Osy ──
 export function renderAxes() {
@@ -125,6 +126,7 @@ export function renderAxes() {
     const [wx] = screenToWorld(x, 0);
     const label = Math.round(wx / drawGridSize) * drawGridSize;
     if (label === 0) continue;
+    if (hideMainAxisLabel(label, 0)) continue;   // bokorys má vlastní stupnici (faceView/)
     const dispLabel = isKarusel ? displayX(label) : label;
     const txt = dispLabel.toString();
     const tw = g.measureText(txt).width;
@@ -140,6 +142,7 @@ export function renderAxes() {
     const [, wy] = screenToWorld(0, y);
     const label = Math.round(wy / drawGridSize) * drawGridSize;
     if (label === 0) continue;
+    if (hideMainAxisLabel(0, label)) continue;   // bokorys má vlastní stupnici (faceView/)
     const dispLabel = isKarusel ? label : displayX(label);
     const drawY = y - 3;
     if (drawY < lastLabelEndY + labelPad) continue; // přeskočit – překrývalo by se

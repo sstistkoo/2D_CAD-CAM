@@ -90,6 +90,16 @@ describe('NC výstup', () => {
     const i = L.findIndex(l => l.startsWith('G0 Z-30'));
     expect(L.slice(i - 3, i)).toContain('G0 X150');
   });
+  it('čelo zleva: vrtá se k +Z (cyklus i rozepsaně), Fanuc R kladné', () => {
+    const op = drill({ zTop: -50, faceDir: -1 });
+    const L = buildLiveBlock(prms({ liveOps: [op] }));
+    expect(L).toContain('CYCLE83(-55, -50, 2, -40, , -47, , 3, 0, 0, 1, 1)');
+    const E = buildLiveBlock(prms({ liveOps: [op], live: { cycles: false } }));
+    expect(E).toContain('G1 Z-40 F120');
+    expect(E).toContain('G0 Z-55');
+    const F = buildLiveBlock(prms({ controlSystem: 'fanuc', liveOps: [op] }));
+    expect(F.some(l => /^G83 .* Z-40 R3 /.test(l))).toBe(true);
+  });
   it('bez operací žádný blok', () => {
     expect(buildLiveBlock(prms({ liveOps: [] }))).toEqual([]);
   });

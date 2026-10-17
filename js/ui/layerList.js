@@ -12,6 +12,7 @@ import { state, showToast } from '../state.js';
 import { renderAll } from '../render.js';
 import { openLayerColorPicker } from './colorPicker.js';
 import { updateObjectList } from '../ui.js';
+import { bridge } from '../bridge.js';
 
 // ── Vrstvy ──
 // Vlastní SVG ikony (místo emoji 👁/👁‍🗨, které se na některých systémech
@@ -129,6 +130,12 @@ export function initLayerButtons() {
     const idx = state.layers.findIndex(l => l.id === state.activeLayer);
     if (idx === -1) return;
     const delId = state.activeLayer;
+    // Čelo bokorysu: objekty NEpřesouvat na Konturu (díry by se staly
+    // profilem a šly do CAM) — smaže se celé čelo (js/faceView/faceView.js).
+    if (state.layers[idx].isFace) {
+      if (bridge.deleteFace) bridge.deleteFace(state.layers[idx]);
+      return;
+    }
     state.layers.splice(idx, 1);
     // Move objects from deleted layer to layer 0
     state.objects.forEach(obj => { if (obj.layer === delId) obj.layer = 0; });

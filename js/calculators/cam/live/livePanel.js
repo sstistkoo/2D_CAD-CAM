@@ -22,6 +22,8 @@ import { insertLiveBlock, removeLiveBlock, findLiveBlock, liveBlockTag } from '.
 import { drawFaceView, livePartGeometry, liveAnimSteps } from './liveFaceView.js';
 import { drawLiveSectionLayer } from './liveSection.js';
 import { LIVE_CSS } from './liveStyles.js';
+import { liveOpsFromCad } from './liveFromCad.js';
+import { faceDrawingsLocal } from '../../../faceView/faceLayer.js';
 
 const CTRL = new WeakMap();   // S → ovladač otevřeného simulátoru
 const VIEW_KEY = 'skica-cam-live-view';
@@ -222,6 +224,15 @@ export function initLiveTools(deps) {
       ops.push(newLiveOp(act === 'add-mill' ? 'mill' : 'drill', geo, ops.length + 1));
       st.selected = ops.length - 1;
       commit(p => { p.liveOps = ops; });
+    } else if (act === 'from-cad') {
+      const res = liveOpsFromCad(faceDrawingsLocal(), livePartGeometry(S), getLiveOps(S.params));
+      if (!res.holes && !res.slots) {
+        showToast('V CAD není nakreslené čelo — zapněte ◎ (bokorys), kružnice = díra, úsečka = drážka', 5000);
+        return;
+      }
+      st.selected = res.ops.length - 1;
+      commit(p => { p.liveOps = res.ops; });
+      showToast(`Z CAD: ${res.holes} děr, ${res.slots} drážek${res.skipped ? ` (přeskočeno ${res.skipped} jiných objektů)` : ''} — doplňte hloubku a nástroj`, 5000);
     } else if (act === 'write') {
       if (!getLiveOps(S.params).length) { showToast('Nejdřív přidejte operaci'); return; }
       if (writeBlock(true)) showToast('Blok poháněných nástrojů zapsán do programu (před konec programu)');
@@ -250,7 +261,7 @@ export function initLiveTools(deps) {
     e.stopPropagation();
   });
 
-  const NUM_KEYS = new Set(['pcd', 'count', 'startAngle', 'zTop', 'xTop', 'zPos', 'holeD', 'depth', 'peck',
+  const NUM_KEYS = new Set(['faceDir', 'pcd', 'count', 'startAngle', 'zTop', 'xTop', 'zPos', 'holeD', 'depth', 'peck',
     'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'slot.x1', 'slot.y1', 'slot.x2', 'slot.y2']);
   ed.addEventListener('change', e => {
     const el = e.target;
@@ -306,6 +317,7 @@ export function initLiveTools(deps) {
       <div class="cam-live-btns">
         <button data-live="add-drill">➕ Vrtání</button>
         <button data-live="add-mill">➕ Frézování</button>
+        <button data-live="from-cad" title="Načíst díry (kružnice) a drážky (úsečky) nakreslené v CAD v pohledu ◎ Čelo. Nahradí dřív načtené z CAD, ručně přidané operace zůstanou.">📥 Z CAD</button>
         <button data-live="write" title="Vloží blok poháněných nástrojů do programu před jeho konec (M30), nebo přepíše ten, který už tam je">📝 Zapsat do programu</button>
         <button data-live="unwrite" title="Odebere blok poháněných nástrojů z programu">🗑 Z programu</button>
       </div>
@@ -317,7 +329,7 @@ export function initLiveTools(deps) {
       h += `<div class="cam-live-card${sel ? ' sel' : ''}" data-op="${i}">
         <div class="cam-live-card-h" data-live="sel">
           <span class="cam-live-dot" style="background:${dotCol(op)}"></span>
-          <span class="t"><b>${i + 1}. ${esc(op.name)}</b><small>${esc(liveOpSummary(op))}</small></span>
+          <span class="t"><b>${i + 1}. ${esc(op.name)}${op.fromCad ? ' <span title="Načteno z CAD (◎ Čelo)">📐</span>' : ''}</b><small>${esc(liveOpSummary(op))}</small></span>
           <button data-live="up" title="Dřív">▲</button><button data-live="down" title="Později">▼</button>
           <button data-live="del" title="Smazat operaci">✕</button>
         </div>
@@ -349,6 +361,7 @@ function opForm(op) {
   const slot = op.kind === 'mill' && op.millType === 'slot';
   let h = '<div class="cam-live-grid">';
   h += txt('name', 'Název', op.name);
+  h += sel('kind', 'Druh', op.kind, [['drill', 'Vrtání'], ['mill', 'Frézování']]);
   if (op.kind === 'drill') h += sel('side', 'Kam', op.side, [['face', 'Do čela (osa Z)'], ['radial', 'Do pláště (osa X)']]);
   else h += sel('millType', 'Frézování', op.millType, [['pocket', 'Kruhová kapsa'], ['slot', 'Drážka (přímá)']]);
   if (!slot) {
@@ -364,6 +377,7 @@ function opForm(op) {
     h += f('slot.x1', 'X1', op.slot.x1) + f('slot.y1', 'Y1', op.slot.y1) + f('slot.x2', 'X2', op.slot.x2) + f('slot.y2', 'Y2', op.slot.y2);
   }
   h += radial ? f('xTop', 'Ø pláště', op.xTop) : f('zTop', 'Z čela', op.zTop);
+  if (!radial) h += sel('faceDir', 'Strana čela', String(op.faceDir === -1 ? -1 : 1), [['1', '◀ zprava (vrtá k −Z)'], ['-1', '▶ zleva (vrtá k +Z)']]);
   if (op.kind === 'drill') {
     h += f('holeD', 'Ø díry', op.holeD) + f('depth', 'Hloubka', op.depth);
     h += f('peck', 'Krok vrtání (0 = naráz)', op.peck) + f('dwell', 'Prodleva dole [s]', op.dwell);

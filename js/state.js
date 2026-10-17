@@ -66,10 +66,14 @@ function wireNotifyBadge() {
   const panel = document.getElementById('mobileNotifyPanel');
   if (!badge || !panel) return;
   _notifyWired = true;
+  // Lišta (#mobileCoordBar, z-index 50) tvoří vrstvu, ze které panel nevyleze
+  // nad plovoucí tlačítka (250) — při otevřeném panelu ji zvedne CSS přes
+  // body.notify-open.
+  const setOpen = (open) => { panel.hidden = !open; document.body.classList.toggle('notify-open', open); };
   badge.addEventListener('click', (e) => {
     e.stopPropagation();
     const willShow = panel.hidden;
-    panel.hidden = !willShow;
+    setOpen(willShow);
     if (willShow) {
       renderNotifyPanel();
       badge.classList.remove('has-unread');
@@ -80,14 +84,14 @@ function wireNotifyBadge() {
     if (!item) return;
     const n = _deferredNotifications[Number(item.dataset.notifyIdx)];
     if (n && n.onClick) {
-      panel.hidden = true;
+      setOpen(false);
       n.onClick();
     }
   });
   document.addEventListener('click', (e) => {
     if (panel.hidden) return;
     if (badge.contains(e.target) || panel.contains(e.target)) return;
-    panel.hidden = true;
+    setOpen(false);
   });
 }
 
@@ -106,6 +110,17 @@ function deferToast(msg, onClick) {
   }
   const panel = document.getElementById('mobileNotifyPanel');
   if (panel && !panel.hidden) renderNotifyPanel();
+}
+
+/**
+ * Zvoneček 🔔 v horní liště mobilu je vidět VŽDY (dřív jen když se nějaká
+ * hláška odložila — po obnovení stránky pak „zmizel" a nebylo kde číst
+ * nápovědy). Prázdný ukáže „Žádné hlášky". Volá app.js při startu.
+ */
+export function initNotifyBadge() {
+  wireNotifyBadge();
+  const badge = document.getElementById('mobileNotifyBadge');
+  if (badge) badge.hidden = false;
 }
 
 let _saveFlashTimer = null;
@@ -138,8 +153,14 @@ function flashSaveIndicator() {
  *   `onClick` = akce k dispozici jen když se hláška odloží do fronty
  *   zvonečku (`#mobileNotifyPanel`) – klik na položku ji spustí a frontu
  *   zavře. Klasický toast dole zůstává neklikací (`pointer-events:none`).
+ *   `bell` = delší nápověda: na mobilu jde rovnou pod zvoneček 🔔 (bliká),
+ *   okénko dole by zakrylo plátno i lištu (např. nápověda bokorysu).
  */
 export function showToast(msg, duration = 2000, opts = {}) {
+  if (opts.bell && typeof window !== 'undefined' && window.innerWidth <= MOBILE_BREAKPOINT) {
+    deferToast(msg, opts.onClick);
+    return;
+  }
   if (opts.quiet && typeof window !== 'undefined' && window.innerWidth <= MOBILE_BREAKPOINT) {
     flashSaveIndicator();
     return;

@@ -457,7 +457,44 @@ vrtání a frézování (odvrtané díry zezelenají). Díry se kreslí i do ře
 (sklopené do roviny řezu jako na výkrese, čárkovaně), úběr soustružení
 neovlivní.
 
+**Bokorys v CAD (◎).** Tlačítko **◎ Čelo** (desktop: horní lišta; mobil:
+kulaté ◎ nahoře u 🔢) přepíná ve třech krocích: **profil → profil + bokorys
+→ jen bokorys** (◉, ostatní vrstvy dočasně skryté) → profil; každé přepnutí
+zarámuje to, co je vidět. Bokorys = pohled na čelo **vpravo vedle nárysu**
+(i na mobilu) na ose vřetena; od průměrů profilu v rovině čela k němu vedou
+čárkované promítací čáry. Bokorys je **řez jako na výkresu**: vyplněná
+plocha řezu v rovině vybraného čela a za ní (ve směru pohledu) hrany
+profilu — hrana je **plná**, když ji mezi ní a řezem nezakrývá materiál,
+jinak **tenká čárkovaná** (skrytá hrana); co leží před řezem, se nekreslí,
+téměř totožné kružnice (konce zaoblení) se sloučí. Kontura je modrá,
+**polotovar v barvě vrstvy Polotovar** čerchovaně se dvěma tečkami,
+středový kříž se **stupnicí v mm od středu čela** a kóty Ø (jen náhled;
+sklíčidlo se nekreslí). Čísla hlavních os se
+v bokorysu a za ním nekreslí, v „jen bokorysu" ani průsečíky profilu.
+**SNAP** chytá střed bokorysu, kvadranty a obvod kružnic podkladu i osy
+kříže; střed bokorysu leží na celých desítkách, takže i mřížka měří od něj.
+
+**Čela.** Díry mohou být na kterémkoli osazení, zprava i zleva. Lišta čela
+dole na plátně: výběr čela, **➕** nové čelo (vlastní kresba), **🗑** smazat
+čelo i s kresbou (po potvrzení, nejde vrátit; stejně tak smazání vrstvy čela
+v panelu Vrstvy — objekty se nepřesouvají na Konturu),
+**Z** roviny čela (políčko, lze i výraz) a **posuvník**, který se přichytává
+k osazením profilu, a **◀ zprava / ▶ zleva** — odkud se na čelo díváte a
+odkud nástroj přijíždí; šipka ukazuje směr pohledu (podle osazení se strana
+nastaví sama, dokud ji nepřepnete). V nárysu je
+značka řezu s popiskem Z a šipkami ve směru pohledu. Kreslí se do aktuálního
+čela: **kružnice = díra** (střed = poloha, Ø kružnice = Ø díry), **úsečka =
+drážka**. Šipka u +X a popisek C0° ukazují, kde stojí nástroj při SPOS.
+Kresby čel se ukládají s projektem; do CAM ani CNC kódu profilu nejdou —
+načtou se zvlášť:
+
 **🛠 Operace** otevře editor:
+- **📥 Z CAD** — načte díry a drážky z bokorysu (souřadnice vůči středu
+  čela): kružnice stejného Ø = jedna operace (pravidelně rozmístěné se
+  poznají jako roztečná kružnice), úsečka = drážka. Opakované načtení
+  nahradí jen operace dřív načtené z CAD (značka 📐) a převezme jim
+  hloubku, nástroj i otáčky; ručně přidané zůstanou. **Druh** u operace
+  přepne vrtání ↔ frézování (např. kružnice jako kruhová kapsa).
 - **➕ Vrtání** — do čela (osa Z) nebo do pláště (osa X); rozmístění po
   roztečné kružnici (Ø, počet, počáteční úhel) nebo seznam bodů (řádek
   „úhel; poloměr", u pláště „úhel; Z"). Ø díry, hloubka, krok vrtání

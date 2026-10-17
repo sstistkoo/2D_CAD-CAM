@@ -456,6 +456,23 @@ Pravidla: `gcodeParser.parseManualGCodeToPath` obsah bloku **přeskakuje**
 dráhy soustružení). Části programu (`opParts.js`) je sdílí (`SHARED_PARAM_KEYS`)
 — díry patří dílu, ne části. Testy: `tests/cam-live-tools.test.js`.
 
+### CAD: bokorys — pohled na čelo (`js/faceView/`)
+
+| Soubor | Účel |
+|--------|------|
+| `faceView/faceLayer.js` | Vrstvy čel (`isFace`, `faceZ`, `faceSide`, `faceCurrent`, společný `origin`), `profileObjects()`, `faceDrawingsLocal()` (vůči středu čela, se Z a stranou), stav ◎ (`faceViewMode`). Bez UI |
+| `faceView/faceReference.js` | Podklad pod objekty (volá `render/objects.js`): profil v rovině čela (`profileAtZ`), značka řezu v nárysu, promítací čáry, kříž se stupnicí, kóty Ø; `computeFaceOrigin()` (vždy vpravo), `shoulderZs()`; data pro SNAP (`faceSnapPoints/Edge`, volá `canvas.snapPt`) a `hideMainAxisLabel` (`render/axes.js`) |
+| `faceView/faceView.js` | Tlačítka ◎ (horní lišta + plovoucí u 🔢), tři stavy, lišta čela (výběr, ➕, 🗑, Z, posuvník, strana), přesun kreseb čel (i ve snímcích ↩/↪) |
+| `cam/live/liveFromCad.js` | Kresby čel → operace poháněných nástrojů (kružnice → vrtání, úsečka → drážka) se `zTop` a `faceDir` čela |
+
+Kresba čela je obyčejná vrstva, takže ukládání, ↩ i export fungují bez
+zásahu. Z profilu ji vyřazují `stockTools._contourObjects()` (kontrola
+kontury) a `fileIO.runCncExport()` (přenos do CAM, CNC kód). Zapnutý
+bokorys = aktuální čelo je viditelné (ostatní čela skrytá). Skrytá čela
+nevstupují do průsečíků (`geometry/intersections.js`) a skryté vrstvy se
+nechytají do SNAP bodů. Čelo zleva (`faceDir: -1`) vrtá v CAM ve směru +Z
+(`liveModel.faceOut`). Testy: `tests/face-view.test.js`, `tests/cam-live-tools.test.js`.
+
 ### CAM: náhled × program (`cam/gcodeSync.js`)
 
 V CAM simulátoru žijí **dvě dráhy vedle sebe** a každá se obnovuje jinak:

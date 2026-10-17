@@ -17,6 +17,8 @@ import { fmtCoordLabel, fmtNum, state } from '../state.js';
 import { drawText } from './text.js';
 import { bulgeToArc, deepClone } from '../utils.js';
 import { resetDimLabelRects } from './view.js';
+import { drawFaceReference, inFaceDisc } from '../faceView/faceReference.js';
+import { faceViewMode } from '../faceView/faceLayer.js';
 
 // ── Vykreslení objektů ──
 export function renderObjects() {
@@ -30,6 +32,9 @@ export function renderObjects() {
 
   // Viewport culling – spočítat viditelnou oblast
   const vp = getViewportBounds();
+
+  // Bokorys (faceView/): podklad polotovar / profil / sklíčidlo úplně dospod.
+  drawFaceReference(ctx, worldToScreen);
 
   // Výplně (nástroj "Vybarvit") – kreslí se jako první vrstva, pod obrysy.
   drawFills(vp);
@@ -125,7 +130,11 @@ export function renderObjects() {
 
   // Průsečíky (skrýt při číslování objektů a v režimu jen kót)
   if ((state.showDimensions === 'all' || state.showDimensions === 'intersections') && !state.showObjectNumbers) {
+    // „Jen bokorys": profil je skrytý, jeho průsečíky s popisky souřadnic taky
+    // (průsečíky se počítají ze všech objektů — export CNC je potřebuje).
+    const faceSolo = faceViewMode() === 'solo';
     state.intersections.forEach((pt) => {
+      if (faceSolo && !inFaceDisc(pt.x, pt.y)) return;
       const [sx, sy] = worldToScreen(pt.x, pt.y);
       const isSelPt = state.selectedPoint != null
         && state.selectedPoint.some(sp => Math.hypot(pt.x - sp.x, pt.y - sp.y) < DIM_MATCH_TOL);

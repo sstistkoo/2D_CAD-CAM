@@ -2,7 +2,7 @@
 // ║  SKICA – Inicializace aplikace (ES Module entry point)      ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, showToast, updateUndoButtons, ensureStockLayer } from './state.js';
+import { state, showToast, updateUndoButtons, ensureStockLayer, initNotifyBadge } from './state.js';
 import { expandPolylineObjects } from './utils.js';
 import { resizeCanvases, autoCenterView } from './canvas.js';
 import { calculateAllIntersections } from './geometry.js';
@@ -31,6 +31,7 @@ import './events.js';
 import './touch.js';
 import './dialogs.js';
 import './dialogs/contourCheck.js'; // zdvojené čáry + jen hlavní profil do CAM (bridge)
+import './faceView/faceView.js'; // ◎ bokorys (pohled na čelo) pro poháněné nástroje
 import './calculators/calcLaunchers.js'; // tlačítka novějších kalkulaček (Oblouk, Roztažnost, Objem)
 
 // ── Panel toggle via data-panel attributes ──
@@ -181,7 +182,7 @@ window.addEventListener('beforeunload', () => {
     // Odložit centrování – počkat na stabilní layout (sidebar, topbar…)
     requestAnimationFrame(() => {
       resizeCanvases();
-      autoCenterView();
+      autoCenterView(true);   // tiše — „Pohled vycentrován" při každém startu je jen šum
     });
   }
   resetHint();
@@ -196,6 +197,7 @@ window.addEventListener('beforeunload', () => {
   updateLayerList();
   initAutoSave();
   initSettingsAutoSave();
+  initNotifyBadge();   // 🔔 Hlášky v horní liště mobilu — vždy vidět
   updateStatusProject();
   if (bridge.runCncExport) bridge.runCncExport();
   if (bridge.updateMobileCoords) bridge.updateMobileCoords(0, 0);
@@ -208,7 +210,7 @@ window.addEventListener('beforeunload', () => {
 window.addEventListener('load', () => {
   resizeCanvases();
   if (state.objects.length > 0) {
-    autoCenterView();
+    autoCenterView(true);
   }
 });
 

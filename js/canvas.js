@@ -5,6 +5,7 @@
 import { state, showToast } from './state.js';
 import { getObjectSnapPoints, isAngleBetween, bulgeToArc, getNearestPointOnObject } from './utils.js';
 import { renderAll } from './render.js';
+import { faceSnapPoints, faceSnapEdge } from './faceView/faceReference.js';
 import { SNAP_POINT_THRESHOLD, SNAP_EDGE_THRESHOLD, VIBRATE_SNAP_POINT, VIBRATE_SNAP_EDGE, AUTO_CENTER_PADDING, ZOOM_MIN, ZOOM_MAX } from './constants.js';
 
 export const wrap = document.getElementById("canvasWrap");
@@ -158,6 +159,10 @@ export function snapPt(wx, wy) {
     const midThreshold = threshold * 0.3;  // Midpoints: ~30% of normal threshold
     for (const obj of state.objects) {
       if (obj.isDimension || obj.isCoordLabel || obj.isCamPathNote) continue;
+      // Skrytá vrstva se nechytá (stejně jako u hran níž) — např. jiná čela
+      // bokorysu ležící na stejném místě (faceView/).
+      const objLayer = state.layers ? state.layers.find(l => l.id === obj.layer) : null;
+      if (objLayer && !objLayer.visible) continue;
       const pts = getObjectSnapPoints(obj);
       for (const p of pts) {
         const d = Math.hypot(p.x - wx, p.y - wy);
@@ -192,6 +197,16 @@ export function snapPt(wx, wy) {
           objY = p.y;
           objSource = null;
         }
+      }
+    }
+    // Bokorys: střed čela a kvadranty kružnic podkladu (nejsou to objekty).
+    for (const p of faceSnapPoints()) {
+      const d = Math.hypot(p.x - wx, p.y - wy);
+      if (d < threshold && d < objD) {
+        objD = d;
+        objX = p.x;
+        objY = p.y;
+        objSource = null;
       }
     }
     // Průsečíky mají bonus – při stejné vzdálenosti vyhrávají
@@ -234,6 +249,13 @@ export function snapPt(wx, wy) {
         edgeX = np.x;
         edgeY = np.y;
       }
+    }
+    // Kružnice podkladu bokorysu (polotovar, průměry profilu v rovině čela).
+    const fe = faceSnapEdge(wx, wy);
+    if (fe && fe.dist < edgeThreshold && fe.dist < edgeD) {
+      edgeD = fe.dist;
+      edgeX = fe.x;
+      edgeY = fe.y;
     }
     // Snap k ose rotace soustruhu (Z-osa, Y=0) – čára je vizuální, ale snapuje jako hrana
     let snappedToAxis = false;

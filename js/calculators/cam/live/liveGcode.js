@@ -13,7 +13,7 @@
 // M-kódy osy C a poháněného nástroje jsou strojní — bere se je z nastavení
 // (`liveSettings().m`), výchozí hodnoty jsou jen příklad (viz liveModel.js).
 import { LIVE_BEGIN, LIVE_END } from './liveMarkers.js';
-import { getLiveOps, liveSettings, livePositions, depthLevels, millMoves, liveOpSummary, liveOpProblems } from './liveModel.js';
+import { getLiveOps, liveSettings, livePositions, depthLevels, millMoves, liveOpSummary, liveOpProblems, faceOut } from './liveModel.js';
 
 const f3 = v => String(+(+v).toFixed(3));
 const pad2 = n => String(Math.max(0, Math.round(n))).padStart(2, '0');
@@ -102,26 +102,28 @@ function dwell({ ctrl, add }, sec) {
  * Rozepsané vrtání v ose `ax` (Z nebo X). Hodnoty jsou ve zápisu programu
  * (`w` převádí poloměr → výstup), směr vrtání = klesající hodnota.
  */
-function explicitDrill(ctx, ax, w, rfp, op) {
+function explicitDrill(ctx, ax, w, rfp, op, out = 1) {
+  // `out` = směr odjezdu od plochy (+1: do kladných hodnot, vrtá se k záporným).
   const { add } = ctx;
-  add(`G0 ${ax}${w(rfp + op.safe)}`);
+  add(`G0 ${ax}${w(rfp + out * op.safe)}`);
   const lv = depthLevels(op.depth, op.peck);
   lv.forEach((d, k) => {
-    add(`G1 ${ax}${w(rfp - d)} F${f3(op.feed)}`);
+    add(`G1 ${ax}${w(rfp - out * d)} F${f3(op.feed)}`);
     if (k < lv.length - 1) {
-      add(`G0 ${ax}${w(rfp + op.safe)}`);
-      add(`G0 ${ax}${w(rfp - d + 0.3)}`);
+      add(`G0 ${ax}${w(rfp + out * op.safe)}`);
+      add(`G0 ${ax}${w(rfp - out * (d - 0.3))}`);
     }
   });
   dwell(ctx, op.dwell);
-  add(`G0 ${ax}${w(rfp + op.retract)}`);
+  add(`G0 ${ax}${w(rfp + out * op.retract)}`);
 }
 
 /** Sinumerik CYCLE82 / CYCLE83 (klasické pořadí parametrů). */
-function sinCycle(op, rfp, w) {
-  const rtp = w(rfp + op.retract), rf = w(rfp), sd = f3(op.safe), dp = w(rfp - op.depth);
+function sinCycle(op, rfp, w, out = 1) {
+  // Směr vrtání si cyklus určí z pořadí RTP → RFP → DP (čelo zleva: DP > RFP).
+  const rtp = w(rfp + out * op.retract), rf = w(rfp), sd = f3(op.safe), dp = w(rfp - out * op.depth);
   if (op.peck > 0 && op.peck < op.depth)
-    return `CYCLE83(${rtp}, ${rf}, ${sd}, ${dp}, , ${w(rfp - op.peck)}, , ${f3(op.peck)}, ${f3(op.dwell)}, 0, 1, 1)`;
+    return `CYCLE83(${rtp}, ${rf}, ${sd}, ${dp}, , ${w(rfp - out * op.peck)}, , ${f3(op.peck)}, ${f3(op.dwell)}, 0, 1, 1)`;
   return `CYCLE82(${rtp}, ${rf}, ${sd}, ${dp}, , ${f3(op.dwell)})`;
 }
 
@@ -131,7 +133,9 @@ function emitFaceDrill(ctx) {
   const pos = livePositions(op);
   const zw = v => f3(v);
   const cyc = set.cycles && ctrl !== 'heidenhain';
-  const rtp = op.zTop + op.retract;
+  const out = faceOut(op);
+  const rtp = op.zTop + out * op.retract;
+  if (out < 0) add(ctx.cmt('Čelo zleva: nástroj stojí vlevo od čela, vrtá se ve směru +Z'));
   cOn(ctx);
   toolStart(ctx);
   if (ctrl === 'sinumerik' && set.mode === 'transmit') {
@@ -142,7 +146,7 @@ function emitFaceDrill(ctx) {
       // První najetí: nejdřív Z (nástroj je ještě venku na bezpečné X), pak X/Y.
       if (k === 0) add(`G0 Z${zw(rtp)}`);
       add(`G0 X${f3(p.x)} Y${f3(p.y)}${note(`díra ${k + 1}: C${f3(p.a)} R${f3(p.r)}`)}`);
-      if (cyc) add(sinCycle(op, op.zTop, zw)); else explicitDrill(ctx, 'Z', zw, op.zTop, op);
+      if (cyc) add(sinCycle(op, op.zTop, zw, out)); else explicitDrill(ctx, 'Z', zw, op.zTop, op, out);
     });
     add('TRAFOOF');
     if (ctx.dia) add('DIAMON');
@@ -155,7 +159,7 @@ function emitFaceDrill(ctx) {
       if (k === 0) {
         add(`G0 Z${zw(rtp)}`);
         add(`G0 X${xo(h.r)} C${f3(h.a)}`);
-        add(`G83 X${xo(h.r)} C${f3(h.a)} Z${zw(op.zTop - op.depth)} R${f3(op.safe - op.retract)}${q}${p} F${f3(op.feed)}${note(`díra 1`)}`);
+        add(`G83 X${xo(h.r)} C${f3(h.a)} Z${zw(op.zTop - out * op.depth)} R${f3(out * (op.safe - op.retract))}${q}${p} F${f3(op.feed)}${note(`díra 1`)}`);
       } else add(`X${xo(h.r)} C${f3(h.a)}${note(`díra ${k + 1}`)}`);
     });
     add('G80');
@@ -165,7 +169,7 @@ function emitFaceDrill(ctx) {
       if (k === 0) add(`G0 Z${zw(rtp)}`);
       rotate(ctx, h.a);
       add(`G0 X${xo(h.r)}${note(`díra ${k + 1}: C${f3(h.a)}`)}`);
-      if (cyc) add(sinCycle(op, op.zTop, zw)); else explicitDrill(ctx, 'Z', zw, op.zTop, op);
+      if (cyc) add(sinCycle(op, op.zTop, zw, out)); else explicitDrill(ctx, 'Z', zw, op.zTop, op, out);
     });
     if (ctrl === 'sinumerik') add('G18');
   }

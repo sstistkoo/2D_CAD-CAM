@@ -19,6 +19,7 @@
 //     historické CAM značení. Adaptace probíhá v tomto modulu.
 
 import { state, pushUndo, showToast, STOCK_LAYER_ID } from './state.js';
+import { isFaceLayerId } from './faceView/faceLayer.js';
 import { calculateAllIntersections } from './geometry.js';
 import { updateObjectList } from './ui.js';
 import { renderAll } from './render.js';
@@ -86,9 +87,11 @@ function _objectsToSegments(objs) {
 }
 
 function _contourObjects() {
+  // Vrstvy čel (bokorys, js/faceView/) jsou kresba děr na čele, ne profil.
   return state.objects.filter(o =>
     !o.isStock && !o.isDimension && !o.isCoordLabel &&
-    o.type !== 'constr' && o.type !== 'text' && o.type !== 'point'
+    o.type !== 'constr' && o.type !== 'text' && o.type !== 'point' &&
+    !isFaceLayerId(o.layer)
   );
 }
 

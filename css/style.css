@@ -2590,6 +2590,10 @@ body {
 .mobile-save-flash.show {
   opacity: 1;
 }
+/* Otevřený panel hlášek: lišta nad plovoucí tlačítka (viz state.js setOpen). */
+body.notify-open #mobileCoordBar {
+  z-index: 260;
+}
 .mobile-notify-panel {
   position: absolute;
   top: 100%;

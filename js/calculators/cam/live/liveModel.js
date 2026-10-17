@@ -50,6 +50,7 @@ export function newLiveOp(kind, geo, n) {
     pcd, count: 4, startAngle: 0,
     points: '0; ' + (pcd / 2), // řádky „úhel; poloměr" (čelo) / „úhel; Z" (plášť)
     zTop: faceZ,              // Z čela (axiální díry)
+    faceDir: 1,               // čelo: 1 = zprava (nástroj z +Z, vrtá k −Z), −1 = zleva
     xTop: outerD,             // Ø pláště (radiální díry)
     zPos: faceZ - 10,         // výška radiálních děr (vzor rozteč)
     holeD: kind === 'mill' ? 20 : 8,
@@ -73,7 +74,8 @@ export function normalizeLiveOp(op) {
   const d = newLiveOp(op && op.kind === 'mill' ? 'mill' : 'drill');
   const o = { ...d, ...(op || {}) };
   for (const k of ['pcd', 'count', 'startAngle', 'zTop', 'xTop', 'zPos', 'holeD', 'depth', 'peck',
-    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed']) o[k] = num(o[k], d[k]);
+    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'faceDir']) o[k] = num(o[k], d[k]);
+  o.faceDir = o.faceDir < 0 ? -1 : 1;
   o.count = Math.max(1, Math.min(360, Math.round(o.count)));
   o.slot = { ...d.slot, ...(o.slot || {}) };
   for (const k of ['x1', 'y1', 'x2', 'y2']) o.slot[k] = num(o.slot[k], 0);
@@ -115,6 +117,13 @@ export function livePositions(op) {
   });
 }
 
+/**
+ * Strana nástroje na čele: +1 = čelo zprava (nástroj stojí v +Z, odjezd do +Z,
+ * hloubka do −Z), −1 = čelo zleva (opačně). Osazení uprostřed profilu může
+ * hledět kterýmkoli směrem (bokorys v CAD, js/faceView/).
+ */
+export function faceOut(op) { return op.faceDir === -1 ? -1 : 1; }
+
 /** Hloubkové hladiny od čela dolů (krok `step`, poslední = plná hloubka). */
 export function depthLevels(depth, step) {
   if (!(step > 0) || step >= depth) return [depth];
@@ -131,7 +140,8 @@ export function depthLevels(depth, step) {
  */
 export function millMoves(op) {
   const moves = [];
-  const zTop = op.zTop, rtp = zTop + op.retract, sdis = zTop + op.safe;
+  const out = faceOut(op);
+  const zTop = op.zTop, rtp = zTop + out * op.retract, sdis = zTop + out * op.safe;
   const levels = depthLevels(op.depth, op.stepDown);
   const tr = op.toolD / 2;
   if (op.millType === 'slot') {
@@ -141,8 +151,8 @@ export function millMoves(op) {
     levels.forEach(d => {
       const p = atStart ? { x: x1, y: y1 } : { x: x2, y: y2 };
       const q = atStart ? { x: x2, y: y2 } : { x: x1, y: y1 };
-      moves.push({ k: 'lin', x: p.x, y: p.y, z: zTop - d, plunge: true });
-      moves.push({ k: 'lin', x: q.x, y: q.y, z: zTop - d });
+      moves.push({ k: 'lin', x: p.x, y: p.y, z: zTop - out * d, plunge: true });
+      moves.push({ k: 'lin', x: q.x, y: q.y, z: zTop - out * d });
       atStart = !atStart;
     });
     const last = moves[moves.length - 1];
@@ -154,7 +164,7 @@ export function millMoves(op) {
   livePositions(op).forEach(c => {
     moves.push({ k: 'rapid', x: c.x, y: c.y, z: rtp }, { k: 'rapid', x: c.x, y: c.y, z: sdis });
     levels.forEach(d => {
-      const z = zTop - d;
+      const z = zTop - out * d;
       moves.push({ k: 'lin', x: c.x, y: c.y, z, plunge: true });
       if (rMax <= 1e-6) return;
       const rings = [];
@@ -203,5 +213,6 @@ export function liveOpSummary(op) {
     if (op.millType === 'slot') return `Drážka š. ${op.toolD} hl. ${op.depth}`;
     return `Kapsa Ø${op.holeD} hl. ${op.depth} – ${pos}`;
   }
-  return `${op.side === 'radial' ? 'Radiálně' : 'Čelo'} Ø${op.holeD} hl. ${op.depth} – ${pos}`;
+  const face = op.faceDir === -1 ? 'Čelo zleva' : 'Čelo';
+  return `${op.side === 'radial' ? 'Radiálně' : face} Ø${op.holeD} hl. ${op.depth} – ${pos}`;
 }

@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAD: ◎ bokorys (pohled na čelo) vedle profilu.** Tlačítko ◎ Čelo (desktop
+  v horní liště, mobil kulaté nahoře u 🔢) přepíná profil → profil + bokorys →
+  jen bokorys (každé přepnutí zarámuje, co je vidět). Bokorys je vpravo vedle
+  nárysu jako na výkresu (i na mobilu) na ose vřetena s promítacími čarami.
+  Víc čel: lišta dole (výběr, ➕, 🗑, Z políčkem i posuvníkem s přichycením
+  k osazením, ◀ zprava / ▶ zleva = směr pohledu), značka řezu v nárysu;
+  bokorys jako řez na výkresu (plocha řezu + hrany za ní ve směru pohledu;
+  zakryté materiálem čárkovaně), polotovar v barvě své vrstvy, středový kříž
+  se stupnicí v mm, kóty Ø;
+  SNAP na střed, kružnice a osy bokorysu. CAM vrtá čelo zleva ve směru +Z. Kreslí se do vrstvy Čelo: kružnice = díra,
+  úsečka = drážka. Do přenosu profilu do CAM nejde; v CAM ji načte
+  🛠 Operace → 📥 Z CAD (stejný Ø = jedna operace, pravidelné rozmístění =
+  roztečná kružnice). Operace mají nově volbu Druh (vrtání ↔ frézování).
+  Moduly `js/faceView/`, `cam/live/liveFromCad.js`, test `tests/face-view.test.js`.
 - **CAM: ◎ Pohled na čelo a poháněné nástroje.** Tlačítko ◎ v liště plátna
   rozdělí plochu na řez a pohled podél osy proti sklíčidlu (karusel: shora na
   upínací desku) s polotovarem, čelistmi a dírami; ▶ přehraje pořadí vrtání.
@@ -40,6 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Mobil: zvoneček 🔔 Hlášky je v horní liště vždy.** Dřív se ukázal jen po
+  odložené hlášce a po obnovení stránky „zmizel". Delší nápovědy (bokorys) jdou
+  na mobilu rovnou pod něj (`showToast(…, { bell: true })`) místo okénka dole.
+  Otevřený seznam hlášek už nezakrývají plovoucí tlačítka; „Pohled vycentrován"
+  se při startu stránky nehlásí.
 - **CAM: lišta nad plátnem se otevírá sbalená (»«).** Kontura, Dráhy, 🎯, 👁,
   📏, 🧲 a 📈 se ukážou tlačítkem »«.
 - **Refaktoring: `render.js` rozdělen do `js/render/*.js`** (11 modulů podle
