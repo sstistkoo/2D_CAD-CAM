@@ -279,6 +279,33 @@ export function shoulderZs(objects, machineType) {
 const fmtMm = v => String(+(+v).toFixed(2));
 
 let _viewCache = null;
+
+// Značka řezu v nárysu: geometrie posledního vykreslení (tažení myší / prstem,
+// faceCutDrag.js) a zvýraznění při najetí / tažení.
+let _cut = null, _cutHot = false;
+/** { z, isCar, a:[wx,wy], b:[wx,wy] } — konce čáry řezu ve světových souřadnicích, nebo null. */
+export function faceCutGeom() { return _cut; }
+/**
+ * Zásah značky řezu: je bod (sx, sy) [px] do `tol` od čáry řezu, prodloužené o
+ * `pad` px na obou koncích (šipky)? `w2s` = worldToScreen.
+ */
+export function cutHit(cut, w2s, sx, sy, tol, pad = 12) {
+  if (!cut) return false;
+  const a = w2s(...cut.a), b = w2s(...cut.b);
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
+  const a2 = [a[0] - ux * pad, a[1] - uy * pad], b2 = [b[0] + ux * pad, b[1] + uy * pad];
+  const dx = b2[0] - a2[0], dy = b2[1] - a2[1], L2 = dx * dx + dy * dy;
+  const t = L2 ? Math.max(0, Math.min(1, ((sx - a2[0]) * dx + (sy - a2[1]) * dy) / L2)) : 0;
+  return Math.hypot(sx - (a2[0] + t * dx), sy - (a2[1] + t * dy)) <= tol;
+}
+
+/** Zvýraznit řez (najetí / tažení). Vrací true, když se stav změnil (překreslí volající). */
+export function setFaceCutHot(on) {
+  if (_cutHot === on) return false;
+  _cutHot = on;
+  return true;
+}
 /** Levný otisk profilu (souřadnice objektů) + roviny čela pro cache řezu. */
 function geoKey(objects, z, side) {
   let h = 0;
@@ -395,6 +422,7 @@ function drawDiaDim(g, w2s, O, r, deg, col, text) {
 export function drawFaceReference(g, w2s) {
   faceUiSync();
   _disc = null;
+  _cut = null;   // bez bokorysu (i v režimu jen bokorys) není co tahat
   const layer = getFaceLayer();
   if (!layer || !layer.visible || !layer.origin) return;
   const O = layer.origin;
@@ -440,7 +468,10 @@ export function drawFaceReference(g, w2s) {
     // pohledu (čelo zprava = díváme se zprava doleva, k −Z), popisek Z.
     const span = sR + Math.max(6, sR * 0.15);
     const [x1, y1] = P(z, -span), [x2, y2] = P(z, span);
-    line(x1, y1, x2, y2, cut, [10, 3, 2, 3], 1.5);
+    _cut = { z, isCar, a: [x1, y1], b: [x2, y2] };
+    // Najetí / tažení: silnější čára s podkladem, ať je vidět, že jde chytit.
+    if (_cutHot) line(x1, y1, x2, y2, 'rgba(250,179,135,0.30)', null, 9);
+    line(x1, y1, x2, y2, cut, [10, 3, 2, 3], _cutHot ? 2.4 : 1.5);
     const dir = layer.faceSide === 'left' ? 1 : -1;
     [span, -span].forEach(r => {
       const A = w2s(...P(z, r)), B = w2s(...P(z + dir * Math.max(4, span * 0.25), r));

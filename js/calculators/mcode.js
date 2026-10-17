@@ -10,7 +10,7 @@ const commandGroups = {
     'M0', 'M1', 'M2', 'M17', 'M30', 'M32', 'M96', 'M97', 'M98', 'M99'
   ],
   'Vřeteno': [
-    'M3', 'M4', 'M5', 'M2=3', 'M2=4', 'M2=5', 'M10', 'M11', 'M19',
+    'M3', 'M4', 'M5', 'M2=3', 'M2=4', 'M2=5', 'M70', 'M10', 'M11', 'M19',
     'M39', 'M40', 'M41', 'M42', 'M43', 'M48', 'M49', 'M57', 'M58',
     'M79', 'M85', 'M86', 'M87', 'M89'
   ],
@@ -58,14 +58,17 @@ const commandsList = [
   {name:'M2',syntax:'M2',description:'Konec programu. Zastaví program a vřeteno, resetuje modální funkce.',examples:[
     {title:'Ukončení programu:',code:'G1 X0\nM5                  ; Vypnutí vřetene\nM9                  ; Vypnutí chlazení\nM2                  ; Konec programu',description:'Standardní ukončení programu'}
   ]},
-  {name:'M2=3',syntax:'M2=3 S..',description:'Zapnutí poháněného nástroje ve směru hodinových ručiček.',examples:[
-    {title:'Frézování drážky:',code:'T2 D1              ; Výběr frézovacího nástroje\nM2=3 S2000         ; Start rotace nástroje\nG1 X100 F100        ; Frézování',description:'Použití poháněného nástroje pro frézování'}
+  {name:'M2=3',syntax:'M2=3 S2=..',description:'Zapnutí poháněného nástroje (vřeteno 2) ve směru hodinových ručiček. Otáčky vřetena n se píší S<n>=…, tedy S2=…; samotné S… patří hlavnímu vřetenu. Číslo vřetena poháněného nástroje určuje stroj.',examples:[
+    {title:'Frézování drážky:',code:'T2 D1              ; Výběr frézovacího nástroje\nM2=3 S2=2000       ; Start rotace nástroje (vřeteno 2)\nG1 X100 F100        ; Frézování',description:'Použití poháněného nástroje pro frézování'}
   ]},
-  {name:'M2=4',syntax:'M2=4 S..',description:'Zapnutí poháněného nástroje proti směru hodinových ručiček.',examples:[
-    {title:'Vrtání mimo osu:',code:'T3 D1              ; Výběr vrtáku\nM2=4 S1500         ; Start rotace proti směru\nCYCLE83            ; Vrtací cyklus',description:'Vrtání s poháněným nástrojem'}
+  {name:'M2=4',syntax:'M2=4 S2=..',description:'Zapnutí poháněného nástroje (vřeteno 2) proti směru hodinových ručiček.',examples:[
+    {title:'Vrtání mimo osu:',code:'T3 D1              ; Výběr vrtáku\nM2=4 S2=1500       ; Start rotace proti směru\nCYCLE83(...)       ; Vrtací cyklus',description:'Vrtání s poháněným nástrojem'}
   ]},
   {name:'M2=5',syntax:'M2=5',description:'Vypnutí poháněného nástroje.',examples:[
     {title:'Zastavení nástroje:',code:'M2=5               ; Vypnutí rotace nástroje\nG0 X100 Z100       ; Odjezd do bezpečné pozice',description:'Bezpečné zastavení poháněného nástroje'}
+  ]},
+  {name:'M70',syntax:'M70   (M<n>=70 pro vřeteno n)',description:'Přepnutí vřetena do režimu osy (osa C) — pro polohování děr na čele a frézování poháněným nástrojem, také podmínka pro TRANSMIT. Zpět do otáčkového režimu M3 / M4 / M5 nebo SPCOF. Číslo M-funkce určuje výrobce stroje — ověřte v příručce.',examples:[
+    {title:'Vrtání na roztečné kružnici:',code:'M5\nSPOS=0              ; vřeteno do polohové regulace\nM70                 ; do režimu osy (dle stroje)\nG0 C=DC(90)         ; poloha díry\nM2=3 S2=2000        ; poháněný nástroj\n...\nM2=5\nSPCOF               ; zpět do otáčkového režimu',description:'Pořadí zapnutí a vypnutí osy C'}
   ]},
   {name:'M3',syntax:'M3 S..',description:'Zapnutí vřetene ve směru hodinových ručiček (CW).',examples:[
     {title:'Základní použití:',code:'M3 S2000           ; Start vřetene 2000 ot/min\nG0 X100 Z2         ; Rychloposuv na pozici\nG1 Z0 F0.2         ; Začátek obrábění',description:'Standardní spuštění vřetene pro soustružení'},

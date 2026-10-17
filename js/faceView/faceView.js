@@ -30,6 +30,7 @@ import {
   onFaceViewChange, faceLabel,
 } from './faceLayer.js';
 import { computeFaceOrigin, profileAtZ, shoulderZs } from './faceReference.js';
+import { initCutDrag } from './faceCutDrag.js';
 
 /** Zasahuje profil do kruhu bokorysu? */
 function overlaps(b, o, R) {
@@ -233,25 +234,12 @@ function buildBar() {
     renameFace(cur);
     refresh();
   });
-  const setZ = (z, fromRange) => {
-    const cur = getFaceLayer();
-    if (!cur || !Number.isFinite(z)) return;
-    if (fromRange) {
-      // Přichytit k osazení do 1,5 % rozsahu posuvníku.
-      const sh = shoulderZs(profileObjects(), state.machineType);
-      const tol = Math.max(0.2, (sh.max - sh.min) * 0.015);
-      const near = sh.zs.reduce((b, s) => (Math.abs(s - z) < Math.abs(b - z) ? s : b), Infinity);
-      if (Math.abs(near - z) <= tol) z = near;
-    }
-    cur.faceZ = +(+z).toFixed(3);
-    // Strana podle osazení (menší průměr vpravo → čelo zprava), dokud ji
-    // uživatel nepřepnul ručně.
-    const side = profileAtZ(profileObjects(), state.machineType, cur.faceZ).side;
-    if (side && !cur.sideManual) cur.faceSide = side;
-    renameFace(cur);
-    updateBar();
-    renderAll();
+  // Posuvník přichytává k osazení do 1,5 % rozsahu (min. 0,2 mm).
+  const rangeSnap = () => {
+    const sh = shoulderZs(profileObjects(), state.machineType);
+    return Math.max(0.2, (sh.max - sh.min) * 0.015);
   };
+  const setZ = (z, fromRange) => setFaceZ(z, fromRange ? rangeSnap() : 0);
   range.addEventListener('input', () => setZ(parseFloat(range.value), true));
   range.addEventListener('change', () => updateLayerList());
   zIn.addEventListener('change', () => {
@@ -266,6 +254,28 @@ function buildBar() {
 }
 
 function renameFace(l) { l.name = `Čelo ${faceLabel(l)}`; }
+
+/**
+ * Nastaví Z aktuálního čela (posuvník, políčko, tažení řezu v nárysu).
+ * @param snapMm přichytit k nejbližšímu osazení profilu do této vzdálenosti [mm] (0 = ne)
+ */
+export function setFaceZ(z, snapMm = 0) {
+  const cur = getFaceLayer();
+  if (!cur || !Number.isFinite(z)) return;
+  if (snapMm > 0) {
+    const sh = shoulderZs(profileObjects(), state.machineType);
+    const near = sh.zs.reduce((b, s) => (Math.abs(s - z) < Math.abs(b - z) ? s : b), Infinity);
+    if (Math.abs(near - z) <= snapMm) z = near;
+  }
+  cur.faceZ = +(+z).toFixed(3);
+  // Strana podle osazení (menší průměr vpravo → čelo zprava), dokud ji
+  // uživatel nepřepnul ručně.
+  const side = profileAtZ(profileObjects(), state.machineType, cur.faceZ).side;
+  if (side && !cur.sideManual) cur.faceSide = side;
+  renameFace(cur);
+  updateBar();
+  renderAll();
+}
 
 /**
  * Smazat čelo i s kresbou — NAVŽDY (po potvrzení): vrstva zmizí, a proto se
@@ -465,6 +475,8 @@ function mount() {
 
 bridge.deleteFace = deleteFace;
 mount();
+// Řez v nárysu jde chytit myší / prstem a táhnout (faceCutDrag.js).
+initCutDrag({ setFaceZ, onDone: () => { updateLayerList(); updateObjectList(); } });
 // Načtení projektu, ↩, oko u vrstvy: obnovit tlačítka a lištu; zapnutý
 // bokorys přerozmístit (profil se mohl změnit).
 onFaceViewChange(on => { updateButtons(); if (on) relayoutIfOn(); });

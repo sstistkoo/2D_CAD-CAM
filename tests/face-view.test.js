@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { state } from '../js/state.js';
 import { getFaceLayer, faceViewOn, isFaceObject, profileObjects, faceObjectsLocal, faceDrawingsLocal } from '../js/faceView/faceLayer.js';
-import { profileRadii, profileBounds, computeFaceOrigin, profileAtZ, shoulderZs, viewRadii } from '../js/faceView/faceReference.js';
+import { profileRadii, profileBounds, computeFaceOrigin, profileAtZ, shoulderZs, viewRadii, cutHit } from '../js/faceView/faceReference.js';
 import { liveOpsFromCad, detectPcd } from '../js/calculators/cam/live/liveFromCad.js';
 import { livePositions } from '../js/calculators/cam/live/liveModel.js';
 
@@ -113,6 +113,18 @@ describe('podklad a rozmístění', () => {
     const v = viewRadii(shaft, 'soustruh', 180, 'right', at);
     expect(v.visible).toEqual([30, 45]);   // řez Ø60, za ním osazení Ø90
     expect(v.hidden).toEqual([20]);        // hřídel Ø40 schovaná za osazením Ø90
+  });
+  it('zásah značky řezu: čára, šipky na koncích, tolerance myš × prst', () => {
+    // Řez v Z = 100: svislá čára od y −50 do +50, měřítko 2 px/mm, počátek v (0, 0).
+    const w2s = (x, y) => [x * 2, -y * 2];
+    const cut = { z: 100, isCar: false, a: [100, -50], b: [100, 50] };
+    expect(cutHit(cut, w2s, 200, 0, 8)).toBe(true);        // na čáře
+    expect(cutHit(cut, w2s, 207, 30, 8)).toBe(true);       // 7 px vedle
+    expect(cutHit(cut, w2s, 212, 0, 8)).toBe(false);       // 12 px — myš už ne
+    expect(cutHit(cut, w2s, 212, 0, 22)).toBe(true);       // prst ano
+    expect(cutHit(cut, w2s, 200, 108, 8)).toBe(true);      // šipky za koncem (pad 12)
+    expect(cutHit(cut, w2s, 200, 130, 8)).toBe(false);     // daleko za koncem
+    expect(cutHit(null, w2s, 200, 0, 8)).toBe(false);      // bez bokorysu nic
   });
   it('osazení a krajní Z pro posuvník', () => {
     const step = [...profile, { type: 'line', layer: 0, x1: -20, y1: 40, x2: -20, y2: 25 }];

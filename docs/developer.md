@@ -462,6 +462,7 @@ dráhy soustružení). Části programu (`opParts.js`) je sdílí (`SHARED_PARAM
 |--------|------|
 | `faceView/faceLayer.js` | Vrstvy čel (`isFace`, `faceZ`, `faceSide`, `faceCurrent`, společný `origin`), `profileObjects()`, `faceDrawingsLocal()` (vůči středu čela, se Z a stranou), stav ◎ (`faceViewMode`). Bez UI |
 | `faceView/faceReference.js` | Podklad pod objekty (volá `render/objects.js`): profil v rovině čela (`profileAtZ`), značka řezu v nárysu, promítací čáry, kříž se stupnicí, kóty Ø; `computeFaceOrigin()` (vždy vpravo), `shoulderZs()`; data pro SNAP (`faceSnapPoints/Edge`, volá `canvas.snapPt`) a `hideMainAxisLabel` (`render/axes.js`) |
+| `faceView/faceCutDrag.js` | Tažení značky řezu v nárysu (myš + dotyk, zachycovací fáze na `#canvasWrap`, jen Výběr); zásah počítá `faceReference.cutHit`, Z nastavuje `faceView.setFaceZ` |
 | `faceView/faceView.js` | Tlačítka ◎ (horní lišta + plovoucí u 🔢), tři stavy, lišta čela (výběr, ➕, 🗑, Z, posuvník, strana), přesun kreseb čel (i ve snímcích ↩/↪) |
 | `cam/live/liveFromCad.js` | Kresby čel → operace poháněných nástrojů (kružnice → vrtání, úsečka → drážka) se `zTop` a `faceDir` čela |
 

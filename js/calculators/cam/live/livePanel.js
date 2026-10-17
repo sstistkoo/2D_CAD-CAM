@@ -15,7 +15,7 @@
 import { showToast } from '../../../state.js';
 import { safeEvalMath } from '../../../utils.js';
 import {
-  LIVE_MODES, liveSettings, newLiveOp, normalizeLiveOp, getLiveOps, liveOpProblems, liveOpSummary,
+  liveSettings, newLiveOp, normalizeLiveOp, getLiveOps, liveOpProblems, liveOpSummary,
 } from './liveModel.js';
 import { buildLiveBlock } from './liveGcode.js';
 import { insertLiveBlock, removeLiveBlock, findLiveBlock, liveBlockTag } from './liveMarkers.js';
@@ -23,6 +23,7 @@ import { drawFaceView, livePartGeometry, liveAnimSteps } from './liveFaceView.js
 import { drawLiveSectionLayer } from './liveSection.js';
 import { LIVE_CSS } from './liveStyles.js';
 import { liveOpsFromCad } from './liveFromCad.js';
+import { settingsHtml, applySettingChange } from './liveSettingsUi.js';
 import { faceDrawingsLocal } from '../../../faceView/faceLayer.js';
 
 const CTRL = new WeakMap();   // S → ovladač otevřeného simulátoru
@@ -268,15 +269,9 @@ export function initLiveTools(deps) {
     if (el.dataset.g) {
       const g = el.dataset.g;
       const ctrl = S.params.controlSystem || 'sinumerik';
-      commit(p => {
-        const live = JSON.parse(JSON.stringify(p.live || {}));
-        if (g === 'mode') live.mode = el.value;
-        else if (g === 'cycles') live.cycles = el.checked;
-        else if (g.startsWith('m.')) {
-          live.m = live.m || {}; live.m[ctrl] = { ...(live.m[ctrl] || {}), [g.slice(2)]: el.value.trim() };
-        }
-        p.live = live;
-      });
+      const live = JSON.parse(JSON.stringify(S.params.live || {}));
+      if (!applySettingChange(live, g, el, ctrl, safeEvalMath)) { showToast('Neplatné číslo'); renderEditor(); return; }
+      commit(p => { p.live = live; });
       return;
     }
     const k = el.dataset.k;
@@ -302,18 +297,7 @@ export function initLiveTools(deps) {
     const set = liveSettings(S.params);
     const ctrl = S.params.controlSystem || 'sinumerik';
     const bs = programBlockState();
-    const modeOpts = Object.entries(LIVE_MODES).map(([k, t]) => `<option value="${k}"${k === set.mode ? ' selected' : ''}>${t}</option>`).join('');
-    const mf = (k, t) => `<label class="cam-live-f"><span>${t}</span><input data-g="m.${k}" type="text" value="${esc(set.m[k])}"></label>`;
-    let h = `
-      <h4>Výstup NC (${ctrl === 'fanuc' ? 'Fanuc' : ctrl === 'heidenhain' ? 'Heidenhain' : 'Sinumerik'})</h4>
-      <div class="cam-live-grid">
-        <label class="cam-live-f"><span>Polohování / interpolace</span><select data-g="mode">${modeOpts}</select></label>
-        <label class="cam-live-f" title="Vrtací cykly (CYCLE82/83, G83/G87). Vypnuto = rozepsané G0/G1 pohyby. Heidenhain vždy rozepsané."><span>Vrtací cykly</span><input data-g="cycles" type="checkbox"${set.cycles ? ' checked' : ''}></label>
-      </div>
-      <details class="cam-live-note"><summary>M-kódy stroje (osa C, poháněný nástroj) – ověřte v příručce stroje</summary>
-        <div class="cam-live-grid">${mf('cOn', 'Osa C zap')}${mf('cOff', 'Osa C vyp')}${mf('toolOn', 'Nástroj start')}${mf('toolOff', 'Nástroj stop')}${mf('toolS', 'Adresa otáček')}</div>
-      </details>
-      <div class="cam-live-note">${modeNote(set.mode, ctrl)}</div>
+    let h = settingsHtml(set, ctrl) + `
       <div class="cam-live-btns">
         <button data-live="add-drill">➕ Vrtání</button>
         <button data-live="add-mill">➕ Frézování</button>
@@ -342,15 +326,6 @@ export function initLiveTools(deps) {
 
   try { if (localStorage.getItem(VIEW_KEY) === '1') setOpen(true); } catch (_) { /* bez úložiště */ }
   CTRL.set(S, { redraw: () => redraw(false) });
-}
-
-function modeNote(mode, ctrl) {
-  if (ctrl === 'heidenhain') return 'Heidenhain: díry polohuje osa C, pohyby se rozepíší (G0/G1); frézování po krátkých G1 v X + C.';
-  if (mode === 'spos') return 'SPOS: vřeteno se natočí na úhel díry a vrtá se v poloze nástroje (+X). Frézování mimo osu jde přes osu C.';
-  if (mode === 'caxis') return 'Osa C: díry se polohují C=úhel. Frézování se rozloží na krátké G1 v X + C.';
-  return ctrl === 'fanuc'
-    ? 'G12.1: frézování v polární interpolaci (X = Ø, C = Y). Vrtání G83/G87 s osou C.'
-    : 'TRANSMIT: na čele kartézsky X/Y (v poloměru). Radiální díry se polohují osou C.';
 }
 
 function opForm(op) {

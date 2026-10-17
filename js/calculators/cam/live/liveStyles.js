@@ -51,6 +51,9 @@ export const LIVE_CSS = `
 .cam-live-card-b { padding: 4px 6px 8px; border-top: 1px solid #313244; }
 .cam-live-prob { color: #f38ba8; font-size: 11px; margin-top: 4px; }
 .cam-live-note { color: #a6adc8; font-size: 11px; margin: 4px 0; }
+.cam-live-ol { margin: 4px 0 4px 16px; padding: 0; color: #bac2de; font-size: 11px; line-height: 1.45; }
+.cam-live-ol code { background: #313244; border-radius: 3px; padding: 0 3px; }
+.cam-live-note summary { cursor: pointer; }
 .cam-live-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
 @media (min-aspect-ratio: 1/1) {
   .cam-live-on .cam-sim-toolbar { right: calc(40% + 10px); }

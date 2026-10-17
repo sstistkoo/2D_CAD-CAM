@@ -43,7 +43,7 @@ describe('NC výstup', () => {
     const L = buildLiveBlock(prms());
     expect(L[0]).toContain('>>> POHANENE NASTROJE [sinumerik/spos]');
     expect(L).toContain('SPOS=120');
-    expect(L).toContain('G0 X60 ; díra 1: C0');
+    expect(L).toContain('G0 X60 ; díra 1: úhel 0°');
     expect(L.filter(l => l.startsWith('CYCLE83(')).length).toBe(3);
     expect(L[L.length - 1]).toContain('<<< POHANENE NASTROJE');
   });
@@ -74,7 +74,7 @@ describe('NC výstup', () => {
   });
   it('první najetí: nejdřív Z (venku na bezpečné X), pak X', () => {
     const L = buildLiveBlock(prms());
-    expect(L.indexOf('G0 Z5')).toBeLessThan(L.indexOf('G0 X60 ; díra 1: C0'));
+    expect(L.indexOf('G0 Z5')).toBeLessThan(L.indexOf('G0 X60 ; díra 1: úhel 0°'));
   });
   it('Fanuc: závorka v názvu neukončí komentář', () => {
     const L = buildLiveBlock(prms({ controlSystem: 'fanuc', liveOps: [drill({ name: 'Vrtání (M8)', toolName: 'VRTAK (8)' })] }));
@@ -93,12 +93,63 @@ describe('NC výstup', () => {
   it('čelo zleva: vrtá se k +Z (cyklus i rozepsaně), Fanuc R kladné', () => {
     const op = drill({ zTop: -50, faceDir: -1 });
     const L = buildLiveBlock(prms({ liveOps: [op] }));
-    expect(L).toContain('CYCLE83(-55, -50, 2, -40, , -47, , 3, 0, 0, 1, 1)');
+    expect(L).toContain('CYCLE83(-55, -50, 2, -40, , -47, , 0, 0, 0, 1, 1)');
     const E = buildLiveBlock(prms({ liveOps: [op], live: { cycles: false } }));
     expect(E).toContain('G1 Z-40 F120');
     expect(E).toContain('G0 Z-55');
     const F = buildLiveBlock(prms({ controlSystem: 'fanuc', liveOps: [op] }));
     expect(F.some(l => /^G83 .* Z-40 R3 /.test(l))).toBe(true);
+  });
+  it('CYCLE83: DAM = 0 (stálý záběr), FDEP absolutně, dno s prodlevou', () => {
+    const L = buildLiveBlock(prms({ liveOps: [drill({ dwell: 0.5 })] }));
+    expect(L).toContain('CYCLE83(5, 0, 2, -10, , -3, , 0, 0.5, 0, 1, 1)');
+  });
+  it('Sinumerik: vřeteno nástroje podle čísla, SPCOF na konci operace', () => {
+    const L = buildLiveBlock(prms({ live: { spindle: 3 } }));
+    expect(L).toContain('S3=2000 M3=3 ; poháněný nástroj – dle stroje');
+    expect(L).toContain('M3=5 ; stop poháněného nástroje');
+    expect(L.some(l => l.startsWith('SPCOF'))).toBe(true);
+    expect(L.some(l => l.startsWith('M70'))).toBe(false);     // SPOS nepotřebuje osu
+  });
+  it('TRANSMIT i osa C zapnou vřeteno do osy (M70)', () => {
+    expect(buildLiveBlock(prms({ live: { mode: 'transmit' } })).some(l => l.startsWith('M70'))).toBe(true);
+    expect(buildLiveBlock(prms({ live: { mode: 'caxis' } })).some(l => l.startsWith('M70'))).toBe(true);
+  });
+  it('prázdné pole M-kódu = výchozí hodnota', () => {
+    const L = buildLiveBlock(prms({ live: { mode: 'caxis', m: { sinumerik: { cOn: '  ', toolOn: '' } } } }));
+    expect(L.some(l => l.startsWith('M70'))).toBe(true);
+    expect(L.some(l => l.startsWith('S2=2000 M2=3'))).toBe(true);
+  });
+  it('jméno osy C: C=DC(…) / Fanuc C1…', () => {
+    const L = buildLiveBlock(prms({ live: { mode: 'caxis', cName: 'C1' } }));
+    expect(L).toContain('G0 C1=DC(120)');
+    const F = buildLiveBlock(prms({ controlSystem: 'fanuc', live: { cName: 'C2' } }));
+    expect(F.some(l => l.startsWith('X60 C2120'))).toBe(true);
+  });
+  it('kalibrace úhlu: směr − a posun nuly (SPOS, TRANSMIT, Fanuc)', () => {
+    const cal = { angleDir: -1, angleOffset: 10 };
+    const L = buildLiveBlock(prms({ live: cal }));
+    expect(L).toContain('SPOS=10');                        // 0°  → 10 + (−1)·0
+    expect(L).toContain('SPOS=250');                       // 120° → 10 − 120 = −110 → 250
+    expect(L.some(l => l.includes('Kalibrace úhlu: směr −, nula 10 st.'))).toBe(true);
+    const T = buildLiveBlock(prms({ live: { ...cal, mode: 'transmit' } }));
+    expect(T.some(l => l.startsWith('G0 X29.544 Y5.209'))).toBe(true);   // R30 pod 10°
+    const F = buildLiveBlock(prms({ controlSystem: 'fanuc', live: cal }));
+    expect(F.some(l => /^G83 X60 C10 Z-10/.test(l))).toBe(true);   // DIAMON → X v průměru
+  });
+  it('frézování v TRANSMIT: zrcadlený směr úhlu obrací smysl oblouku (G3 → G2)', () => {
+    const mill = { ...newLiveOp('mill', null, 1), pattern: 'points', points: '0; 20', holeD: 16, toolD: 10, depth: 2, stepDown: 2 };
+    const norm = buildLiveBlock(prms({ liveOps: [mill], live: { mode: 'transmit' } }));
+    const mirr = buildLiveBlock(prms({ liveOps: [mill], live: { mode: 'transmit', angleDir: -1 } }));
+    expect(norm.some(l => l.startsWith('G3 '))).toBe(true);
+    expect(norm.some(l => l.startsWith('G2 '))).toBe(false);
+    expect(mirr.some(l => l.startsWith('G2 '))).toBe(true);
+    expect(mirr.some(l => l.startsWith('G3 '))).toBe(false);
+  });
+  it('Heidenhain: poháněný nástroj M3 / M5 (standard TNC)', () => {
+    const L = buildLiveBlock(prms({ controlSystem: 'heidenhain' }));
+    expect(L.some(l => /^S2000 M3 /.test(l))).toBe(true);
+    expect(L.some(l => /^M5 /.test(l) && l.includes('stop poháněného'))).toBe(true);
   });
   it('bez operací žádný blok', () => {
     expect(buildLiveBlock(prms({ liveOps: [] }))).toEqual([]);

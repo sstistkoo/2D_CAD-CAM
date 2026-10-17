@@ -18,19 +18,43 @@ export const LIVE_MODES = {
 
 // M-kódy osy C a poháněného nástroje se liší stroj od stroje — výchozí
 // hodnoty jsou jen příklad, uživatel je přepíše v nastavení bloku.
+//   Sinumerik: M70 = vřeteno do osy (standardní M-funkce Siemens), SPCOF =
+//     zpět do otáčkového režimu; poháněný nástroj = vřeteno č. `spindle`
+//     (M<n>=3 / M<n>=5, S<n>=…) — viz liveSettings.
+//   Fanuc: M-kódy osy C a poháněného nástroje stanovuje výrobce stroje (žádný
+//     není společný) — výchozí jsou jen příklad.
+//   Heidenhain: poháněný nástroj M3 / M5 (standard TNC); přepnutí na osu C
+//     řeší stroj (FUNCTION MODE) — M45 / M46 je jen zástupný příklad.
 export const LIVE_MCODE_DEFAULTS = {
-  sinumerik: { cOn: 'M70', cOff: 'M5', toolOn: 'M2=3', toolOff: 'M2=5', toolS: 'S2' },
+  sinumerik: { cOn: 'M70', cOff: 'SPCOF', toolOn: 'M2=3', toolOff: 'M2=5', toolS: 'S2' },
   fanuc: { cOn: 'M45', cOff: 'M46', toolOn: 'M13', toolOff: 'M15', toolS: 'S' },
-  heidenhain: { cOn: 'M45', cOff: 'M46', toolOn: 'M13', toolOff: 'M15', toolS: 'S' },
+  heidenhain: { cOn: 'M45', cOff: 'M46', toolOn: 'M3', toolOff: 'M5', toolS: 'S' },
 };
 
+/**
+ * Nastavení výstupu (`S.params.live`):
+ *   mode, cycles; spindle = číslo vřetena poháněného nástroje (Sinumerik),
+ *   cName = jméno osy C v programu (C, C1, C2…), angleDir (+1 / −1) a
+ *   angleOffset [°] = kalibrace úhlu stroje: úhel v NC = offset + směr · úhel
+ *   z výkresu; m = přepsané M-kódy podle řídicího systému.
+ */
 export function liveSettings(prms) {
   const ctrl = prms.controlSystem || 'sinumerik';
   const s = prms.live || {};
+  const spindle = Math.min(9, Math.max(1, Math.round(num(s.spindle, 2))));
+  const base = { ...(LIVE_MCODE_DEFAULTS[ctrl] || LIVE_MCODE_DEFAULTS.sinumerik) };
+  if (ctrl === 'sinumerik') Object.assign(base, { toolOn: `M${spindle}=3`, toolOff: `M${spindle}=5`, toolS: `S${spindle}` });
+  // Prázdné pole = výchozí hodnota (jinak by se do programu vydal prázdný řádek).
+  const over = {};
+  Object.entries((s.m && s.m[ctrl]) || {}).forEach(([k, v]) => { if (String(v).trim()) over[k] = String(v).trim(); });
   return {
     mode: LIVE_MODES[s.mode] ? s.mode : 'spos',
     cycles: s.cycles !== false,
-    m: { ...LIVE_MCODE_DEFAULTS[ctrl] || LIVE_MCODE_DEFAULTS.sinumerik, ...(s.m && s.m[ctrl]) },
+    spindle,
+    cName: String(s.cName || 'C').replace(/[^A-Za-z0-9_]/g, '').slice(0, 6) || 'C',
+    angleDir: Number(s.angleDir) < 0 ? -1 : 1,
+    angleOffset: num(s.angleOffset, 0),
+    m: { ...base, ...over },
   };
 }
 

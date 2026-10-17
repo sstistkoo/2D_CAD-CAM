@@ -482,7 +482,10 @@ v panelu Vrstvy — objekty se nepřesouvají na Konturu),
 k osazením profilu, a **◀ zprava / ▶ zleva** — odkud se na čelo díváte a
 odkud nástroj přijíždí; šipka ukazuje směr pohledu (podle osazení se strana
 nastaví sama, dokud ji nepřepnete). V nárysu je
-značka řezu s popiskem Z a šipkami ve směru pohledu. Kreslí se do aktuálního
+značka řezu s popiskem Z a šipkami ve směru pohledu — **řez lze chytit myší
+nebo prstem a táhnout po profilu** (Výběr, bokorys zapnutý; najetí = kurzor ↔
+a zvýraznění čáry, u osazení se přichytí, prst chytá do 22 px od čáry, myš do
+8 px). Čelo se při tažení přepočítává průběžně. Kreslí se do aktuálního
 čela: **kružnice = díra** (střed = poloha, Ø kružnice = Ø díry), **úsečka =
 drážka**. Šipka u +X a popisek C0° ukazují, kde stojí nástroj při SPOS.
 Kresby čel se ukládají s projektem; do CAM ani CNC kódu profilu nejdou —
@@ -509,7 +512,18 @@ načtou se zvlášť:
   Heidenhain vždy rozepsané pohyby.
 - **M-kódy stroje** (osa C zap/vyp, start/stop poháněného nástroje, adresa
   otáček) se liší stroj od stroje — výchozí hodnoty jsou jen příklad,
-  **ověřte je v příručce stroje**.
+  **ověřte je v příručce stroje**; prázdné pole = výchozí hodnota. Sinumerik:
+  poháněný nástroj je vřeteno č. **n** (výchozí 2 → `M2=3`, `M2=5`, `S2=…`),
+  osa C = `M70` (SPOS ji nepotřebuje, TRANSMIT i „Osa C" ano), na konci
+  `SPCOF`. Fanuc a Heidenhain nemají společné M-kódy osy C — doplňte z příručky.
+- **Jméno osy C** (C, C1, C2…) a **kalibrace úhlu**: *Směr úhlu* (+/−) a
+  *Posun nuly* [°] — úhel v NC = posun + směr · úhel z bokorysu. Platí pro
+  SPOS, osu C, TRANSMIT i Fanuc; zrcadlený směr obrací i smysl oblouků.
+- **Jak ověřit na stroji (nasucho)** — návod je přímo v panelu: (1) M-kódy
+  každý zvlášť v MDA, (2) `SPOS=0` → díra č. 1 má stát u nástroje (+X),
+  (3) `SPOS=90` → díl se má otočit tak, aby díra z bokorysu C90° (nahoře)
+  přišla k nástroji, jinak zvolte směr −, (4) první díru zkontrolujte v SBL
+  s nástrojem mimo řez.
 - **📝 Zapsat do programu** vloží blok mezi komentáře `>>> / <<< POHANENE
   NASTROJE` před konec programu (M30). Dokud blok v programu je, každá úprava
   operací ho přepíše sama; po 🔄 Dráhy (přegenerování) ho zapište znovu.

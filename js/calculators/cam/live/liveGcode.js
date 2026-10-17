@@ -21,6 +21,19 @@ const norm360 = a => ((a % 360) + 360) % 360;
 const safeText = t => String(t).replace(/\(/g, '[').replace(/\)/g, ']').replace(/[;\r\n]/g, ' ');
 
 /**
+ * Úhel na stroji z úhlu z výkresu: offset + směr · úhel (kalibrace osy C —
+ * nula a smysl otáčení jsou strojní údaje, viz liveSettings).
+ */
+const angOf = (set, a) => norm360(set.angleOffset + set.angleDir * a);
+/** Totéž pro kartézský bod (TRANSMIT / G12.1): otočení o offset, při směru −1 zrcadlení v Y. */
+function xyOf(set, x, y) {
+  const r = Math.hypot(x, y);
+  if (r < 1e-9) return { x: 0, y: 0 };
+  const t = angOf(set, Math.atan2(y, x) * 180 / Math.PI) * Math.PI / 180;
+  return { x: r * Math.cos(t), y: r * Math.sin(t) };
+}
+
+/**
  * @param prms S.params (controlSystem, mode DIAMON/DIAMOF, safeX/safeZ, liveOps, live)
  * @returns {string[]} řádky bloku včetně značek; prázdné pole, když nejsou operace
  */
@@ -42,6 +55,8 @@ export function buildLiveBlock(prms) {
   const safe = () => add(`G0 X${prms.safeX} Z${prms.safeZ}`);
 
   add(cmt(`${LIVE_BEGIN} [${ctrl}/${set.mode}] generuje Pohled na čelo, ručně neupravovat`));
+  if (set.angleDir < 0 || Math.abs(set.angleOffset) > 1e-9)
+    add(cmt(`Kalibrace úhlu: směr ${set.angleDir < 0 ? '−' : '+'}, nula ${f3(set.angleOffset)} st.`));
   safe();
   add(`M5${note('stop hlavního vřetena')}`);
 
@@ -76,21 +91,25 @@ function toolStart({ ctrl, op, add, note, m, sWord }) {
 }
 function toolStop({ add, note, m }) { add(`${m.toolOff}${note('stop poháněného nástroje')}`); }
 
+// Sinumerik: SPOS = polohování vřetena; osa C (M70) potřebuje i TRANSMIT
+// (transformace pracuje s vřetenem v režimu osy) a frézování přes C.
+const axisMode = set => set.mode === 'caxis' || set.mode === 'transmit';
 function cOn({ ctrl, add, note, m, set }) {
   if (ctrl === 'sinumerik') {
     add(`SPOS=0${note('vřeteno do polohové regulace')}`);
-    if (set.mode === 'caxis') add(`${m.cOn}${note('vřeteno jako osa C – dle stroje')}`);
+    if (axisMode(set)) add(`${m.cOn}${note('vřeteno jako osa C – dle stroje')}`);
   } else add(`${m.cOn}${note('osa C zap – dle stroje')}`);
 }
 function cOff({ ctrl, add, note, m, set }) {
-  if (ctrl === 'sinumerik' && set.mode !== 'caxis') return;
-  add(`${m.cOff}${note('osa C vyp – dle stroje')}`);
+  // Sinumerik: zpět do otáčkového režimu (SPCOF); v režimu osy podle nastavení.
+  if (ctrl === 'sinumerik') add(`${axisMode(set) ? m.cOff : 'SPCOF'}${note('vřeteno zpět do otáčkového režimu')}`);
+  else add(`${m.cOff}${note('osa C vyp – dle stroje')}`);
 }
-/** Natočení dílu na úhel `a` (SPOS nebo C). */
+/** Natočení dílu na úhel `a` (SPOS nebo C), kalibrovaný (angOf). */
 function rotate({ ctrl, set, add }, a) {
-  const an = f3(norm360(a));
-  if (ctrl === 'sinumerik') add(set.mode === 'caxis' ? `G0 C=DC(${an})` : `SPOS=${an}`);
-  else add(`G0 C${an}`);
+  const an = f3(angOf(set, a));
+  if (ctrl === 'sinumerik') add(set.mode === 'caxis' ? `G0 ${set.cName}=DC(${an})` : `SPOS=${an}`);
+  else add(`G0 ${set.cName}${an}`);
 }
 function dwell({ ctrl, add }, sec) {
   if (!(sec > 0)) return;
@@ -123,7 +142,10 @@ function sinCycle(op, rfp, w, out = 1) {
   // Směr vrtání si cyklus určí z pořadí RTP → RFP → DP (čelo zleva: DP > RFP).
   const rtp = w(rfp + out * op.retract), rf = w(rfp), sd = f3(op.safe), dp = w(rfp - out * op.depth);
   if (op.peck > 0 && op.peck < op.depth)
-    return `CYCLE83(${rtp}, ${rf}, ${sd}, ${dp}, , ${w(rfp - out * op.peck)}, , ${f3(op.peck)}, ${f3(op.dwell)}, 0, 1, 1)`;
+    // CYCLE83(RTP, RFP, SDIS, DP, DPR, FDEP, FDPR, DAM, DTB, DTS, FRF, VARI):
+    // FDEP = 1. záběr (absolutně), DAM = 0 → všechny záběry stejné (DAM > 0
+    // by je zkracovalo), VARI = 1 → vyjetí z díry (odlamování třísek = 0).
+    return `CYCLE83(${rtp}, ${rf}, ${sd}, ${dp}, , ${w(rfp - out * op.peck)}, , 0, ${f3(op.dwell)}, 0, 1, 1)`;
   return `CYCLE82(${rtp}, ${rf}, ${sd}, ${dp}, , ${f3(op.dwell)})`;
 }
 
@@ -145,7 +167,8 @@ function emitFaceDrill(ctx) {
     pos.forEach((p, k) => {
       // První najetí: nejdřív Z (nástroj je ještě venku na bezpečné X), pak X/Y.
       if (k === 0) add(`G0 Z${zw(rtp)}`);
-      add(`G0 X${f3(p.x)} Y${f3(p.y)}${note(`díra ${k + 1}: C${f3(p.a)} R${f3(p.r)}`)}`);
+      const q = xyOf(set, p.x, p.y);
+      add(`G0 X${f3(q.x)} Y${f3(q.y)}${note(`díra ${k + 1}: úhel ${f3(angOf(set, p.a))}° R${f3(p.r)}`)}`);
       if (cyc) add(sinCycle(op, op.zTop, zw, out)); else explicitDrill(ctx, 'Z', zw, op.zTop, op, out);
     });
     add('TRAFOOF');
@@ -158,9 +181,9 @@ function emitFaceDrill(ctx) {
     pos.forEach((h, k) => {
       if (k === 0) {
         add(`G0 Z${zw(rtp)}`);
-        add(`G0 X${xo(h.r)} C${f3(h.a)}`);
-        add(`G83 X${xo(h.r)} C${f3(h.a)} Z${zw(op.zTop - out * op.depth)} R${f3(out * (op.safe - op.retract))}${q}${p} F${f3(op.feed)}${note(`díra 1`)}`);
-      } else add(`X${xo(h.r)} C${f3(h.a)}${note(`díra ${k + 1}`)}`);
+        add(`G0 X${xo(h.r)} ${set.cName}${f3(angOf(set, h.a))}`);
+        add(`G83 X${xo(h.r)} ${set.cName}${f3(angOf(set, h.a))} Z${zw(op.zTop - out * op.depth)} R${f3(out * (op.safe - op.retract))}${q}${p} F${f3(op.feed)}${note(`díra 1`)}`);
+      } else add(`X${xo(h.r)} ${set.cName}${f3(angOf(set, h.a))}${note(`díra ${k + 1}`)}`);
     });
     add('G80');
   } else {
@@ -168,7 +191,7 @@ function emitFaceDrill(ctx) {
     pos.forEach((h, k) => {
       if (k === 0) add(`G0 Z${zw(rtp)}`);
       rotate(ctx, h.a);
-      add(`G0 X${xo(h.r)}${note(`díra ${k + 1}: C${f3(h.a)}`)}`);
+      add(`G0 X${xo(h.r)}${note(`díra ${k + 1}: úhel ${f3(angOf(set, h.a))}°`)}`);
       if (cyc) add(sinCycle(op, op.zTop, zw, out)); else explicitDrill(ctx, 'Z', zw, op.zTop, op, out);
     });
     if (ctrl === 'sinumerik') add('G18');
@@ -196,10 +219,10 @@ function emitRadialDrill(ctx) {
       const zMove = k > 0 && Math.abs(h.z - pos[k - 1].z) > 1e-6;
       if (k === 0 || zMove) {
         if (zMove) { add('G80'); add(`G0 X${ctx.prms.safeX}`); }
-        add(`G0 Z${f3(h.z)} C${f3(h.a)}`);
+        add(`G0 Z${f3(h.z)} ${set.cName}${f3(angOf(set, h.a))}`);
         add(`G0 X${xo(rX + op.retract)}`);
-        add(`G87 Z${f3(h.z)} C${f3(h.a)} X${xo(rX - op.depth)} R${f3(op.safe - op.retract)}${q}${p} F${f3(op.feed)}${note(`díra ${k + 1}`)}`);
-      } else add(`Z${f3(h.z)} C${f3(h.a)}${note(`díra ${k + 1}`)}`);
+        add(`G87 Z${f3(h.z)} ${set.cName}${f3(angOf(set, h.a))} X${xo(rX - op.depth)} R${f3(op.safe - op.retract)}${q}${p} F${f3(op.feed)}${note(`díra ${k + 1}`)}`);
+      } else add(`Z${f3(h.z)} ${set.cName}${f3(angOf(set, h.a))}${note(`díra ${k + 1}`)}`);
     });
     add('G80');
   } else {
@@ -213,7 +236,7 @@ function emitRadialDrill(ctx) {
       const zMove = k > 0 && Math.abs(h.z - pos[k - 1].z) > 1e-6;
       if (zMove) add(`G0 X${ctx.prms.safeX}`);
       rotate(c2, h.a);
-      add(`G0 Z${f3(h.z)}${note(`díra ${k + 1}: C${f3(h.a)}`)}`);
+      add(`G0 Z${f3(h.z)}${note(`díra ${k + 1}: úhel ${f3(angOf(set, h.a))}°`)}`);
       if (k === 0 || zMove) add(`G0 X${xw(rX + op.retract)}`);
       if (cyc) add(sinCycle(op, rX, xw)); else explicitDrill(c2, 'X', xw, rX, op);
     });
@@ -237,17 +260,26 @@ function emitMill(ctx) {
   let cur = null;
   if (transmit) {
     if (ctrl === 'sinumerik') { add(`DIAMOF${note('TRANSMIT: X/Y v poloměru')}`); add('TRANSMIT'); add('G17'); }
-    else add(`G12.1${note('polární interpolace: X = Ø, C = Y v mm')}`);
-    const xy = (x, y) => ctrl === 'sinumerik' ? `X${f3(x)} Y${f3(y)}` : `X${xo(x)} C${f3(y)}`;
+    else {
+      add(ctx.cmt('Rovinu a osy polární interpolace určují parametry stroje'));
+      add(`G12.1${note('polární interpolace: X = Ø, C = Y v mm')}`);
+    }
+    const xy = (x, y) => {
+      const q = xyOf(set, x, y);
+      return ctrl === 'sinumerik' ? `X${f3(q.x)} Y${f3(q.y)}` : `X${xo(q.x)} ${set.cName}${f3(q.y)}`;
+    };
+    // Zrcadlený směr úhlu (−) obrací i smysl oblouku: G3 ↔ G2.
+    const arcG = set.angleDir < 0 ? 'G2' : 'G3';
     moves.forEach(mv => {
       if (!cur) add(`G0 Z${f3(mv.z)}`);   // první najetí: nejdřív Z (venku na bezpečné X)
       if (mv.k === 'rapid') add(`G0 ${xy(mv.x, mv.y)} Z${f3(mv.z)}`);
       else if (mv.k === 'lin') add(`G1 ${xy(mv.x, mv.y)} Z${f3(mv.z)} F${mv.plunge ? plungeF : f3(op.feed)}`);
       else {
         const r = Math.hypot(cur.x - mv.cx, cur.y - mv.cy);
+        const c0 = xyOf(set, cur.x, cur.y), cc = xyOf(set, mv.cx, mv.cy);
         add(ctrl === 'sinumerik'
-          ? `G3 ${xy(mv.x, mv.y)} I${f3(mv.cx - cur.x)} J${f3(mv.cy - cur.y)}`
-          : `G3 ${xy(mv.x, mv.y)} R${f3(r)}`);
+          ? `${arcG} ${xy(mv.x, mv.y)} I${f3(cc.x - c0.x)} J${f3(cc.y - c0.y)}`
+          : `${arcG} ${xy(mv.x, mv.y)} R${f3(r)}`);
       }
       cur = mv;
     });
@@ -262,7 +294,7 @@ function emitMill(ctx) {
       if (r > 1e-6) lastA = norm360(Math.atan2(y, x) * 180 / Math.PI);
       return { r, a: lastA };
     };
-    const cw = a => ctrl === 'sinumerik' ? `C=DC(${f3(a)})` : `C${f3(a)}`;
+    const cw = a => ctrl === 'sinumerik' ? `${set.cName}=DC(${f3(angOf(set, a))})` : `${set.cName}${f3(angOf(set, a))}`;
     const emitPt = (type, x, y, z, F) => {
       const p = polar(x, y);
       add(`${type} X${xo(p.r)} ${cw(p.a)} Z${f3(z)}${F ? ` F${F}` : ''}`);

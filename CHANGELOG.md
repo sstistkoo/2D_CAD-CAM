@@ -54,6 +54,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Bokorys: značku řezu v nárysu jde tahat.** Čerchovanou čáru řezu se šipkami
+  a popiskem Z lze chytit myší (8 px) nebo prstem (22 px) a posouvat po profilu;
+  u osazení se přichytí, zvýrazní se a kurzor ukáže ↔. Dělá totéž co posuvník
+  (`faceView/faceCutDrag.js`, test v `tests/face-view.test.js`).
+- **Poháněné nástroje: kontrola M-kódů a osy C.** Opraveno `CYCLE83` (DAM = 0,
+  stálé záběry; dřív se další záběry zkracovaly). TRANSMIT nově zapíná vřeteno
+  do osy (M70), na konci operace `SPCOF`. Číslo vřetena poháněného nástroje
+  (`M<n>=3`, `S<n>=`), jméno osy C (C1/C2…) a kalibrace úhlu (směr, posun nuly)
+  jsou v nastavení; prázdné pole M-kódu = výchozí. Heidenhain: poháněný nástroj
+  M3 / M5. V panelu je návod na ověření na stroji; příručka M-kódů má `M70` a
+  opravené `S2=…` u `M2=3`/`M2=4`.
 - **Mobil: zvoneček 🔔 Hlášky je v horní liště vždy.** Dřív se ukázal jen po
   odložené hlášce a po obnovení stránky „zmizel". Delší nápovědy (bokorys) jdou
   na mobilu rovnou pod něj (`showToast(…, { bell: true })`) místo okénka dole.
