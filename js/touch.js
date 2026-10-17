@@ -407,7 +407,7 @@ function canSingleFingerPan() {
 }
 
 // ── Tlačítka pod zaměřovačem (sdílí křížek plátna i globální pointer) ──
-const CLICKABLE_SEL = "button, input[type=checkbox], input[type=radio], a, label, li, select, .mc-row, .mc-card, .coord-ind";
+const CLICKABLE_SEL = "button, input[type=checkbox], input[type=radio], a, label, li, select, .mc-row, .mc-card, .coord-ind, .panel-header";
 
 /**
  * Klikatelný prvek pod bodem (x, y). Když tam nic není a je dán záložní bod

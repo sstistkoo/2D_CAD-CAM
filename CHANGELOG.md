@@ -16,9 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (rozcestník, seznam s hledáním a kategoriemi, ukázky) je v
   `js/calculators/ctrlRefViewer.js`, data v `fanuc*.js` a `heidenhain*.js`.
   Nový test `tests/control-reference.test.js`.
-- **Fanuc: dlaždice „Korekce“, Heidenhain: dlaždice „Nástroje“ (🛠️).** Geometrie a opotřebení nože – co udělá zápis −0,2 (Fanuc: Wear X v průměru, záporné = menší průměr; Heidenhain: DXL/DZL/DRS), INPUT × +INPUT, měření, `G10`, tabulka TOOLTURN.TRN, orientace TO. Moduly `fanucOffsets.js`, `heidenhainTools.js`. Nápověda Sinumerik rozcestníku popisuje i dlaždice Nástroje a Alarmy.
+- **Fanuc a Heidenhain: dlaždice „Nástroje“ (🛠️).** Geometrie a opotřebení nože – co udělá zápis −0,2 (Fanuc: Wear X v průměru, záporné = menší průměr; Heidenhain: DXL/DZL/DRS), INPUT × +INPUT, měření, `G10`, tabulka TOOLTURN.TRN, orientace TO. Moduly `fanucOffsets.js`, `heidenhainTools.js`. Nápověda Sinumerik rozcestníku popisuje i dlaždice Nástroje a Alarmy.
+- **Pravý panel: bubliny s popisem u hlaviček panelů.** Objekty, Průsečíky, Vlastnosti, Vrstvy, Profil, CNC Kód, Kalkulačky a Další kalkulačky mají popisek (title) – na mobilu ho ukáže přesný křížek, kterým jde hlavičku i rozbalit (`.panel-header` v `CLICKABLE_SEL`, `js/touch.js`). Strohé popisky kalkulaček (Tolerance, Závity, Kužel, Hmotnost…) prodlouženy o to, co počítají.
+- **Fanuc / Heidenhain: nastavení nože.** Obě příručky mají skupinu Postupy (nový nůž, měření, nová destička, kontrola špičky / TO; Fanuc i dva suporty = dvě dráhy).
 - **Sinumerik: nová dlaždice „Nástroje“ (🛠️).** Význam dat nástroje (T) a dat břitu (D) – typ, název, ST, místo, stav, délky X/Z, poloměr, poloha břitu SL, úhly, šířka břitu, základní rozměr, opotřebení, hlídání – dále postupy (nový nůž, měření X/Z, nová destička, kontrola SL), část o dvou suportech (kanály, společná × oddělená tabulka nástrojů, nulové body, `WAITM`) a proměnné `$TC_DP` / `$P_TOOL`. Moduly `js/calculators/sinumerikTools.js` a `sinumerikWear.js`. Nahoře je skupina **Opotřebení (hlavní)**: co dělá zápis −0,2 (radiální osa = průměr, axiální = délka, R jen s G41/G42), poloměr × průměr, znaménko, zkouška na stroji (zkušební stupeň), příklady a programová korekce. Symbol Ø u pole radiální osy = hodnota v průměru, bez Ø = v poloměru (zadává se polovina rozdílu průměru). Karty Počet břitů a Frézy 1xx, výchozí D1, osy karuselu (X = průměr vodorovně, Z = výška svisle – soustruh otočený o 90°), zrcadlení polohy břitu u pravého a levého suportu a strana stolu u druhého suportu. Karty délek v Datech břitu nesou označení přímo v názvu: Délka X (L1), Délka Z (L2), Délka Y (L3).
 - **Alarmy a chybová hlášení v příručkách Sinumerik / Fanuc / Heidenhain.** Nová dlaždice *Alarmy* (Sinumerik, Fanuc) a *Chyby* (Heidenhain): rozsahy čísel, vlastní alarmy (`SETAL`, `MSG`, `#3000`, `FN 14`), mazání alarmů a orientační přehled častých alarmů s příčinou a řešením. Moduly `sinumerikAlarms.js`, `fanucAlarms.js`, `heidenhainAlarms.js`; společné okno má volitelný popisek sekce a upozornění (`syntaxLabel`, `note`).
+
+### Removed
+
+- **Nápověda Sinumerik rozcestníku: sekce „Editor“.** CNC Editor se otevírá z plátna, v rozcestníku dlaždici nemá; popis se odstranil (`js/calculators/help.js`).
 
 ### Changed
 

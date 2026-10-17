@@ -39,7 +39,7 @@ export function openFanucHub() {
       { icon: '⚙️', title: 'G kódy',  desc: 'Pohyby, cykly G70–G76, závity, vrtání', action: openFanucGcodes },
       { icon: '🔧', title: 'M kódy',  desc: 'Pomocné funkce a podprogramy',          action: openFanucMcodes },
       { icon: '📊', title: 'Makro B', desc: 'Proměnné #, IF/WHILE, funkce, G65',      action: openFanucMacro },
-      { icon: '🛠️', title: 'Korekce', desc: 'Geometrie a opotřebení nože (−0,2 = ?)', action: openFanucOffsets },
+      { icon: '🛠️', title: 'Nástroje', desc: 'Nastavení nože, korekce, opotřebení', action: openFanucOffsets },
       { icon: '🚨', title: 'Alarmy',  desc: 'Alarmy PS, OT, SV, SP a makro alarmy',  action: openFanucAlarms },
       { icon: '📝', title: 'Ukázky',  desc: 'Hrubování, závit, drážka, podprogram',   action: openFanucExamples }
     ]

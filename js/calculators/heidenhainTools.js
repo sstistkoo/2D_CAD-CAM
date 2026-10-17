@@ -8,7 +8,8 @@ import { ref, openRefList } from './ctrlRefViewer.js';
 
 export const hhToolGroups = {
   'Opotřebení (hlavní)': ['Co dělá −0,2', 'DXL a DZL', 'DRS', 'Test'],
-  'Tabulka nástrojů': ['TOOLTURN.TRN', 'XL a ZL', 'RS', 'TO', 'TYPE', 'TOOL CALL']
+  'Tabulka nástrojů': ['TOOLTURN.TRN', 'XL a ZL', 'RS', 'TO', 'TYPE', 'TOOL CALL'],
+  'Postupy': ['Nový nůž', 'Měření', 'Nová destička', 'Kontrola TO']
 };
 
 export const hhToolItems = [
@@ -26,7 +27,19 @@ export const hhToolItems = [
   ref('RS', 'Poloměr břitu (špičky destičky).', 'Poloměr břitu', ''),
   ref('TO', 'Orientace nože (1–9) – kde leží špička vůči středu rádiusu; podle ní řízení počítá korekci poloměru. Správné číslo ukáže obrázek v manuálu / na obrazovce.', 'Orientace nože', ''),
   ref('TYPE', 'Typ nože: hrubovací, dokončovací, závitový, zapichovací, kulatý… Cykly podle něj kontrolují, zda nůž smí obrábět.', 'Typ nože', ''),
-  ref('TOOL CALL', 'TOOL CALL číslo / "jméno" vyvolá nůž i jeho korekce z tabulky. Změna opotřebení se uplatní při dalším TOOL CALL.', 'Vyvolání nože', 'TOOL CALL "HRUB_T1"')
+  ref('TOOL CALL', 'TOOL CALL číslo / "jméno" vyvolá nůž i jeho korekce z tabulky. Změna opotřebení se uplatní při dalším TOOL CALL.', 'Vyvolání nože', 'TOOL CALL "HRUB_T1"'),
+  ref('Nový nůž',
+    '1) V tabulce soustružnických nožů založ řádek: číslo, NAME, TYPE.\n2) RS (poloměr břitu) a TO (orientace) podle obrázku.\n3) DXL, DZL, DRS na 0.\n4) Změř XL a ZL (karta Měření).\n5) TOOL CALL v ručním / MDI režimu, zkušební řez, doladění opotřebením.',
+    'Kontrolní seznam pro nový nůž', ''),
+  ref('Měření',
+    'XL a ZL se zjistí na seřizovacím přístroji, sondou, nebo dotykem obrobku v ručním režimu (funkce pro nastavení / měření nástroje). Přesný postup na obrazovce závisí na verzi SW a stroji – drž se manuálu stroje.',
+    'Délky nože XL a ZL', ''),
+  ref('Nová destička',
+    'Po výměně destičky vynuluj DXL, DZL, DRS; při jiném poloměru změň RS. Při výměně držáku nebo velké odchylce znovu změř XL a ZL.',
+    'Výměna destičky', ''),
+  ref('Kontrola TO',
+    'S korekcí poloměru (RL / RR) projeď zkušební sražení 45° nebo oblouk: stupeň či podříznutí = špatná orientace TO nebo poloměr RS.',
+    'Ověření orientace a poloměru', '')
 ];
 
 const NOTE = 'Orientační přehled – názvy sloupců a chování závisí na verzi SW a nastavení stroje. Jednou si to ověř kartou Test.';

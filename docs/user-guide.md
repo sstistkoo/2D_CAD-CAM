@@ -59,6 +59,9 @@ Herní nástroje seskupené do sekcí:
 - **Vrstvy** – správa vrstev
 - **Vlastnosti** – barva, tloušťka, styl čáry, čárkovaná
 - **Nastavení** – mřížka, úhlové snap, kóty, okraje, autom. středy, číslování, osa Y
+- **Bubliny s popisem** – hlavičky panelů (Objekty, Průsečíky, Vlastnosti, Vrstvy, CNC Kód,
+  Kalkulačky, Další kalkulačky) i tlačítka kalkulaček mají popisek: na počítači po najetí
+  myší, na mobilu pod přesným křížkem (posunutým od prstu). Křížkem jde hlavičku i rozbalit.
 
 ### Dolní lišta (status bar)
 - Aktuální nástroj
@@ -1691,13 +1694,14 @@ je vyhledávání, filtr podle kategorií a po klepnutí na kartu syntaxe s př�
   vrtání s osou C), M kódy, Makro B (proměnné `#`, `IF`/`WHILE`, funkce,
   argumenty `G65`) a ukázky (hrubování G71+G70, závit G76, drážka G75,
   podprogram M98, makro s počítadlem). Ukázky s tlačítkem 📋 se kopírují. Dlaždice
-  🛠️ **Korekce** vysvětluje geometrii a opotřebení nože (Wear X −0,2 = průměr o 0,2 menší
+  🛠️ **Nástroje** – nastavení nože (nový nůž, měření X/Z tlačítkem MEASURE, nová destička,
+  kontrola čísla špičky, dva suporty = dvě dráhy), geometrie a opotřebení (Wear X −0,2 = průměr o 0,2 menší
   při zápisu v průměru, INPUT × +INPUT, měření MEASURE, `G10`).
 - **Heidenhain TNC 640** – Klartext (`L`, `CC`, `C`, `CR`, `CT`, `CHF`, `RND`,
   `APPR`/`DEP`, `TOOL CALL`, `FUNCTION MODE TURN`), ISO G kódy (tak, jak je
   generuje SKICA), M funkce, Q-parametry a FN funkce, cykly (vrtání,
   transformace a soustružnické cykly 8xx), 🛠️ **Nástroje** (tabulka soustružnických nožů,
-  opotřebení DXL/DZL/DRS, orientace TO) a ukázky.
+  opotřebení DXL/DZL/DRS, orientace TO, postupy nastavení nože) a ukázky.
 
 **Alarmy a chybová hlášení** (dlaždice 🚨 *Alarmy* u Sinumeriku a Fanucu, *Chyby* u Heidenhainu): jak vyvolat vlastní alarm (`SETAL` / `MSG`, `#3000` / `#3006`, `FN 14: ERROR`), jak se alarmy mažou (RESET, CANCEL, POWER ON, CE), číselné rozsahy a přehled častých alarmů s příčinou a řešením (Sinumerik 12080, 25040, 61xxx a SINAMICS F30xxx; Fanuc PS, OT, SV, SP, alarmy vřetena AL-xx; Heidenhain interní chyby 1000–1027). Jde o orientační přehled – přesné znění a čísla se liší podle verze SW a stroje.
 

@@ -1578,7 +1578,7 @@
             ✕
           </button>
         </div>
-        <div class="panel-header obj-header" data-panel="objPanel">
+        <div class="panel-header obj-header" data-panel="objPanel" title="Objekty – seznam všech nakreslených prvků (úsečky, oblouky, kružnice…). Klepnutím prvek vybereš na výkrese; řazení kontury a polotovaru podle dráhy, čísla objektů.">
           <span>▸ Objekty</span>
           <span
             class="obj-header-actions"
@@ -1643,6 +1643,7 @@
         <div
           class="panel-header"
           data-panel="tracePanel"
+          title="Profil – body trasovaného profilu (nástroj Profil); zobrazí se, jakmile má profil aspoň dva body."
           role="button"
           tabindex="0"
           style="display: none"
@@ -1662,6 +1663,7 @@
         <div
           class="panel-header"
           data-panel="intPanel"
+          title="Průsečíky – automaticky vypočítané průsečíky prvků se souřadnicemi; zaškrtnutím je vybereš."
           role="button"
           tabindex="0"
         >
@@ -1678,6 +1680,7 @@
         <div
           class="panel-header"
           data-panel="propPanel"
+          title="Vlastnosti – údaje vybraného objektu (typ, souřadnice, délka, poloměr, barva, vrstva); hodnoty se dají upravit."
           role="button"
           tabindex="0"
         >
@@ -1696,6 +1699,7 @@
         <div
           class="panel-header"
           data-panel="layerPanel"
+          title="Vrstvy – správa vrstev výkresu: aktivní vrstva, barva, přejmenování, nová vrstva a smazání."
           role="button"
           tabindex="0"
         >
@@ -1725,7 +1729,7 @@
             </button>
           </div>
         </div>
-        <div class="panel-header cnc-header" data-panel="cncPanel">
+        <div class="panel-header cnc-header" data-panel="cncPanel" title="CNC Kód – G-kód z nakreslené kontury. Klepnutím rozbalíš (kód se přegeneruje); tlačítky G90/G91, uložit, načíst, upravit v editoru, vykreslit.">
           <span>▸ CNC Kód</span>
           <button
             id="btnCncMode"
@@ -1779,6 +1783,7 @@
         <div
           class="panel-header"
           data-panel="calcPanel"
+          title="Kalkulačky – nejpoužívanější výpočty a příručky (Trigonometrie, CAM, AI, Tolerance, Závity, VBD, Převodník, Sinumerik, Kužel)."
           role="button"
           tabindex="0"
         >
@@ -1818,19 +1823,19 @@
             <button
               id="btnOpenTolerance"
               class="calc-launch-btn"
-              title="Tolerance"
+              title="Tolerance – ISO 286 a ISO 2768, vlastní úchylky v mm / µm"
             >
               <span class="calc-launch-icon">📏</span>
               <span>Tolerance</span>
             </button>
-            <button id="btnOpenThread" class="calc-launch-btn" title="Závity">
+            <button id="btnOpenThread" class="calc-launch-btn" title="Závity – tabulky (M, G, Tr, UNC, UNF…) a rozpis průchodů">
               <span class="calc-launch-icon">🔩</span>
               <span>Závity</span>
             </button>
             <button
               id="btnOpenInserts"
               class="calc-launch-btn"
-              title="VBD & Držáky"
+              title="VBD & Držáky – dekodér ISO značení destiček a držáků, řezné podmínky podle materiálu"
             >
               <span class="calc-launch-icon">🔩</span>
               <span>VBD & Držáky</span>
@@ -1838,7 +1843,7 @@
             <button
               id="btnOpenConvert"
               class="calc-launch-btn"
-              title="Převodník"
+              title="Převodník – délky mm / inch, úhly, drsnost Ra / Rz a další jednotky"
             >
               <span class="calc-launch-icon">🔄</span>
               <span>Převodník</span>
@@ -1846,12 +1851,12 @@
             <button
               id="btnOpenSinumerik"
               class="calc-launch-btn"
-              title="Sinumerik 840D – G/M kódy, příkazy, proměnné, zkratky"
+              title="Sinumerik 840D – G/M kódy, příkazy, proměnné, nastavení nože a opotřebení, alarmy, ukázky"
             >
               <span class="calc-launch-icon">🏭</span>
               <span>Sinumerik</span>
             </button>
-            <button id="btnOpenTaper" class="calc-launch-btn" title="Kužel">
+            <button id="btnOpenTaper" class="calc-launch-btn" title="Kužel – velký a malý průměr, délka, úhel kuželu">
               <span class="calc-launch-icon">🔺</span>
               <span>Kužel</span>
             </button>
@@ -1859,6 +1864,7 @@
           <div
             class="panel-header calc-subheader"
             data-panel="calcMorePanel"
+            title="Další kalkulačky – méně častá okna: kalkulačka, řezné podmínky, hmotnost, drsnost, vrták, rozmístění děr, příručky Fanuc a Heidenhain, poznámky…"
             role="button"
             tabindex="0"
           >
@@ -1872,26 +1878,26 @@
             style="display: none"
           >
             <div class="calc-launchers">
-              <button id="btnOpenCalc" class="calc-launch-btn" title="Kalkulačka">
+              <button id="btnOpenCalc" class="calc-launch-btn" title="Kalkulačka – běžné výpočty s historií">
                 <span class="calc-launch-icon">🔢</span>
                 <span>Kalkulačka</span>
               </button>
               <button
                 id="btnOpenCutting"
                 class="calc-launch-btn"
-                title="Řezné podmínky"
+                title="Řezné podmínky – otáčky, posuv, výkon, G96 a strojní čas"
               >
                 <span class="calc-launch-icon">⚙️</span>
                 <span>Řezné podm.</span>
               </button>
-              <button id="btnOpenWeight" class="calc-launch-btn" title="Hmotnost">
+              <button id="btnOpenWeight" class="calc-launch-btn" title="Hmotnost – tyče a trubky podle průřezu, délky a materiálu">
                 <span class="calc-launch-icon">⚖️</span>
                 <span>Hmotnost</span>
               </button>
               <button
                 id="btnOpenRoughness"
                 class="calc-launch-btn"
-                title="Drsnost povrchu"
+                title="Drsnost povrchu – Ra z posuvu a rádiusu špičky (a naopak)"
               >
                 <span class="calc-launch-icon">🔬</span>
                 <span>Drsnost</span>
@@ -1963,7 +1969,7 @@
               <button
                 id="btnOpenFanuc"
                 class="calc-launch-btn"
-                title="Fanuc 0i-T – G/M kódy, makro B, ukázky"
+                title="Fanuc 0i-T – G/M kódy, makro B, nastavení nože a korekce, alarmy, ukázky"
               >
                 <span class="calc-launch-icon">🏭</span>
                 <span>Fanuc</span>
@@ -1971,7 +1977,7 @@
               <button
                 id="btnOpenHeidenhain"
                 class="calc-launch-btn"
-                title="Heidenhain TNC 640 – Klartext, ISO, Q-parametry, cykly"
+                title="Heidenhain TNC 640 – Klartext, ISO, Q-parametry, cykly, nástroje, chyby"
               >
                 <span class="calc-launch-icon">🏭</span>
                 <span>Heidenhain</span>

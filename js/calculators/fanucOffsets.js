@@ -8,7 +8,8 @@ import { ref, openRefList } from './ctrlRefViewer.js';
 
 export const fanucOffsetGroups = {
   'Opotřebení (hlavní)': ['Co dělá −0,2', 'Opotřebení X', 'Opotřebení Z', 'INPUT × +INPUT', 'Příklad', 'Test'],
-  'Korekční tabulka': ['T0101', 'Geometrie', 'R a T', 'Měření (MEASURE)', 'G10']
+  'Korekční tabulka': ['T0101', 'Geometrie', 'R a T', 'Měření (MEASURE)', 'G10'],
+  'Postupy': ['Nový nůž', 'Měření X', 'Měření Z', 'Nová destička', 'Kontrola špičky', 'Více suportů']
 };
 
 export const fanucOffsetItems = [
@@ -51,14 +52,32 @@ export const fanucOffsetItems = [
     'Seřízení nože dotykem', ''),
   ref('G10',
     'G10 P.. X.. Z.. R.. Q.. – zápis korekce programem. P1–P64 = opotřebení, P10000 + n = geometrie n. U / W místo X / Z = přičíst. Rozsah čísel a povolení zápisu závisí na stroji.',
-    'Korekce z programu', 'G10 P1 U-0.02   (WEAR 1: X MINUS 0.02)', '')
+    'Korekce z programu', 'G10 P1 U-0.02   (WEAR 1: X MINUS 0.02)', ''),
+  ref('Nový nůž',
+    '1) Upni nůž do revolveru, poznamenej číslo pozice.\n2) OFFSET → GEOMETRY: na řádku korekce zadej R (poloměr špičky) a T (číslo špičky).\n3) Opotřebení (WEAR) téhož řádku nastav na 0.\n4) Vyvolej nůž (např. T0303) v MDA.\n5) Změř X a Z (karty Měření X / Měření Z).\n6) Zkušební řez, změř a dolaď opotřebením.',
+    'Kontrolní seznam pro nový nůž', 'T0303   (NUZ 3, KOREKCE 3)'),
+  ref('Měření X',
+    'JOG / ruční kolečko: roztoč vřeteno, oťukni (lehce osoustruž) průměr, odjeď jen v Z (X nehýbat). Zastav vřeteno, změř průměr. OFFSET → GEOMETRY, kurzor na řádek nože, napiš např. X50.12 a stiskni MEASURE – řízení samo spočítá geometrii X.',
+    'Seřízení X dotykem', ''),
+  ref('Měření Z',
+    'Zarovnej čelo (nebo se dotkni čela s nastaveným nulovým bodem), odjeď jen v X (Z nehýbat). Na řádku nože napiš Z0. a stiskni MEASURE. Pro další nože se dotkni stejného čela a zadej také Z0. + MEASURE.',
+    'Seřízení Z dotykem', ''),
+  ref('Nová destička',
+    'Po otočení / výměně destičky vynuluj opotřebení (WEAR X, Z). Má-li nová destička jiný poloměr, změň R. Při výměně držáku nebo velké odchylce znovu změř geometrii.',
+    'Výměna destičky', ''),
+  ref('Kontrola špičky',
+    'Při programu s G41/G42 projeď zkušebně sražení 45° nebo oblouk. Stupeň či podříznutí = špatné číslo špičky T nebo poloměr R. Program bez G41/G42 (např. ze SKICA) R a T nepoužívá.',
+    'Ověření R a T', 'G42 G01 X20. Z0. F0.1\nX40. Z-10.\nG40 G00 X60.'),
+  ref('Více suportů',
+    'Soustruh se dvěma suporty bývá u Fanuca dvoudráhový (PATH 1 / PATH 2): každá dráha má vlastní program, korekce a nulové body. Před zápisem korekce přepni dráhu (přepínač PATH na panelu).',
+    'Dva suporty = dvě dráhy', '')
 ];
 
 const NOTE = 'Orientační přehled – zápis X v průměru × poloměru a čísla parametrů závisí na stroji. Jednou si to ověř kartou Test.';
 
 export function openFanucOffsets() {
   openRefList({
-    type: 'fanuc-offsets', title: '🛠️ Fanuc 0i/31i-T – Korekce nástroje', placeholder: 'Hledat (např. wear, T0101, G10)…',
+    type: 'fanuc-offsets', title: '🛠️ Fanuc 0i/31i-T – Nástroje a korekce', placeholder: 'Hledat (např. wear, T0101, G10)…',
     groups: fanucOffsetGroups, items: fanucOffsetItems, windowClass: 'gc-window tl-window', syntaxLabel: 'Význam:', note: NOTE
   });
 }

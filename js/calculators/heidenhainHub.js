@@ -55,7 +55,7 @@ export function openHeidenhainHub() {
       { icon: '🔧', title: 'M funkce',    desc: 'Pomocné funkce',                     action: openHeidenhainM },
       { icon: '📊', title: 'Q-parametry', desc: 'Proměnné Q, FN funkce, skoky',       action: openHeidenhainQ },
       { icon: '🔩', title: 'Cykly',       desc: 'Vrtání a soustružnické cykly 8xx',   action: openHeidenhainCycles },
-      { icon: '🛠️', title: 'Nástroje',    desc: 'Tabulka nožů, opotřebení DXL/DZL',   action: openHeidenhainTools },
+      { icon: '🛠️', title: 'Nástroje',    desc: 'Nastavení nože, tabulka, opotřebení',   action: openHeidenhainTools },
       { icon: '🚨', title: 'Chyby',       desc: 'Chybová hlášení a FN 14 ERROR',      action: openHeidenhainAlarms },
       { icon: '📝', title: 'Ukázky',      desc: 'Programy s komentáři',               action: openHeidenhainExamples }
     ]

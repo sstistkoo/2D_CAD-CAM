@@ -413,7 +413,7 @@ User selects CAM tool
 | `calculators/ctrlRefViewer.js` | Společné okno referenčních příruček (rozcestník, seznam s hledáním, ukázky) pro Fanuc a Heidenhain |
 | `calculators/fanucHub.js`, `fanucRef*.js` | Příručka Fanuc 0i-T (G/M kódy, Makro B, ukázky) – rozcestník + data |
 | `calculators/heidenhainHub.js`, `heidenhainRef*.js` | Příručka Heidenhain TNC 640 (Klartext, ISO, M, Q-parametry, cykly, ukázky) – rozcestník + data |
-| `calculators/fanucOffsets.js` | Fanuc – korekce nástroje (geometrie, opotřebení, MEASURE, `G10`) |
+| `calculators/fanucOffsets.js` | Fanuc – nástroje: nastavení nože, korekce (geometrie, opotřebení, MEASURE, `G10`), dvě dráhy |
 | `calculators/heidenhainTools.js` | Heidenhain – soustružnické nože (TOOLTURN.TRN, DXL/DZL/DRS, TO) |
 | `calculators/sinumerikWear.js` | Sinumerik – opotřebení nástroje (hlavní skupina příručky Nástroje); data se importují do `sinumerikTools.js` |
 | `calculators/sinumerikTools.js` | Sinumerik – nástroje a břity (data T/D, postupy, dva suporty, `$TC_DP`) – data + `openSinumerikTools()` |
