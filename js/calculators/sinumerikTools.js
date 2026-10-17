@@ -12,7 +12,7 @@ export const snToolGroups = {
   'Jak to funguje': ['T a D', 'Součet délek', 'Nástroj × břit', 'SKICA ↔ stroj'],
   'Data nástroje (T)': ['Typ nástroje', 'Název nástroje', 'ST', 'Místo', 'Počet břitů', 'Stav nástroje', 'Smysl otáčení'],
   'Typy nástrojů': ['500', '510', '520', '530', '540', '550', '1xx', '2xx'],
-  'Data břitu (D)': ['D', 'Délka X', 'Délka Z', 'Délka 3', 'Poloměr R', 'Poloha SL', 'Úhel držáku', 'Úhel destičky', 'Šířka břitu', 'Poloměr 1 / 2', 'Základní rozměr', 'Opotřebení Δ'],
+  'Data břitu (D)': ['D', 'Délka X (L1)', 'Délka Z (L2)', 'Délka Y (L3)', 'Poloměr R', 'Poloha SL', 'Úhel držáku', 'Úhel destičky', 'Šířka břitu', 'Poloměr 1 / 2', 'Základní rozměr', 'Opotřebení Δ'],
   'Dva suporty': ['Suport = kanál', 'Přepnutí kanálu', 'Společná data?', 'Čísla a názvy', 'Nulové body', 'Směr os', 'WAITM'],
   'Postupy': ['Nový nůž', 'Měření X', 'Měření Z', 'Zápis ručně', 'Nová destička', 'Kontrola SL'],
   'Hlídání nástroje': ['Životnost', 'Počet kusů', 'Limit opotřebení', 'Předvarování'],
@@ -61,9 +61,9 @@ export const snToolItems = [
 
   // ── Data břitu ──
   ref('D', 'Číslo břitu v rámci nože (1, 2, …). Každý D má vlastní délky, poloměr a opotřebení. Typicky D1 = hlavní břit, D2 = druhý roh destičky / druhý nůž.', 'Číslo břitu (D)', ''),
-  ref('Délka X', 'Poloha špičky v ose X – radiální osa (průměr): na soustruhu svisle, na karuselu vodorovně. Měří se od referenčního bodu držáku. Měří se dotykem (Postupy → Měření X).', 'Délka 1 – geometrie (L1)', ''),
-  ref('Délka Z', 'Poloha špičky v ose Z – axiální osa (délka / výška): na soustruhu vodorovně, na karuselu svisle (vyložení nože ze suportu dolů k materiálu). Měří se od referenčního bodu držáku. Měří se dotykem (Postupy → Měření Z).', 'Délka 2 – geometrie (L2)', ''),
-  ref('Délka 3', 'Třetí osa (Y). U soustruhu bez osy Y je 0. Používá se u nožů s osou Y nebo poháněných nástrojů.', 'Délka 3 – geometrie (L3)', ''),
+  ref('Délka X (L1)', 'Poloha špičky v ose X – radiální osa (průměr): na soustruhu svisle, na karuselu vodorovně. Měří se od referenčního bodu držáku, dotykem (Postupy → Měření X).', 'Geometrie – osa X (průměr)', ''),
+  ref('Délka Z (L2)', 'Poloha špičky v ose Z – axiální osa (délka / výška): na soustruhu vodorovně, na karuselu svisle (vyložení nože ze suportu dolů k materiálu). Měří se od referenčního bodu držáku, dotykem (Postupy → Měření Z).', 'Geometrie – osa Z (délka / výška)', ''),
+  ref('Délka Y (L3)', 'Délka v ose Y (v řízení „délka 3“, L3). U soustruhu a karuselu bez osy Y je 0. Používá se jen u suportu s osou Y (vyosení) nebo u poháněných nástrojů.', 'Geometrie – osa Y', ''),
   ref('Poloměr R', 'Poloměr špičky destičky (např. 0,4 / 0,8 / 1,2). Používá korekce poloměru G41/G42 a cykly. Musí být správně, jinak vznikají chyby na kuželech a obloucích.', 'Poloměr špičky (R)', 'T="FINISH_T2" D1\nG42\nG1 X20 Z0 F0.1'),
   ref('Poloha SL', 'Číslo 1–9: kde leží špička vůči středu poloměru. Řízení podle toho počítá G41/G42 (kde je „skutečný" břit). 9 = střed poloměru. Správné číslo vždy ukazuje obrázek v zadávací obrazovce – nehádej, porovnej tvar nože s obrázkem. Pozor na „tabulky“ typu „1 = doleva nahoru, 4 = vnější pravý“: přiřazení čísel závisí na tom, zda je nůž před/za osou a jak je otočený pohled, takže obecná tabulka nemusí platit pro tvůj stroj. Na karuselu se u pravého a levého suportu poloha zrcadlí – SL nastav pro každý suport zvlášť a ověř kartou Kontrola SL.',
     'Poloha břitu (SL)', ''),
@@ -110,7 +110,7 @@ export const snToolItems = [
   // ── $TC ──
   ref('$TC_DP1', '$TC_DP1[T,D] – typ nástroje (500, 510, 520…).', 'Typ nástroje', 'R1=$TC_DP1[1,1]'),
   ref('$TC_DP2', '$TC_DP2[T,D] – poloha břitu SL (1–9).', 'Poloha břitu', 'R2=$TC_DP2[1,1]'),
-  ref('$TC_DP3–5', '$TC_DP3 = délka 1 (L1, X)\n$TC_DP4 = délka 2 (L2, Z)\n$TC_DP5 = délka 3 (L3)', 'Geometrie – délky', 'R3=$TC_DP3[1,1]'),
+  ref('$TC_DP3–5', '$TC_DP3 = délka 1 (L1, X)\n$TC_DP4 = délka 2 (L2, Z)\n$TC_DP5 = délka 3 (L3, Y)', 'Geometrie – délky', 'R3=$TC_DP3[1,1]'),
   ref('$TC_DP6', '$TC_DP6[T,D] – poloměr (geometrie).', 'Poloměr špičky', '$TC_DP6[1,1]=0.8'),
   ref('$TC_DP12–15', '$TC_DP12 = opotřebení L1\n$TC_DP13 = opotřebení L2\n$TC_DP14 = opotřebení L3\n$TC_DP15 = opotřebení poloměru', 'Opotřebení',
     '$TC_DP12[1,1]=$TC_DP12[1,1]-0.02\nD1   ; znovu vyvolat D, aby se hodnota uplatnila', 'Po zápisu v programu vyvolej D znovu'),
