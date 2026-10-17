@@ -12,7 +12,7 @@ import { getMeta, setMeta } from '../js/idb.js';
 const sel = (s) => document.querySelector('.calc-overlay[data-type="notes"] ' + s);
 const overlay = () => document.querySelector('.calc-overlay[data-type="notes"]');
 const ta = () => sel('#notesArea');
-const tabs = () => [...document.querySelectorAll('#notesTabs button')].map(b => b.textContent + (b.classList.contains('active') ? '*' : ''));
+const tabs = () => [...document.querySelectorAll('#notesTabs .notes-tab, #notesTabs .notes-tab-add')].map(b => b.textContent + (b.classList.contains('active') ? '*' : ''));
 const act = (name) => sel(`[data-act="${name}"]`).click();
 const status = () => ['#notesSaveText', '#notesWordCount', '#notesCharCount', '#notesLineCount'].map(s => sel(s).textContent);
 const type = (text) => { ta().value = text; ta().dispatchEvent(new Event('input', { bubbles: true })); };
@@ -84,18 +84,29 @@ describe('poznámkový blok', () => {
     expect(ta().value).toBe('');
 
     type('ccc');
-    act('save');
-    expect(toast()).toBe('Poznámky uloženy ✓');
+    // tlačítko Uložit není – ukládá se samo po krátké pauze
+    expect(sel('[data-act="save"]')).toBeNull();
     await vi.waitFor(async () => expect(await getMeta('userNotesAll')).toEqual([
       { id: 1, title: 'A', text: 'aaa' }, { id: 5, title: 'B', text: 'bbb' }, { id: 6, title: 'C', text: 'ccc' },
-    ]));
+    ]), { timeout: 4000 });
     expect(await getMeta('userNotes')).toBe('aaa');
-    await vi.waitFor(() => expect(status()[0]).toBe('Uloženo'));
+    await vi.waitFor(() => expect(status()[0]).toBe('Uloženo'), { timeout: 4000 });
 
     // dvojklik = přejmenování
     vi.stubGlobal('prompt', vi.fn(() => 'Céčko'));
     document.querySelectorAll('#notesTabs .notes-tab')[2].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     expect(tabs()).toEqual(['A', 'B', 'Céčko*', '+']);
+    // i přejmenování se uloží samo (bez zavření okna)
+    await vi.waitFor(async () => expect((await getMeta('userNotesAll'))[2].title).toBe('Céčko'), { timeout: 4000 });
+  });
+
+  it('spodní lišta: tři stejná tlačítka s popiskem (bublina pod křížkem), Uložit chybí', async () => {
+    await openNotes();
+    const btns = [...overlay().querySelectorAll('.notes-actions .notes-btn')];
+    expect(btns.map(b => b.dataset.act)).toEqual(['clear', 'copy', 'download']);
+    expect(btns.every(b => b.title.length > 10)).toBe(true);
+    expect(btns[2].textContent).toBe('💾 Stáhnout');
+    expect(sel('.notes-save-indicator').title).toMatch(/automaticky/);
   });
 
   it('kontextové menu záložky: duplikovat, smazat (s potvrzením)', async () => {
@@ -119,6 +130,37 @@ describe('poznámkový blok', () => {
     menu.querySelector('[data-ctx="delete"]').click();
     expect(confirm).toHaveBeenCalledWith('Smazat záložku „A"?');
     expect(tabs()).toEqual(['B', 'A (kopie)*', '+']);
+  });
+
+  it('✕ u záložky: prázdná se zavře hned, s textem po potvrzení; poslední ✕ nemá', async () => {
+    await setMeta('userNotesAll', [{ id: 1, title: 'A', text: 'aaa' }, { id: 2, title: 'B', text: '' }, { id: 3, title: 'C', text: 'ccc' }]);
+    await openNotes();
+    const closeBtns = () => [...document.querySelectorAll('#notesTabs .notes-tab-close')];
+    expect(closeBtns().length).toBe(3);
+    expect(closeBtns()[0].title).toBe('Zavřít záložku „A“');
+
+    // prázdná záložka B – bez ptaní
+    const confirmFn = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirmFn);
+    closeBtns()[1].click();
+    expect(confirmFn).not.toHaveBeenCalled();
+    expect(tabs()).toEqual(['A*', 'C', '+']);
+    expect(status()[0]).toBe('Neuloženo');
+
+    // záložka s textem – zrušené potvrzení nic nesmaže
+    closeBtns()[1].click();
+    expect(confirmFn).toHaveBeenCalledWith('Zavřít záložku „C“? Její text se smaže.');
+    expect(tabs()).toEqual(['A*', 'C', '+']);
+
+    // potvrzeno: zavře aktivní A (rozepsaný text se počítá) → aktivní je C
+    vi.stubGlobal('confirm', vi.fn(() => true));
+    type('rozepsáno');
+    closeBtns()[0].click();
+    expect(tabs()).toEqual(['C*', '+']);
+    expect(ta().value).toBe('ccc');
+    expect(closeBtns().length).toBe(0);
+
+    await vi.waitFor(async () => expect(await getMeta('userNotesAll')).toEqual([{ id: 3, title: 'C', text: 'ccc' }]), { timeout: 4000 });
   });
 
   it('lišta: tučné, nadpis, Tab, písmo, vymazat; hledání; Ctrl+S', async () => {

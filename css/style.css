@@ -7016,6 +7016,12 @@ button.vk-header-btn-green {
 }
 .notes-tab:hover { color: var(--ctp-text); }
 .notes-tab.active { color: var(--ctp-blue); border-bottom-color: var(--ctp-blue); font-weight: 600; }
+.notes-tab-close {
+  all: unset; cursor: pointer; padding: 2px 6px; margin: 0 4px 0 -8px; font-size: 11px;
+  color: var(--ctp-overlay0); border-radius: 4px; transition: background .12s, color .12s;
+}
+.notes-tab-close.active { color: var(--ctp-subtext0); }
+.notes-tab-close:hover { background: var(--ctp-surface0); color: var(--ctp-red); }
 .notes-tab-add {
   all: unset; cursor: pointer; padding: 4px 8px; font-size: 16px;
   color: var(--ctp-overlay0); border-radius: 4px; transition: background .12s, color .12s;
@@ -7091,6 +7097,12 @@ button.vk-header-btn-green {
   display: flex; align-items: center; gap: 6px;
   padding: 8px 10px; border-top: 1px solid var(--ctp-surface0);
   justify-content: flex-end;
+}
+/* Tři tlačítka stejně velká, text na jednom řádku (dřív se „Stáhnout .txt“
+   na mobilu zalomilo a tlačítko bylo vyšší než ostatní). */
+.notes-actions .notes-btn {
+  flex: 1 1 0; max-width: 160px; min-width: 0;
+  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .notes-btn {
   all: unset; cursor: pointer; padding: 5px 14px;

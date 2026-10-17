@@ -49,6 +49,8 @@ export async function openNotesDialog() {
   let activeId = allNotes[0].id;
   let nextId = Math.max(...allNotes.map(n => n.id)) + 1;
   let dirty = false;
+  let autoSaveTimer = null;
+  const AUTOSAVE_MS = 1500;
   let fontSize = 'normal'; // 'sm' | 'normal' | 'lg'
 
   const getActive = () => allNotes.find(n => n.id === activeId);
@@ -91,7 +93,7 @@ export async function openNotesDialog() {
     <!-- Status bar -->
     <div class="notes-statusbar">
       <div class="notes-status-left">
-        <span class="notes-save-indicator"><span class="dot"></span> <span id="notesSaveText">Uloženo</span></span>
+        <span class="notes-save-indicator" title="Poznámky se ukládají automaticky – po každé změně i při zavření okna"><span class="dot"></span> <span id="notesSaveText">Uloženo</span></span>
         <span id="notesLastSaved"></span>
       </div>
       <div class="notes-status-right">
@@ -102,10 +104,9 @@ export async function openNotesDialog() {
     </div>
     <!-- Actions -->
     <div class="notes-actions">
-      <button class="notes-btn danger" data-act="clear">🗑 Vymazat</button>
-      <button class="notes-btn" data-act="copy">📋 Kopírovat</button>
-      <button class="notes-btn" data-act="download">⬇ Stáhnout .txt</button>
-      <button class="notes-btn primary" data-act="save">💾 Uložit</button>
+      <button class="notes-btn danger" data-act="clear" title="Vymazat obsah této záložky (s potvrzením)">🗑 Vymazat</button>
+      <button class="notes-btn" data-act="copy" title="Kopírovat text této záložky do schránky">📋 Kopírovat</button>
+      <button class="notes-btn" data-act="download" title="Stáhnout záložku jako soubor .txt (poznámky se jinak ukládají samy)">💾 Stáhnout</button>
     </div>
   `, 'notes-window');
   if (!overlay) return;
@@ -135,10 +136,21 @@ export async function openNotesDialog() {
     lastSavedEl.textContent = now.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
   };
 
+  const saveNow = () => {
+    clearTimeout(autoSaveTimer);
+    const cur = getActive();
+    if (cur) cur.text = ta.value;
+    return persist();
+  };
+
+  // Každá změna (text, záložky, vymazání) se uloží sama po krátké pauze –
+  // tlačítko Uložit není potřeba (Ctrl+S uloží hned).
   const markDirty = () => {
     dirty = true;
     dotEl.classList.add('dirty');
     saveTextEl.textContent = 'Neuloženo';
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(saveNow, AUTOSAVE_MS);
   };
 
   const updateStats = () => {
@@ -158,10 +170,21 @@ export async function openNotesDialog() {
       const btn = document.createElement('button');
       btn.className = 'notes-tab' + (n.id === activeId ? ' active' : '');
       btn.textContent = n.title;
+      btn.title = 'Záložka „' + n.title + '“ – dvojklik přejmenuje, pravé tlačítko / podržení otevře menu';
       btn.addEventListener('click', () => switchTab(n.id));
       btn.addEventListener('dblclick', () => renameTab(n.id));
       btn.addEventListener('contextmenu', e => { e.preventDefault(); showTabCtx(e, n.id); });
       tabsEl.appendChild(btn);
+      // ✕ zavře (smaže) záložku; poslední záložka se zavřít nedá
+      if (allNotes.length > 1) {
+        const close = document.createElement('button');
+        close.className = 'notes-tab-close' + (n.id === activeId ? ' active' : '');
+        close.textContent = '✕';
+        close.title = 'Zavřít záložku „' + n.title + '“';
+        close.setAttribute('aria-label', 'Zavřít záložku ' + n.title);
+        close.addEventListener('click', e => { e.stopPropagation(); closeTab(n.id); });
+        tabsEl.appendChild(close);
+      }
     });
     const addBtn = document.createElement('button');
     addBtn.className = 'notes-tab-add';
@@ -189,6 +212,24 @@ export async function openNotesDialog() {
     if (!title) return;
     allNotes.push({ id: nextId++, title, text: '' });
     switchTab(allNotes[allNotes.length - 1].id);
+  };
+
+  // Odebere záložku bez ptaní (potvrzení řeší volající).
+  const removeTab = (id) => {
+    if (allNotes.length < 2) return;
+    allNotes = allNotes.filter(n => n.id !== id);
+    if (activeId === id) switchTab(allNotes[0].id);
+    renderTabs();
+    markDirty();
+  };
+
+  // ✕ u záložky: prázdnou zavře rovnou, s textem až po potvrzení.
+  const closeTab = (id) => {
+    const note = allNotes.find(n => n.id === id);
+    if (!note) return;
+    const text = id === activeId ? ta.value : note.text;
+    if (text.trim() && !confirm('Zavřít záložku „' + note.title + '“? Její text se smaže.')) return;
+    removeTab(id);
   };
 
   const renameTab = (id) => {
@@ -222,12 +263,7 @@ export async function openNotesDialog() {
         }
       }
       if (act === 'delete' && allNotes.length > 1) {
-        if (confirm('Smazat záložku „' + (allNotes.find(n => n.id === id)?.title) + '"?')) {
-          allNotes = allNotes.filter(n => n.id !== id);
-          if (activeId === id) switchTab(allNotes[0].id);
-          renderTabs();
-          markDirty();
-        }
+        if (confirm('Smazat záložku „' + (allNotes.find(n => n.id === id)?.title) + '"?')) removeTab(id);
       }
       menu.remove();
     });
@@ -296,7 +332,6 @@ export async function openNotesDialog() {
     searchPrev: () => doSearch(-1),
     searchNext: () => doSearch(1),
     // Bottom actions
-    save: () => { getActive().text = ta.value; persist(); showToast('Poznámky uloženy ✓'); },
     clear: () => {
       if (confirm('Opravdu vymazat obsah této záložky?')) {
         ta.value = '';
@@ -366,17 +401,10 @@ export async function openNotesDialog() {
     if (act && toolbarActions[act]) toolbarActions[act]();
   });
 
-  // ── Text area events ──
-  let autoSaveTimer = null;
+  // ── Text area events ── (markDirty naplánuje automatické uložení)
   ta.addEventListener('input', () => {
     markDirty();
     updateStats();
-    // Debounced autosave
-    clearTimeout(autoSaveTimer);
-    autoSaveTimer = setTimeout(() => {
-      getActive().text = ta.value;
-      persist();
-    }, 2000);
   });
   ta.addEventListener('click', updateStats);
   ta.addEventListener('keyup', e => {
@@ -392,8 +420,7 @@ export async function openNotesDialog() {
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault();
-      getActive().text = ta.value;
-      persist();
+      saveNow();
       showToast('Poznámky uloženy ✓');
     }
     // Tab key inserts \t
@@ -413,9 +440,7 @@ export async function openNotesDialog() {
   // ── Autosave on overlay close ──
   const _obs = new MutationObserver((_, obs) => {
     if (!document.body.contains(overlay)) {
-      clearTimeout(autoSaveTimer);
-      getActive().text = ta.value;
-      persist();
+      saveNow();
       obs.disconnect();
     }
   });
