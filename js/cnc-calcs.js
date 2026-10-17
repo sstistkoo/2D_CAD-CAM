@@ -18,5 +18,7 @@ export { openInsertCalc } from './calculators/insert.js';
 export { openGcodeReference } from './calculators/gcode.js';
 export { openMcodeReference } from './calculators/mcode.js';
 export { openSinumerikHub } from './calculators/sinumerikHub.js';
+export { openFanucHub } from './calculators/fanucHub.js';
+export { openHeidenhainHub } from './calculators/heidenhainHub.js';
 export { openCncEditor } from './calculators/cncEditor.js';
 export { openCamSimulator } from './calculators/camSimulator.js';

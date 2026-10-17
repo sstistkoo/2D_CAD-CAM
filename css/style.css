@@ -6137,6 +6137,11 @@ body {
 .cm-window .gc-chip-active { background: var(--ctp-teal); }
 .cm-window .gc-search:focus { border-color: var(--ctp-teal); }
 
+.al-window .gc-card-name { color: var(--ctp-red); }
+.al-window .gc-chip-active { background: var(--ctp-red); color: var(--ctp-mantle); }
+.al-window .gc-search:focus { border-color: var(--ctp-red); }
+.al-window .gc-syntax code, .tl-window .gc-syntax code { font-family: inherit; background: none; padding: 0; word-break: normal; line-height: 1.5; }
+.gc-note { font-size: 11px; color: var(--ctp-subtext0); margin: 0 0 8px; padding: 0 4px; line-height: 1.4; }
 .ex-window .ex-card-name { color: var(--ctp-flamingo); font-size: 15px; }
 .ex-window .gc-chip-active { background: var(--ctp-flamingo); }
 .ex-window .gc-search:focus { border-color: var(--ctp-flamingo); }

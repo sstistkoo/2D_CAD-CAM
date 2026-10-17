@@ -1676,6 +1676,35 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
 
 ---
 
+### Referenční příručky řídicích systémů (Sinumerik, Fanuc, Heidenhain)
+
+V pravém panelu je v **Kalkulačkách** tlačítko **Sinumerik** a ve sbalené části
+**Další kalkulačky** tlačítka **Fanuc** a **Heidenhain**. Každé otevře rozcestník s dlaždicemi; v seznamech
+je vyhledávání, filtr podle kategorií a po klepnutí na kartu syntaxe s příklady.
+
+- **Sinumerik 840D** – G kódy, M kódy, příkazy, proměnné, zkratky, ukázky, nápověda,
+  **Nástroje** (🛠️: nahoře **Opotřebení** – co dělá zápis −0,2 (průměr / délka, poloměr × průměr, znaménko, zkouška na stroji); data nástroje T a data břitu D – typ, název, ST, délky X/Z, poloměr,
+  poloha břitu SL, úhly, opotřebení, hlídání životnosti; postupy založení a změření nože;
+  dva suporty = dva kanály, společná × oddělená data, nulové body, `WAITM`; proměnné `$TC_DP`)
+  a **Alarmy**.
+- **Fanuc 0i/31i-T** – G kódy (pohyby, cykly G70–G76, G90/G92/G94, závity,
+  vrtání s osou C), M kódy, Makro B (proměnné `#`, `IF`/`WHILE`, funkce,
+  argumenty `G65`) a ukázky (hrubování G71+G70, závit G76, drážka G75,
+  podprogram M98, makro s počítadlem). Ukázky s tlačítkem 📋 se kopírují. Dlaždice
+  🛠️ **Korekce** vysvětluje geometrii a opotřebení nože (Wear X −0,2 = průměr o 0,2 menší
+  při zápisu v průměru, INPUT × +INPUT, měření MEASURE, `G10`).
+- **Heidenhain TNC 640** – Klartext (`L`, `CC`, `C`, `CR`, `CT`, `CHF`, `RND`,
+  `APPR`/`DEP`, `TOOL CALL`, `FUNCTION MODE TURN`), ISO G kódy (tak, jak je
+  generuje SKICA), M funkce, Q-parametry a FN funkce, cykly (vrtání,
+  transformace a soustružnické cykly 8xx), 🛠️ **Nástroje** (tabulka soustružnických nožů,
+  opotřebení DXL/DZL/DRS, orientace TO) a ukázky.
+
+**Alarmy a chybová hlášení** (dlaždice 🚨 *Alarmy* u Sinumeriku a Fanucu, *Chyby* u Heidenhainu): jak vyvolat vlastní alarm (`SETAL` / `MSG`, `#3000` / `#3006`, `FN 14: ERROR`), jak se alarmy mažou (RESET, CANCEL, POWER ON, CE), číselné rozsahy a přehled častých alarmů s příčinou a řešením (Sinumerik 12080, 25040, 61xxx a SINAMICS F30xxx; Fanuc PS, OT, SV, SP, alarmy vřetena AL-xx; Heidenhain interní chyby 1000–1027). Jde o orientační přehled – přesné znění a čísla se liší podle verze SW a stroje.
+
+> Jde o stručný přehled, ne o náhradu manuálu výrobce. Číslování M funkcí,
+> průměr/poloměr v X a přesné parametry soustružnických cyklů Heidenhainu
+> závisí na stroji a verzi software – ověřte je v dokumentaci svého stroje.
+
 ## AI panel
 
 AI panel ti umožňuje převést fotku strojírenského výkresu na CAD profil.

@@ -410,6 +410,14 @@ User selects CAM tool
 | `calculators/help.js` | In-app nápověda (G/M kódy, kalkulačky) – text je čistě český, příklady kódů. |
 | `calculators/gcode.js` | Tabulky G/M kódů, dokumentace, příklady (používá i help overlay) |
 | `calculators/sinumerikHub.js` | Hlavní hub pro generování Sinumerik 840D |
+| `calculators/ctrlRefViewer.js` | Společné okno referenčních příruček (rozcestník, seznam s hledáním, ukázky) pro Fanuc a Heidenhain |
+| `calculators/fanucHub.js`, `fanucRef*.js` | Příručka Fanuc 0i-T (G/M kódy, Makro B, ukázky) – rozcestník + data |
+| `calculators/heidenhainHub.js`, `heidenhainRef*.js` | Příručka Heidenhain TNC 640 (Klartext, ISO, M, Q-parametry, cykly, ukázky) – rozcestník + data |
+| `calculators/fanucOffsets.js` | Fanuc – korekce nástroje (geometrie, opotřebení, MEASURE, `G10`) |
+| `calculators/heidenhainTools.js` | Heidenhain – soustružnické nože (TOOLTURN.TRN, DXL/DZL/DRS, TO) |
+| `calculators/sinumerikWear.js` | Sinumerik – opotřebení nástroje (hlavní skupina příručky Nástroje); data se importují do `sinumerikTools.js` |
+| `calculators/sinumerikTools.js` | Sinumerik – nástroje a břity (data T/D, postupy, dva suporty, `$TC_DP`) – data + `openSinumerikTools()` |
+| `calculators/sinumerikAlarms.js`, `fanucAlarms.js`, `heidenhainAlarms.js` | Alarmy a chybová hlášení (orientační přehledy) – data + `open*Alarms()`; okno přes `openRefList` |
 | `calculators/camEditor.js` | Editor CAM strategií |
 | `calculators/camSimulator.js` | Náhled obrysů obrábění |
 | `calculators/contourOffset.js` | Offset kontur pro obrábění |

@@ -10,7 +10,7 @@
 
 import { state } from '../state.js';
 import { bridge } from '../bridge.js';
-import { openCuttingCalc, openTaperCalc, openThreadCalc, openConvertCalc, openWeightCalc, openToleranceCalc, openRoughnessCalc, openDrillCalc, openNoseRadiusCalc, openBoltCircleCalc, openWireMeasureCalc, openCornerCalc, openInsertCalc, openSinumerikHub, openCamSimulator, openCncEditor } from '../cnc-calcs.js';
+import { openCuttingCalc, openTaperCalc, openThreadCalc, openConvertCalc, openWeightCalc, openToleranceCalc, openRoughnessCalc, openDrillCalc, openNoseRadiusCalc, openBoltCircleCalc, openWireMeasureCalc, openCornerCalc, openInsertCalc, openSinumerikHub, openFanucHub, openHeidenhainHub, openCamSimulator, openCncEditor } from '../cnc-calcs.js';
 import { showCombinedModal } from '../dialogs/combinedModal.js';
 import { openAIPanel } from '../ai/aiPanel.js';
 import { openNotesDialog } from './notesDialog.js';
@@ -33,6 +33,8 @@ export function initLauncherButtons() {
   document.getElementById("btnOpenCorner").addEventListener("click", openCornerCalc);
   document.getElementById("btnOpenInserts").addEventListener("click", openInsertCalc);
   document.getElementById("btnOpenSinumerik").addEventListener("click", openSinumerikHub);
+  document.getElementById("btnOpenFanuc").addEventListener("click", openFanucHub);
+  document.getElementById("btnOpenHeidenhain").addEventListener("click", openHeidenhainHub);
   // CNC Editor (kreslení) – z plátna: mobilní spodní lišta (✏️ mezi VK a měřením)
   // a na desktopu stavová lišta (✏️ Editor). Z Kalkulaček byl odebrán 5. 10. 2026.
   function openDrawCncEditor() {

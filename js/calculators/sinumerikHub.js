@@ -6,6 +6,8 @@ import { openShortcutsReference } from './shortcuts.js';
 import { openCommandsReference } from './commands.js';
 import { openCncExamples }       from './cncExamples.js';
 import { openHelp }              from './help.js';
+import { openSinumerikAlarms }  from './sinumerikAlarms.js';
+import { openSinumerikTools }   from './sinumerikTools.js';
 
 // ── Dlaždice rozcestníku ────────────────────────────────────
 const tiles = [
@@ -15,6 +17,8 @@ const tiles = [
   { icon: '📊', title: 'Proměnné',    desc: 'Systémové proměnné ($P_, $AA_…)',     action: openSysvarReference },
   { icon: '⌨️', title: 'Zkratky',     desc: 'Klávesové zkratky displeje',          action: openShortcutsReference },
   { icon: '📝', title: 'Ukázky',      desc: 'Ukázky CNC kódů s komentáři',        action: openCncExamples },
+  { icon: '🛠️', title: 'Nástroje',   desc: 'Data nástroje, data břitu, 2 suporty', action: openSinumerikTools },
+  { icon: '🚨', title: 'Alarmy',    desc: 'Alarmy a chybová hlášení',            action: openSinumerikAlarms },
   { icon: '❓', title: 'Nápověda',    desc: 'Popis funkcí a ovládání',             action: openHelp }
 ];
 

@@ -155,6 +155,37 @@ Příklady pokrývají základní i pokročilé techniky programování.`
     ]
   },
   {
+    title: '🛠️ Nástroje',
+    desc: 'Nastavení nožů na Sinumeriku 840D: opotřebení, data nástroje (T), data břitu (D), dva suporty.',
+    items: [
+      {
+        name: 'Co obsahuje',
+        desc: `• <b>Opotřebení (hlavní)</b> — co udělá zápis −0,2 (radiální osa = průměr, axiální = délka), poloměr × průměr, znaménko, zkouška na stroji, příklady
+• <b>Data nástroje / Data břitu</b> — typ, název, ST, místo, stav; délky X/Z, poloměr R, poloha břitu SL, úhly, šířka břitu
+• <b>Dva suporty</b> — suport = kanál, společná × oddělená tabulka nástrojů, nulové body, WAITM
+• <b>Postupy</b> — nový nůž, měření X/Z, nová destička, kontrola SL
+• <b>Hlídání nástroje</b> a proměnné <b>$TC_DP…</b>`
+      },
+      {
+        name: 'Pozor',
+        desc: `Jde o orientační přehled. Znaménko opotřebení a zápis v průměru × poloměru se liší podle stroje — ověř je kartou <b>Test −0,2</b> pro každý suport.`
+      }
+    ]
+  },
+  {
+    title: '🚨 Alarmy',
+    desc: 'Alarmy a hlášení Sinumeriku 840D: rozsahy čísel, vlastní alarmy, mazání, časté alarmy.',
+    items: [
+      {
+        name: 'Co obsahuje',
+        desc: `• <b>Rozsahy čísel</b> — 10000+ program, 20000+ kanál a osy, 27000+ Safety, 60000+ cykly, 400000+ PLC, F/A pohony
+• <b>Vlastní alarmy</b> — SETAL (65000–69999), MSG
+• <b>Mazání</b> — RESET, CANCEL, NC START, POWER ON
+• <b>Časté alarmy</b> s příčinou a řešením (orientačně) a alarmy pohonů SINAMICS`
+      }
+    ]
+  },
+  {
     title: '✏️ Editor',
     desc: 'CNC editor se zvýrazňováním syntaxe, validací a správou souborů.',
     items: [

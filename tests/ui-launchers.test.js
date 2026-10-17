@@ -16,12 +16,13 @@ const CALCS = {
   btnOpenRoughness: 'openRoughnessCalc', btnOpenDrill: 'openDrillCalc', btnOpenNoseRadius: 'openNoseRadiusCalc',
   btnOpenBoltCircle: 'openBoltCircleCalc', btnOpenWireMeasure: 'openWireMeasureCalc', btnOpenCorner: 'openCornerCalc',
   btnOpenInserts: 'openInsertCalc', btnOpenSinumerik: 'openSinumerikHub',
+  btnOpenFanuc: 'openFanucHub', btnOpenHeidenhain: 'openHeidenhainHub',
 };
 vi.mock('../js/cnc-calcs.js', async (orig) => {
   const m = await orig();
   const fns = Object.fromEntries(['openCuttingCalc', 'openTaperCalc', 'openThreadCalc', 'openConvertCalc', 'openWeightCalc',
     'openToleranceCalc', 'openRoughnessCalc', 'openDrillCalc', 'openNoseRadiusCalc', 'openBoltCircleCalc',
-    'openWireMeasureCalc', 'openCornerCalc', 'openInsertCalc', 'openSinumerikHub', 'openCamSimulator', 'openCncEditor']
+    'openWireMeasureCalc', 'openCornerCalc', 'openInsertCalc', 'openSinumerikHub', 'openFanucHub', 'openHeidenhainHub', 'openCamSimulator', 'openCncEditor']
     .map(n => [n, vi.fn()]));
   return { ...m, ...fns };
 });

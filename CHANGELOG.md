@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Referenční příručky Fanuc a Heidenhain v kalkulačkách.** Do sbalené části
+  „Další kalkulačky“ přibyla tlačítka **Fanuc** (0i/31i-T: G a M kódy, cykly G70–G76,
+  Makro B, ukázky) a **Heidenhain** (TNC 640: Klartext, ISO G kódy, M funkce,
+  Q-parametry/FN, cykly vrtání a soustružení, ukázky). Společné okno
+  (rozcestník, seznam s hledáním a kategoriemi, ukázky) je v
+  `js/calculators/ctrlRefViewer.js`, data v `fanuc*.js` a `heidenhain*.js`.
+  Nový test `tests/control-reference.test.js`.
+- **Fanuc: dlaždice „Korekce“, Heidenhain: dlaždice „Nástroje“ (🛠️).** Geometrie a opotřebení nože – co udělá zápis −0,2 (Fanuc: Wear X v průměru, záporné = menší průměr; Heidenhain: DXL/DZL/DRS), INPUT × +INPUT, měření, `G10`, tabulka TOOLTURN.TRN, orientace TO. Moduly `fanucOffsets.js`, `heidenhainTools.js`. Nápověda Sinumerik rozcestníku popisuje i dlaždice Nástroje a Alarmy.
+- **Sinumerik: nová dlaždice „Nástroje“ (🛠️).** Význam dat nástroje (T) a dat břitu (D) – typ, název, ST, místo, stav, délky X/Z, poloměr, poloha břitu SL, úhly, šířka břitu, základní rozměr, opotřebení, hlídání – dále postupy (nový nůž, měření X/Z, nová destička, kontrola SL), část o dvou suportech (kanály, společná × oddělená tabulka nástrojů, nulové body, `WAITM`) a proměnné `$TC_DP` / `$P_TOOL`. Moduly `js/calculators/sinumerikTools.js` a `sinumerikWear.js`. Nahoře je skupina **Opotřebení (hlavní)**: co dělá zápis −0,2 (radiální osa = průměr, axiální = délka, R jen s G41/G42), poloměr × průměr, znaménko, zkouška na stroji (zkušební stupeň), příklady a programová korekce.
+- **Alarmy a chybová hlášení v příručkách Sinumerik / Fanuc / Heidenhain.** Nová dlaždice *Alarmy* (Sinumerik, Fanuc) a *Chyby* (Heidenhain): rozsahy čísel, vlastní alarmy (`SETAL`, `MSG`, `#3000`, `FN 14`), mazání alarmů a orientační přehled častých alarmů s příčinou a řešením. Moduly `sinumerikAlarms.js`, `fanucAlarms.js`, `heidenhainAlarms.js`; společné okno má volitelný popisek sekce a upozornění (`syntaxLabel`, `note`).
+
 ### Changed
 
 - **Refaktoring: `render.js` rozdělen do `js/render/*.js`** (11 modulů podle

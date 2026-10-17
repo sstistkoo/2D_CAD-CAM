@@ -214,6 +214,8 @@ describe('ui.js — kód při načtení', () => {
         "ui #btnOpenCorner click",
         "ui #btnOpenInserts click",
         "ui #btnOpenSinumerik click",
+        "ui #btnOpenFanuc click",
+        "ui #btnOpenHeidenhain click",
         "ui #desktopCncEditor click",
         "ui #mobileCncEditor click",
         "ui #btnNumInput click",
