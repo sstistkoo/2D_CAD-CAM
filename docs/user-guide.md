@@ -443,6 +443,42 @@ stejně jako po otočení telefonu z výšky na šířku a zpět.
 Klik na dráhu otevře celý panel jen ze skrytého stavu; ve 2 řádcích se
 kliknutý blok ukáže v nich.
 
+**Lišta nad plátnem se otevírá sbalená** (»«): vidět je jen ◎, »«, ↩/↪, číslování
+a ✕. Tlačítkem **»«** se rozbalí Kontura, Dráhy, 🎯, 👁, 📏, 🧲 a 📈 (a **«»** je
+zase schová).
+
+#### ◎ Pohled na čelo a poháněné nástroje
+Tlačítko **◎** v liště plátna rozdělí plochu: vlevo zůstane řez, vpravo (na
+mobilu na výšku pod ním) se ukáže **pohled podél osy proti sklíčidlu** —
+na karuselu shora na upínací desku s T-drážkami. Je v něm polotovar, průměry
+kontury, čelisti a díry / kapsy / drážky poháněných nástrojů s čísly v pořadí
+NC. Šipka na +X (C 0°) je místo, kde stojí nástroj. **▶** přehraje pořadí
+vrtání a frézování (odvrtané díry zezelenají). Díry se kreslí i do řezu
+(sklopené do roviny řezu jako na výkrese, čárkovaně), úběr soustružení
+neovlivní.
+
+**🛠 Operace** otevře editor:
+- **➕ Vrtání** — do čela (osa Z) nebo do pláště (osa X); rozmístění po
+  roztečné kružnici (Ø, počet, počáteční úhel) nebo seznam bodů (řádek
+  „úhel; poloměr", u pláště „úhel; Z"). Ø díry, hloubka, krok vrtání
+  (0 = naráz), prodleva, nástroj, otáčky, posuv v mm/min.
+- **➕ Frézování** — kruhová kapsa na pozicích vzoru nebo přímá drážka z X1/Y1
+  do X2/Y2 (šířka = Ø frézy), krok do hloubky. Frézuje se jen na čele.
+- **Polohování / interpolace** (přepínač NC výstupu): **SPOS** (vřeteno se
+  natočí na úhel díry, vrtá se v poloze nástroje), **Osa C** (C = úhel) nebo
+  **TRANSMIT** (Sinumerik kartézsky X/Y, Fanuc polární interpolace G12.1).
+  Frézování mimo osu bez TRANSMIT se rozloží na krátké G1 v X + C.
+  **Vrtací cykly** zap = CYCLE82/83 (Fanuc G83/G87), vyp = rozepsané G0/G1.
+  Heidenhain vždy rozepsané pohyby.
+- **M-kódy stroje** (osa C zap/vyp, start/stop poháněného nástroje, adresa
+  otáček) se liší stroj od stroje — výchozí hodnoty jsou jen příklad,
+  **ověřte je v příručce stroje**.
+- **📝 Zapsat do programu** vloží blok mezi komentáře `>>> / <<< POHANENE
+  NASTROJE` před konec programu (M30). Dokud blok v programu je, každá úprava
+  operací ho přepíše sama; po 🔄 Dráhy (přegenerování) ho zapište znovu.
+  **🗑 Z programu** blok odebere. Po přepnutí řídicího systému hlásí stav
+  bloku „pro jiný systém" — stačí znovu 📝 Zapsat.
+
 Lišta nad G-kódem má na mobilu **dva řádky** (🔄 Dráhy, ✂ Úseky, ➕ Ope.,
 🔧 Editor / ↺ Reset, 📐 Kreslit, 💾 Uložit, 📂 Načíst) a vpravo přes oba
 vysoké **⚙ Nast.**, které otevírá pravý panel; od zbytku je oddělená

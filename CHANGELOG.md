@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM: ◎ Pohled na čelo a poháněné nástroje.** Tlačítko ◎ v liště plátna
+  rozdělí plochu na řez a pohled podél osy proti sklíčidlu (karusel: shora na
+  upínací desku) s polotovarem, čelistmi a dírami; ▶ přehraje pořadí vrtání.
+  Editor 🛠 Operace: vrtání do čela i do pláště (roztečná kružnice / seznam
+  bodů), frézování kruhové kapsy a drážky na čele. NC výstup s přepínačem SPOS /
+  osa C / TRANSMIT (Fanuc G12.1), cykly CYCLE82/83 a G83/G87 nebo rozepsané
+  pohyby, M-kódy stroje nastavitelné. Blok se do programu vkládá mezi značky
+  `>>> / <<< POHANENE NASTROJE`, simulace soustružení ho přeskakuje. Moduly v
+  `js/calculators/cam/live/`, test `tests/cam-live-tools.test.js`.
+
 - **Referenční příručky Fanuc a Heidenhain v kalkulačkách.** Do sbalené části
   „Další kalkulačky“ přibyla tlačítka **Fanuc** (0i/31i-T: G a M kódy, cykly G70–G76,
   Makro B, ukázky) a **Heidenhain** (TNC 640: Klartext, ISO G kódy, M funkce,
@@ -30,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CAM: lišta nad plátnem se otevírá sbalená (»«).** Kontura, Dráhy, 🎯, 👁,
+  📏, 🧲 a 📈 se ukážou tlačítkem »«.
 - **Refaktoring: `render.js` rozdělen do `js/render/*.js`** (11 modulů podle
   témat, největší `objects.js` ~890 ř.). `render.js` zůstal jádrem
   (`renderAll`) a rozcestníkem se stejným seznamem exportů – importy jinde

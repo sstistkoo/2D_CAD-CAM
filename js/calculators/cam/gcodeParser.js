@@ -1,6 +1,7 @@
 import { getArcParams } from './camMath.js';
 import { state } from '../../state.js';
 import { bulgeToArc } from '../../utils.js';
+import { findLiveBlock } from './live/liveMarkers.js';
 
 // ── G-code parser (manual code → sim path) ─────────────────────
 export function parseManualGCodeToPath(code, prms, unflipArc) {
@@ -39,7 +40,14 @@ export function parseManualGCodeToPath(code, prms, unflipArc) {
     return pt;
   };
   path.push({ x: currentX, z: currentZ, type: 'G0' });
+  // Blok poháněných nástrojů (vrtání/frézování s osou C, viz live/liveMarkers.js)
+  // není soustružení: díra na roztečné kružnici by se jako X/Z pohyb rotačně
+  // „vyřízla" po celém obvodu. Simulace řezu ho přeskakuje celý — ale jen
+  // SPÁROVANÝ blok: bez koncové značky (ručně smazané) by jinak zmizel celý
+  // zbytek programu.
+  const live = findLiveBlock(lines);
   lines.forEach((line, idx) => {
+    if (live && idx >= live.start && idx <= live.end) return;
     let clean = line.toUpperCase().trim();
     if (!clean || clean.startsWith(';') || clean.startsWith('(') || clean.startsWith('%')) return;
     // Strip inline comments

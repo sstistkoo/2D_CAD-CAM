@@ -64,6 +64,7 @@ import { createGcodeNodes } from './cam/sim/gcodeNodes.js';
 import { createHitTest } from './cam/sim/hitTest.js';
 import { createGuideLines } from './cam/sim/guideLines.js';
 import { drawCanvas } from './cam/sim/drawCanvas.js';
+import { initLiveTools } from './cam/live/livePanel.js';
 
 
 // Verze logiky generování drah. ZVYŠ při každé změně, která mění vygenerovaný
@@ -113,17 +114,16 @@ export function openCamSimulator(initialContour, initialGCode) {
       <button data-act="gextend" title="Prodloužit: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → protáhne k nejbližšímu průsečíku s konturou / offsetem / konstrukční čarou (zapněte ✥ Dráhy)" style="display:none">⊢ Prodl</button>
       <button data-act="gtrim" title="Oříznout: klik na koncový bod úsečky (G0/G1) nebo konstrukční čáry → zkrátí k nejbližšímu průsečíku zpět (zapněte ✥ Dráhy)" style="display:none">⊣ Ořez</button>
       <button data-act="delpt" title="Odebrat bod" style="display:none">➖</button>
-      <button data-act="edit-contour" title="Kontura: táhněte body kontury pro změnu jejich polohy. Vylučuje se s úpravou drah.">◆ Kontura</button>
-      <button data-act="edit-paths" title="Dráhy: úprava G-kódu – táhněte uzly/úsečky dráhy; ➕/➖ na dráze přidá/smaže pohyb. Vylučuje se s úpravou kontury.">✥ Dráhy</button>
-      <button data-act="fit" title="Centrovat">🎯</button>
-
-      <button data-act="simpath" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
-      <button data-act="zlimits" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry). Podržet = otevřít nastavení rozsahů v pravém panelu.">📏</button>
-      <button data-act="snap" title="SNAP: přichytávání k bodům a hranám (jako v CAD) – kontura, polotovar i jeho offsetová čára, KONCE DRAH, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
-      <button data-act="profile" title="Trasovat profil po kontuře (klikejte na body, Enter = dokončit, Esc = zrušit)">📈</button>
+      <button data-act="edit-contour" style="display:none" title="Kontura: táhněte body kontury pro změnu jejich polohy. Vylučuje se s úpravou drah.">◆ Kontura</button>
+      <button data-act="edit-paths" style="display:none" title="Dráhy: úprava G-kódu – táhněte uzly/úsečky dráhy; ➕/➖ na dráze přidá/smaže pohyb. Vylučuje se s úpravou kontury.">✥ Dráhy</button>
+      <button data-act="fit" style="display:none" title="Centrovat">🎯</button>
+      <button data-act="simpath" style="display:none" title="Cyklus: 👁 vše → ✂️ jen řezné (bez rychloposuvů) → 🙈 nic" class="cam-sim-active">👁</button>
+      <button data-act="zlimits" style="display:none" title="Z-limity: čelisti, koník + rozsah obrábění (klikněte a táhněte čáry). Podržet = otevřít nastavení rozsahů v pravém panelu.">📏</button>
+      <button data-act="snap" style="display:none" title="SNAP: přichytávání k bodům a hranám (jako v CAD) – kontura, polotovar i jeho offsetová čára, KONCE DRAH, středy, oblouky, úsečky" class="cam-sim-active">🧲</button>
+      <button data-act="profile" style="display:none" title="Trasovat profil po kontuře (klikejte na body, Enter = dokončit, Esc = zrušit)">📈</button>
       <button data-act="profile-apply" title="Použít trasovaný profil jako novou konturu" class="cam-sim-preview-btn" style="display:none">✅</button>
       <button data-act="profile-cancel" title="Zrušit náhled profilu" class="cam-sim-preview-btn" style="display:none">❌</button>
-      <button data-act="toggle-controls" title="Skrýt / zobrazit hlavní ovládací tlačítka" style="font-size:11px;padding:4px 8px">«»</button>
+      <button data-act="toggle-controls" title="Zobrazit hlavní ovládací tlačítka" style="font-size:11px;padding:4px 8px">»«</button>
     </div>
     <div class="cam-sim-canvas-wrap"><canvas></canvas><div class="cam-sim-time-overlay"></div><div class="cam-sim-motion-overlay"></div>
       <div class="cam-sim-trace-options">
@@ -389,7 +389,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     isDragging: false, addPointMode: false, pointDragEnabled: false,
     gcodeEditEnabled: false,   // úprava drah (G-kód) – nezávislá na pointDragEnabled
     snapEnabled: true,   // SNAP přichytávání zapnuté hned po načtení
-    controlsHidden: false,
+    controlsHidden: true, // lišta se při načtení otevírá sbalená (»«)
     // Upichnutí: klikací režim pro určení Z roviny řezu (part-off).
     partOffPickMode: false,
     // Zapamatovaná geometrie destičky zvlášť pro každý tvar (délka hrany/šířka,
@@ -889,8 +889,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     zlimBtn.classList.toggle('cam-sim-active', cfg.active);
     zlimBtn.textContent = cfg.icon;
   }
-  // Sync removal toggle button to persisted state
-  // Sync reference-guides toggle button to persisted state
   // Sync sim-path toggle button to persisted state (all/cut/none)
   const simPathBtn = toolbar.querySelector('[data-act="simpath"]');
   if (simPathBtn) {
@@ -5371,6 +5369,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     else draw();
   });
   resizeObs.observe(canvasWrap);
+  initLiveTools({ S, root, canvasWrap, toolbar, draw, pushHistory, saveState });   // ◎ pohled na čelo, poháněné nástroje
 
   // ── CLEANUP on overlay removal ──
   const cleanupObs = new MutationObserver((_, obs) => {

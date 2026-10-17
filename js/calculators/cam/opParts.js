@@ -37,7 +37,9 @@ const MAX_STOCK_POINTS = 400;
 
 // Parametry, které si část NESMÍ nést vlastní (jsou vlastnost výkresu/stroje,
 // ne operace) — při přepnutí části se přebírají z aktuálního stavu.
-const SHARED_PARAM_KEYS = ['machineStructure', 'controlSystem', 'mode', 'safeX', 'safeZ'];
+// `liveOps` / `live` = poháněné nástroje (cam/live/) — patří dílu, ne části:
+// při přepnutí části nesmí díry zmizet.
+const SHARED_PARAM_KEYS = ['machineStructure', 'controlSystem', 'mode', 'safeX', 'safeZ', 'liveOps', 'live'];
 
 // Parametry popisující POLOTOVAR — při zobrazení celého programu se berou
 // z první části (program začíná na původním polotovaru).

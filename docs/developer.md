@@ -435,6 +435,27 @@ User selects CAM tool
 | `calculators/vkHelp.js` | Nápověda VK – přehled syntaxe a typových kombinací, líně vykreslená v editoru |
 | `calculators/vkSolver.js` | Čistá geometrie pro dopočet „?" ve VK: roh dvou přímek/kuželů (kat. 1), jeden tečný oblouk daného R – 2 i 3prvkový řetězec, plus oblouk jako první prvek fronty přes `tangentArcEndOnRay()` (kat. 2), esíčko – dva tečné oblouky s daným bodem zlomu, nebo bez něj navázané na hotovou geometrii přes `twoTangentArcsFromDirection()` (kat. 3), netečné napojení na kružnici kolem VPOL (kat. 4); úsečka s PA a jednou souřadnicí konce dopočtená hned při vložení přes `solveAngleAndCoordinate()` (FK `FL X.. AN..`). Známá souřadnice u prvku bez PA je vždy jeho KONEC – `elementRay()` vede paprsek po ní, ne po kotvě. Počítá ve skutečné rovině **(Z, poloměr)**, viz níže. `chooseSolution()` je společné pravidlo výběru mezi víc řešeními (VPOL1/VPOL2, nebo auto při rozdílu ≥ `AUTO_PICK_MIN_RATIO`) |
 
+### CAM: poháněné nástroje (`cam/live/`)
+
+Vrtání a frézování poháněným nástrojem (osa C / SPOS / TRANSMIT) je mimo
+soustružnickou pipeline — samostatná složka, `camSimulator.js` ji jen zavolá
+(`initLiveTools`), `sim/drawCanvas.js` po vykreslení řezu volá `liveAfterDraw`.
+
+| Soubor | Účel |
+|--------|------|
+| `live/liveModel.js` | Operace (`S.params.liveOps`), nastavení výstupu (`S.params.live`), pozice děr, dráha frézy (`millMoves`), kontrola zadání. Bez DOM |
+| `live/liveGcode.js` | `buildLiveBlock(prms)` → řádky bloku pro Sinumerik / Fanuc / Heidenhain, režimy `spos` / `caxis` / `transmit`, cykly × rozepsané pohyby |
+| `live/liveMarkers.js` | Značky `>>> / <<< POHANENE NASTROJE`, vložení/náhrada/odebrání bloku v programu. Bez importů (čte ho parser) |
+| `live/liveFaceView.js` | Pohled na čelo (sklíčidlo / upínací deska, polotovar, díry), kroky přehrávání |
+| `live/liveSection.js` | Díry sklopené do řezu na hlavním plátně |
+| `live/livePanel.js` | Panel ◎ vedle řezu, editor operací, zápis bloku přes textarea programu (událost `input` → stejná cesta jako ruční úprava, ↩ přes `pushHistory`) |
+
+Pravidla: `gcodeParser.parseManualGCodeToPath` obsah bloku **přeskakuje**
+(díra na rozteči by se jako X/Z pohyb rotačně „vyřízla" po obvodu) a
+`gcodeSync.pathInputsKey` klíče `live*` vynechává (úprava děr nepřepočítává
+dráhy soustružení). Části programu (`opParts.js`) je sdílí (`SHARED_PARAM_KEYS`)
+— díry patří dílu, ne části. Testy: `tests/cam-live-tools.test.js`.
+
 ### CAM: náhled × program (`cam/gcodeSync.js`)
 
 V CAM simulátoru žijí **dvě dráhy vedle sebe** a každá se obnovuje jinak:

@@ -1,0 +1,293 @@
+// NC blok POHÁNĚNÝCH NÁSTROJŮ — vrtání (čelo / plášť) a frézování na čele.
+//
+// Režimy výstupu (přepínač v panelu, `S.params.live.mode`):
+//   spos      natočení vřetena SPOS=úhel (Fanuc/Heidenhain: polohování osy C),
+//             díra se vrtá v poloze, kde stojí nástroj (+X);
+//   caxis     vřeteno přepnuté na osu C (M-kód dle stroje), C = úhel;
+//   transmit  kartézské X/Y na čele: Sinumerik TRANSMIT, Fanuc G12.1.
+// Frézování kapsy/drážky mimo osu potřebuje interpolaci osy C: v režimu
+// TRANSMIT jde jako G1/G3 v X/Y, jinak se dráha rozloží na krátké G1 v X + C
+// (polární souřadnice). Radiální vrtání TRANSMIT nepotřebuje → jede přes C.
+// Heidenhain ISO: vždy rozepsané pohyby v X/Z + C (bez cyklů).
+//
+// M-kódy osy C a poháněného nástroje jsou strojní — bere se je z nastavení
+// (`liveSettings().m`), výchozí hodnoty jsou jen příklad (viz liveModel.js).
+import { LIVE_BEGIN, LIVE_END } from './liveMarkers.js';
+import { getLiveOps, liveSettings, livePositions, depthLevels, millMoves, liveOpSummary, liveOpProblems } from './liveModel.js';
+
+const f3 = v => String(+(+v).toFixed(3));
+const pad2 = n => String(Math.max(0, Math.round(n))).padStart(2, '0');
+const norm360 = a => ((a % 360) + 360) % 360;
+const safeText = t => String(t).replace(/\(/g, '[').replace(/\)/g, ']').replace(/[;\r\n]/g, ' ');
+
+/**
+ * @param prms S.params (controlSystem, mode DIAMON/DIAMOF, safeX/safeZ, liveOps, live)
+ * @returns {string[]} řádky bloku včetně značek; prázdné pole, když nejsou operace
+ */
+export function buildLiveBlock(prms) {
+  const ops = getLiveOps(prms);
+  if (!ops.length) return [];
+  const ctrl = ['fanuc', 'heidenhain'].includes(prms.controlSystem) ? prms.controlSystem : 'sinumerik';
+  const set = liveSettings(prms);
+  // Text od uživatele (název operace / nástroje) nesmí komentář ukončit:
+  // Fanuc ho vymezuje závorkami — vnořená `)` by zbytek řádku poslala do kódu.
+  const cmt = t => ctrl === 'fanuc' ? `( ${safeText(t)} )` : `; ${safeText(t)}`;
+  const note = t => ` ${cmt(t)}`;
+  const dia = prms.mode === 'DIAMON';
+  const xo = r => f3(dia ? 2 * r : r);          // X ve zápisu programu (Ø / poloměr)
+  const m = set.m;
+  const sWord = rpm => /\d$/.test(m.toolS) ? `${m.toolS}=${rpm}` : `${m.toolS}${rpm}`;
+  const L = [];
+  const add = s => L.push(s);
+  const safe = () => add(`G0 X${prms.safeX} Z${prms.safeZ}`);
+
+  add(cmt(`${LIVE_BEGIN} [${ctrl}/${set.mode}] generuje Pohled na čelo, ručně neupravovat`));
+  safe();
+  add(`M5${note('stop hlavního vřetena')}`);
+
+  ops.forEach((op, i) => {
+    // Chybné zadání (záporná hloubka, kapsa menší než fréza…) se do NC NEPÍŠE:
+    // vrták se zápornou hloubkou by jel z díry ven, rovnou proti čelu.
+    const probs = liveOpProblems(op);
+    if (probs.length) { add(cmt(`[${i + 1}] ${op.name}: VYNECHÁNO – ${probs.join(' ')}`)); return; }
+    // Ne „; ---": tak začíná dělicí řádek hlavičky, podle kterého spojování
+    // částí programu (gcodeMerge.splitHeaderBody) dělí hlavičku od těla.
+    add(cmt(`[${i + 1}] ${op.name}: ${liveOpSummary(op)}`));
+    if (ctrl === 'sinumerik') add(`T="${String(op.toolName).replace(/"/g, '')}" D1 M6`);
+    else if (ctrl === 'fanuc') add(`T${pad2(op.toolNo)}${pad2(op.toolNo)}${note(op.toolName)}`);
+    else add(`T${op.toolNo} M6${note(op.toolName)}`);
+    const ctx = { ctrl, set, m, op, add, cmt, note, xo, dia, sWord, prms };
+    if (op.kind === 'mill') emitMill(ctx);
+    else if (op.side === 'radial') emitRadialDrill(ctx);
+    else emitFaceDrill(ctx);
+    safe();
+  });
+
+  add(`G18 ${ctrl === 'fanuc' ? 'G99' : 'G95'}${note('zpět rovina ZX, posuv mm/ot')}`);
+  add(cmt('Další soustružení za blokem: znovu zapnout hlavní vřeteno M3/M4'));
+  add(cmt(LIVE_END));
+  return L;
+}
+
+// ── společné: start nástroje, polohování C, prodleva ──────────────
+function toolStart({ ctrl, op, add, note, m, sWord }) {
+  add(`${ctrl === 'sinumerik' ? 'G94' : (ctrl === 'fanuc' ? 'G98' : 'G94')} F${f3(op.feed)}${note('posuv mm/min')}`);
+  add(`${sWord(op.rpm)} ${m.toolOn}${note('poháněný nástroj – dle stroje')}`);
+}
+function toolStop({ add, note, m }) { add(`${m.toolOff}${note('stop poháněného nástroje')}`); }
+
+function cOn({ ctrl, add, note, m, set }) {
+  if (ctrl === 'sinumerik') {
+    add(`SPOS=0${note('vřeteno do polohové regulace')}`);
+    if (set.mode === 'caxis') add(`${m.cOn}${note('vřeteno jako osa C – dle stroje')}`);
+  } else add(`${m.cOn}${note('osa C zap – dle stroje')}`);
+}
+function cOff({ ctrl, add, note, m, set }) {
+  if (ctrl === 'sinumerik' && set.mode !== 'caxis') return;
+  add(`${m.cOff}${note('osa C vyp – dle stroje')}`);
+}
+/** Natočení dílu na úhel `a` (SPOS nebo C). */
+function rotate({ ctrl, set, add }, a) {
+  const an = f3(norm360(a));
+  if (ctrl === 'sinumerik') add(set.mode === 'caxis' ? `G0 C=DC(${an})` : `SPOS=${an}`);
+  else add(`G0 C${an}`);
+}
+function dwell({ ctrl, add }, sec) {
+  if (!(sec > 0)) return;
+  if (ctrl === 'fanuc') add(`G4 X${f3(sec)}`);
+  else add(`G4 F${f3(sec)}`);
+}
+
+/**
+ * Rozepsané vrtání v ose `ax` (Z nebo X). Hodnoty jsou ve zápisu programu
+ * (`w` převádí poloměr → výstup), směr vrtání = klesající hodnota.
+ */
+function explicitDrill(ctx, ax, w, rfp, op) {
+  const { add } = ctx;
+  add(`G0 ${ax}${w(rfp + op.safe)}`);
+  const lv = depthLevels(op.depth, op.peck);
+  lv.forEach((d, k) => {
+    add(`G1 ${ax}${w(rfp - d)} F${f3(op.feed)}`);
+    if (k < lv.length - 1) {
+      add(`G0 ${ax}${w(rfp + op.safe)}`);
+      add(`G0 ${ax}${w(rfp - d + 0.3)}`);
+    }
+  });
+  dwell(ctx, op.dwell);
+  add(`G0 ${ax}${w(rfp + op.retract)}`);
+}
+
+/** Sinumerik CYCLE82 / CYCLE83 (klasické pořadí parametrů). */
+function sinCycle(op, rfp, w) {
+  const rtp = w(rfp + op.retract), rf = w(rfp), sd = f3(op.safe), dp = w(rfp - op.depth);
+  if (op.peck > 0 && op.peck < op.depth)
+    return `CYCLE83(${rtp}, ${rf}, ${sd}, ${dp}, , ${w(rfp - op.peck)}, , ${f3(op.peck)}, ${f3(op.dwell)}, 0, 1, 1)`;
+  return `CYCLE82(${rtp}, ${rf}, ${sd}, ${dp}, , ${f3(op.dwell)})`;
+}
+
+// ── vrtání do čela (osa Z) ─────────────────────────────────────
+function emitFaceDrill(ctx) {
+  const { ctrl, set, op, add, note, xo } = ctx;
+  const pos = livePositions(op);
+  const zw = v => f3(v);
+  const cyc = set.cycles && ctrl !== 'heidenhain';
+  const rtp = op.zTop + op.retract;
+  cOn(ctx);
+  toolStart(ctx);
+  if (ctrl === 'sinumerik' && set.mode === 'transmit') {
+    add(`DIAMOF${note('TRANSMIT: X/Y v poloměru')}`);
+    add('TRANSMIT');
+    add(`G17${note('rovina XY, vrtání v Z')}`);
+    pos.forEach((p, k) => {
+      // První najetí: nejdřív Z (nástroj je ještě venku na bezpečné X), pak X/Y.
+      if (k === 0) add(`G0 Z${zw(rtp)}`);
+      add(`G0 X${f3(p.x)} Y${f3(p.y)}${note(`díra ${k + 1}: C${f3(p.a)} R${f3(p.r)}`)}`);
+      if (cyc) add(sinCycle(op, op.zTop, zw)); else explicitDrill(ctx, 'Z', zw, op.zTop, op);
+    });
+    add('TRAFOOF');
+    if (ctx.dia) add('DIAMON');
+    add('G18');
+  } else if (ctrl === 'fanuc' && cyc) {
+    // G83 X C Z R Q P F — R = vzdálenost výchozí roviny → roviny R (poloměrem).
+    const q = op.peck > 0 && op.peck < op.depth ? ` Q${Math.round(op.peck * 1000)}` : '';
+    const p = op.dwell > 0 ? ` P${Math.round(op.dwell * 1000)}` : '';
+    pos.forEach((h, k) => {
+      if (k === 0) {
+        add(`G0 Z${zw(rtp)}`);
+        add(`G0 X${xo(h.r)} C${f3(h.a)}`);
+        add(`G83 X${xo(h.r)} C${f3(h.a)} Z${zw(op.zTop - op.depth)} R${f3(op.safe - op.retract)}${q}${p} F${f3(op.feed)}${note(`díra 1`)}`);
+      } else add(`X${xo(h.r)} C${f3(h.a)}${note(`díra ${k + 1}`)}`);
+    });
+    add('G80');
+  } else {
+    if (ctrl === 'sinumerik') add(`G17${note('vrtání v ose Z')}`);
+    pos.forEach((h, k) => {
+      if (k === 0) add(`G0 Z${zw(rtp)}`);
+      rotate(ctx, h.a);
+      add(`G0 X${xo(h.r)}${note(`díra ${k + 1}: C${f3(h.a)}`)}`);
+      if (cyc) add(sinCycle(op, op.zTop, zw)); else explicitDrill(ctx, 'Z', zw, op.zTop, op);
+    });
+    if (ctrl === 'sinumerik') add('G18');
+  }
+  toolStop(ctx);
+  cOff(ctx);
+}
+
+// ── radiální vrtání do pláště (osa X) ──────────────────────────
+function emitRadialDrill(ctx) {
+  const { ctrl, set, op, add, note, xo } = ctx;
+  const pos = livePositions(op);
+  const rX = op.xTop / 2;
+  const cyc = set.cycles && ctrl !== 'heidenhain';
+  // TRANSMIT na plášti nemá smysl — díry se polohují osou C / SPOS.
+  const c2 = { ...ctx, set: { ...set, mode: set.mode === 'transmit' ? 'caxis' : set.mode } };
+  cOn(c2);
+  toolStart(c2);
+  if (ctrl === 'fanuc' && cyc) {
+    const q = op.peck > 0 && op.peck < op.depth ? ` Q${Math.round(op.peck * 1000)}` : '';
+    const p = op.dwell > 0 ? ` P${Math.round(op.dwell * 1000)}` : '';
+    pos.forEach((h, k) => {
+      // Jiná výška Z: zrušit cyklus, vyjet na bezpečnou X, přejet a cyklus znovu
+      // (v cyklu by se Z přejíždělo jen ve výchozí rovině těsně nad pláštěm).
+      const zMove = k > 0 && Math.abs(h.z - pos[k - 1].z) > 1e-6;
+      if (k === 0 || zMove) {
+        if (zMove) { add('G80'); add(`G0 X${ctx.prms.safeX}`); }
+        add(`G0 Z${f3(h.z)} C${f3(h.a)}`);
+        add(`G0 X${xo(rX + op.retract)}`);
+        add(`G87 Z${f3(h.z)} C${f3(h.a)} X${xo(rX - op.depth)} R${f3(op.safe - op.retract)}${q}${p} F${f3(op.feed)}${note(`díra ${k + 1}`)}`);
+      } else add(`Z${f3(h.z)} C${f3(h.a)}${note(`díra ${k + 1}`)}`);
+    });
+    add('G80');
+  } else {
+    // Sinumerik: G19 = vrtací osa X; cykly počítají v poloměru → DIAMOF.
+    if (ctrl === 'sinumerik') { add(`G19${note('vrtání v ose X')}`); add(`DIAMOF${note('X v poloměru')}`); }
+    const xw = ctrl === 'sinumerik' ? (v => f3(v)) : xo;
+    pos.forEach((h, k) => {
+      // Jiná výška než předchozí díra: přejezd v Z nad pláštěm by mohl narazit
+      // do osazení — nejdřív ven na bezpečnou X (pod DIAMOF je to poloměr,
+      // tedy ještě dál), pak Z a zpět k plášti.
+      const zMove = k > 0 && Math.abs(h.z - pos[k - 1].z) > 1e-6;
+      if (zMove) add(`G0 X${ctx.prms.safeX}`);
+      rotate(c2, h.a);
+      add(`G0 Z${f3(h.z)}${note(`díra ${k + 1}: C${f3(h.a)}`)}`);
+      if (k === 0 || zMove) add(`G0 X${xw(rX + op.retract)}`);
+      if (cyc) add(sinCycle(op, rX, xw)); else explicitDrill(c2, 'X', xw, rX, op);
+    });
+    if (ctrl === 'sinumerik') { if (ctx.dia) add('DIAMON'); add('G18'); }
+  }
+  toolStop(c2);
+  cOff(c2);
+}
+
+// ── frézování na čele (kapsa / drážka) ─────────────────────────
+function emitMill(ctx) {
+  const { ctrl, set, op, add, note, xo } = ctx;
+  const moves = millMoves(op);
+  const transmit = set.mode === 'transmit' && ctrl !== 'heidenhain';
+  const c2 = { ...ctx, set: { ...set, mode: transmit ? 'transmit' : 'caxis' } };
+  if (!transmit) add(ctx.cmt('Frézování mimo osu: rozloženo na krátké G1 v X + C (interpolace osy C)'));
+  if (ctrl === 'sinumerik' && !transmit) add(ctx.cmt('Nástroj musí umět zanořit středem (kapsa se zanořuje kolmo)'));
+  cOn(c2);
+  toolStart(c2);
+  const plungeF = f3(Math.max(1, op.feed * 0.3));
+  let cur = null;
+  if (transmit) {
+    if (ctrl === 'sinumerik') { add(`DIAMOF${note('TRANSMIT: X/Y v poloměru')}`); add('TRANSMIT'); add('G17'); }
+    else add(`G12.1${note('polární interpolace: X = Ø, C = Y v mm')}`);
+    const xy = (x, y) => ctrl === 'sinumerik' ? `X${f3(x)} Y${f3(y)}` : `X${xo(x)} C${f3(y)}`;
+    moves.forEach(mv => {
+      if (!cur) add(`G0 Z${f3(mv.z)}`);   // první najetí: nejdřív Z (venku na bezpečné X)
+      if (mv.k === 'rapid') add(`G0 ${xy(mv.x, mv.y)} Z${f3(mv.z)}`);
+      else if (mv.k === 'lin') add(`G1 ${xy(mv.x, mv.y)} Z${f3(mv.z)} F${mv.plunge ? plungeF : f3(op.feed)}`);
+      else {
+        const r = Math.hypot(cur.x - mv.cx, cur.y - mv.cy);
+        add(ctrl === 'sinumerik'
+          ? `G3 ${xy(mv.x, mv.y)} I${f3(mv.cx - cur.x)} J${f3(mv.cy - cur.y)}`
+          : `G3 ${xy(mv.x, mv.y)} R${f3(r)}`);
+      }
+      cur = mv;
+    });
+    if (ctrl === 'sinumerik') { add('TRAFOOF'); if (ctx.dia) add('DIAMON'); add('G18'); }
+    else add('G13.1');
+  } else {
+    // Polární rozklad: kartézský bod → X (poloměr/Ø) + C (úhel). U osy nemá
+    // úhel smysl — drží se předchozí.
+    let lastA = 0;
+    const polar = (x, y) => {
+      const r = Math.hypot(x, y);
+      if (r > 1e-6) lastA = norm360(Math.atan2(y, x) * 180 / Math.PI);
+      return { r, a: lastA };
+    };
+    const cw = a => ctrl === 'sinumerik' ? `C=DC(${f3(a)})` : `C${f3(a)}`;
+    const emitPt = (type, x, y, z, F) => {
+      const p = polar(x, y);
+      add(`${type} X${xo(p.r)} ${cw(p.a)} Z${f3(z)}${F ? ` F${F}` : ''}`);
+    };
+    moves.forEach(mv => {
+      if (!cur) add(`G0 Z${f3(mv.z)}`);   // první najetí: nejdřív Z (venku na bezpečné X)
+      if (mv.k === 'rapid') emitPt('G0', mv.x, mv.y, mv.z);
+      else if (mv.k === 'lin') {
+        // Dlouhý přímý úsek se v polárních souřadnicích ohne → rozdělit.
+        const from = cur || mv;
+        const n = Math.max(1, Math.ceil(Math.hypot(mv.x - from.x, mv.y - from.y) / 1));
+        for (let j = 1; j <= n; j++) {
+          const t = j / n;
+          emitPt('G1', from.x + (mv.x - from.x) * t, from.y + (mv.y - from.y) * t, mv.z,
+            j === 1 ? (mv.plunge ? plungeF : f3(op.feed)) : null);
+        }
+      } else {
+        const r = Math.hypot(cur.x - mv.cx, cur.y - mv.cy);
+        let a0 = Math.atan2(cur.y - mv.cy, cur.x - mv.cx), a1 = Math.atan2(mv.y - mv.cy, mv.x - mv.cx);
+        if (a1 <= a0) a1 += 2 * Math.PI;
+        const n = Math.max(8, Math.ceil(r * (a1 - a0) / 1));
+        for (let j = 1; j <= n; j++) {
+          const a = a0 + (a1 - a0) * j / n;
+          emitPt('G1', mv.cx + r * Math.cos(a), mv.cy + r * Math.sin(a), mv.z);
+        }
+      }
+      cur = mv;
+    });
+  }
+  toolStop(c2);
+  cOff(c2);
+}

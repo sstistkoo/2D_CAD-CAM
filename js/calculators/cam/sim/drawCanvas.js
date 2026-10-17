@@ -5,11 +5,13 @@
 //   drawContour.js   kontura, trasování, rušení, konstrukční a offsetové čáry
 //   drawToolpath.js  průchody, dráha programu, upichnutí, nástroj při simulaci
 //   drawOverlays.js  body, profil, úseky, meze, výběr, SNAP
+//   live/            díry poháněných nástrojů v řezu + překreslení pohledu na čelo
 // Vrstvy si nic nepřepisují; sdílí jen „snímek" f (calc, prms, toScreen, …).
 import { drawStockLayer } from './drawStock.js';
 import { drawContourLayer } from './drawContour.js';
 import { drawToolpathLayer } from './drawToolpath.js';
 import { drawOverlayLayer } from './drawOverlays.js';
+import { liveAfterDraw } from '../live/livePanel.js';
 
 /**
  * @param d stav a funkce simulátoru (skládá se při každém kreslení, ať vrstvy
@@ -47,4 +49,5 @@ export function drawCanvas(d) {
   drawContourLayer(f);
   drawToolpathLayer(f);
   drawOverlayLayer(f);
+  liveAfterDraw(f);
 }
