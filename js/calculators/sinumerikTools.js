@@ -61,8 +61,8 @@ export const snToolItems = [
 
   // ── Data břitu ──
   ref('D', 'Číslo břitu v rámci nože (1, 2, …). Každý D má vlastní délky, poloměr a opotřebení. Typicky D1 = hlavní břit, D2 = druhý roh destičky / druhý nůž.', 'Číslo břitu (D)', ''),
-  ref('Délka X', 'Poloha špičky v ose X (radiální u soustruhu; u karuselu podle uložení os – viz Opotřebení → ΔX a ΔZ) od referenčního bodu držáku. Měří se dotykem (Postupy → Měření X).', 'Délka 1 – geometrie (L1)', ''),
-  ref('Délka Z', 'Poloha špičky v ose Z (axiální u soustruhu; u karuselu obvykle svislá – vyložení nože ze suportu dolů k materiálu, podle uložení os) od referenčního bodu držáku. Měří se dotykem (Postupy → Měření Z).', 'Délka 2 – geometrie (L2)', ''),
+  ref('Délka X', 'Poloha špičky v ose X – radiální osa (průměr): na soustruhu svisle, na karuselu vodorovně. Měří se od referenčního bodu držáku. Měří se dotykem (Postupy → Měření X).', 'Délka 1 – geometrie (L1)', ''),
+  ref('Délka Z', 'Poloha špičky v ose Z – axiální osa (délka / výška): na soustruhu vodorovně, na karuselu svisle (vyložení nože ze suportu dolů k materiálu). Měří se od referenčního bodu držáku. Měří se dotykem (Postupy → Měření Z).', 'Délka 2 – geometrie (L2)', ''),
   ref('Délka 3', 'Třetí osa (Y). U soustruhu bez osy Y je 0. Používá se u nožů s osou Y nebo poháněných nástrojů.', 'Délka 3 – geometrie (L3)', ''),
   ref('Poloměr R', 'Poloměr špičky destičky (např. 0,4 / 0,8 / 1,2). Používá korekce poloměru G41/G42 a cykly. Musí být správně, jinak vznikají chyby na kuželech a obloucích.', 'Poloměr špičky (R)', 'T="FINISH_T2" D1\nG42\nG1 X20 Z0 F0.1'),
   ref('Poloha SL', 'Číslo 1–9: kde leží špička vůči středu poloměru. Řízení podle toho počítá G41/G42 (kde je „skutečný" břit). 9 = střed poloměru. Správné číslo vždy ukazuje obrázek v zadávací obrazovce – nehádej, porovnej tvar nože s obrázkem. Pozor na „tabulky“ typu „1 = doleva nahoru, 4 = vnější pravý“: přiřazení čísel závisí na tom, zda je nůž před/za osou a jak je otočený pohled, takže obecná tabulka nemusí platit pro tvůj stroj. Na karuselu se u pravého a levého suportu poloha zrcadlí – SL nastav pro každý suport zvlášť a ověř kartou Kontrola SL.',
