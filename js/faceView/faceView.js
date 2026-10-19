@@ -389,6 +389,11 @@ const CSS = `
 #faceBar button:disabled { opacity: 0.4; cursor: default; }
 #faceBar label { display: flex; align-items: center; gap: 3px; color: var(--ctp-subtext0); }
 #faceBar input[type=range] { width: 100%; accent-color: var(--ctp-peach); }
+/* Lišta i ◎ patří k plátnu CAD — nad oknem (CAM, dialogy; z-index 200) by
+   zakrývaly obsah a ovládaly neviditelný výkres (uživatel 18. 10. 2026).
+   CAM má vlastní ◎ (cam/live/livePanel.js). Plovoucí okna (VK) nevadí. */
+body:has(.calc-overlay:not(.calc-overlay-float)) #faceBar,
+body:has(.calc-overlay:not(.calc-overlay-float)) #canvasFaceBtn { display: none !important; }
 @media (max-width: 900px) {
   #btnFaceView { display: none; }
   #faceBar { width: auto; }

@@ -446,9 +446,11 @@ soustružnickou pipeline — samostatná složka, `camSimulator.js` ji jen zavol
 | `live/liveModel.js` | Operace (`S.params.liveOps`), nastavení výstupu (`S.params.live`), pozice děr, dráha frézy (`millMoves`), kontrola zadání. Bez DOM |
 | `live/liveGcode.js` | `buildLiveBlock(prms)` → řádky bloku pro Sinumerik / Fanuc / Heidenhain, režimy `spos` / `caxis` / `transmit`, cykly × rozepsané pohyby |
 | `live/liveMarkers.js` | Značky `>>> / <<< POHANENE NASTROJE`, vložení/náhrada/odebrání bloku v programu. Bez importů (čte ho parser) |
-| `live/liveFaceView.js` | Pohled na čelo (sklíčidlo / upínací deska, polotovar, díry), kroky přehrávání |
+| `live/liveFaceView.js` | Pohled na čelo (řez v rovině Z, polotovar, značka C0 / +C podle kalibrace, díry), kroky přehrávání |
+| `live/liveCut.js` | Řez v rovině Z: kontura / polotovar CAM → objekty CAD (x = Z, y = poloměr; oblouk = `arc`) → `profileAtZ`, `viewRadii`, `sectionAt`, `shoulderZs` z `faceView/faceReference.js`; značka řezu v řezu |
+| `live/liveCutBar.js` | Lišta řezu v panelu (Z, posuvník s přichycením, strana pohledu) |
 | `live/liveSection.js` | Díry sklopené do řezu na hlavním plátně |
-| `live/livePanel.js` | Panel ◎ vedle řezu, editor operací, zápis bloku přes textarea programu (událost `input` → stejná cesta jako ruční úprava, ↩ přes `pushHistory`) |
+| `live/livePanel.js` | Panel ◎ (řez → řez + čelo → ◉ jen čelo), Z↔ lišta, ⤢ maximalizace (třída `cam-live-max`, editor ji zapne sám), editor operací, zápis bloku přes textarea programu (událost `input` → stejná cesta jako ruční úprava, ↩ přes `pushHistory`) |
 
 Pravidla: `gcodeParser.parseManualGCodeToPath` obsah bloku **přeskakuje**
 (díra na rozteči by se jako X/Z pohyb rotačně „vyřízla" po obvodu) a

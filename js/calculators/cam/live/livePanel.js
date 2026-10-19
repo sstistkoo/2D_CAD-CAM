@@ -1,10 +1,15 @@
 // Panel POHLED NA ČELO + editor operací poháněných nástrojů v CAM simulátoru.
 //
-// Tlačítko ◎ v liště plátna rozdělí plochu: vlevo dosavadní řez, vpravo
-// (na výšku dole) pohled podél osy proti sklíčidlu / upínací desce. V hlavičce
+// Tlačítko ◎ v liště plátna přepíná jako ◎ Čelo v CAD: řez → řez + pohled na
+// čelo (vpravo, na výšku dole) → ◉ jen pohled na čelo → řez. Pohled je podél
+// osy proti sklíčidlu / upínací desce. V hlavičce
 // pohledu: ▶ přehraje pořadí vrtání/frézování, 🛠 Operace otevře editor
 // (vrtání do čela / do pláště, kapsa, drážka; přepínač NC výstupu SPOS /
-// osa C / TRANSMIT; cykly × rozepsané pohyby; M-kódy stroje).
+// osa C / TRANSMIT; cykly × rozepsané pohyby; M-kódy stroje), Z↔ schová /
+// ukáže lištu řezu (liveCutBar.js: rovina Z posuvníkem, strana pohledu;
+// značka řezu i v řezu vlevo), ⤢ maximalizuje pohled přes celé okno.
+// Editor operací potřebuje místo — otevře se v maximalizovaném pohledu
+// (náhled nahoře / vlevo, formulář pod ním / vpravo) a po zavření se vrátí.
 //
 // Program: „📝 Zapsat do programu" vloží blok mezi značky (liveMarkers.js)
 // před konec programu; je-li blok už v programu, každá další úprava operací
@@ -25,15 +30,24 @@ import { LIVE_CSS } from './liveStyles.js';
 import { liveOpsFromCad } from './liveFromCad.js';
 import { settingsHtml, applySettingChange } from './liveSettingsUi.js';
 import { faceDrawingsLocal } from '../../../faceView/faceLayer.js';
+import { liveProfile, liveCutAt, autoSide, drawCutMark } from './liveCut.js';
+import { createCutBar } from './liveCutBar.js';
 
 const CTRL = new WeakMap();   // S → ovladač otevřeného simulátoru
-const VIEW_KEY = 'skica-cam-live-view';
+const VIEW_KEY = 'skica-cam-live-view';   // '0' řez, '1' řez + čelo, '2' jen čelo
+const BAR_KEY = 'skica-cam-live-bar';     // '0' = lišta řezu schovaná
+const MODES = ['off', 'both', 'solo'];
+const TITLES = {
+  off: 'Řez — klik: řez + pohled na čelo (proti sklíčidlu / upínací desce) a poháněné nástroje',
+  both: 'Řez + pohled na čelo — klik: jen pohled na čelo',
+  solo: 'Jen pohled na čelo — klik: zpět jen řez',
+};
 
 /** Volá drawCanvas.js po vykreslení řezu. */
 export function liveAfterDraw(f) {
   drawLiveSectionLayer(f);
   const c = CTRL.get(f.S);
-  if (c) c.redraw();
+  if (c) { c.mark(f); c.redraw(); }
 }
 
 /**
@@ -46,7 +60,11 @@ export function initLiveTools(deps) {
     st.id = 'cam-live-css'; st.textContent = LIVE_CSS;
     document.head.appendChild(st);
   }
-  const st = { open: false, editor: false, selected: 0, anim: null, timer: null, key: '', edKey: '' };
+  const st = {
+    mode: 'off', open: false, editor: false, selected: 0, anim: null, timer: null, key: '', edKey: '',
+    max: false, autoMax: false, bar: true, cutZ: null, cutSide: null, sideManual: false, prof: null, profKey: '',
+  };
+  try { st.bar = localStorage.getItem(BAR_KEY) !== '0'; } catch (_) { /* bez úložiště */ }
 
   // ── DOM: řada [řez | pohled na čelo] ──
   const row = document.createElement('div');
@@ -58,27 +76,36 @@ export function initLiveTools(deps) {
   pane.hidden = true;
   pane.innerHTML = `
     <div class="cam-live-head">
-      <span class="cam-live-title">◎ Pohled na čelo</span>
+      <span class="cam-live-title">◎ <span class="cam-live-long">Pohled na </span>čelo</span>
       <button data-live="play" title="Přehrát pořadí vrtání / frézování">▶</button>
       <button data-live="editor" title="Operace poháněnými nástroji: vrtání do čela a pláště, frézování kapes a drážek, NC výstup">🛠 Operace</button>
+      <button data-live="bar" title="Lišta řezu (rovina Z posuvníkem, strana pohledu) — ukázat / schovat">Z↔</button>
+      <button data-live="max" title="Maximalizovat pohled přes celé okno">⤢</button>
       <button data-live="close" title="Zavřít pohled na čelo">✕</button>
     </div>
-    <div class="cam-live-cv"><canvas></canvas></div>
-    <div class="cam-live-ed" hidden></div>`;
+    <div class="cam-live-barhost"></div>
+    <div class="cam-live-body">
+      <div class="cam-live-cv"><canvas></canvas></div>
+      <div class="cam-live-ed" hidden></div>
+    </div>`;
   row.appendChild(pane);
   const cvWrap = pane.querySelector('.cam-live-cv');
   const cv = cvWrap.querySelector('canvas');
   const ed = pane.querySelector('.cam-live-ed');
   const playBtn = pane.querySelector('[data-live="play"]');
   const edBtn = pane.querySelector('[data-live="editor"]');
+  const barBtn = pane.querySelector('[data-live="bar"]');
+  const maxBtn = pane.querySelector('[data-live="max"]');
+  const body = pane.querySelector('.cam-live-body');
 
   // Tlačítko v liště plátna (vždy viditelné, i ve sbalené liště »«).
   const btn = document.createElement('button');
   btn.dataset.live = 'toggle';
   btn.textContent = '◎';
-  btn.title = 'Pohled na čelo (proti sklíčidlu / upínací desce) vedle řezu + poháněné nástroje';
+  btn.title = TITLES.off;
   toolbar.insertBefore(btn, toolbar.querySelector('[data-act="toggle-controls"]'));
-  btn.addEventListener('click', () => setOpen(!st.open));
+  // Tři kroky jako v CAD: řez → řez + čelo → jen čelo → řez.
+  btn.addEventListener('click', () => setMode(MODES[(MODES.indexOf(st.mode) + 1) % MODES.length]));
 
   const ro = new ResizeObserver(() => {
     const w = cvWrap.clientWidth, h = cvWrap.clientHeight;
@@ -86,24 +113,101 @@ export function initLiveTools(deps) {
     redraw(true);
   });
   ro.observe(cvWrap);
+  // Lišta plátna se zalamuje (»«, mobil) — v režimu jen čelo pod ní posunout
+  // hlavičku. Široký panel (maximalizovaný na desktopu) dá editor vedle náhledu.
+  const ro2 = new ResizeObserver(() => {
+    soloInset();
+    pane.classList.toggle('cam-live-wide', pane.clientWidth > 640 && pane.clientWidth > pane.clientHeight * 1.15);
+  });
+  ro2.observe(toolbar); ro2.observe(pane);
 
-  function setOpen(on) {
-    st.open = on;
+  function setMode(mode) {
+    const on = mode !== 'off';
+    st.mode = mode; st.open = on;
     pane.hidden = !on;
-    btn.classList.toggle('cam-sim-active', on);
+    btn.textContent = mode === 'solo' ? '◉' : '◎';
+    btn.title = TITLES[mode];
+    btn.classList.toggle('cam-sim-active', mode === 'both');
+    btn.classList.toggle('cam-live-solo-btn', mode === 'solo');
     root.classList.toggle('cam-live-on', on);
-    try { localStorage.setItem(VIEW_KEY, on ? '1' : '0'); } catch (_) { /* soukromé okno */ }
-    if (!on) stopAnim();
+    root.classList.toggle('cam-live-solo', mode === 'solo');
+    try { localStorage.setItem(VIEW_KEY, String(MODES.indexOf(mode))); } catch (_) { /* soukromé okno */ }
+    if (!on) { stopAnim(); if (st.max) setMax(false); }
+    soloInset();
     // Plátno řezu změnilo šířku — vycentrovat (🎯 i ve sbalené liště).
-    toolbar.querySelector('[data-act="fit"]')?.click();
+    if (mode !== 'solo') toolbar.querySelector('[data-act="fit"]')?.click();
     if (on) { if (st.editor) renderEditor(); redraw(true); }
   }
+  // Jen čelo: řez je skrytý a lišta plátna leží přes horní okraj pohledu.
+  function soloInset() {
+    if (st.mode !== 'solo' || st.max) { pane.style.paddingTop = ''; return; }
+    const tb = toolbar.getBoundingClientRect(), pr = pane.getBoundingClientRect();
+    pane.style.paddingTop = tb.height > 0 ? `${Math.max(0, Math.ceil(tb.bottom - pr.top) + 4)}px` : '';
+  }
+
+  function setMax(on, auto = false) {
+    st.max = on; st.autoMax = on && auto;
+    root.classList.toggle('cam-live-max', on);
+    maxBtn.textContent = on ? '⤡' : '⤢';
+    maxBtn.title = on ? 'Zmenšit zpět na plátno' : 'Maximalizovat pohled přes celé okno';
+    maxBtn.classList.toggle('cam-sim-active', on);
+    soloInset();
+    redraw(true);
+  }
+  function setBar(on) {
+    st.bar = on; bar.el.hidden = !on;
+    barBtn.classList.toggle('cam-sim-active', on);
+    try { localStorage.setItem(BAR_KEY, on ? '1' : '0'); } catch (_) { /* soukromé okno */ }
+  }
+
+  // ── řez v rovině Z (lišta) ──
+  function profile() {
+    const k = JSON.stringify([S.contourPoints, S.stockPoints, S.params.mode, S.params.stockMode]);
+    if (k !== st.profKey) { st.profKey = k; st.prof = liveProfile(S); }
+    return st.prof;
+  }
+  /** Rovina a strana pohledu; bez zadání pravý konec dílu (čelo zprava). */
+  function cutState() {
+    const prof = profile();
+    if (prof.empty) return null;
+    const z = Number.isFinite(st.cutZ) ? st.cutZ : prof.max;
+    return { prof, z, side: st.cutSide || autoSide(prof, z) };
+  }
+  let drawQueued = false;
+  function cutChanged() {
+    bar.update(); redraw(true);
+    // Značka řezu v řezu vlevo — překreslit nejvýš jednou za snímek.
+    if (!drawQueued) { drawQueued = true; requestAnimationFrame(() => { drawQueued = false; deps.draw(); }); }
+  }
+  const bar = createCutBar(pane.querySelector('.cam-live-barhost'), {
+    get: () => {
+      const prof = profile(), c = cutState();
+      const zs = new Set(prof.zs);   // osazení + čela operací do čela
+      getLiveOps(S.params).forEach(op => { if (op.side !== 'radial' && Number.isFinite(op.zTop)) zs.add(+op.zTop.toFixed(3)); });
+      return { z: c ? c.z : 0, side: c ? c.side : 'right', min: prof.min, max: prof.max, ticks: [...zs].sort((a, b) => a - b) };
+    },
+    setZ: (z, o = {}) => {
+      if (o.resetSide) st.sideManual = false;
+      st.cutZ = +(+z).toFixed(3);
+      // Strana podle osazení, dokud ji uživatel nepřepnul ručně (jako v CAD).
+      if (!st.sideManual) st.cutSide = autoSide(profile(), st.cutZ, st.cutSide || 'right');
+      cutChanged();
+    },
+    toggleSide: () => {
+      const c = cutState();
+      st.cutSide = c && c.side === 'left' ? 'right' : 'left'; st.sideManual = true;
+      cutChanged();
+    },
+    toast: showToast,
+  });
+  setBar(st.bar);
 
   // ── kreslení ──
   function viewKey() {
     const p = S.params;
     return JSON.stringify([p.liveOps, p.stockMode, p.stockDiameter, p.mode, p.machineStructure,
-      S.contourPoints, S.stockPoints, cv.width, cv.height, st.selected, st.anim && st.anim.step]);
+      S.contourPoints, S.stockPoints, cv.width, cv.height, st.selected, st.anim && st.anim.step,
+      st.cutZ, st.cutSide]);
   }
   function redraw(force) {
     if (!st.open) return;
@@ -112,11 +216,14 @@ export function initLiveTools(deps) {
     if (!force && k === st.key) { syncEditor(); return; }
     st.key = k;
     const ops = getLiveOps(S.params);
+    const c = cutState();
     drawFaceView(cv, {
       prms: S.params, geo: livePartGeometry(S), ops,
       selected: st.editor && ops.length ? st.selected : null,
       anim: st.anim, steps: st.anim ? st.anim.steps : null,
+      cut: c ? liveCutAt(c.prof, c.z, c.side) : null,
     });
+    bar.update();
     syncEditor();
   }
   // Po ↩/↪ se operace mohly změnit pod rukama — přerenderovat editor, pokud
@@ -216,9 +323,15 @@ export function initLiveTools(deps) {
     const oi = card ? +card.dataset.op : -1;
     if (act === 'editor') {
       st.editor = !st.editor; ed.hidden = !st.editor; edBtn.classList.toggle('cam-sim-active', st.editor);
+      body.classList.toggle('ed-on', st.editor);
       if (st.editor) renderEditor();
+      // Editor potřebuje místo: otevřít v maximalizovaném pohledu, po zavření vrátit.
+      if (st.editor && !st.max) setMax(true, true);
+      else if (!st.editor && st.autoMax) setMax(false);
       redraw(true);
-    } else if (act === 'close') setOpen(false);
+    } else if (act === 'max') setMax(!st.max);
+    else if (act === 'bar') setBar(!st.bar);
+    else if (act === 'close') setMode('off');
     else if (act === 'add-drill' || act === 'add-mill') {
       const ops = opsCopy();
       const geo = livePartGeometry(S);
@@ -324,8 +437,18 @@ export function initLiveTools(deps) {
     st.edKey = edKey();
   }
 
-  try { if (localStorage.getItem(VIEW_KEY) === '1') setOpen(true); } catch (_) { /* bez úložiště */ }
-  CTRL.set(S, { redraw: () => redraw(false) });
+  try {
+    const m = MODES[+localStorage.getItem(VIEW_KEY)];
+    if (m && m !== 'off') setMode(m);
+  } catch (_) { /* bez úložiště */ }
+  CTRL.set(S, {
+    redraw: () => redraw(false),
+    mark: f => {
+      if (!st.open || st.mode === 'solo') return;
+      const c = cutState();
+      if (c) drawCutMark(f, c.z, c.side, livePartGeometry(S).stockR);
+    },
+  });
 }
 
 function opForm(op) {

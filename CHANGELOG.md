@@ -54,6 +54,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CAM: Pohled na čelo = řez v rovině Z s lištou, maximalizace, editor
+  s místem.** Lišta pod hlavičkou pohledu: Z políčkem, posuvník roviny řezu
+  (přichytí se k osazením a čelům operací), ◀ zprava / ▶ zleva; pohled
+  kreslí řez jako bokorys v CAD (plocha řezu, hrany za ní plně / zakryté
+  čárkovaně), rovina je vidět i v řezu vlevo. Z↔ lištu schová, ⤢ zvětší
+  pohled přes celé okno. 🛠 Operace se otevře v maximalizovaném pohledu
+  (na výšku náhled nad formulářem, na šířku vedle sebe) — dřív dostal
+  editor pár pixelů. Moduly `cam/live/liveCut.js`, `liveCutBar.js`, test
+  `tests/live-cut.test.js`.
+- **CAM: ◎ Pohled na čelo přepíná jako bokorys v CAD.** Tlačítko ◎ v liště
+  plátna: řez → řez + čelo → ◉ jen čelo (přes celou plochu) → řez. Místo
+  sklíčidla s čelistmi je na kusu zelený zářez **C0** (nula osy C podle
+  kalibrace úhlu) s obloučkem **+C**; měřítko pohledu zahrne i obrys větší
+  než polotovar. Lišta čela (posuvník Z) a kulaté ◎ z CAD se nad oknem CAM
+  a jinými dialogy neukazují — zakrývaly G-kód a ovládaly výkres pod oknem.
 - **Bokorys: značku řezu v nárysu jde tahat.** Čerchovanou čáru řezu se šipkami
   a popiskem Z lze chytit myší (8 px) nebo prstem (22 px) a posouvat po profilu;
   u osazení se přichytí, zvýrazní se a kurzor ukáže ↔. Dělá totéž co posuvník
@@ -105,6 +120,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Bokorys (CAD i CAM): v rovině osazení falešný vývrt.** Plocha řezu se
+  brala jako mezikruží mezi oběma průměry osazení, takže plný hřídel měl na
+  čele osazení díru. Teď je to materiál těsně za rovinou ve směru pohledu
+  (`sectionAt` ve `faceView/faceReference.js`).
 - **Nulový bod se po obnovení stránky obnoví spolu s INC.** Po „Smazat vše"
   a obnovení stránky zůstal režim INC vůči nulovému bodu, ale bod byl skrytý
   a bez natočení. Nulový bod se teď ukládá a obnovuje spolu s ABS/INC.

@@ -19,12 +19,41 @@ export const LIVE_CSS = `
 }
 .cam-live-head button:hover, .cam-live-ed button:hover { background: #45475a; }
 .cam-live-head button.cam-sim-active { background: #89b4fa; color: #1e1e2e; }
+/* Lišta řezu (liveCutBar.js): Z, posuvník, strana pohledu. */
+.cam-live-bar {
+  display: flex; align-items: center; gap: 6px; padding: 3px 6px;
+  border-bottom: 1px solid #313244; background: #181825; font-size: 12px; color: #a6adc8;
+}
+.cam-live-bar[hidden] { display: none; }
+.cam-live-bar label { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
+.cam-live-bar input[type=text] {
+  width: 62px; background: #1e1e2e; color: #cdd6f4; border: 1px solid #45475a;
+  border-radius: 4px; padding: 2px 5px; font-size: 12px;
+}
+.cam-live-bar input[type=range] { flex: 1 1 auto; min-width: 60px; accent-color: #fab387; margin: 0; }
+.cam-live-bar button {
+  flex: 0 0 auto; white-space: nowrap; background: #313244; color: #cdd6f4; border: 1px solid #45475a;
+  border-radius: 6px; padding: 3px 8px; font-size: 12px; cursor: pointer;
+}
+/* Tělo: náhled + editor operací. S editorem dostane náhled 40 % a formulář
+   zbytek; široký panel (cam-live-wide) je dá vedle sebe. */
+.cam-live-body { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.cam-live-body.ed-on .cam-live-cv { flex: 0 0 40%; min-height: 70px; }
+.cam-live-wide .cam-live-body.ed-on { flex-direction: row; }
+.cam-live-wide .cam-live-body.ed-on .cam-live-cv { flex: 1 1 0; min-height: 0; }
+.cam-live-wide .cam-live-body.ed-on .cam-live-ed {
+  flex: 0 0 min(480px, 50%); border-top: 0; border-left: 1px solid #313244;
+}
+/* ⤢ Maximalizovaný pohled přes celé okno simulátoru (i přes G-kód). */
+.cam-live-max .cam-live-row > .cam-live-pane {
+  position: absolute; inset: 0; z-index: 15; border: 0; padding-top: 0;
+}
 .cam-live-cv { flex: 1 1 0; min-height: 120px; position: relative; overflow: hidden; }
 /* Plátno absolutně: jinak by jeho výška (nastavená z ResizeObserveru) zpětně
    zvětšovala panel a panel zase plátno (na výšku rostlo do tisíců px). */
 .cam-live-cv canvas { display: block; position: absolute; left: 0; top: 0; }
 .cam-live-ed {
-  flex: 0 0 auto; max-height: 55%; overflow: auto; padding: 6px 8px; border-top: 1px solid #313244;
+  flex: 1 1 0; min-height: 0; overflow: auto; padding: 6px 8px; border-top: 1px solid #313244;
   color: #cdd6f4; font-size: 12px;
 }
 .cam-live-ed[hidden] { display: none; }
@@ -61,6 +90,13 @@ export const LIVE_CSS = `
 @media (max-aspect-ratio: 1/1) {
   .cam-live-row { flex-direction: column; }
   .cam-live-pane { flex: 0 0 48%; border-left: 0; border-top: 2px solid #45475a; }
-  .cam-live-ed { max-height: 50%; }
 }
+/* Úzký displej: hlavička v jedné řadě (◎ čelo ▶ 🛠 Z↔ ⤢ ✕). */
+@media (max-width: 480px) { .cam-live-long { display: none; } }
+/* ◉ Jen čelo: řez skrytý, pohled přes celou plochu (padding-top pod lištu
+   plátna dopočítá livePanel.js). */
+.cam-live-solo .cam-live-row > .cam-sim-canvas-wrap { display: none; }
+.cam-live-solo .cam-live-row > .cam-live-pane { flex: 1 1 auto; border: 0; }
+.cam-live-on.cam-live-solo .cam-sim-toolbar { right: 8px; }
+.cam-sim-toolbar button.cam-live-solo-btn { background: #cba6f7; color: #1e1e2e; }
 `;

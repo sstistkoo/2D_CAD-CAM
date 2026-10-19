@@ -181,6 +181,23 @@ export function profileAtZ(objects, machineType, z) {
 }
 
 /**
+ * Plocha řezu v rovině Z při pohledu ze strany `side`: materiál těsně ZA
+ * rovinou ve směru pohledu (zprava = k −Z). V rovině osazení je to celý větší
+ * průměr — dřív se menší průměr osazení četl jako vývrt a plný hřídel měl
+ * v řezu falešnou díru (uživatel 19. 10. 2026).
+ * @returns {{ outerR:number, innerR:number }} innerR = 0 → materiál od osy
+ */
+export function sectionAt(objects, machineType, z, side) {
+  const isCar = machineType === 'karusel';
+  const part = (objects || []).filter(o => usable(o) && !o.isStock);
+  const h = hitsAt(part, isCar, z + (side === 'left' ? 0.3 : -0.3)).sort((a, b) => a - b);
+  if (!h.length) return { outerR: 0, innerR: 0 };
+  if (h.length % 2) h.unshift(0);
+  const inner = h[0] > 0.05 ? h[0] : 0;
+  return { outerR: +h[h.length - 1].toFixed(2), innerR: +inner.toFixed(2) };
+}
+
+/**
  * Co je v bokorysu vidět jako na výkresu: řez v rovině Z a za ním (ve směru
  * pohledu — čelo zprava = díváme se doleva, k −Z) hrany profilu jako
  * kružnice. Větší průměry za řezem (osazení) a průměry uvnitř vývrtu jsou
@@ -437,7 +454,9 @@ export function drawFaceReference(g, w2s) {
   const key = geoKey(prof, z, layer.faceSide);
   if (!_viewCache || _viewCache.key !== key) {
     const at0 = profileAtZ(prof, state.machineType, z);
-    _viewCache = { key, at: at0, view: viewRadii(prof, state.machineType, z, layer.faceSide, at0) };
+    const view = viewRadii(prof, state.machineType, z, layer.faceSide, at0);
+    // Plocha řezu z materiálu za rovinou (v rovině osazení bez falešného vývrtu).
+    _viewCache = { key, at: { ...at0, ...sectionAt(prof, state.machineType, z, layer.faceSide) }, view };
   }
   const { at, view } = _viewCache;
   const sR = at.stockR || sRmax;

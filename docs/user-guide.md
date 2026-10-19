@@ -448,11 +448,31 @@ a ✕. Tlačítkem **»«** se rozbalí Kontura, Dráhy, 🎯, 👁, 📏, 🧲 
 zase schová).
 
 #### ◎ Pohled na čelo a poháněné nástroje
-Tlačítko **◎** v liště plátna rozdělí plochu: vlevo zůstane řez, vpravo (na
-mobilu na výšku pod ním) se ukáže **pohled podél osy proti sklíčidlu** —
-na karuselu shora na upínací desku s T-drážkami. Je v něm polotovar, průměry
-kontury, čelisti a díry / kapsy / drážky poháněných nástrojů s čísly v pořadí
-NC. Šipka na +X (C 0°) je místo, kde stojí nástroj. **▶** přehraje pořadí
+Tlačítko **◎** v liště plátna přepíná jako ◎ Čelo v CAD ve třech krocích:
+**řez → řez + pohled na čelo → ◉ jen pohled na čelo** (fialové, přes celou
+plochu) → řez. Vedle řezu je pohled vpravo, na mobilu na výšku pod ním. Je to
+**pohled podél osy proti sklíčidlu** (na karuselu shora na upínací desku)
+jako **řez v rovině Z** — stejně jako bokorys v CAD: vyplněná plocha řezu
+(materiál těsně za rovinou ve směru pohledu; v rovině osazení celý větší
+průměr), za ní hrany profilu plně a zakryté materiálem čárkovaně, polotovar
+a díry / kapsy / drážky poháněných nástrojů s čísly v pořadí NC (díry do
+jiného čela než v rovině řezu jsou ztlumené). Sklíčidlo s čelistmi se
+nekreslí (jako v bokorysu CAD).
+
+**Lišta řezu** pod hlavičkou pohledu: **Z** (políčko, lze i výraz),
+**posuvník** roviny řezu po dílu (přichytí se k osazením a k čelům operací)
+a **◀ zprava / ▶ zleva** (šipka = směr pohledu; dokud ji nepřepnete ručně,
+volí se podle osazení). Výchozí rovina je pravý konec dílu. V řezu vlevo je
+rovina vidět jako čerchovaná čára se šipkou a popiskem Z. Tlačítko **Z↔**
+lištu schová / ukáže (pamatuje si to), **⤢** zvětší pohled přes celé okno
+simulátoru (i přes G-kód), **⤡** ho vrátí. **🛠 Operace** otevře editor
+v maximalizovaném pohledu — na výšku náhled nahoře a formulář pod ním, na
+šířku vedle sebe; po zavření editoru se pohled zase zmenší.
+
+Zelený zářez **C0** na obvodu kusu ukazuje nulu osy C (podle kalibrace úhlu
+v nastavení; bez kalibrace na +X) a oblouček **+C**, kterým směrem úhel
+roste. Žlutá šipka na +X je místo, kde stojí nástroj. Lišta a ◎ bokorysu
+z CAD se nad oknem CAM neukazují (ovládaly by výkres pod ním). **▶** přehraje pořadí
 vrtání a frézování (odvrtané díry zezelenají). Díry se kreslí i do řezu
 (sklopené do roviny řezu jako na výkrese, čárkovaně), úběr soustružení
 neovlivní.
