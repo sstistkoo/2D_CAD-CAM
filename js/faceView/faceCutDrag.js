@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 // Čerchovanou čáru řezu (se šipkami a popiskem Z) v nárysu lze chytit myší
 // nebo prstem a posouvat po profilu — Z čela se mění průběžně, bokorys se
-// překresluje, u osazení profilu se řez přichytí (stejně jako posuvník dole).
+// překresluje, u osazení profilu se řez přichytí (stejně jako posuvník pod nárysem).
 //
 // Zachytává se jen ve Výběru a mimo kreslení; do 8 px (prst 22 px) od čáry
 // klik patří řezu, ne objektu pod ním. Listenery jsou v zachycovací fázi na
@@ -69,9 +69,13 @@ export function initCutDrag({ setFaceZ, onDone }) {
     onDone();
   }
 
+  // Lišta čela je taky v #canvasWrap (pod nárysem, jezdec pod řezem) — co
+  // míří na ni, patří jí.
+  const onBar = e => e.target !== canvas;
+
   // ── myš ──
   wrap.addEventListener('mousedown', e => {
-    if (e.button !== 0 || e.shiftKey) return;
+    if (e.button !== 0 || e.shiftKey || onBar(e)) return;
     if (start(e.clientX, e.clientY, MOUSE_PX)) { e.stopImmediatePropagation(); e.preventDefault(); }
   }, true);
   // Tažení sleduje celé okno — kurzor smí z plátna vyjet, řez se nepustí.
@@ -82,7 +86,7 @@ export function initCutDrag({ setFaceZ, onDone }) {
   }, true);
   wrap.addEventListener('mousemove', e => {
     if (drag) return;
-    if (!canGrab()) { setCursor(false); setFaceCutHot(false); return; }
+    if (!canGrab() || onBar(e)) { setCursor(false); setFaceCutHot(false); return; }
     const [sx, sy] = local(e.clientX, e.clientY);
     const over = hitCut(sx, sy, MOUSE_PX);
     setCursor(over);
@@ -92,7 +96,7 @@ export function initCutDrag({ setFaceZ, onDone }) {
 
   // ── dotyk ──
   wrap.addEventListener('touchstart', e => {
-    if (e.touches.length !== 1) return;
+    if (e.touches.length !== 1 || onBar(e)) return;
     const t = e.touches[0];
     if (start(t.clientX, t.clientY, TOUCH_PX)) { e.stopImmediatePropagation(); e.preventDefault(); }
   }, { capture: true, passive: false });

@@ -431,12 +431,22 @@ function drawDiaDim(g, w2s, O, r, deg, col, text) {
   g.restore();
 }
 
+// Po každém vykreslení (lišta čela pod nárysem si přepočte polohu, faceBar.js).
+let _onDrawn = null;
+/** Zavolat `fn` po každém vykreslení podkladu (i při vypnutém bokorysu). */
+export function onFaceDrawn(fn) { _onDrawn = fn; }
+
 /**
  * Nakreslí podklad bokorysu (+ značku řezu v nárysu).
  * @param g CanvasRenderingContext2D
  * @param w2s worldToScreen z canvas.js → [sx, sy]
  */
 export function drawFaceReference(g, w2s) {
+  paintFace(g, w2s);
+  if (_onDrawn) _onDrawn();
+}
+
+function paintFace(g, w2s) {
   faceUiSync();
   _disc = null;
   _cut = null;   // bez bokorysu (i v režimu jen bokorys) není co tahat

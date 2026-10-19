@@ -104,10 +104,9 @@ bridge.linearArrayFromSelection = () => {
 };
 
 bridge.circularArrayFromSelection = () => {
-  if (state.selected === null && state.multiSelected.size === 0) {
-    showToast("Nejdříve vyberte objekt");
-    return true;
-  }
+  // Bez výběru zapnout nástroj (klepnutím se vybere objekt) — `true` tu
+  // tlačítko vyřadilo: jen hláška, nástroj se nezapnul.
+  if (state.selected === null && state.multiSelected.size === 0) return false;
   startCircularArrayAction();
   return true;
 };

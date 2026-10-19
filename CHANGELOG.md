@@ -54,6 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CAD: lišta čela (bokorys) přímo na plátně pod nárysem.** Už neleží
+  u spodního okraje přes tlačítka (mobil) — posouvá se s výkresem a mění
+  velikost se zoomem. Na soustruhu posuvník Z lícuje s osou nárysu: krajní
+  polohy pod konci profilu, jezdec pod značkou řezu. Lišta nástrojů ji
+  překryje, kolečko nad ní zoomuje plátno (`js/faceView/faceBar.js`).
 - **CAM: Pohled na čelo = řez v rovině Z s lištou, maximalizace, editor
   s místem.** Lišta pod hlavičkou pohledu: Z políčkem, posuvník roviny řezu
   (přichytí se k osazením a čelům operací), ◀ zprava / ▶ zleva; pohled
@@ -120,6 +125,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAD: tlačítko Kr.pole bez výběru nic nedělalo.** Jen hláška „Nejdříve
+  vyberte objekt" a nástroj se nezapnul. Teď se zapne (jako Lin.pole) —
+  klepnutím na objekt se otevře dialog kruhového pole.
 - **Bokorys (CAD i CAM): v rovině osazení falešný vývrt.** Plocha řezu se
   brala jako mezikruží mezi oběma průměry osazení, takže plný hřídel měl na
   čele osazení díru. Teď je to materiál těsně za rovinou ve směru pohledu

@@ -8,9 +8,9 @@
 // 🛠 Operace → 📥 Z CAD.
 //
 // Čel může být víc (díry na osazení uprostřed profilu, zleva i zprava):
-// lišta čela dole na plátně — výběr čela, ➕ nové, 🗑 smazat, Z roviny čela
-// (políčko + posuvník se značkami osazení), ◀ zprava / ▶ zleva (šipka = směr
-// pohledu). Podklad
+// lišta čela na plátně pod nárysem (faceBar.js) — výběr čela, ➕ nové, 🗑
+// smazat, Z roviny čela (políčko + posuvník se značkami osazení), ◀ zprava /
+// ▶ zleva (šipka = směr pohledu). Podklad
 // bokorysu ukazuje průměry profilu v rovině čela, v nárysu je značka řezu.
 //
 // Když profil zasáhne do bokorysu nebo se změní stroj, kresby všech čel se
@@ -18,7 +18,6 @@
 //
 // Tlačítka: desktop = ◎ v horní liště; mobil = kulaté ◎ nahoře u 🔢.
 import { state, showToast } from '../state.js';
-import { safeEvalMath } from '../utils.js';
 import { bridge } from '../bridge.js';
 import { renderAll } from '../render.js';
 import { fitViewToWorldBounds } from '../canvas.js';
@@ -31,6 +30,7 @@ import {
 } from './faceLayer.js';
 import { computeFaceOrigin, profileAtZ, shoulderZs } from './faceReference.js';
 import { initCutDrag } from './faceCutDrag.js';
+import { initFaceBar, updateBar, FACE_BAR_CSS } from './faceBar.js';
 
 /** Zasahuje profil do kruhu bokorysu? */
 function overlaps(b, o, R) {
@@ -146,7 +146,7 @@ export function enableFaceView() {
   fitView('both');
   refresh();
   // Na mobilu pod zvoneček 🔔 (okénko dole by zakrylo lištu čela).
-  showToast('◎ Bokorys: kreslete do čela — kružnice = díra, úsečka = drážka. Čelo (Z, strana) vyberte v liště dole. V CAM: 🛠 Operace → 📥 Z CAD', 5000, { bell: true });
+  showToast('◎ Bokorys: kreslete do čela — kružnice = díra, úsečka = drážka. Čelo (Z, strana) vyberte v liště pod nárysem. V CAM: 🛠 Operace → 📥 Z CAD', 5000, { bell: true });
 }
 
 /** Jen bokorys: skrýt ostatní viditelné vrstvy (zapamatovat si které). */
@@ -189,68 +189,6 @@ function refresh() {
   updateObjectList();
   updateButtons();
   renderAll();
-}
-
-// ── lišta čela ──────────────────────────────────────────────
-let bar = null;
-function buildBar() {
-  bar = document.createElement('div');
-  bar.id = 'faceBar';
-  bar.innerHTML = `
-    <div class="fb-row">
-      <select data-fb="sel" title="Čelo, do kterého se kreslí (každé má vlastní kresbu děr)"></select>
-      <button data-fb="add" title="Nové čelo — vlastní kresba děr, poloha Z a strana">➕</button>
-      <button data-fb="del" title="Smazat aktuální čelo i s jeho kresbou">🗑</button>
-      <label title="Z roviny čela v nárysu (lze zadat i výraz)">Z <input data-fb="z" type="text" inputmode="decimal" autocomplete="off"></label>
-      <button data-fb="side" title="Odkud se na čelo dívá a vrtá: ◀ zprava (díváme se doleva, k −Z) / ▶ zleva (doprava). Šipka = směr pohledu"></button>
-    </div>
-    <input data-fb="range" type="range" list="faceBarTicks" title="Posun roviny čela po profilu — přichytí se k osazením">
-    <datalist id="faceBarTicks"></datalist>`;
-  document.body.appendChild(bar);
-  const sel = bar.querySelector('[data-fb="sel"]');
-  const zIn = bar.querySelector('[data-fb="z"]');
-  const range = bar.querySelector('[data-fb="range"]');
-  sel.addEventListener('change', () => {
-    const l = getFaceLayers().find(x => String(x.id) === sel.value);
-    if (l) { setCurrent(l); refresh(); }
-  });
-  bar.querySelector('[data-fb="add"]').addEventListener('click', () => {
-    const cur = getFaceLayer();
-    const l = newFaceLayer(cur ? cur.faceZ : 0, cur ? cur.faceSide : 'right');
-    setCurrent(l);
-    refresh();
-    showToast('Nové čelo — nastavte Z posuvníkem nebo do políčka', 2500, { bell: true });
-  });
-  bar.querySelector('[data-fb="del"]').addEventListener('click', () => {
-    const cur = getFaceLayer();
-    if (!cur) return;
-    deleteFace(cur);
-  });
-  bar.querySelector('[data-fb="side"]').addEventListener('click', () => {
-    const cur = getFaceLayer();
-    if (!cur) return;
-    cur.faceSide = cur.faceSide === 'left' ? 'right' : 'left';
-    cur.sideManual = true;
-    renameFace(cur);
-    refresh();
-  });
-  // Posuvník přichytává k osazení do 1,5 % rozsahu (min. 0,2 mm).
-  const rangeSnap = () => {
-    const sh = shoulderZs(profileObjects(), state.machineType);
-    return Math.max(0.2, (sh.max - sh.min) * 0.015);
-  };
-  const setZ = (z, fromRange) => setFaceZ(z, fromRange ? rangeSnap() : 0);
-  range.addEventListener('input', () => setZ(parseFloat(range.value), true));
-  range.addEventListener('change', () => updateLayerList());
-  zIn.addEventListener('change', () => {
-    const v = safeEvalMath(zIn.value);
-    if (!Number.isFinite(v)) { showToast('Neplatné číslo'); updateBar(); return; }
-    const cur = getFaceLayer();
-    if (cur) cur.sideManual = false;
-    setZ(v, false);
-    updateLayerList();
-  });
-  window.addEventListener('resize', () => requestAnimationFrame(placeBar));
 }
 
 function renameFace(l) { l.name = `Čelo ${faceLabel(l)}`; }
@@ -307,39 +245,6 @@ export function deleteFace(layer) {
   return true;
 }
 
-function updateBar() {
-  const mode = faceViewMode();
-  if (!bar) buildBar();
-  bar.style.display = mode === 'off' ? 'none' : '';
-  if (mode === 'off') return;
-  const cur = getFaceLayer();
-  const sel = bar.querySelector('[data-fb="sel"]');
-  sel.innerHTML = getFaceLayers().map(l => `<option value="${l.id}"${l === cur ? ' selected' : ''}>${faceLabel(l)}</option>`).join('');
-  const zIn = bar.querySelector('[data-fb="z"]');
-  if (document.activeElement !== zIn) zIn.value = String(cur.faceZ);
-  bar.querySelector('[data-fb="side"]').textContent = cur.faceSide === 'left' ? '▶ zleva' : '◀ zprava';
-  const sh = shoulderZs(profileObjects(), state.machineType);
-  const range = bar.querySelector('[data-fb="range"]');
-  range.min = String(Math.min(sh.min, cur.faceZ));
-  range.max = String(Math.max(sh.max, cur.faceZ));
-  range.step = 'any';
-  if (document.activeElement !== range) range.value = String(cur.faceZ);
-  bar.querySelector('#faceBarTicks').innerHTML = sh.zs.map(z => `<option value="${z}"></option>`).join('');
-  placeBar();
-}
-
-/** Lišta dole na plátně (na mobilu nad kulatými tlačítky). */
-function placeBar() {
-  if (!bar || bar.style.display === 'none') return;
-  const cv = document.getElementById('drawCanvas');
-  if (!cv) return;
-  const r = cv.getBoundingClientRect();
-  const mobile = window.matchMedia('(max-width: 900px)').matches;
-  bar.style.left = `${Math.round(r.left + 8)}px`;
-  bar.style.maxWidth = `${Math.round(r.width - 16)}px`;
-  bar.style.bottom = `${Math.round(window.innerHeight - r.bottom + (mobile ? 72 : 10))}px`;
-}
-
 // ── tlačítka ◎ ──────────────────────────────────────────────
 const buttons = [];
 const TITLES = {
@@ -371,33 +276,14 @@ function toggle() {
   else disableFaceView();
 }
 
-const CSS = `
+const CSS = FACE_BAR_CSS + `
 #canvasFaceBtn { display: none; }
-#faceBar {
-  position: fixed; z-index: 240; display: flex; flex-direction: column; gap: 4px;
-  padding: 5px 8px; border-radius: 8px; background: var(--ctp-mantle); color: var(--ctp-text);
-  border: 1px solid var(--ctp-surface1); box-shadow: 0 2px 10px rgba(0,0,0,0.35); font-size: 12px;
-  box-sizing: border-box; width: 360px;
-}
-#faceBar .fb-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-#faceBar select, #faceBar input[type=text], #faceBar button {
-  background: var(--ctp-surface0); color: var(--ctp-text); border: 1px solid var(--ctp-surface1);
-  border-radius: 5px; padding: 3px 6px; font-size: 12px; min-width: 0;
-}
-#faceBar input[type=text] { width: 64px; }
-#faceBar button { cursor: pointer; }
-#faceBar button:disabled { opacity: 0.4; cursor: default; }
-#faceBar label { display: flex; align-items: center; gap: 3px; color: var(--ctp-subtext0); }
-#faceBar input[type=range] { width: 100%; accent-color: var(--ctp-peach); }
-/* Lišta i ◎ patří k plátnu CAD — nad oknem (CAM, dialogy; z-index 200) by
-   zakrývaly obsah a ovládaly neviditelný výkres (uživatel 18. 10. 2026).
-   CAM má vlastní ◎ (cam/live/livePanel.js). Plovoucí okna (VK) nevadí. */
-body:has(.calc-overlay:not(.calc-overlay-float)) #faceBar,
+/* ◎ patří k plátnu CAD — nad oknem (CAM, dialogy; z-index 200) by zakrývalo
+   obsah a ovládalo neviditelný výkres (uživatel 18. 10. 2026). CAM má vlastní
+   ◎ (cam/live/livePanel.js). Plovoucí okna (VK) nevadí. */
 body:has(.calc-overlay:not(.calc-overlay-float)) #canvasFaceBtn { display: none !important; }
 @media (max-width: 900px) {
   #btnFaceView { display: none; }
-  #faceBar { width: auto; }
-  body.sidebar-open #faceBar { display: none !important; }
   #canvasFaceBtn {
     display: flex; align-items: center; justify-content: center;
     position: fixed; top: 44px; right: 104px; z-index: 250;
@@ -479,6 +365,7 @@ function mount() {
 }
 
 bridge.deleteFace = deleteFace;
+initFaceBar({ setCurrent, newFace: newFaceLayer, deleteFace, refresh, setFaceZ, renameFace });
 mount();
 // Řez v nárysu jde chytit myší / prstem a táhnout (faceCutDrag.js).
 initCutDrag({ setFaceZ, onDone: () => { updateLayerList(); updateObjectList(); } });

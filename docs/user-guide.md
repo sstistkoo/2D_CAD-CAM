@@ -495,7 +495,9 @@ v bokorysu a za ním nekreslí, v „jen bokorysu" ani průsečíky profilu.
 kříže; střed bokorysu leží na celých desítkách, takže i mřížka měří od něj.
 
 **Čela.** Díry mohou být na kterémkoli osazení, zprava i zleva. Lišta čela
-dole na plátně: výběr čela, **➕** nové čelo (vlastní kresba), **🗑** smazat
+leží přímo na plátně pod nárysem — posouvá se s výkresem a mění velikost se
+zoomem; na soustruhu je posuvník stejně dlouhý jako profil a jezdec stojí
+přesně pod značkou řezu. Obsahuje výběr čela, **➕** nové čelo (vlastní kresba), **🗑** smazat
 čelo i s kresbou (po potvrzení, nejde vrátit; stejně tak smazání vrstvy čela
 v panelu Vrstvy — objekty se nepřesouvají na Konturu),
 **Z** roviny čela (políčko, lze i výraz) a **posuvník**, který se přichytává
