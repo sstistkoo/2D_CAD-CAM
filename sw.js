@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v554';
+const CACHE_NAME = 'skica-v555';
 const ASSETS = [
   './',
   './index.html',
@@ -52,11 +52,14 @@ const ASSETS = [
   './js/calculators/cam/interferenceGuides.js',
   './js/calculators/cam/live/liveCut.js',
   './js/calculators/cam/live/liveCutBar.js',
+  './js/calculators/cam/live/liveFaceNav.js',
   './js/calculators/cam/live/liveFaceView.js',
   './js/calculators/cam/live/liveFromCad.js',
   './js/calculators/cam/live/liveGcode.js',
+  './js/calculators/cam/live/liveMachining.js',
   './js/calculators/cam/live/liveMarkers.js',
   './js/calculators/cam/live/liveModel.js',
+  './js/calculators/cam/live/liveOpForm.js',
   './js/calculators/cam/live/livePanel.js',
   './js/calculators/cam/live/liveSection.js',
   './js/calculators/cam/live/liveSettingsUi.js',
@@ -124,6 +127,7 @@ const ASSETS = [
   './js/calculators/cam/residualTracker.js',
   './js/calculators/cam/roughingStrategies.js',
   './js/calculators/cam/sim/autoStock.js',
+  './js/calculators/cam/sim/codeMini.js',
   './js/calculators/cam/sim/collisionWarnings.js',
   './js/calculators/cam/sim/drawCanvas.js',
   './js/calculators/cam/sim/drawContour.js',

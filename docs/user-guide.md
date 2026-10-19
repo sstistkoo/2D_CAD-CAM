@@ -436,11 +436,12 @@ místo nedělí rovnoměrně: víc ho nechá na straně, odkud jede nůž — ra
 od osy ven (podle toho, nad nebo pod osou díl leží), axiálně podle strany
 obrábění (▶ zprava / ◀ zleva). Plocha pod tlačítky nahoře se nepočítá.
 **▼ vlevo od přehrávače** přepíná spodní panel ve třech krocích: celý panel →
-**2 řádky** (jen běžící blok G-kódu zvýrazněný a pod ním ten, který bude
-následovat; prázdné řádky a komentáře se přeskakují) → skrytý (▲) → zpět
+**4 řádky** (blok, který právě prošel, ztlumeně; běžící blok zvýrazněný
+a pod ním dva, které přijdou; prázdné řádky a komentáře se přeskakují) →
+skrytý (▲) → zpět
 celý. Na mobilu (i na šířku) se díl po každém přepnutí sám vycentruje —
 stejně jako po otočení telefonu z výšky na šířku a zpět.
-Klik na dráhu otevře celý panel jen ze skrytého stavu; ve 2 řádcích se
+Klik na dráhu otevře celý panel jen ze skrytého stavu; ve 4 řádcích se
 kliknutý blok ukáže v nich.
 
 **Lišta nad plátnem se otevírá sbalená** (»«): vidět je jen ◎, »«, ↩/↪, číslování
@@ -465,17 +466,33 @@ a **◀ zprava / ▶ zleva** (šipka = směr pohledu; dokud ji nepřepnete ručn
 volí se podle osazení). Výchozí rovina je pravý konec dílu. V řezu vlevo je
 rovina vidět jako čerchovaná čára se šipkou a popiskem Z. Tlačítko **Z↔**
 lištu schová / ukáže (pamatuje si to), **⤢** zvětší pohled přes celé okno
-simulátoru (i přes G-kód), **⤡** ho vrátí. **🛠 Operace** otevře editor
+simulátoru (i přes G-kód), **⤡** ho vrátí. Pohled se ovládá jako nárys:
+**kolečko** myši / **dva prsty** = zoom, **tažení** myší / jedním prstem =
+posun; **dvojklik** / dvojí ťuknutí nebo **🎯** v rohu (ukáže se jen
+u přiblíženého či posunutého pohledu) ho vycentruje. **🛠 Operace** otevře editor
 v maximalizovaném pohledu — na výšku náhled nahoře a formulář pod ním, na
 šířku vedle sebe; po zavření editoru se pohled zase zmenší.
 
 Zelený zářez **C0** na obvodu kusu ukazuje nulu osy C (podle kalibrace úhlu
 v nastavení; bez kalibrace na +X) a oblouček **+C**, kterým směrem úhel
 roste. Žlutá šipka na +X je místo, kde stojí nástroj. Lišta a ◎ bokorysu
-z CAD se nad oknem CAM neukazují (ovládaly by výkres pod ním). **▶** přehraje pořadí
-vrtání a frézování (odvrtané díry zezelenají). Díry se kreslí i do řezu
-(sklopené do roviny řezu jako na výkrese, čárkovaně), úběr soustružení
-neovlivní.
+z CAD se nad oknem CAM neukazují (ovládaly by výkres pod ním). Díry se
+kreslí i do řezu (sklopené do roviny řezu jako na výkrese, čárkovaně), úběr
+soustružení neovlivní.
+
+**Simulace vrtání a frézování.** **▶** v hlavičce pohledu spustí obrábění
+poháněnými nástroji (**⏸** pozastaví, další ▶ pokračuje): nástroj jede
+v pořadí NC, díry se do materiálu prohlubují (tmavé = odebraný materiál,
+sytost podle dosažené hloubky), fréza za sebou nechává stopu, hotová operace
+má zelený okraj a neobrobené díry jsou čárkovaně. V řezu vlevo se sklopené
+díry a kapsy vybarví jako úběr do dosažené hloubky i se špičkou vrtáku.
+Nahoře vlevo je operace, díra / kapsa, hloubka, čas a nástroj. Čas je
+skutečný (posuv F, rychloposuv stroje, natočení osy C, krokové vrtání,
+prodleva) a běží stejnou rychlostí jako přehrávač soustružení (▼ 1× ▲).
+Když přehrávač CAM **dojede soustružení do konce**, vrtání a frézování
+**plynule naváže** (pohled na čelo se sám otevře a sleduje čelo, na kterém
+se právě vrtá). ⏹ nebo posun přehrávače zpět vrátí díry do neobrobeného
+stavu; ⏭ na konec ukáže díl rovnou obrobený.
 
 **Bokorys v CAD (◎).** Tlačítko **◎ Čelo** (desktop: horní lišta; mobil:
 kulaté ◎ nahoře u 🔢) přepíná ve třech krocích: **profil → profil + bokorys

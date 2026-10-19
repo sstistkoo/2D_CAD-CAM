@@ -3,7 +3,9 @@
 // Tlačítko ◎ v liště plátna přepíná jako ◎ Čelo v CAD: řez → řez + pohled na
 // čelo (vpravo, na výšku dole) → ◉ jen pohled na čelo → řez. Pohled je podél
 // osy proti sklíčidlu / upínací desce. V hlavičce
-// pohledu: ▶ přehraje pořadí vrtání/frézování, 🛠 Operace otevře editor
+// pohledu: ▶ / ⏸ obrábění poháněnými nástroji (liveMachining.js: úběr
+// v pohledu i v řezu, čas × rychlost přehrávače; po dojetí soustružení
+// v přehrávači CAM se spustí samo a pohled sleduje obráběné čelo), 🛠 Operace otevře editor
 // (vrtání do čela / do pláště, kapsa, drážka; přepínač NC výstupu SPOS /
 // osa C / TRANSMIT; cykly × rozepsané pohyby; M-kódy stroje), Z↔ schová /
 // ukáže lištu řezu (liveCutBar.js: rovina Z posuvníkem, strana pohledu;
@@ -20,11 +22,11 @@
 import { showToast } from '../../../state.js';
 import { safeEvalMath } from '../../../utils.js';
 import {
-  liveSettings, newLiveOp, normalizeLiveOp, getLiveOps, liveOpProblems, liveOpSummary,
+  liveSettings, newLiveOp, normalizeLiveOp, getLiveOps, liveOpSummary,
 } from './liveModel.js';
 import { buildLiveBlock } from './liveGcode.js';
 import { insertLiveBlock, removeLiveBlock, findLiveBlock, liveBlockTag } from './liveMarkers.js';
-import { drawFaceView, livePartGeometry, liveAnimSteps } from './liveFaceView.js';
+import { drawFaceView, livePartGeometry } from './liveFaceView.js';
 import { drawLiveSectionLayer } from './liveSection.js';
 import { LIVE_CSS } from './liveStyles.js';
 import { liveOpsFromCad } from './liveFromCad.js';
@@ -32,6 +34,9 @@ import { settingsHtml, applySettingChange } from './liveSettingsUi.js';
 import { faceDrawingsLocal } from '../../../faceView/faceLayer.js';
 import { liveProfile, liveCutAt, autoSide, drawCutMark } from './liveCut.js';
 import { createCutBar } from './liveCutBar.js';
+import { attachFaceNav, defaultNav, isDefaultNav } from './liveFaceNav.js';
+import { createLivePlayer, buildLiveTimeline, liveStateAt } from './liveMachining.js';
+import { opForm, esc } from './liveOpForm.js';
 
 const CTRL = new WeakMap();   // S → ovladač otevřeného simulátoru
 const VIEW_KEY = 'skica-cam-live-view';   // '0' řez, '1' řez + čelo, '2' jen čelo
@@ -45,8 +50,9 @@ const TITLES = {
 
 /** Volá drawCanvas.js po vykreslení řezu. */
 export function liveAfterDraw(f) {
-  drawLiveSectionLayer(f);
   const c = CTRL.get(f.S);
+  if (c) c.sync();
+  drawLiveSectionLayer(f, c ? c.mach() : null);
   if (c) { c.mark(f); c.redraw(); }
 }
 
@@ -61,8 +67,8 @@ export function initLiveTools(deps) {
     document.head.appendChild(st);
   }
   const st = {
-    mode: 'off', open: false, editor: false, selected: 0, anim: null, timer: null, key: '', edKey: '',
-    max: false, autoMax: false, bar: true, cutZ: null, cutSide: null, sideManual: false, prof: null, profKey: '',
+    mode: 'off', open: false, editor: false, selected: 0, key: '', edKey: '', turnDone: false, wasRunning: false,
+    nav: defaultNav(), max: false, autoMax: false, bar: true, cutZ: null, cutSide: null, sideManual: false, prof: null, profKey: '',
   };
   try { st.bar = localStorage.getItem(BAR_KEY) !== '0'; } catch (_) { /* bez úložiště */ }
 
@@ -77,7 +83,7 @@ export function initLiveTools(deps) {
   pane.innerHTML = `
     <div class="cam-live-head">
       <span class="cam-live-title">◎ <span class="cam-live-long">Pohled na </span>čelo</span>
-      <button data-live="play" title="Přehrát pořadí vrtání / frézování">▶</button>
+      <button data-live="play" title="Obrábění vrtáním a frézováním: ▶ spustit / ⏸ pozastavit (rychlost jako přehrávač CAM; po soustružení se spustí samo)">▶</button>
       <button data-live="editor" title="Operace poháněnými nástroji: vrtání do čela a pláště, frézování kapes a drážek, NC výstup">🛠 Operace</button>
       <button data-live="bar" title="Lišta řezu (rovina Z posuvníkem, strana pohledu) — ukázat / schovat">Z↔</button>
       <button data-live="max" title="Maximalizovat pohled přes celé okno">⤢</button>
@@ -85,7 +91,8 @@ export function initLiveTools(deps) {
     </div>
     <div class="cam-live-barhost"></div>
     <div class="cam-live-body">
-      <div class="cam-live-cv"><canvas></canvas></div>
+      <div class="cam-live-cv"><canvas></canvas>
+        <button class="cam-live-fit" data-live="fit" hidden title="Vycentrovat pohled (dvojklik / dvojí ťuknutí)">🎯</button></div>
       <div class="cam-live-ed" hidden></div>
     </div>`;
   row.appendChild(pane);
@@ -113,6 +120,9 @@ export function initLiveTools(deps) {
     redraw(true);
   });
   ro.observe(cvWrap);
+  // Zoom kolečkem / dvěma prsty a posun tažením jako v nárysu.
+  const nav = attachFaceNav(cv, st.nav, () => redraw(true));
+  const fitBtn = pane.querySelector('[data-live="fit"]');
   // Lišta plátna se zalamuje (»«, mobil) — v režimu jen čelo pod ní posunout
   // hlavičku. Široký panel (maximalizovaný na desktopu) dá editor vedle náhledu.
   const ro2 = new ResizeObserver(() => {
@@ -170,15 +180,25 @@ export function initLiveTools(deps) {
   function cutState() {
     const prof = profile();
     if (prof.empty) return null;
+    // Běžící obrábění: pohled sleduje čelo obráběné operace (díry do pláště ne).
+    const m = player.running ? machState() : null;
+    const op = m && m.active && getLiveOps(S.params)[m.active.op];
+    if (op && op.side !== 'radial') return { prof, z: op.zTop, side: op.faceDir === -1 ? 'left' : 'right' };
     const z = Number.isFinite(st.cutZ) ? st.cutZ : prof.max;
     return { prof, z, side: st.cutSide || autoSide(prof, z) };
   }
+  let cutMemo = { k: null, v: null };
+  function cutView(c) {
+    const k = JSON.stringify([st.profKey, c.z, c.side]);
+    if (cutMemo.k !== k) cutMemo = { k, v: liveCutAt(c.prof, c.z, c.side) };
+    return cutMemo.v;
+  }
+  // Řez vlevo (značka řezu, úběr) — překreslit nejvýš jednou za snímek.
   let drawQueued = false;
-  function cutChanged() {
-    bar.update(); redraw(true);
-    // Značka řezu v řezu vlevo — překreslit nejvýš jednou za snímek.
+  function queueDraw() {
     if (!drawQueued) { drawQueued = true; requestAnimationFrame(() => { drawQueued = false; deps.draw(); }); }
   }
+  function cutChanged() { bar.update(); redraw(true); queueDraw(); }
   const bar = createCutBar(pane.querySelector('.cam-live-barhost'), {
     get: () => {
       const prof = profile(), c = cutState();
@@ -206,12 +226,13 @@ export function initLiveTools(deps) {
   function viewKey() {
     const p = S.params;
     return JSON.stringify([p.liveOps, p.stockMode, p.stockDiameter, p.mode, p.machineStructure,
-      S.contourPoints, S.stockPoints, cv.width, cv.height, st.selected, st.anim && st.anim.step,
-      st.cutZ, st.cutSide]);
+      S.contourPoints, S.stockPoints, cv.width, cv.height, st.selected, machMemo.k,
+      st.cutZ, st.cutSide, st.nav]);
   }
   function redraw(force) {
     if (!st.open) return;
     if (!document.body.contains(pane)) { stopAnim(); return; }
+    const mach = machState();
     const k = viewKey();
     if (!force && k === st.key) { syncEditor(); return; }
     st.key = k;
@@ -220,9 +241,9 @@ export function initLiveTools(deps) {
     drawFaceView(cv, {
       prms: S.params, geo: livePartGeometry(S), ops,
       selected: st.editor && ops.length ? st.selected : null,
-      anim: st.anim, steps: st.anim ? st.anim.steps : null,
-      cut: c ? liveCutAt(c.prof, c.z, c.side) : null,
+      mach, cut: c ? cutView(c) : null, nav: st.nav,
     });
+    fitBtn.hidden = isDefaultNav(st.nav);
     bar.update();
     syncEditor();
   }
@@ -241,28 +262,57 @@ export function initLiveTools(deps) {
       String(S.manualGCode || '').length]);
   }
 
-  // ── přehrávání ──
-  function stopAnim() {
-    if (st.timer) clearTimeout(st.timer);
-    st.timer = null; st.anim = null; playBtn.textContent = '▶';
+  // ── obrábění poháněnými nástroji (liveMachining.js) ──
+  const player = createLivePlayer({
+    getOps: () => getLiveOps(S.params), getPrms: () => S.params,
+    getSpeed: () => S.simSpeed || 1,   // stejná rychlost jako přehrávač soustružení
+    onFrame: () => {
+      if (!document.body.contains(pane)) { player.stop(); return; }
+      playBtn.textContent = player.running ? '⏸' : '▶';
+      redraw(true); queueDraw();
+    },
+    onEnd: () => { playBtn.textContent = '▶'; },
+  });
+  function stopAnim() { player.stop(); playBtn.textContent = '▶'; }
+  /**
+   * Stav pro kreslení: přehrávané obrábění; po dojetí soustružení (přehrávač
+   * CAM na konci) vše obrobeno; jinak null = jen plán.
+   */
+  let machMemo = { k: null, v: null };
+  function machState() {
+    let k, make;
+    if (player.active) {
+      k = `p${player.serial}:${player.t}:${player.running}`;
+      make = () => ({ ...player.state(), paused: !player.running && !player.finished });
+    } else if (st.turnDone && getLiveOps(S.params).length) {
+      k = `d${JSON.stringify(S.params.liveOps)}:${S.params.rapidFeed}`;
+      make = () => { const tl = buildLiveTimeline(getLiveOps(S.params), S.params); return liveStateAt(tl, tl.total); };
+    } else { machMemo = { k: 'plan', v: null }; return null; }
+    if (machMemo.k !== k) machMemo = { k, v: make() };
+    return machMemo.v;
   }
-  function tick() {
-    if (!st.anim || !document.body.contains(pane)) { stopAnim(); return; }
-    const s = st.anim.steps[st.anim.step];
-    redraw(true);
-    if (st.anim.step >= st.anim.steps.length - 1) {
-      st.timer = setTimeout(() => { stopAnim(); redraw(true); }, 1500);
-      return;
+  // Přehrávač CAM: soustružení dojelo přehráváním → plynule navázat vrtáním
+  // a frézováním (pohled se otevře); posun zpět → díry zase neobrobené.
+  function sync() {
+    const done = (S.simProgress || 0) >= 1 - 1e-9;
+    if (done !== st.turnDone) {
+      st.turnDone = done;
+      if (!done) { if (player.active) stopAnim(); }
+      else if (st.wasRunning && getLiveOps(S.params).length) requestAnimationFrame(autoStart);
     }
-    st.timer = setTimeout(() => { st.anim.step++; tick(); }, s.kind === 'hole' ? 450 : 60);
+    st.wasRunning = !!S.simRunning;
+  }
+  function autoStart() {
+    if (!document.body.contains(pane) || !st.turnDone) return;
+    if (!st.open) setMode('both');
+    if (player.start()) showToast('Soustružení hotovo — pokračuje vrtání a frézování (◎ pohled na čelo)', 3000);
   }
   playBtn.addEventListener('click', () => {
-    if (st.anim) { stopAnim(); redraw(true); return; }
-    const steps = liveAnimSteps(getLiveOps(S.params));
-    if (!steps.length) { showToast('Žádné operace — přidejte je přes 🛠 Operace'); return; }
-    st.anim = { steps, step: 0 };
-    playBtn.textContent = '⏸';
-    tick();
+    if (player.running) player.pause();
+    else if (player.active && !player.finished) player.resume();
+    else if (!player.start()) { showToast('Žádné operace — přidejte je přes 🛠 Operace'); return; }
+    playBtn.textContent = player.running ? '⏸' : '▶';
+    redraw(true); queueDraw();
   });
 
   // ── program: blok mezi značkami ──
@@ -330,6 +380,7 @@ export function initLiveTools(deps) {
       else if (!st.editor && st.autoMax) setMax(false);
       redraw(true);
     } else if (act === 'max') setMax(!st.max);
+    else if (act === 'fit') nav.reset();
     else if (act === 'bar') setBar(!st.bar);
     else if (act === 'close') setMode('off');
     else if (act === 'add-drill' || act === 'add-mill') {
@@ -443,6 +494,8 @@ export function initLiveTools(deps) {
   } catch (_) { /* bez úložiště */ }
   CTRL.set(S, {
     redraw: () => redraw(false),
+    sync,
+    mach: () => machState(),
     mark: f => {
       if (!st.open || st.mode === 'solo') return;
       const c = cutState();
@@ -450,46 +503,3 @@ export function initLiveTools(deps) {
     },
   });
 }
-
-function opForm(op) {
-  const f = (k, t, v, wide) => `<label class="cam-live-f${wide ? ' wide' : ''}"><span>${t}</span><input data-k="${k}" type="text" inputmode="decimal" value="${esc(v)}"></label>`;
-  const txt = (k, t, v) => `<label class="cam-live-f"><span>${t}</span><input data-k="${k}" type="text" value="${esc(v)}"></label>`;
-  const sel = (k, t, v, opts) => `<label class="cam-live-f"><span>${t}</span><select data-k="${k}">${opts.map(([val, lbl]) => `<option value="${val}"${val === v ? ' selected' : ''}>${lbl}</option>`).join('')}</select></label>`;
-  const radial = op.kind === 'drill' && op.side === 'radial';
-  const slot = op.kind === 'mill' && op.millType === 'slot';
-  let h = '<div class="cam-live-grid">';
-  h += txt('name', 'Název', op.name);
-  h += sel('kind', 'Druh', op.kind, [['drill', 'Vrtání'], ['mill', 'Frézování']]);
-  if (op.kind === 'drill') h += sel('side', 'Kam', op.side, [['face', 'Do čela (osa Z)'], ['radial', 'Do pláště (osa X)']]);
-  else h += sel('millType', 'Frézování', op.millType, [['pocket', 'Kruhová kapsa'], ['slot', 'Drážka (přímá)']]);
-  if (!slot) {
-    h += sel('pattern', 'Rozmístění', op.pattern, [['pcd', radial ? 'Po obvodu' : 'Roztečná kružnice'], ['points', 'Seznam bodů']]);
-    if (op.pattern === 'pcd') {
-      if (!radial) h += f('pcd', 'Ø rozteče', op.pcd);
-      h += f('count', 'Počet', op.count) + f('startAngle', 'Počáteční úhel °', op.startAngle);
-      if (radial) h += f('zPos', 'Z děr', op.zPos);
-    } else {
-      h += `<label class="cam-live-f wide"><span>Body – řádek = „úhel; ${radial ? 'Z' : 'poloměr'}"</span><textarea data-k="points">${esc(op.points)}</textarea></label>`;
-    }
-  } else {
-    h += f('slot.x1', 'X1', op.slot.x1) + f('slot.y1', 'Y1', op.slot.y1) + f('slot.x2', 'X2', op.slot.x2) + f('slot.y2', 'Y2', op.slot.y2);
-  }
-  h += radial ? f('xTop', 'Ø pláště', op.xTop) : f('zTop', 'Z čela', op.zTop);
-  if (!radial) h += sel('faceDir', 'Strana čela', String(op.faceDir === -1 ? -1 : 1), [['1', '◀ zprava (vrtá k −Z)'], ['-1', '▶ zleva (vrtá k +Z)']]);
-  if (op.kind === 'drill') {
-    h += f('holeD', 'Ø díry', op.holeD) + f('depth', 'Hloubka', op.depth);
-    h += f('peck', 'Krok vrtání (0 = naráz)', op.peck) + f('dwell', 'Prodleva dole [s]', op.dwell);
-  } else {
-    if (!slot) h += f('holeD', 'Ø kapsy', op.holeD);
-    h += f('toolD', slot ? 'Ø frézy = šířka' : 'Ø frézy', op.toolD) + f('depth', 'Hloubka', op.depth) + f('stepDown', 'Krok do hloubky', op.stepDown);
-  }
-  h += f('safe', 'Bezpečná vzdálenost', op.safe) + f('retract', 'Odjezd nad plochu', op.retract);
-  h += txt('toolName', 'Nástroj', op.toolName) + f('toolNo', 'Číslo T', op.toolNo);
-  h += f('rpm', 'Otáčky [1/min]', op.rpm) + f('feed', 'Posuv [mm/min]', op.feed);
-  h += '</div>';
-  const probs = liveOpProblems(op);
-  if (probs.length) h += `<div class="cam-live-prob">${probs.map(esc).join('<br>')}</div>`;
-  return h;
-}
-
-function esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }

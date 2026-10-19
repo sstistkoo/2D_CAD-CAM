@@ -51,7 +51,14 @@ export const LIVE_CSS = `
 .cam-live-cv { flex: 1 1 0; min-height: 120px; position: relative; overflow: hidden; }
 /* Plátno absolutně: jinak by jeho výška (nastavená z ResizeObserveru) zpětně
    zvětšovala panel a panel zase plátno (na výšku rostlo do tisíců px). */
-.cam-live-cv canvas { display: block; position: absolute; left: 0; top: 0; }
+.cam-live-cv canvas { display: block; position: absolute; left: 0; top: 0; touch-action: none; cursor: grab; }
+.cam-live-cv canvas:active { cursor: grabbing; }
+/* 🎯 jen když je pohled přiblížený / posunutý. */
+.cam-live-fit {
+  position: absolute; top: 6px; right: 6px; z-index: 2; background: #313244; color: #cdd6f4;
+  border: 1px solid #45475a; border-radius: 6px; padding: 2px 6px; font-size: 14px; cursor: pointer;
+}
+.cam-live-fit[hidden] { display: none; }
 .cam-live-ed {
   flex: 1 1 0; min-height: 0; overflow: auto; padding: 6px 8px; border-top: 1px solid #313244;
   color: #cdd6f4; font-size: 12px;

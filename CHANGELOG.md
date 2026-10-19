@@ -54,11 +54,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CAM: simulace vrtání a frézování v pohledu na čelo.** ▶ / ⏸ v hlavičce
+  pohledu: nástroj jede v pořadí NC s reálným časem (posuv F, rychloposuv,
+  natočení C, krokové vrtání, prodleva) × rychlost přehrávače; díry se
+  prohlubují, fréza nechává stopu, hotové operace zezelenají, v řezu se
+  vybarví úběr do dosažené hloubky. Po dojetí soustružení v přehrávači CAM
+  obrábění samo naváže (pohled se otevře a sleduje obráběné čelo); ⏹ / posun
+  zpět díry vrátí. Moduly `cam/live/liveMachining.js`, `liveOpForm.js`, test
+  `tests/live-machining.test.js`.
 - **CAD: lišta čela (bokorys) přímo na plátně pod nárysem.** Už neleží
   u spodního okraje přes tlačítka (mobil) — posouvá se s výkresem a mění
   velikost se zoomem. Na soustruhu posuvník Z lícuje s osou nárysu: krajní
   polohy pod konci profilu, jezdec pod značkou řezu. Lišta nástrojů ji
   překryje, kolečko nad ní zoomuje plátno (`js/faceView/faceBar.js`).
+- **CAM: zmenšený panel G-kódu ukazuje 4 řádky místo 2.** ▼ u přehrávače:
+  blok, který právě prošel (ztlumeně), běžící blok a dva, které přijdou
+  (`cam/sim/codeMini.js`; `camSimulator.js` se tím zmenšil).
+- **CAM: pohled na čelo jde přibližovat a posouvat jako nárys.** Kolečko /
+  dva prsty = zoom (kolem kurzoru), tažení = posun, dvojklik / dvojí ťuknutí
+  nebo 🎯 v rohu = vycentrovat (`cam/live/liveFaceNav.js`).
 - **CAM: Pohled na čelo = řez v rovině Z s lištou, maximalizace, editor
   s místem.** Lišta pod hlavičkou pohledu: Z políčkem, posuvník roviny řezu
   (přichytí se k osazením a čelům operací), ◀ zprava / ▶ zleva; pohled

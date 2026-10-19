@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import { pointsToChains, liveProfile, liveCutAt, autoSide, snapZ } from '../js/calculators/cam/live/liveCut.js';
 import { sectionAt, objectPoints } from '../js/faceView/faceReference.js';
+import { defaultNav, isDefaultNav, zoomAt } from '../js/calculators/cam/live/liveFaceNav.js';
 
 // Odstupňovaný hřídel v průměrech (DIAMON): Ø40 (Z 0…−30), Ø70 (−30…−60), Ø100 (−60…−100).
 const shaftPts = [
@@ -81,5 +82,23 @@ describe('řez v rovině Z', () => {
   it('posuvník se přichytí k nejbližší značce v toleranci', () => {
     expect(snapZ(-29.6, [-60, -30, 0], 0.5)).toBe(-30);
     expect(snapZ(-28, [-60, -30, 0], 0.5)).toBe(-28);
+  });
+});
+
+describe('zoom a posun pohledu na čelo', () => {
+  it('bod pod kurzorem zůstane na místě, zoom má meze', () => {
+    const n = defaultNav();
+    const w = 400, h = 300, mx = 300, my = 100;
+    // Světový bod pod kurzorem: (mx − střed) / zoom.
+    const world = nv => [(mx - (w / 2 + nv.panX)) / nv.zoom, (my - (h / 2 + nv.panY)) / nv.zoom];
+    const before = world(n);
+    zoomAt(n, 1.15, mx, my, w, h);
+    zoomAt(n, 1.15, mx, my, w, h);
+    const after = world(n);
+    expect(after[0]).toBeCloseTo(before[0], 9);
+    expect(after[1]).toBeCloseTo(before[1], 9);
+    expect(isDefaultNav(n)).toBe(false);
+    for (let i = 0; i < 100; i++) zoomAt(n, 2, mx, my, w, h);
+    expect(n.zoom).toBe(40);
   });
 });

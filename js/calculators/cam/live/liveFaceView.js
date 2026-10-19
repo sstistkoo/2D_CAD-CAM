@@ -3,14 +3,16 @@
 // plocha řezu, hrany za ním plně / zakryté čárkovaně — jako bokorys v CAD),
 // polotovar, značku nuly osy C na kusu a operace poháněných nástrojů (díry
 // na čele i na plášti, kapsy, drážky; operace na jiném čele než v rovině
-// řezu jsou ztlumené). Při přehrávání (▶) jede nástroj po dírách v pořadí NC.
+// řezu jsou ztlumené). Obrábění (liveMachining.js, ▶ nebo konec soustružení):
+// neobrobené díry čárkovaně, obrobené jako prázdný materiál podle dosažené
+// hloubky, stopa frézy, nástroj na své poloze a stav nahoře vlevo.
 // Sklíčidlo s čelistmi se nekreslí (jako bokorys v CAD) — zakrývalo díl a
 // k orientaci nepomáhalo; tu dává značka C0 (uživatel 18. 10. 2026).
 //
 // Souřadnice: x vpravo = +X (C 0°, tam stojí nástroj při SPOS), y nahoru =
 // C 90°. Rozměry ve světových mm, poloměry (ne průměry).
 import { resolvePointsToAbsolute } from '../contourBuild.js';
-import { livePositions, millMoves, liveSettings } from './liveModel.js';
+import { livePositions, liveSettings } from './liveModel.js';
 import { faceRadius } from '../../../faceView/faceReference.js';
 
 const COL = {
@@ -52,42 +54,11 @@ export function livePartGeometry(S) {
 }
 
 /**
- * Pořadí kroků pro přehrávání: díra po díře, fréza po vzorcích dráhy.
- * [{ op, kind:'hole'|'mill', i, x, y }]
- */
-export function liveAnimSteps(ops) {
-  const steps = [];
-  ops.forEach((op, oi) => {
-    if (op.kind === 'mill') {
-      let prev = null;
-      millMoves(op).forEach(mv => {
-        if (mv.k === 'arc' && prev) {
-          const r = Math.hypot(prev.x - mv.cx, prev.y - mv.cy);
-          let a0 = Math.atan2(prev.y - mv.cy, prev.x - mv.cx), a1 = Math.atan2(mv.y - mv.cy, mv.x - mv.cx);
-          if (a1 <= a0) a1 += 2 * Math.PI;
-          for (let j = 1; j <= 8; j++) {
-            const a = a0 + (a1 - a0) * j / 8;
-            steps.push({ op: oi, kind: 'mill', x: mv.cx + r * Math.cos(a), y: mv.cy + r * Math.sin(a) });
-          }
-        } else steps.push({ op: oi, kind: 'mill', x: mv.x, y: mv.y });
-        prev = mv;
-      });
-    } else {
-      livePositions(op).forEach((p, i) => {
-        if (op.side === 'radial') {
-          const rad = p.a * Math.PI / 180, r = op.xTop / 2;
-          steps.push({ op: oi, kind: 'hole', i, x: r * Math.cos(rad), y: r * Math.sin(rad), radial: true });
-        } else steps.push({ op: oi, kind: 'hole', i, x: p.x, y: p.y });
-      });
-    }
-  });
-  return steps;
-}
-
-/**
  * @param {HTMLCanvasElement} canvas
- * @param d { prms, geo, ops, selected (index), anim: null | { step } , steps,
- *            cut: null | { z, side, at, view } (liveCutAt) }
+ * @param d { prms, geo, ops, selected (index),
+ *            mach: null | liveStateAt() (+ paused) — obrábění, null = jen plán,
+ *            cut: null | { z, side, at, view } (liveCutAt),
+ *            nav: null | { zoom, panX, panY } (liveFaceNav.js) }
  */
 export function drawFaceView(canvas, d) {
   const ctx = canvas.getContext('2d');
@@ -100,8 +71,9 @@ export function drawFaceView(canvas, d) {
   // mimo polotovar musí být taky vidět.
   let ext = faceRadius(Math.max(sR, geo.outerR || 0));
   ops.forEach(op => { if (op.side === 'radial') ext = Math.max(ext, op.xTop / 2 + op.retract + 10); });
-  const sc = (Math.min(w, h) / 2 - 18) / (ext * 1.04);
-  const cx = w / 2, cy = h / 2;
+  const nav = d.nav || { zoom: 1, panX: 0, panY: 0 };
+  const sc = (Math.min(w, h) / 2 - 18) / (ext * 1.04) * nav.zoom;
+  const cx = w / 2 + nav.panX, cy = h / 2 + nav.panY;
   const P = (x, y) => [cx + x * sc, cy - y * sc];
   const circle = (r, fill, stroke, lw = 1, dash) => {
     ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.5, r * sc), 0, 2 * Math.PI);
@@ -148,30 +120,27 @@ export function drawFaceView(canvas, d) {
   ctx.fillText(xl, Math.min(P(ext, 0)[0] + 4, w - 4 - xw), P(ext, 0)[1] - 8);
   ctx.fillText('90°', P(0, ext)[0] + 6, P(0, ext)[1] + 12);
 
-  // ── operace ──
-  const anim = d.anim, steps = d.steps || [];
-  const doneUpTo = anim ? anim.step : -1;
-  const doneHoles = new Set();
-  steps.forEach((s, k) => { if (k <= doneUpTo && s.kind === 'hole') doneHoles.add(s.op + ':' + s.i); });
+  // ── operace: plán (průsvitně) nebo obrábění (odebraný materiál) ──
+  const mach = d.mach;
   ops.forEach((op, oi) => {
     const sel = d.selected === oi;
     // Díry do čela jiného než v rovině řezu — ztlumit (víc čel na dílu).
     const other = cut && op.side !== 'radial' && Math.abs(op.zTop - cut.z) > 0.5;
     ctx.globalAlpha = other && !sel ? 0.28 : (d.selected == null || sel ? 1 : 0.55);
-    if (op.kind === 'mill') drawMill(ctx, op, P, sc, sel);
+    if (op.kind !== 'mill' && op.side !== 'radial' && op.pattern === 'pcd') circle(op.pcd / 2, null, 'rgba(250,179,135,0.55)', 1, [3, 3]);
+    if (mach) drawMachOp(ctx, op, oi, mach, P, sc, sel, rotRect);
+    else if (op.kind === 'mill') drawMill(ctx, op, P, sc, sel);
     else if (op.side === 'radial') {
       livePositions(op).forEach((p, i) => {
-        const r = op.xTop / 2, done = doneHoles.has(oi + ':' + i);
-        rotRect(p.a, r - op.depth, r, op.holeD / 2, done ? 'rgba(166,227,161,0.55)' : 'rgba(148,226,213,0.30)', COL.radial);
+        const r = op.xTop / 2;
+        rotRect(p.a, r - op.depth, r, op.holeD / 2, 'rgba(148,226,213,0.30)', COL.radial);
         label(ctx, P(...polar(r + 4 + 8 / sc, p.a)), String(i + 1), COL.radial);
       });
     } else {
-      if (op.pattern === 'pcd') circle(op.pcd / 2, null, 'rgba(250,179,135,0.55)', 1, [3, 3]);
       livePositions(op).forEach((p, i) => {
-        const done = doneHoles.has(oi + ':' + i);
         const [sx, sy] = P(p.x, p.y);
         ctx.beginPath(); ctx.arc(sx, sy, Math.max(2, op.holeD / 2 * sc), 0, 2 * Math.PI);
-        ctx.fillStyle = done ? 'rgba(166,227,161,0.75)' : 'rgba(250,179,135,0.28)'; ctx.fill();
+        ctx.fillStyle = 'rgba(250,179,135,0.28)'; ctx.fill();
         ctx.strokeStyle = sel ? '#fff' : COL.drill; ctx.lineWidth = sel ? 1.6 : 1.2; ctx.stroke();
         label(ctx, [sx + Math.max(2, op.holeD / 2 * sc) + 3, sy - 3], String(i + 1), COL.drill);
       });
@@ -183,14 +152,12 @@ export function drawFaceView(canvas, d) {
   const rPart = at && at.outerR > 0 ? at.outerR : (geo.outerR || sR);
   drawCZero(ctx, cx, cy, Math.min(rPart, sRz) * sc, liveSettings(prms));
 
-  // ── nástroj (SPOS: stojí na +X; při přehrávání na aktuální poloze) ──
-  if (anim && steps[anim.step] && ops[steps[anim.step].op]) {
-    const s = steps[anim.step], op = ops[s.op];
-    const tr = op.kind === 'mill' ? op.toolD / 2 : op.holeD / 2;
-    const [sx, sy] = P(s.x, s.y);
-    ctx.beginPath(); ctx.arc(sx, sy, Math.max(3, tr * sc), 0, 2 * Math.PI);
-    ctx.strokeStyle = COL.tool; ctx.lineWidth = 2.5; ctx.stroke();
-    ctx.fillStyle = 'rgba(249,226,175,0.35)'; ctx.fill();
+  // ── nástroj (SPOS: stojí na +X; při obrábění na aktuální poloze) ──
+  if (mach && mach.active && mach.tool && ops[mach.tool.op]) {
+    drawTool(ctx, ops[mach.tool.op], mach.tool, P, sc, rotRect);
+    drawMachStatus(ctx, ops, mach);
+  } else if (mach && ops.length) {
+    drawMachStatus(ctx, ops, mach);
   } else if (ops.length) {
     const [sx, sy] = P(Math.min(ext, sR + 12 / sc + 6), 0);
     ctx.fillStyle = COL.tool; ctx.beginPath();
@@ -205,6 +172,107 @@ export function drawFaceView(canvas, d) {
   const outR = cut ? at.outerR : geo.outerR, inR = cut ? at.innerR : geo.innerR;
   ctx.fillText(`Polotovar Ø${fmt(2 * sRz)}${outR > 0 ? `  ·  ${cut ? 'v řezu' : 'obrys'} Ø${fmt(2 * outR)}` : ''}${inR > 0 ? `  ·  vývrt Ø${fmt(2 * inR)}` : ''}`, 8, h - 8);
 }
+
+const voidFill = f => `rgba(17,17,27,${(0.5 + 0.5 * Math.min(1, f)).toFixed(2)})`;
+
+/** Obrys drážky (stopa frézy po úsečce) jako cesta na plátně. */
+function capsulePath(ctx, P, x1, y1, x2, y2, r) {
+  const a = Math.atan2(y2 - y1, x2 - x1), pts = [];
+  for (let k = 0; k <= 12; k++) { const t = a - Math.PI / 2 + Math.PI * k / 12; pts.push(P(x2 + r * Math.cos(t), y2 + r * Math.sin(t))); }
+  for (let k = 0; k <= 12; k++) { const t = a + Math.PI / 2 + Math.PI * k / 12; pts.push(P(x1 + r * Math.cos(t), y1 + r * Math.sin(t))); }
+  ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath();
+}
+
+/**
+ * Operace při obrábění: plán čárkovaně, odebraný materiál tmavě (sytost =
+ * dosažená hloubka / hloubka operace), hotová operace se zeleným okrajem.
+ */
+function drawMachOp(ctx, op, oi, m, P, sc, sel, rotRect) {
+  const done = m.done.has(oi);
+  const dep = i => m.depth.get(`${oi}:${i}`) || 0;
+  const edge = (planned, col) => {
+    ctx.setLineDash(planned ? [4, 3] : []);
+    ctx.strokeStyle = sel ? '#fff' : (done ? COL.done : col); ctx.lineWidth = sel ? 1.6 : 1.2;
+  };
+  if (op.kind === 'mill') {
+    const tr = op.toolD / 2, slot = op.millType === 'slot';
+    (m.sweeps.get(oi) || []).forEach(line => {
+      const span = Math.hypot(line[line.length - 1].x - line[0].x, line[line.length - 1].y - line[0].y);
+      ctx.fillStyle = ctx.strokeStyle = voidFill(1);
+      if (line.length < 2 || (span < 1e-6 && line.every(q => q.x === line[0].x && q.y === line[0].y))) {
+        const [sx, sy] = P(line[0].x, line[0].y);
+        ctx.beginPath(); ctx.arc(sx, sy, Math.max(1.5, tr * sc), 0, 2 * Math.PI); ctx.fill();
+        return;
+      }
+      ctx.setLineDash([]); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(2, op.toolD * sc);
+      ctx.beginPath(); line.forEach((q, i) => { const [sx, sy] = P(q.x, q.y); if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy); }); ctx.stroke();
+    });
+    ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+    if (slot) {
+      const { x1, y1, x2, y2 } = op.slot;
+      capsulePath(ctx, P, x1, y1, x2, y2, tr); edge(!done && !dep(0), COL.mill); ctx.stroke();
+    } else {
+      livePositions(op).forEach((p, i) => {
+        const [sx, sy] = P(p.x, p.y), r = Math.max(2, op.holeD / 2 * sc);
+        ctx.beginPath(); ctx.arc(sx, sy, r, 0, 2 * Math.PI); edge(!dep(i), COL.mill); ctx.stroke();
+        label(ctx, [sx + r + 3, sy - 3], String(i + 1), COL.mill);
+      });
+    }
+  } else if (op.side === 'radial') {
+    const R = op.xTop / 2;
+    livePositions(op).forEach((p, i) => {
+      const d = dep(i);
+      ctx.setLineDash([4, 3]); rotRect(p.a, R - op.depth, R, op.holeD / 2, null, COL.radial); ctx.setLineDash([]);
+      if (d > 0) rotRect(p.a, R - d, R, op.holeD / 2, voidFill(d / op.depth), done ? COL.done : COL.radial);
+      label(ctx, P(...polar(R + 4 + 8 / sc, p.a)), String(i + 1), COL.radial);
+    });
+  } else {
+    livePositions(op).forEach((p, i) => {
+      const d = dep(i), [sx, sy] = P(p.x, p.y), r = Math.max(2, op.holeD / 2 * sc);
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, 2 * Math.PI);
+      if (d > 0) { ctx.fillStyle = voidFill(d / op.depth); ctx.fill(); }
+      edge(!(d > 0), d >= op.depth - 1e-6 ? COL.done : COL.drill); ctx.stroke();
+      label(ctx, [sx + r + 3, sy - 3], String(i + 1), COL.drill);
+    });
+  }
+  ctx.setLineDash([]);
+}
+
+/** Nástroj na své poloze: čelo = kruh Ø nástroje, plášť = vrták z boku. */
+function drawTool(ctx, op, tl, P, sc, rotRect) {
+  const dia = op.kind === 'mill' ? op.toolD : op.holeD;
+  const inCut = tl.d > 1e-6;
+  if (op.kind === 'drill' && op.side === 'radial') {
+    const a = Math.atan2(tl.y, tl.x) * 180 / Math.PI, r = Math.hypot(tl.x, tl.y);
+    rotRect(a, r, r + Math.max(14 / sc, dia * 3), dia / 2, 'rgba(249,226,175,0.45)', COL.tool);
+    return;
+  }
+  const [sx, sy] = P(tl.x, tl.y);
+  ctx.beginPath(); ctx.arc(sx, sy, Math.max(3, dia / 2 * sc), 0, 2 * Math.PI);
+  ctx.setLineDash(inCut ? [] : [3, 3]);
+  ctx.strokeStyle = COL.tool; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]);
+  if (inCut) { ctx.fillStyle = 'rgba(249,226,175,0.35)'; ctx.fill(); }
+}
+
+/** Stav obrábění nahoře vlevo: operace, díra, hloubka, čas. */
+function drawMachStatus(ctx, ops, m) {
+  ctx.font = '11px sans-serif';
+  const time = `${mmss(m.t)} / ${mmss(m.total)}`;
+  if (!m.active) {
+    ctx.fillStyle = COL.done;
+    ctx.fillText(`✔ Obrobeno: ${m.done.size} ${m.done.size >= 1 && m.done.size <= 4 ? 'operace' : 'operací'}  ·  ${mmss(m.total)}`, 8, 16);
+    return;
+  }
+  const op = ops[m.tool.op], n = livePositions(op).length || 1;
+  const what = op.kind === 'mill' ? (op.millType === 'slot' ? 'drážka' : `kapsa ${m.tool.hole + 1}/${n}`) : `díra ${m.tool.hole + 1}/${n}`;
+  const d = Math.max(0, m.tool.d);
+  ctx.fillStyle = COL.tool;
+  ctx.fillText(`${m.paused ? '⏸ ' : ''}${op.name} · ${what} · hloubka ${fmt(d)} / ${fmt(op.depth)} mm`, 8, 16);
+  ctx.fillStyle = COL.text;
+  ctx.fillText(`${time}  ·  T${op.toolNo} ${op.toolName || ''}`.trim(), 8, 30);
+}
+
+function mmss(sec) { const s = Math.max(0, Math.round(sec)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 
 function drawMill(ctx, op, P, sc, sel) {
   ctx.strokeStyle = COL.mill; ctx.fillStyle = 'rgba(203,166,247,0.28)';

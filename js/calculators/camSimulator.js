@@ -64,6 +64,7 @@ import { createGcodeNodes } from './cam/sim/gcodeNodes.js';
 import { createHitTest } from './cam/sim/hitTest.js';
 import { createGuideLines } from './cam/sim/guideLines.js';
 import { drawCanvas } from './cam/sim/drawCanvas.js';
+import { renderCodeMini } from './cam/sim/codeMini.js';
 import { initLiveTools } from './cam/live/livePanel.js';
 
 
@@ -149,7 +150,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       <span class="cam-sim-progress-pct">0%</span>
     </div>
     <div class="cam-sim-player-bar">
-      <button class="cam-sim-code-toggle" data-act="toggle-code" title="Zmenšit G-kód panel na 2 řádky (běžící a následující blok)">▼</button>
+      <button class="cam-sim-code-toggle" data-act="toggle-code" title="Zmenšit G-kód panel na 4 řádky (prošlý, běžící a dva další bloky)">▼</button>
       <button data-act="step-back" title="Krok zpět – předchozí pohyb">⏮</button>
       <button data-act="play" title="Spustit/Pauza">▶</button>
       <button data-act="stop" title="Zastavit a vrátit na začátek">⏹</button>
@@ -161,10 +162,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       </div>
       <button data-act="sbl" title="Single block – krok po blocích G-kódu" style="font-size:11px;font-weight:bold;letter-spacing:0.5px">SBL</button>
     </div>
-    <div class="cam-sim-code-mini">
-      <div class="cam-sim-code-mini-line cam-sim-code-mini-cur" title="Běžící blok"></div>
-      <div class="cam-sim-code-mini-line cam-sim-code-mini-next" title="Následující blok"></div>
-    </div>
+    <div class="cam-sim-code-mini"></div>
     <div class="cam-sim-code-area">
       <div class="cam-sim-code-bar">
         <span style="font-weight:bold">G-CODE</span>
@@ -833,7 +831,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   const codeArea = root.querySelector('.cam-sim-code-area');
   const codeMini = root.querySelector('.cam-sim-code-mini');
   const toggleCodeBtn = root.querySelector('[data-act="toggle-code"]');
-  // Spodní panel G-kódu: 'open' (celý) → 'mini' (2 řádky) → 'closed' → 'open'
+  // Spodní panel G-kódu: 'open' (celý) → 'mini' (4 řádky) → 'closed' → 'open'
   // tlačítkem ▼ (setCodePanelMode).
   let codePanelMode = 'open';
   const timeOverlay = root.querySelector('.cam-sim-time-overlay');
@@ -2347,9 +2345,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       ? null
       : calc.simPath[findLastIdx(calc.simPath, p => p.originalLineIdx != null)].originalLineIdx;
   }
-  // ── Spodní panel G-kódu: ▼ = celý → 2 řádky → skrytý → celý ──
-  // „2 řádky" = jen běžící blok a ten, který bude následovat (přání uživatele
-  // 1. 10. 2026 — hlavně mobil na šířku, kde se celý panel nevejde).
+  // ── Spodní panel G-kódu: ▼ = celý → 4 řádky → skrytý → celý ──
+  // „4 řádky" = prošlý, běžící a dva další bloky (cam/sim/codeMini.js; hlavně
+  // mobil na šířku, kde se celý panel nevejde).
   // Na mobilu (i na šířku = nízký displej) se díl po přepnutí vycentruje;
   // `refit` jen z tlačítka — automatické otevření po kliku na dráhu pohled
   // nemění (uživatel se dívá na místo, kam klikl).
@@ -2358,7 +2356,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     codeArea.style.display = mode === 'open' ? '' : 'none';
     codeMini.classList.toggle('cam-sim-mini-on', mode === 'mini');
     toggleCodeBtn.textContent = mode === 'closed' ? '▲' : '▼';
-    toggleCodeBtn.title = mode === 'open' ? 'Zmenšit G-kód panel na 2 řádky (běžící a následující blok)'
+    toggleCodeBtn.title = mode === 'open' ? 'Zmenšit G-kód panel na 4 řádky (prošlý, běžící a dva další bloky)'
       : mode === 'mini' ? 'Skrýt i řádky G-kódu' : 'Zobrazit G-kód panel';
     toggleCodeBtn.classList.toggle('cam-sim-active', mode !== 'open');
     if (mode === 'mini') updateCodeMini(!S.simRunning && S._gcodeFocusLine != null ? S._gcodeFocusLine : getActiveCodeLineIdx());
@@ -2368,18 +2366,11 @@ export function openCamSimulator(initialContour, initialGCode) {
   function isMobileView() {
     return window.matchMedia('(max-width: 768px), (max-height: 520px)').matches;
   }
-  // Řádky bez pohybu (prázdné, komentáře) se jako „následující" přeskakují.
   let _miniSrc = null, _miniLines = [];
   function updateCodeMini(hlIdx) {
     if (codePanelMode !== 'mini') return;
     if (_miniSrc !== S.manualGCode) { _miniSrc = S.manualGCode; _miniLines = _miniSrc.split('\n'); }
-    const ls = _miniLines;
-    const isBlock = l => { const t = l.trim(); return t !== '' && !/^[;(%]/.test(t); };
-    const cur = hlIdx != null && hlIdx < ls.length ? hlIdx : ls.findIndex(isBlock);
-    let next = -1;
-    if (cur >= 0) for (let i = cur + 1; i < ls.length; i++) if (isBlock(ls[i])) { next = i; break; }
-    codeMini.children[0].textContent = cur >= 0 ? ls[cur] : ' ';
-    codeMini.children[1].textContent = next >= 0 ? ls[next] : ' ';
+    renderCodeMini(codeMini, _miniLines, hlIdx);
   }
 
   function updateCodeHighlight() {
