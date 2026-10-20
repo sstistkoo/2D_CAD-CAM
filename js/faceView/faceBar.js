@@ -208,10 +208,12 @@ export function faceBarGeom(cur, zMin, zMax, w2s = worldToScreen) {
     // Řez v délce přes NEJVĚTŠÍ průměr a mimo jeho Z: s délkou v Z lišta při
     // tažení skákala nahoru a dolů podle průměru (uživatel 20. 10. 2026).
     const cut = faceCutGeom();
+    // Pod osou nic → řez končí kousek pod osou (loMax) a lišta stojí hned pod ní.
     if (cut) {
       const m = cut.spanMax || Math.hypot(cut.b[0] - cut.a[0], cut.b[1] - cut.a[1]) / 2;
+      const lo = Number.isFinite(cut.loMax) ? cut.loMax : -m;
       const at = b ? (cut.isCar ? b.maxY : b.minX) : cut.z;
-      pts.push(cut.isCar ? [-m, at] : [at, -m], cut.isCar ? [m, at] : [at, m]);
+      pts.push(cut.isCar ? [lo, at] : [at, lo], cut.isCar ? [m, at] : [at, m]);
     }
     zAligned = state.machineType !== 'karusel';
   }

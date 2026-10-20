@@ -73,9 +73,13 @@ describe('dotyk: posuvník a značka řezu', () => {
   });
 
   it('v nástroji kreslení se řez chytá jen za konce přesahující díl', () => {
-    const cut = faceCutGeom();   // řez v Z0 od −span do +span, polotovar R50
+    // Kóta pod osou → řez přes obě strany osy, od −span do +span, polotovar R50.
+    state.objects.push({ id: 30, layer: 0, type: 'line', isDimension: true, x1: -50, y1: -20, x2: 0, y2: -20 });
+    drawFaceReference(g, w2s);
+    const cut = faceCutGeom();
     expect(cut.sR).toBe(50);
     const span = cut.b[1];
+    expect(cut.a[1]).toBe(-span);
     const at = r => w2s(cut.z, r);
     // uprostřed dílu (osazení R40): ve Výběru ano, v kreslení ne
     expect(cutHit(cut, w2s, ...at(40), 8, 12)).toBe(true);
@@ -83,6 +87,17 @@ describe('dotyk: posuvník a značka řezu', () => {
     // konec za polotovarem a šipka za koncem: chytí se i v kreslení
     expect(cutHit(cut, w2s, ...at((span + 50) / 2), 8, 12, true)).toBe(true);
     expect(cutHit(cut, w2s, ...at(-span - 5), 8, 12, true)).toBe(true);
+  });
+
+  it('pod osou nic: řez jen nad osou s krátkým přesahem, chytá se za horní konec', () => {
+    const cut = faceCutGeom();
+    const span = cut.b[1];
+    expect(cut.a[1]).toBeCloseTo(-10 / state.zoom);         // 10 px pod osu
+    const at = r => w2s(cut.z, r);
+    expect(cutHit(cut, w2s, ...at(40), 8, 12)).toBe(true);
+    expect(cutHit(cut, w2s, ...at(-40), 8, 12)).toBe(false);   // pod osou už řez není
+    expect(cutHit(cut, w2s, ...at((span + 50) / 2), 8, 12, true)).toBe(true);
+    expect(cutHit(cut, w2s, ...at(0), 8, 12, true)).toBe(false);
   });
 });
 
@@ -105,6 +120,16 @@ describe('lišta čela stojí pevně', () => {
     });
     expect(cuts[0]).toBeGreaterThan(cuts[1]);    // délka řezu se mění s průměrem…
     expect(ys[0]).toBe(ys[1]);                   // …lišta ne
-    expect(ys[0]).toBeGreaterThanOrEqual(cuts[0] + 12);   // pod řezem přes největší průměr
+    // pod osou nic → hned pod osou: přesah řezu 10 px + mezera 12 px
+    expect(ys[0]).toBeCloseTo(10 + 12);
+    // něco pod osou → pod řez přes největší průměr, pořád pevně
+    state.objects.push({ id: 7, layer: 0, type: 'line', x1: -20, y1: -5, x2: -10, y2: -5 });
+    const ys2 = [-25, -75].map(z => {
+      getFaceLayer().faceZ = z;
+      drawFaceReference(g, w2s);
+      return faceBarGeom(getFaceLayer(), -100, 0, w2s).y;
+    });
+    expect(ys2[0]).toBe(ys2[1]);
+    expect(ys2[0]).toBeGreaterThanOrEqual(cuts[0] + 12);
   });
 });

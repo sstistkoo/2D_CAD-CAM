@@ -109,6 +109,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`faceCutGeom().spanMax`). Po tažení řezu myší se spolkne následný klik
   (🎯 výběr z plátna by vzal bod puštění) a řez se nechytá během
   rozmisťované kóty.
+- **CAD: lišta čela hned pod osou, když pod osou nic není.** Značka řezu
+  vedla souměrně i pod osu do prázdna a lišta stála až pod ní. U polovičního
+  profilu (pod osou nic nakresleno) jde řez jen přes kreslenou stranu, pod
+  osu krátký přesah 10 px bez šipky, promítací čáry jen nad osou — lišta stojí
+  22 px pod osou, pořád pevně (nezávisle na Z). S něčím pod osou zůstává řez
+  přes obě strany a lišta pod ním.
 - **CAM: zmenšený panel G-kódu ukazuje 4 řádky místo 2.** ▼ u přehrávače:
   blok, který právě prošel (ztlumeně), běžící blok a dva, které přijdou
   (`cam/sim/codeMini.js`; `camSimulator.js` se tím zmenšil).

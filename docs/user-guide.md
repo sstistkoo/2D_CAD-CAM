@@ -549,7 +549,8 @@ v panelu Vrstvy — objekty se nepřesouvají na Konturu),
 k osazením profilu, a **◀ zprava / ▶ zleva** — odkud se na čelo díváte a
 odkud nástroj přijíždí; šipka ukazuje směr pohledu (podle osazení se strana
 nastaví sama, dokud ji nepřepnete). V nárysu je
-značka řezu s popiskem Z a šipkami ve směru pohledu — **řez lze chytit myší
+značka řezu s popiskem Z a šipkami ve směru pohledu (je-li pod osou prázdno,
+jen nad osou a lišta čela stojí hned pod osou) — **řez lze chytit myší
 nebo prstem a táhnout po profilu** (bokorys zapnutý; ve Výběru kdekoli na
 čáře, v nástrojích kreslení za konce přesahující díl — šipky, popisek Z —
 uvnitř dílu se kreslí; najetí = kurzor ↔ a zvýraznění čáry, u osazení se

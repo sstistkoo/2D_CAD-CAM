@@ -11,6 +11,7 @@ import { state } from '../state.js';
 import { getFaceLayer, profileObjects, faceUiSync } from './faceLayer.js';
 
 const SKIP_TYPES = new Set(['text', 'point', 'fill', 'camNote', 'constr']);
+const STUB_PX = 10;   // přesah značky řezu pod osu, když tam nic není [px]
 
 /** Body objektu ve světových souřadnicích (oblouky vzorkované). */
 export function objectPoints(o) {
@@ -330,10 +331,12 @@ export function cutHit(cut, w2s, sx, sy, tol, pad = 12, endsOnly = false) {
   const t = L2 ? Math.max(0, Math.min(1, ((sx - a2[0]) * dx + (sy - a2[1]) * dy) / L2)) : 0;
   if (Math.hypot(sx - (a2[0] + t * dx), sy - (a2[1] + t * dy)) > tol) return false;
   if (!endsOnly || !(cut.sR > 0)) return true;
-  // Vzdálenost průmětu od osy [mm]: řez jde od −span do +span, osa je uprostřed.
+  // Vzdálenost průmětu od osy [mm]: řez jde od `lo` (a) do `hi` (b); bez nich
+  // souměrně kolem osy.
   const half = Math.hypot(cut.b[0] - cut.a[0], cut.b[1] - cut.a[1]) / 2;
+  const lo = Number.isFinite(cut.lo) ? cut.lo : -half, hi = Number.isFinite(cut.hi) ? cut.hi : half;
   const u = ((sx - a[0]) * ux + (sy - a[1]) * uy) / L;
-  return Math.abs(u - 0.5) * 2 * half >= cut.sR;
+  return Math.abs(lo + u * (hi - lo)) >= cut.sR;
 }
 
 /** Zvýraznit řez (najetí / tažení). Vrací true, když se stav změnil (překreslí volající). */
@@ -516,16 +519,23 @@ function paintFace(g, w2s) {
     // pohledu (čelo zprava = díváme se zprava doleva, k −Z), popisek Z.
     const spanOf = r => r + Math.max(6, r * 0.15);
     const span = spanOf(sR);
-    const [x1, y1] = P(z, -span), [x2, y2] = P(z, span);
-    // spanMax = délka řezu přes největší průměr dílu: lišta čela pod nárysem
-    // se staví podle ní, ne podle průměru v Z — jinak při tažení skákala
+    const spanMax = Math.max(span, spanOf(sRmax));
+    // Pod osou nic nakreslené (běžný poloviční profil): řez jen přes kreslenou
+    // stranu, pod osu jen krátký přesah bez šipky — lišta čela pak stojí hned
+    // pod osou, ne pod prázdným spodkem řezu (uživatel 20. 10. 2026).
+    const pb = profileBounds(prof, true);
+    const below = !pb || (isCar ? pb.minX : pb.minY) < -0.01;
+    const lo = below ? -span : -STUB_PX / (zoom || 1);
+    const [x1, y1] = P(z, lo), [x2, y2] = P(z, span);
+    // spanMax / loMax = řez přes největší průměr dílu: lišta čela pod nárysem
+    // se staví podle něj, ne podle průměru v Z — jinak při tažení skákala
     // nahoru a dolů (uživatel 20. 10. 2026).
-    _cut = { z, isCar, a: [x1, y1], b: [x2, y2], sR, spanMax: Math.max(span, spanOf(sRmax)) };
+    _cut = { z, isCar, a: [x1, y1], b: [x2, y2], sR, lo, hi: span, spanMax, loMax: below ? -spanMax : lo };
     // Najetí / tažení: silnější čára s podkladem, ať je vidět, že jde chytit.
     if (_cutHot) line(x1, y1, x2, y2, 'rgba(250,179,135,0.30)', null, 9);
     line(x1, y1, x2, y2, cut, [10, 3, 2, 3], _cutHot ? 2.4 : 1.5);
     const dir = layer.faceSide === 'left' ? 1 : -1;
-    [span, -span].forEach(r => {
+    (below ? [span, -span] : [span]).forEach(r => {
       const A = w2s(...P(z, r)), B = w2s(...P(z + dir * Math.max(4, span * 0.25), r));
       const dx = B[0] - A[0], dy = B[1] - A[1], Lr = Math.hypot(dx, dy) || 1, ux = dx / Lr, uy = dy / Lr;
       g.strokeStyle = cut; g.fillStyle = cut; g.lineWidth = 1.5; g.setLineDash([]);
@@ -541,7 +551,7 @@ function paintFace(g, w2s) {
     // Promítací čáry od řezu k bokorysu (bokorys na ose vřetena vedle nárysu).
     const proj = 'rgba(137,180,250,0.28)';
     if (!isCar && Math.abs(O.y) < 1e-6) {
-      radii.forEach(r => { line(z, r, O.x, r, proj, [6, 4]); line(z, -r, O.x, -r, proj, [6, 4]); });
+      radii.forEach(r => { line(z, r, O.x, r, proj, [6, 4]); if (below) line(z, -r, O.x, -r, proj, [6, 4]); });
     }
   }
 
