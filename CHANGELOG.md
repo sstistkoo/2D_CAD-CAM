@@ -121,6 +121,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CAM: vrtání děr z výkresu je operace Vrtání — záložka vybere nástroj,
+  jedno 🔄 Dráhy.** Klik na záložku obrábění přepne nástroj své operace:
+  Vrtání → vrták (podle Ø děr z výkresu ze 🔧 Zásobníku; chybějící se doplní
+  z 📚, i Ø mimo katalog), Závit → závitový nůž + závitování, Upich →
+  upichovák, Hrub./Hot. → soustružnický nůž. Jedna část = jedna operace: má-li
+  část program jiné operace, přidá se po potvrzení nová část (jmenuje se
+  podle operace); existující část operace / soustružení se jen přepne, Vyvrt.
+  beze změny (`cam/sim/machTabTool.js`). S vybranými dírami z výkresu je
+  program operace Vrtání blok poháněných nástrojů (`ops/drill.js` →
+  `buildLiveBlock`, díra v ose se nekreslí; otisk CAM shodný) — generuje ho
+  jediné 🔄 Dráhy, ✂ Po úsecích jen u soustružení, blok se už nevkládá jako
+  ruční úprava (zámek 🔒); úprava výběru děr program části přegeneruje.
+  Záložka Vrtání má nahoře *Co vrtat* (díry z výkresu × středová díra v ose),
+  zaškrtávátka skupin s vrtákem a řeznými podmínkami (n z Vc, F = f·n; Q,
+  prodleva, bezp. vzd. z polí záložky) a otevře pohled na čelo, kde skupinu
+  vybere klepnutí na díru (první klepnutí = jen tahle skupina). 🔩 Vyvrtat
+  = záložka Vrtání + ▶ simulace. Moduly `cam/live/liveDrillTools.js`,
+  `liveDrillUi.js`, `liveProgram.js` (jen ruční 📝 / 🗑), testy
+  `drill-from-cad`, `live-drill-tools`, `live-program`.
+- **CAM: poháněný nástroj stojí nahoře, kus se natáčí k němu.** Soustruh:
+  nástroj v revolveru na X+ (nahoře, jako v řezu / nárysu), karusel vpravo,
+  nastavení *Nástroj stojí*; `SPOS` / osa C = posun + směr · (úhel díry −
+  úhel nástroje), TRANSMIT natočený stejně. Simulace natáčí kus osou C (přejezd
+  mezi dírami polárně), v řezu se soustružení ztlumí, díry jsou ve výšce podle
+  natočení a je vidět vrták / fréza na dosažené hloubce; značka C0 i šipka
+  nástroje (CAM i bokorys v CAD) nahoře. Test `cam-live-tools` (poloha
+  nástroje).
 - **CAD: ⇋ Zrcadlit kolem osy jako technologický výkres.** Spodní polovina
   se kreslí čarou originálu (plně, polotovar svou čarou) místo
   poloprůhledné čárkované, hrany a přechody (osazení, sražení, zápich,
@@ -238,6 +265,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM: vrták na Ø, který 📚 katalog nemá (např. 7), se nedal přidat.**
+  Postaví se podle nejbližšího katalogového Ø s přesným Ø díry.
 - **CAD: tlačítko Kr.pole bez výběru nic nedělalo.** Jen hláška „Nejdříve
   vyberte objekt" a nástroj se nezapnul. Teď se zapne (jako Lin.pole) —
   klepnutím na objekt se otevře dialog kruhového pole.

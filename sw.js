@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v571';
+const CACHE_NAME = 'skica-v576';
 const ASSETS = [
   './',
   './index.html',
@@ -53,6 +53,8 @@ const ASSETS = [
   './js/calculators/cam/live/liveCadSync.js',
   './js/calculators/cam/live/liveCut.js',
   './js/calculators/cam/live/liveCutBar.js',
+  './js/calculators/cam/live/liveDrillTools.js',
+  './js/calculators/cam/live/liveDrillUi.js',
   './js/calculators/cam/live/liveFaceNav.js',
   './js/calculators/cam/live/liveFaceView.js',
   './js/calculators/cam/live/liveFromCad.js',
@@ -63,6 +65,7 @@ const ASSETS = [
   './js/calculators/cam/live/liveModel.js',
   './js/calculators/cam/live/liveOpForm.js',
   './js/calculators/cam/live/livePanel.js',
+  './js/calculators/cam/live/liveProgram.js',
   './js/calculators/cam/live/liveSection.js',
   './js/calculators/cam/live/liveSettingsUi.js',
   './js/calculators/cam/live/liveStyles.js',
@@ -147,6 +150,7 @@ const ASSETS = [
   './js/calculators/cam/sim/knives.js',
   './js/calculators/cam/sim/magazineDialog.js',
   './js/calculators/cam/sim/magSlots.js',
+  './js/calculators/cam/sim/machTabTool.js',
   './js/calculators/cam/sim/materials.js',
   './js/calculators/cam/sim/paramChanges.js',
   './js/calculators/cam/sim/paramsEventsGeneral.js',

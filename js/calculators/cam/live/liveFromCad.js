@@ -18,7 +18,7 @@
 import { newLiveOp, normalizeLiveOp } from './liveModel.js';
 
 const KEEP = ['name', 'depth', 'peck', 'dwell', 'safe', 'retract', 'toolD', 'stepDown',
-  'toolName', 'toolNo', 'rpm', 'feed', 'kind', 'millType'];
+  'toolName', 'toolNo', 'rpm', 'feed', 'kind', 'millType', 'enabled', 'autoTool'];
 const r3 = v => +(+v).toFixed(3);
 const norm360 = a => ((a % 360) + 360) % 360;
 

@@ -17,6 +17,12 @@
 // Hloubka se měří od Z čela (`drillZStart`) ve směru vrtání: zprava (výchozí)
 // k −Z, zleva k +Z. „Na plný ⌀" přidá osovou délku špičky (pointLengthZ).
 // Otáčky jsou konstantní (G97): v ose by G96 vyhnal vřeteno na LIMS.
+//
+// DÍRY Z VÝKRESU (uživatel 20. 10. 2026): jsou-li vybrané operace poháněných
+// nástrojů (díry z CAD bokorysu, cam/live/), Vrtání vrtá JE — program je blok
+// poháněných nástrojů (SPOS / osa C, liveGcode.buildLiveBlock) místo díry
+// v ose; díra v ose se nekreslí ani neodebírá. „V ose" (drillSource 'axis')
+// vrátí vrtání středové díry.
 
 import { stockClearances } from '../camMath.js';
 import { buildStockLoopRaw } from '../materialRemoval.js';
@@ -24,6 +30,8 @@ import { getInsert } from '../inserts/index.js';
 import { buildControlTailLines } from '../controlDialect.js';
 import { resolvePointsToAbsolute } from '../contourBuild.js';
 import { polyIntersect } from '../../../geom/geomCore.js';
+import { liveDrillFromCad } from '../live/liveModel.js';
+import { buildLiveBlock } from '../live/liveGcode.js';
 
 const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
 const f3 = (v) => (Math.abs(v) < 5e-4 ? 0 : v).toFixed(3);
@@ -116,7 +124,7 @@ export function drillGeom(prms, { faceZ = null, stockLoop = null } = {}) {
  * @returns {Array<{x:number,z:number}>|null}
  */
 export function drillHoleLoop(prms, g) {
-  if (!g || !g.ok) return null;
+  if (!g || !g.ok || liveDrillFromCad(prms)) return null;   // díry z výkresu: v ose se nevrtá
   const r = g.D / 2, tip = getInsert(prms).pointLengthZ || 0;
   const zCyl = g.zBottom - g.dir * tip;
   return [{ x: 0, z: g.zFace }, { x: r, z: g.zFace }, { x: r, z: zCyl }, { x: 0, z: g.zBottom }];
@@ -136,6 +144,15 @@ function dwellLine(ctrl, sec) {
  */
 export function emitDrill(ctx) {
   const { S, calc, prms, lines, addCmt, addN, note, arcR, flipArc } = ctx;
+  if (liveDrillFromCad(prms)) {
+    // Díry z výkresu: blok poháněných nástrojů (vlastní T, otáčky, polohování
+    // osy C) a konec programu. Blok nese své značky — panel ◎ ho v programu
+    // najde a simulace ho přehraje v pohledu na čelo i v řezu.
+    addCmt('--- VRTANI DER Z VYKRESU (pohaneny nastroj) ---');
+    buildLiveBlock(prms).forEach(text => lines.push({ text, simIdx: null }));
+    buildControlTailLines(prms.controlSystem).forEach(line => addN(line));
+    return lines;
+  }
   let simCounter = 0;
   const stock = buildStockLoopRaw(prms, calc && calc.stockPathSegments);
   const g = drillGeom(prms, { faceZ: drillAutoFaceZ(S), stockLoop: stock });

@@ -8,8 +8,10 @@ import { MATERIALS } from './materials.js';
 import { holderInflateAll } from '../collisionValidator.js';
 import { xBoundOn } from '../rangeX.js';
 import { wireAllAngleCompasses } from '../insertPreview.js';
+import { machTabClick } from './machTabTool.js';
 
-export function attachParamsEventsGeneral({ tabBody, S, renderTab, setMachiningSubTab, applyChange, recalcNow, draw, saveState, gcodeStale, convertGCodeControlSystem, pathInputsKey, fullUpdate, applyParamChange, _polygonForStrategy, toolbar, dropInsertGuides }) {
+export function attachParamsEventsGeneral(ctx) {
+  const { tabBody, S, renderTab, recalcNow, draw, saveState, gcodeStale, convertGCodeControlSystem, pathInputsKey, fullUpdate, applyParamChange, _polygonForStrategy, toolbar, dropInsertGuides, applyChange } = ctx;
   const mcToggleBtn = tabBody.querySelector('[data-act="machine-config-toggle"]');
   if (mcToggleBtn) mcToggleBtn.addEventListener('click', () => {
     S.machineConfigOpen = !S.machineConfigOpen;
@@ -25,9 +27,12 @@ export function attachParamsEventsGeneral({ tabBody, S, renderTab, setMachiningS
     S.machiningConfigOpen = !S.machiningConfigOpen;
     renderTab();
   });
+  // Záložka obrábění vybere i nástroj své operace (machTabTool.js). Panel ◎
+  // (🔩 Vyvrtat) ji volá přes S._machTabClick — cam/live nesmí do cam/sim.
+  S._machTabClick = tab => machTabClick(tab, ctx);
   tabBody.querySelectorAll('[data-machtab]').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (setMachiningSubTab(btn.dataset.machtab)) applyChange();
+      machTabClick(btn.dataset.machtab, ctx).catch(e => { console.error(e); showToast(`⚠ Přepnutí operace selhalo: ${e.message}`, 5000); });
     });
   });
   const flipxParamBtn = tabBody.querySelector('[data-act="flipx-param"]');

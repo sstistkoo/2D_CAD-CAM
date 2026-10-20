@@ -479,9 +479,14 @@ u přiblíženého či posunutého pohledu) ho vycentruje. **🛠 Operace** otev
 v maximalizovaném pohledu — na výšku náhled nahoře a formulář pod ním, na
 šířku vedle sebe; po zavření editoru se pohled zase zmenší.
 
-Zelený zářez **C0** na obvodu kusu ukazuje nulu osy C (podle kalibrace úhlu
-v nastavení; bez kalibrace na +X) a oblouček **+C**, kterým směrem úhel
-roste. Žlutá šipka na +X je místo, kde stojí nástroj. Lišta a ◎ bokorysu
+Poháněný nástroj stojí v revolveru **nahoře (X+, jako v řezu / nárysu)** —
+žlutá šipka „nástroj"; u karuselu vpravo, jinak v nastavení NC výstupu
+*Nástroj stojí*. Při obrábění se k němu **natáčí kus** osou C (díra, na
+které se vrtá, je nahoře pod nástrojem) — nástroj kus neobjíždí. Zelený zářez
+**C0** na obvodu kusu je bod pod nástrojem při C0 (podle kalibrace úhlu;
+bez kalibrace nahoře) a oblouček **+C** ukazuje, kterým směrem úhel roste.
+Úhel v NC = posun + směr · (úhel díry − úhel nástroje), tj. u soustruhu
+`SPOS = úhel díry − 90°`. Lišta a ◎ bokorysu
 z CAD se nad oknem CAM neukazují (ovládaly by výkres pod ním). Díry se
 kreslí i do řezu (sklopené do roviny řezu jako na výkrese, čárkovaně), úběr
 soustružení neovlivní.
@@ -495,9 +500,12 @@ díry a kapsy vybarví jako úběr do dosažené hloubky i se špičkou vrtáku.
 Nahoře vlevo je operace, díra / kapsa, hloubka, čas a nástroj. Čas je
 skutečný (posuv F, rychloposuv stroje, natočení osy C, krokové vrtání,
 prodleva) a běží stejnou rychlostí jako přehrávač soustružení (▼ 1× ▲).
-Když přehrávač CAM **dojede soustružení do konce**, vrtání a frézování
-**plynule naváže** (pohled na čelo se sám otevře a sleduje čelo, na kterém
-se právě vrtá). ⏹ nebo posun přehrávače zpět vrátí díry do neobrobeného
+Kus se přitom **natáčí k nástroji** (přejezd mezi dírami = natočení osy C)
+a v řezu se soustružení ztlumí a je vidět vrták / fréza na dosažené hloubce
+ve výšce díry pod nástrojem. Když přehrávač CAM **dojede program, ve kterém
+je vrtání** (operace Vrtání nebo 📝 blok), vrtání a frézování **plynule
+naváže** (pohled na čelo se sám otevře a sleduje čelo, na kterém se
+právě vrtá). ⏹ nebo posun přehrávače zpět vrátí díry do neobrobeného
 stavu; ⏭ na konec ukáže díl rovnou obrobený.
 
 **Kontrola proti dílu.** Každá operace se porovná se skutečným tvarem dílu
@@ -565,8 +573,9 @@ přichytí, prst chytá do 22 px od čáry, myš do 8 px). Posuvník lišty
 čela jde chytit kdekoli na dráze (myší i prstem), jezdec skočí pod prst. Čelo se při tažení přepočítává průběžně. Kreslí se do aktuálního
 čela: **kružnice = díra** (střed = poloha, Ø kružnice = Ø díry), **úsečka =
 drážka**. Kružnice **čárkovaná nebo čerchovaná** (Typ čáry) je **pomocná** —
-roztečná kružnice, díra se z ní nedělá a do CAM nejde. Šipka u +X a popisek
-C0° ukazují, kde stojí nástroj při SPOS.
+roztečná kružnice, díra se z ní nedělá a do CAM nejde. Žlutá šipka nahoře
+(u karuselu vpravo) ukazuje, kde stojí poháněný nástroj — k němu se díra při
+vrtání natočí osou C; popisky C0° / C90° jsou úhly výkresu.
 
 **Díry na roztečné kružnici.** Nástroj **Kr.pole** v bokorysu: klepněte do
 prázdna (typicky na **střed** — SNAP ho chytí) a **vytáhněte roztečnou
@@ -662,10 +671,14 @@ načtou se zvlášť:
   (3) `SPOS=90` → díl se má otočit tak, aby díra z bokorysu C90° (nahoře)
   přišla k nástroji, jinak zvolte směr −, (4) první díru zkontrolujte v SBL
   s nástrojem mimo řez.
-- **📝 Zapsat do programu** vloží blok mezi komentáře `>>> / <<< POHANENE
-  NASTROJE` před konec programu (M30). Dokud blok v programu je, každá úprava
-  operací ho přepíše sama; po 🔄 Dráhy (přegenerování) ho zapište znovu.
-  **🗑 Z programu** blok odebere. Po přepnutí řídicího systému hlásí stav
+- **🔩 Vyvrtat** (v hlavičce pohledu na čelo i v záložce Vrtání) = totéž
+  jako klik na záložku **Vrtání** (vrták, případně nová operace — viz
+  *Díry z výkresu* níž) a pak ▶ simulace.
+- **📝 Zapsat do programu** (ruční cesta) vloží blok mezi komentáře `>>> /
+  <<< POHANENE NASTROJE` před konec programu soustružení (M30) jako ruční
+  úpravu. Dokud blok v programu je, každá úprava operací ho přepíše sama; po
+  🔄 Dráhy ho zapište znovu. Běžně ho není potřeba — vrtání je samostatná
+  operace Vrtání, kterou generuje 🔄 Dráhy. **🗑 Z programu** blok odebere. Po přepnutí řídicího systému hlásí stav
   bloku „pro jiný systém" — stačí znovu 📝 Zapsat.
 
 Lišta nad G-kódem má na mobilu **dva řádky** (🔄 Dráhy, ✂ Úseky, ➕ Ope.,
@@ -752,7 +765,47 @@ vyvrtávání a vyvrtávání „jen dokončení". Zapnutí závitu, upichu, vrt
 vyvrtávání ostatní cykly vypne (program je vždy jen jeden cyklus) — vrtání
 a vyvrtávání patří do dvou operací za sebou (➕ Operace).
 
-**Vrtání (záložka Vrtání).** Vrtací cyklus v ose (X0) vrtákem — nástroj
+**Záložka obrábění vybere nástroj své operace.** Klik na **Vrtání** přepne
+nástroj na vrták, **Závit** na závitový nůž (a závitování zapne), **Upich** na
+upichovák (kulatý nůž zůstane jen, když upichovák v zásobníku není) a **Hrub. / Hot.** z vrtání,
+závitu či upichu zpět na soustružnický nůž (naposled použitý). Jedna část
+programu = jedna operace: má-li část už program jiné operace (soustružení,
+závit, upich…), Vrtání / Závit / Upich se po potvrzení přidá jako **nová
+část** na konec programu (➕ Operace, jmenuje se podle operace) — dosavadní
+program se nepřepíše. Má-li operace už svou část, klik na záložku se na ni
+jen přepne; Hrub./Hot. v části s vrtáním přepne na část se soustružením.
+V náhledu *Celý program* se nejdřív přepne na část. **Vyvrt.** jen přepne
+záložku (vyvrtávací tyč vybere *Zapnout* v záložce). Dráhy každé části generuje jediné
+**🔄 Dráhy** — „✂ Po úsecích" je vidět jen u soustružení.
+
+**Díry z výkresu (záložka Vrtání nahoře).** Díry nakreslené v CAD do
+bokorysu (nástroj Díra, Kr.pole) se do CAM přenesou samy jako skupiny
+(stejný Ø na roztečné kružnici = jedna skupina). Přepnutím na záložku
+**Vrtání** se otevře ◎ pohled na čelo a nahoře v záložce je **Co vrtat**:
+**Díry z výkresu** (poháněný vrták, kus se natáčí osou C) nebo **Středová
+díra v ose** (revolverový vrták, vřeteno se točí). S dírami z výkresu je
+program části Vrtání **vrtání vybraných děr** (blok poháněných nástrojů,
+SPOS / osa C) — žádné dráhy hrubování ani díra v ose:
+- **Výběr děr:** zaškrtávátko u skupiny, nebo **klepnutí na díru** v pohledu
+  na čelo. Když se vrtá všechno, první klepnutí vybere *jen* tuhle skupinu
+  (např. 6 stejných děr na rozteči), další klepnutí skupiny přidávají /
+  ubírají; **Vybrat vše** vrátí všechny. Nevybrané díry jsou v pohledu
+  ztlumené a nevrtají se (nejsou v kódu ani v simulaci).
+- **Vrták se vybere sám:** ze 🔧 Zásobníku vrták na Ø díry (první v pořadí T),
+  otáčky n = Vc·1000/(π·Ø) a posuv F = f·n z jeho Vc a f; záběr Q, prodleva
+  a bezpečná vzdálenost z polí záložky níž. Chybí-li vrták na Ø díry,
+  **➕ Přidat vrták Ø… z 📚 do Zásobníku** (HSS 118°; Ø, který katalog nemá,
+  např. 7, se postaví podle nejbližšího) — záložka Vrtání ho doplní sama.
+  Co v 🛠 Operace přepíšete ručně (T, nástroj, otáčky, posuv), už se
+  nepředvyplňuje.
+- **Kód:** vygeneruje ho 🔄 Dráhy (po změně výběru děr se program části
+  přegeneruje sám); **🔩 Vyvrtat vybrané** přepne na operaci Vrtání a pustí
+  ▶ simulaci (po dojetí programu se díry vrtají v pohledu na čelo i v řezu).
+- **Skrz materiálem:** díra „skrz" v CAD má výchozí *Hotová kontura* — vrtá
+  jen přes hotový díl (vrtá se po soustružení). Má-li jít i přes polotovar,
+  zvolte u díry v CAD *I polotovar* (operace pak má v názvu „vč. polotovaru").
+
+**Vrtání v ose (záložka Vrtání, pod sekcí děr).** Vrtací cyklus v ose (X0) vrtákem — nástroj
 tvaru **⌀ vrták** (v Nástroj → Tvar destičky i ve 🔧 Zásobníku vedle ⬤ ◼ ▮ ▽).
 Vrták má **⌀**, **vrcholový úhel σ** (HSS 118°, tvrdokov 140°) a **vyložení**
 (od špičky ke sklíčidlu); jeho držák je **pouzdro v ose** za vyložením

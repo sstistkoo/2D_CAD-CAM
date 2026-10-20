@@ -7,13 +7,15 @@
 //  - úprava operací nemění otisk vstupů drah (nepřepočítává soustružení).
 import { describe, it, expect } from 'vitest';
 import { buildLiveBlock } from '../js/calculators/cam/live/liveGcode.js';
-import { newLiveOp, livePositions, millMoves, depthLevels } from '../js/calculators/cam/live/liveModel.js';
+import { newLiveOp, livePositions, millMoves, depthLevels, liveSettings } from '../js/calculators/cam/live/liveModel.js';
 import { insertLiveBlock, removeLiveBlock, findLiveBlock } from '../js/calculators/cam/live/liveMarkers.js';
 import { parseManualGCodeToPath } from '../js/calculators/cam/gcodeParser.js';
 import { pathInputsKey } from '../js/calculators/cam/gcodeSync.js';
 
 const drill = (o = {}) => ({ ...newLiveOp('drill', { faceZ: 0, outerD: 100 }, 1), pcd: 60, count: 3, ...o });
-const prms = (o = {}) => ({ controlSystem: 'sinumerik', mode: 'DIAMON', safeX: 150, safeZ: 5, liveOps: [drill()], ...o });
+// Testy NC výstupu počítají s nástrojem VPRAVO (toolAt 0 — úhel v NC = úhel
+// díry); výchozí poloha nahoře (soustruh, 90°) má vlastní test níž.
+const prms = (o = {}) => ({ controlSystem: 'sinumerik', mode: 'DIAMON', safeX: 150, safeZ: 5, liveOps: [drill()], ...o, live: { toolAt: 0, ...(o.live || {}) } });
 
 describe('model', () => {
   it('rozteč: 3 díry po 120°, poloměr = Ø/2', () => {
@@ -35,6 +37,29 @@ describe('model', () => {
     const op = { ...newLiveOp('mill', null, 1), pattern: 'points', points: '0; 0', holeD: 30, toolD: 10, depth: 4, stepDown: 2 };
     const r = millMoves(op).filter(m => m.k !== 'rapid').map(m => Math.hypot(m.x, m.y));
     expect(Math.max(...r)).toBeCloseTo(10, 6);
+  });
+});
+
+describe('poloha poháněného nástroje (kus se natáčí k nástroji)', () => {
+  it('soustruh: nástroj nahoře (X+) — SPOS = úhel díry − 90°', () => {
+    const P = { controlSystem: 'sinumerik', mode: 'DIAMON', safeX: 150, safeZ: 5, liveOps: [drill()] };
+    expect(liveSettings(P).toolAt).toBe(90);
+    const L = buildLiveBlock(P);
+    // díry 0°, 120°, 240° → 270, 30, 150 (díra na 90° by byla pod nástrojem při C0)
+    expect(L).toContain('SPOS=270');
+    expect(L).toContain('SPOS=30');
+    expect(L).toContain('SPOS=150');
+    expect(L.some(l => /natočí osou C/.test(l))).toBe(true);
+  });
+  it('karusel: nástroj vpravo (0°); nastavení toolAt má přednost', () => {
+    expect(liveSettings({ machineStructure: 'carousel' }).toolAt).toBe(0);
+    expect(liveSettings({ live: { toolAt: 180 } }).toolAt).toBe(180);
+    expect(liveSettings({ live: { toolAt: 45 } }).toolAt).toBe(90);   // jen 0 / 90 / 180 / 270
+  });
+  it('TRANSMIT s nástrojem nahoře: bod pod nástrojem (90°) jde na X+ stroje', () => {
+    const P = { controlSystem: 'sinumerik', mode: 'DIAMON', safeX: 150, safeZ: 5, live: { mode: 'transmit' },
+      liveOps: [drill({ pattern: 'points', points: '90; 30' })] };
+    expect(buildLiveBlock(P).some(l => l.startsWith('G0 X30 Y0'))).toBe(true);
   });
 });
 

@@ -269,6 +269,8 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
     const _thTaper = parseFloat(prms.threadTaperRatio) || 0;
     html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">${_thCuts.length} průchodů (1. záběr ${_thCuts[0].toFixed(3)} mm) + ${Math.max(0, Math.round(parseFloat(prms.threadSpringPasses)) || 0)}× jiskřící · ${_thInfeedTxt}${_thTaper !== 0 ? ` · kužel 1:${Math.abs(_thTaper)} (Δ⌀ ${(Math.abs(Math.abs(parseFloat(prms.threadZEnd) - parseFloat(prms.threadZStart)) / _thTaper)).toFixed(2)} mm)` : ''} · ${_thCmd} ${_thCmd === 'G32' ? 'F' : 'K'}${prms.threadPitch} · G97 konst. otáčky${prms.threadActive ? '' : ' — zapni „Aktivní" pro vygenerování drah'}.</small>`;
   } else if (_machSubTab === 'vrt') {
+    // Díry mimo osu z výkresu (poháněný vrták) — obsah plní cam/live/liveDrillUi.js.
+    html += '<div class="cam-livedrill"></div>';
     // ── Vrtání v ose (ops/drill.js) ──
     const _dg = drillGeom(prms, { faceZ: drillAutoFaceZ(S), stockLoop: buildStockLoopRaw(prms, (S._cachedCalc || {}).stockPathSegments) });
     const _isDrill = prms.toolShape === 'drill';

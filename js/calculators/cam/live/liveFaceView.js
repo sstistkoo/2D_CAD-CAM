@@ -12,8 +12,10 @@
 // Nálezy kontroly proti dílu (liveChecks.js) — díry s chybou červený
 // obrys, s upozorněním žlutý, počet nálezů dole nad popiskem.
 //
-// Souřadnice: x vpravo = +X (C 0°, tam stojí nástroj při SPOS), y nahoru =
-// C 90°. Rozměry ve světových mm, poloměry (ne průměry).
+// Souřadnice výkresu (kus): x vpravo = C 0°, y nahoru = C 90°; rozměry ve
+// světových mm, poloměry (ne průměry). Poháněný nástroj stojí v revolveru na
+// úhlu liveSettings.toolAt (soustruh NAHOŘE = X+ jako v řezu) a při obrábění
+// se k němu natáčí KUS (mach.rot) — nástroj kus neobjíždí.
 import { resolvePointsToAbsolute } from '../contourBuild.js';
 import { livePositions, liveSettings } from './liveModel.js';
 import { faceRadius } from '../../../faceView/faceReference.js';
@@ -78,7 +80,12 @@ export function drawFaceView(canvas, d) {
   const nav = d.nav || { zoom: 1, panX: 0, panY: 0 };
   const sc = (Math.min(w, h) / 2 - 18) / (ext * 1.04) * nav.zoom;
   const cx = w / 2 + nav.panX, cy = h / 2 + nav.panY;
-  const P = (x, y) => [cx + x * sc, cy - y * sc];
+  // Kus se při obrábění natáčí k nástroji (osa C): P = bod kusu, M = stroj.
+  const rot = d.mach && d.mach.active ? (d.mach.rot || 0) : 0;
+  const cr = Math.cos(rot * Math.PI / 180), sr = Math.sin(rot * Math.PI / 180);
+  const P = (x, y) => [cx + (x * cr - y * sr) * sc, cy - (x * sr + y * cr) * sc];
+  const M = (x, y) => [cx + x * sc, cy - y * sc];
+  const set = liveSettings(prms);
   const circle = (r, fill, stroke, lw = 1, dash) => {
     ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.5, r * sc), 0, 2 * Math.PI);
     if (fill) { ctx.fillStyle = fill; ctx.fill(); }
@@ -122,10 +129,8 @@ export function drawFaceView(canvas, d) {
   ctx.beginPath(); ctx.moveTo(...P(-ext, 0)); ctx.lineTo(...P(ext, 0));
   ctx.moveTo(...P(0, -ext)); ctx.lineTo(...P(0, ext)); ctx.stroke(); ctx.setLineDash([]);
   ctx.fillStyle = COL.axis; ctx.font = '11px sans-serif';
-  // Za koncem osy (k okraji plátna) — blíž ke středu vede oblouček +C a
-  // pod osou je popisek C0.
-  const xl = 'X+  0°', xw = ctx.measureText(xl).width;
-  ctx.fillText(xl, Math.min(P(ext, 0)[0] + 4, w - 4 - xw), P(ext, 0)[1] - 8);
+  // Úhly výkresu (točí se s kusem) — za koncem osy, blíž ke středu je C0.
+  ctx.fillText('0°', Math.min(P(ext, 0)[0] + 4, w - 18), P(ext, 0)[1] - 8);
   ctx.fillText('90°', P(0, ext)[0] + 6, P(0, ext)[1] + 12);
 
   // ── operace: plán (průsvitně) nebo obrábění (odebraný materiál) ──
@@ -135,6 +140,8 @@ export function drawFaceView(canvas, d) {
     // Díry do čela jiného než v rovině řezu — ztlumit (víc čel na dílu).
     const other = cut && op.side !== 'radial' && Math.abs(op.zTop - cut.z) > 0.5;
     ctx.globalAlpha = other && !sel ? 0.28 : (d.selected == null || sel ? 1 : 0.55);
+    // Nevybraná skupina (klepnutí na díru / záložka Vrtání) se nevrtá — jen stín.
+    if (op.enabled === false) ctx.globalAlpha = Math.min(ctx.globalAlpha, 0.2);
     if (op.kind !== 'mill' && op.side !== 'radial' && op.pattern === 'pcd') circle(op.pcd / 2, null, 'rgba(250,179,135,0.55)', 1, [3, 3]);
     if (mach) drawMachOp(ctx, op, oi, mach, P, sc, sel, rotRect);
     else if (op.kind === 'mill') drawMill(ctx, op, P, sc, sel);
@@ -159,7 +166,14 @@ export function drawFaceView(canvas, d) {
 
   // ── nula osy C na kusu (nad operacemi, ať ji díra na okraji nezakryje) ──
   const rPart = at && at.outerR > 0 ? at.outerR : (geo.outerR || sR);
-  drawCZero(ctx, cx, cy, Math.min(rPart, sRz) * sc, liveSettings(prms));
+  drawCZero(ctx, cx, cy, Math.min(rPart, sRz) * sc, set, rot);
+
+  // Nápověda k výběru děr (stav obrábění zabírá stejné místo).
+  if (!mach && ops.length) {
+    ctx.fillStyle = COL.text; ctx.font = '11px sans-serif';
+    const off = ops.filter(o => o.enabled === false).length;
+    ctx.fillText(`👆 Klepnutí na díru = vybrat / zrušit skupinu k vrtání${off ? `  ·  vyřazeno ${off}` : ''}`, 8, 16);
+  }
 
   // ── nástroj (SPOS: stojí na +X; při obrábění na aktuální poloze) ──
   if (mach && mach.active && mach.tool && ops[mach.tool.op]) {
@@ -168,9 +182,17 @@ export function drawFaceView(canvas, d) {
   } else if (mach && ops.length) {
     drawMachStatus(ctx, ops, mach);
   } else if (ops.length) {
-    const [sx, sy] = P(Math.min(ext, sR + 12 / sc + 6), 0);
+    // Nástroj v revolveru (toolAt): šipka ke kusu a popisek.
+    const ta = set.toolAt * Math.PI / 180, ux = Math.cos(ta), uy = Math.sin(ta);
+    const [sx, sy] = M(ux * Math.min(ext, sR + 12 / sc + 6), uy * Math.min(ext, sR + 12 / sc + 6));
+    const vx = -uy, vy = ux;   // kolmice (obrazovka má y dolů → znaménka)
     ctx.fillStyle = COL.tool; ctx.beginPath();
-    ctx.moveTo(sx, sy); ctx.lineTo(sx + 12, sy - 6); ctx.lineTo(sx + 12, sy + 6); ctx.closePath(); ctx.fill();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + ux * 12 + vx * 6, sy - uy * 12 - vy * 6);
+    ctx.lineTo(sx + ux * 12 - vx * 6, sy - uy * 12 + vy * 6);
+    ctx.closePath(); ctx.fill();
+    ctx.font = '10px sans-serif';
+    ctx.fillText('nástroj', sx + ux * 16 + (ux >= 0 ? 2 : -38), sy - uy * 16 + 4);
   }
 
   // ── popisek ──
@@ -179,14 +201,49 @@ export function drawFaceView(canvas, d) {
   const how = isCar ? (left ? 'pohled zdola' : 'pohled shora na upínací desku') : (left ? 'pohled od sklíčidla' : 'pohled proti sklíčidlu');
   ctx.fillText(cut ? `Řez Z${fmt(cut.z)} ${left ? '▶ zleva' : '◀ zprava'}  ·  ${how}` : how[0].toUpperCase() + how.slice(1), 8, h - 22);
   const outR = cut ? at.outerR : geo.outerR, inR = cut ? at.innerR : geo.innerR;
-  const nBad = (d.checks || []).reduce((n, c) => n + (c ? c.issues.length : 0), 0);
+  const chkOn = (d.checks || []).filter((c, i) => c && ops[i] && ops[i].enabled !== false);
+  const nBad = chkOn.reduce((n, c) => n + c.issues.length, 0);
   if (nBad) {
-    const err = d.checks.some(c => c && c.sev === 'error');
+    const err = chkOn.some(c => c.sev === 'error');
     ctx.fillStyle = err ? CHK.error : CHK.warn;
     ctx.fillText(`${err ? '⛔' : '⚠'} Kontrola proti dílu: ${nBad} ${nBad === 1 ? 'nález' : (nBad <= 4 ? 'nálezy' : 'nálezů')} – podrobnosti v 🛠 Operace`, 8, h - 36);
     ctx.fillStyle = COL.text;
   }
   ctx.fillText(`Polotovar Ø${fmt(2 * sRz)}${outR > 0 ? `  ·  ${cut ? 'v řezu' : 'obrys'} Ø${fmt(2 * outR)}` : ''}${inR > 0 ? `  ·  vývrt Ø${fmt(2 * inR)}` : ''}`, 8, h - 8);
+  return { sc, cx, cy, rot };
+}
+
+/**
+ * Operace pod bodem (sx, sy) [px plátna] — pro výběr skupiny děr klepnutím.
+ * @param t transformace z drawFaceView ({ sc, cx, cy })
+ * @returns {number} index operace, nebo −1
+ */
+export function faceViewHit(t, ops, sx, sy) {
+  if (!t) return -1;
+  const c = Math.cos((t.rot || 0) * Math.PI / 180), s = Math.sin((t.rot || 0) * Math.PI / 180);
+  const S = (x, y) => [t.cx + (x * c - y * s) * t.sc, t.cy - (x * s + y * c) * t.sc];
+  const near = (x, y, rPx) => { const [px, py] = S(x, y); return Math.hypot(px - sx, py - sy) <= Math.max(rPx, 10); };
+  let best = -1, bestD = Infinity;
+  ops.forEach((op, oi) => {
+    const take = dd => { if (dd < bestD) { bestD = dd; best = oi; } };
+    if (op.kind === 'mill' && op.millType === 'slot') {
+      const { x1, y1, x2, y2 } = op.slot;
+      const [ax, ay] = S(x1, y1), [bx, by] = S(x2, y2), dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+      const u = L2 > 0 ? Math.max(0, Math.min(1, ((sx - ax) * dx + (sy - ay) * dy) / L2)) : 0;
+      const dd = Math.hypot(ax + dx * u - sx, ay + dy * u - sy);
+      if (dd <= Math.max(op.toolD / 2 * t.sc, 10)) take(dd);
+      return;
+    }
+    livePositions(op).forEach(p => {
+      let x = p.x, y = p.y;
+      if (op.side === 'radial') {
+        const r = op.xTop / 2 - op.depth / 2, a = p.a * Math.PI / 180;
+        x = r * Math.cos(a); y = r * Math.sin(a);
+      }
+      if (near(x, y, op.holeD / 2 * t.sc)) { const [px, py] = S(x, y); take(Math.hypot(px - sx, py - sy)); }
+    });
+  });
+  return best;
 }
 
 const CHK = { error: '#f38ba8', warn: '#f9e2af' };
@@ -199,6 +256,7 @@ function drawCheckMarks(ctx, ops, checks, cut, P, sc, rotRect) {
   ctx.save();
   ops.forEach((op, oi) => {
     const c = checks[oi];
+    if (op.enabled === false) return;   // nevrtá se — nález nevadí
     if (!c || !c.marks.size) return;
     const other = cut && op.side !== 'radial' && Math.abs(op.zTop - cut.z) > 0.5;
     ctx.globalAlpha = other ? 0.5 : 1;
@@ -351,12 +409,14 @@ function drawMill(ctx, op, P, sc, sel) {
 /**
  * Značka nuly osy C na obvodu kusu: zářez s popiskem „C0" a oblouček „+C"
  * (kudy úhel osy C roste). Poloha podle kalibrace stroje: úhel v NC =
- * offset + směr · úhel výkresu → C0 leží na úhlu výkresu −směr · offset.
- * Bez kalibrace je to +X — tam, kde při SPOS stojí nástroj.
+ * offset + směr · (úhel výkresu − toolAt) → C0 leží na úhlu výkresu
+ * toolAt − směr · offset. Bez kalibrace tam, kde stojí nástroj (soustruh
+ * nahoře); `rot` = natočení kusu při obrábění.
  */
-function drawCZero(ctx, cx, cy, rPx, set) {
+function drawCZero(ctx, cx, cy, rPx, set, rot = 0) {
   if (!(rPx > 4)) return;
-  const a0 = -set.angleDir * set.angleOffset * Math.PI / 180;
+  // Bod kusu pod nástrojem při C0: úhel v NC = 0 → toolAt − směr · posun.
+  const a0 = (set.toolAt - set.angleDir * set.angleOffset + rot) * Math.PI / 180;
   const dir = set.angleDir;
   const ux = Math.cos(a0), uy = -Math.sin(a0);     // obrazovka: y dolů
   const vx = -uy, vy = ux;

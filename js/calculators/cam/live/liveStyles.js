@@ -114,4 +114,26 @@ export const LIVE_CSS = `
 .cam-live-solo .cam-live-row > .cam-live-pane { flex: 1 1 auto; border: 0; }
 .cam-live-on.cam-live-solo .cam-sim-toolbar { right: 8px; }
 .cam-sim-toolbar button.cam-live-solo-btn { background: #cba6f7; color: #1e1e2e; }
+/* Záložka Vrtání: díry mimo osu z výkresu (liveDrillUi.js). */
+.cam-livedrill-h { font-weight: bold; color: #cdd6f4; font-size: 12px; margin: 4px 0 4px; }
+.cam-livedrill-h small { font-weight: normal; color: #a6adc8; }
+.cam-livedrill-h.axial { margin-top: 10px; padding-top: 6px; border-top: 1px solid #45475a; }
+.cam-livedrill-row {
+  display: flex; gap: 6px; align-items: flex-start; padding: 4px 6px; margin: 3px 0;
+  border: 1px solid #45475a; border-radius: 6px; background: #1e1e2e; cursor: pointer; font-size: 12px; color: #cdd6f4;
+}
+.cam-livedrill-row input { margin-top: 2px; }
+.cam-livedrill-row small { color: #a6adc8; }
+.cam-livedrill-row small.t { color: #f9e2af; }
+.cam-livedrill-row.off { opacity: 0.55; }
+.cam-livedrill-btns { display: flex; gap: 6px; margin: 6px 0 4px; flex-wrap: wrap; }
+.cam-livedrill-btns button { flex: 1 1 auto; font-size: 11px; padding: 5px 6px; }
+.cam-livedrill-note { display: block; color: #a6adc8; font-size: 10.5px; line-height: 1.35; }
+.cam-livedrill-src { display: flex; gap: 4px; margin: 2px 0 6px; }
+.cam-livedrill-src button {
+  flex: 1 1 0; background: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px;
+  padding: 5px 6px; font-size: 11px; cursor: pointer;
+}
+.cam-livedrill-src button.on { background: #89b4fa; color: #1e1e2e; border-color: #89b4fa; }
+.cam-livedrill-src button:disabled { opacity: 0.4; cursor: default; }
 `;

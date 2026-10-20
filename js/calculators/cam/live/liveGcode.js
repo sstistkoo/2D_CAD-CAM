@@ -13,7 +13,7 @@
 // M-kódy osy C a poháněného nástroje jsou strojní — bere se je z nastavení
 // (`liveSettings().m`), výchozí hodnoty jsou jen příklad (viz liveModel.js).
 import { LIVE_BEGIN, LIVE_END } from './liveMarkers.js';
-import { getLiveOps, liveSettings, livePositions, depthLevels, millMoves, liveOpSummary, liveOpProblems, faceOut } from './liveModel.js';
+import { getLiveOps, liveOpOn, liveSettings, livePositions, depthLevels, millMoves, liveOpSummary, liveOpProblems, faceOut } from './liveModel.js';
 
 const f3 = v => String(+(+v).toFixed(3));
 const pad2 = n => String(Math.max(0, Math.round(n))).padStart(2, '0');
@@ -21,10 +21,12 @@ const norm360 = a => ((a % 360) + 360) % 360;
 const safeText = t => String(t).replace(/\(/g, '[').replace(/\)/g, ']').replace(/[;\r\n]/g, ' ');
 
 /**
- * Úhel na stroji z úhlu z výkresu: offset + směr · úhel (kalibrace osy C —
- * nula a smysl otáčení jsou strojní údaje, viz liveSettings).
+ * Úhel na stroji z úhlu z výkresu: offset + směr · (úhel − toolAt) — díra na
+ * úhlu toolAt (u soustruhu nahoře, kde stojí poháněný nástroj) je při C0 pod
+ * nástrojem; kalibrace osy C (nula, smysl otáčení) jsou strojní údaje, viz
+ * liveSettings.
  */
-const angOf = (set, a) => norm360(set.angleOffset + set.angleDir * a);
+const angOf = (set, a) => norm360(set.angleOffset + set.angleDir * (a - set.toolAt));
 /** Totéž pro kartézský bod (TRANSMIT / G12.1): otočení o offset, při směru −1 zrcadlení v Y. */
 function xyOf(set, x, y) {
   const r = Math.hypot(x, y);
@@ -38,7 +40,7 @@ function xyOf(set, x, y) {
  * @returns {string[]} řádky bloku včetně značek; prázdné pole, když nejsou operace
  */
 export function buildLiveBlock(prms) {
-  const ops = getLiveOps(prms);
+  const ops = getLiveOps(prms).filter(liveOpOn);   // nevybrané skupiny děr se nevrtají
   if (!ops.length) return [];
   const ctrl = ['fanuc', 'heidenhain'].includes(prms.controlSystem) ? prms.controlSystem : 'sinumerik';
   const set = liveSettings(prms);
@@ -55,6 +57,7 @@ export function buildLiveBlock(prms) {
   const safe = () => add(`G0 X${prms.safeX} Z${prms.safeZ}`);
 
   add(cmt(`${LIVE_BEGIN} [${ctrl}/${set.mode}] generuje Pohled na čelo, ručně neupravovat`));
+  add(cmt(`Nástroj v revolveru na ${set.toolAt} st. pohledu na čelo – díra se k němu natočí osou C`));
   if (set.angleDir < 0 || Math.abs(set.angleOffset) > 1e-9)
     add(cmt(`Kalibrace úhlu: směr ${set.angleDir < 0 ? '−' : '+'}, nula ${f3(set.angleOffset)} st.`));
   safe();

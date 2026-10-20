@@ -597,10 +597,19 @@ function paintFace(g, w2s) {
   const dimCol = light ? 'rgba(30,102,245,0.9)' : 'rgba(137,180,250,0.95)';
   if (at.outerR > 0) drawDiaDim(g, w2s, O, at.outerR, 45, dimCol, `Ø${fmtMm(2 * at.outerR)}`);
   if (at.innerR > 0) drawDiaDim(g, w2s, O, at.innerR, -45, dimCol, `Ø${fmtMm(2 * at.innerR)}`);
-  // Poloha nástroje při SPOS (+X) a popisky.
-  const [tx, ty] = w2s(O.x + sR, O.y);
+  // Poháněný nástroj v revolveru (jako CAM, cam/live liveSettings.toolAt):
+  // soustruh NAHOŘE (X+ jako v nárysu), karusel vpravo — k němu se díra
+  // natáčí osou C. Šipka míří na kus.
   g.fillStyle = 'rgba(249,226,175,0.9)';
-  g.beginPath(); g.moveTo(tx + 4, ty); g.lineTo(tx + 16, ty - 6); g.lineTo(tx + 16, ty + 6); g.closePath(); g.fill();
+  g.beginPath();
+  if (isCar) {
+    const [tx, ty] = w2s(O.x + sR, O.y);
+    g.moveTo(tx + 4, ty); g.lineTo(tx + 16, ty - 6); g.lineTo(tx + 16, ty + 6);
+  } else {
+    const [tx, ty] = w2s(O.x, O.y + sR);
+    g.moveTo(tx, ty - 4); g.lineTo(tx - 6, ty - 16); g.lineTo(tx + 6, ty - 16);
+  }
+  g.closePath(); g.fill();
   g.font = '11px sans-serif';
   g.fillStyle = edge;
   const [lx, ly] = w2s(O.x - bodyR, O.y + bodyR * 1.08);

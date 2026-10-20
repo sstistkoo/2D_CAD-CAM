@@ -31,9 +31,11 @@ export function settingsHtml(set, ctrl) {
       </div>
       <details class="cam-live-note"><summary>Kalibrace úhlu (nula a směr osy C) – ověřte na stroji</summary>
         <div class="cam-live-grid">
-          <label class="cam-live-f" title="Smysl otáčení: SPOS=90 má dílem otočit tak, aby díra z bokorysu (C90°, nahoře) přišla pod nástroj. Když se otočí opačně, zvolte −."><span>Směr úhlu</span>
+          <label class="cam-live-f" title="Kde stojí poháněný nástroj v revolveru při pohledu na čelo — k němu se díra natáčí osou C. Soustruh: nahoře (X+, jako v řezu / nárysu). Díra na tomhle úhlu je při C0 pod nástrojem."><span>Nástroj stojí</span>
+            <select data-g="toolAt">${[[90, 'nahoře (X+) — 90°'], [0, 'vpravo — 0°'], [270, 'dole — 270°'], [180, 'vlevo — 180°']].map(([v, t]) => `<option value="${v}"${set.toolAt === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+          <label class="cam-live-f" title="Smysl otáčení: díra z bokorysu má po natočení přijít pod nástroj. Když se kus na stroji otočí opačně, zvolte −."><span>Směr úhlu</span>
             <select data-g="angleDir"><option value="1"${set.angleDir > 0 ? ' selected' : ''}>+ (jako v bokorysu)</option><option value="-1"${set.angleDir < 0 ? ' selected' : ''}>− (opačně)</option></select></label>
-          ${nf('angleOffset', 'Posun nuly [°]', set.angleOffset, 'O kolik stupňů je nula osy C stroje posunutá proti C0° v bokorysu (nástroj na +X). Úhel v NC = posun + směr · úhel z bokorysu.')}
+          ${nf('angleOffset', 'Posun nuly [°]', set.angleOffset, 'O kolik stupňů je nula osy C stroje posunutá. Úhel v NC = posun + směr · (úhel díry z bokorysu − úhel nástroje). Bez posunu je při C0 pod nástrojem díra na úhlu nástroje.')}
         </div>
       </details>
       <details class="cam-live-note"><summary>M-kódy stroje (osa C, poháněný nástroj) – ověřte v příručce stroje</summary>
@@ -57,7 +59,7 @@ export function settingsHtml(set, ctrl) {
 /**
  * Zapíše změnu nastavení výstupu do kopie `live`.
  * @param live kopie S.params.live (mění se)
- * @param g    klíč z data-g (mode, cycles, spindle, cName, angleDir, angleOffset, m.<klíč>)
+ * @param g    klíč z data-g (mode, cycles, spindle, cName, toolAt, angleDir, angleOffset, m.<klíč>)
  * @param el   změněný prvek formuláře
  * @param ctrl řídicí systém
  * @param evalNum vyhodnocení čísla (safeEvalMath) → NaN když neplatné
@@ -68,6 +70,7 @@ export function applySettingChange(live, g, el, ctrl, evalNum) {
   else if (g === 'cycles') live.cycles = el.checked;
   else if (g === 'cName') live.cName = el.value.trim();
   else if (g === 'angleDir') live.angleDir = Number(el.value) < 0 ? -1 : 1;
+  else if (g === 'toolAt') live.toolAt = Number(el.value);
   else if (g === 'spindle' || g === 'angleOffset') {
     const v = evalNum(el.value);
     if (!Number.isFinite(v)) return false;

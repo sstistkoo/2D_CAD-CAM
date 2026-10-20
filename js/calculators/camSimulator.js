@@ -1189,12 +1189,12 @@ export function openCamSimulator(initialContour, initialGCode) {
 
   // „➕ Operace" — uzavře aktuální dráhy jako hotovou část, spočítá obrobený
   // polotovar a připraví prázdnou další část nad ním (stejná kontura).
-  async function handleAddOperation() {
+  async function handleAddOperation(opts = {}) {   // opts.noConfirm: potvrdil už volající (záložka Vrtání / Závit / Upich)
     if (S.opView !== 'part') { setOpView('part'); }
     // Nová část se zakládá vždy na KONCI řetězu (polotovar se odvozuje
     // z části, na které stojíme) — u starší části by přepsala následující.
     if (partsActive() && S.activePart !== S.opParts.length - 1) {
-      const ok = await camConfirm('Nová část se přidá až za poslední část programu. Pokračovat?');
+      const ok = opts.noConfirm === true || await camConfirm('Nová část se přidá až za poslední část programu. Pokračovat?');
       if (!ok) return;
       switchToPart(S.opParts.length - 1);
     }
@@ -1202,7 +1202,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       alert('Poslední část nemá žádné dráhy — nejdřív je vygenerujte tlačítkem „🔄 Dráhy".');
       return;
     }
-    const ok = await camConfirm(
+    const ok = opts.noConfirm === true || await camConfirm(
       'Uzavřít aktuální dráhy jako hotovou část programu a začít novou operaci?\n\n' +
       'Dráhy zmizí z plátna a zůstane kontura + polotovar obrobený předchozími ' +
       'částmi. Pak si nastavte nůž, parametry i rozsah a klikněte na „🔄 Dráhy".');
@@ -2258,7 +2258,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Vidět jsou jen tlačítka, která teď opravdu jdou použít — pravidla v cam/genButtons.js.
   function updateGenButtons() {
     const h = genButtonsHidden({ hasParts: partsActive(), allView: S.opView === 'all',
-      fromSections: partsActive() && !!S.opParts[0].baseLimits, face: roughingKey() === 'face',
+      fromSections: partsActive() && !!S.opParts[0].baseLimits, face: roughingKey() === 'face', op: S.machiningSubTab, tool: S.params.toolShape,
       sectionsOk: !sectionSteps(S._cachedCalc).error });
     refreshBtn.hidden = h.refresh; sectionBtn.hidden = h.section; resetPartsBtn.hidden = h.reset;
   }
@@ -2603,7 +2603,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   function attachParamsEvents() {
     // → cam/sim/paramsEventsGeneral.js + paramsEventsMachining.js
     const ctx = {
-      tabBody, S, renderTab, setMachiningSubTab, applyChange, recalcNow, draw, saveState, gcodeStale, convertGCodeControlSystem, pathInputsKey, fullUpdate, applyParamChange, _polygonForStrategy, toolbar, dropInsertGuides, applyShapeChange, applyTipMirrorToggle, canvas, showMagazineDialog, showThreadPickerDialog, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, partsActive, _isoDefaultMagSlots, markGCodeGenerated,
+      tabBody, S, renderTab, setMachiningSubTab, applyChange, recalcNow, draw, saveState, gcodeStale, convertGCodeControlSystem, pathInputsKey, fullUpdate, applyParamChange, _polygonForStrategy, toolbar, dropInsertGuides, applyShapeChange, applyTipMirrorToggle, canvas, showMagazineDialog, showThreadPickerDialog, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, partsActive, _isoDefaultMagSlots, markGCodeGenerated, _applyMagSlot, handleAddOperation, _isoMagSlot,
     };
     attachParamsEventsGeneral(ctx);
     attachParamsEventsMachining(ctx);
@@ -5360,7 +5360,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     else draw();
   });
   resizeObs.observe(canvasWrap);
-  initLiveTools({ S, root, canvasWrap, toolbar, draw, pushHistory, saveState });   // ◎ pohled na čelo, poháněné nástroje
+  initLiveTools({ S, root, canvasWrap, toolbar, draw, pushHistory, saveState, isoMagSlot: _isoMagSlot, applyChange });   // ◎ pohled na čelo, poháněné nástroje (+ vrták z 📚 do zásobníku)
 
   // ── CLEANUP on overlay removal ──
   const cleanupObs = new MutationObserver((_, obs) => {

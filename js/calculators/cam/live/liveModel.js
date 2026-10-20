@@ -35,8 +35,11 @@ export const LIVE_MCODE_DEFAULTS = {
  * Nastavení výstupu (`S.params.live`):
  *   mode, cycles; spindle = číslo vřetena poháněného nástroje (Sinumerik),
  *   cName = jméno osy C v programu (C, C1, C2…), angleDir (+1 / −1) a
- *   angleOffset [°] = kalibrace úhlu stroje: úhel v NC = offset + směr · úhel
- *   z výkresu; m = přepsané M-kódy podle řídicího systému.
+ *   angleOffset [°] = kalibrace úhlu stroje: úhel v NC = offset + směr ·
+ *   (úhel z výkresu − toolAt); toolAt [°] = kde v pohledu na čelo stojí
+ *   poháněný nástroj (k němu se díra natáčí): soustruh NAHOŘE (90°, X+ jako
+ *   v nárysu / řezu — revolver nad osou, uživatel 20. 10. 2026), karusel
+ *   vpravo (0°); m = přepsané M-kódy podle řídicího systému.
  */
 export function liveSettings(prms) {
   const ctrl = prms.controlSystem || 'sinumerik';
@@ -54,11 +57,14 @@ export function liveSettings(prms) {
     cName: String(s.cName || 'C').replace(/[^A-Za-z0-9_]/g, '').slice(0, 6) || 'C',
     angleDir: Number(s.angleDir) < 0 ? -1 : 1,
     angleOffset: num(s.angleOffset, 0),
+    toolAt: TOOL_AT.includes(Number(s.toolAt)) ? Number(s.toolAt) : (prms.machineStructure === 'carousel' ? 0 : 90),
     m: { ...base, ...over },
   };
 }
 
 const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+/** Možné polohy poháněného nástroje v pohledu na čelo [°]. */
+export const TOOL_AT = [90, 0, 270, 180];
 
 /** Nová operace s rozumnými výchozími hodnotami podle dílu. */
 export function newLiveOp(kind, geo, n) {
@@ -105,6 +111,21 @@ export function normalizeLiveOp(op) {
   for (const k of ['x1', 'y1', 'x2', 'y2']) o.slot[k] = num(o.slot[k], 0);
   if (o.kind === 'mill') o.side = 'face';   // frézování pláště (TRACYL) zatím není
   return o;
+}
+
+/**
+ * Vrtá se tahle operace? Výběr děr (klepnutí v pohledu na čelo, zaškrtávátko
+ * v záložce Vrtání) vypíná celé skupiny — `enabled: false`; chybí = ano.
+ */
+export const liveOpOn = op => !!op && op.enabled !== false;
+
+/**
+ * Vrtá operace Vrtání (záložka, nástroj vrták) DÍRY Z VÝKRESU poháněným
+ * nástrojem místo díry v ose? Ano, když jsou vybrané operace poháněných
+ * nástrojů a uživatel nepřepnul na „V ose" (`drillSource: 'axis'`).
+ */
+export function liveDrillFromCad(prms) {
+  return !!prms && prms.drillSource !== 'axis' && getLiveOps(prms).some(liveOpOn);
 }
 
 export function getLiveOps(prms) {

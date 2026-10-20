@@ -13,24 +13,26 @@
 // Editor operací potřebuje místo — otevře se v maximalizovaném pohledu
 // (náhled nahoře / vlevo, formulář pod ním / vpravo) a po zavření se vrátí.
 //
-// Program: „📝 Zapsat do programu" vloží blok mezi značky (liveMarkers.js)
-// před konec programu; je-li blok už v programu, každá další úprava operací
-// ho přepíše sama. Zápis jde přes textarea programu (událost input) — stejná
-// cesta jako ruční úprava, takže platí ochrana ručních zásahů, uložení i ↩.
+// Vrtání děr z výkresu je operace Vrtání (ops/drill.js generuje blok do
+// programu své části, cam/sim/machTabTool.js přepne nástroj a část);
+// 🔩 Vyvrtat = záložka Vrtání + ▶ simulace (liveDrillUi.js). Úpravy operací
+// v části s Vrtáním program přegenerují. Ruční cesta (liveProgram.js):
+// „📝 Zapsat do programu" vloží blok mezi značky před konec programu
+// soustružení; je-li tam, každá další úprava operací ho přepíše sama.
 //
 // camSimulator.js volá jen initLiveTools() a drawCanvas.js liveAfterDraw().
 import { showToast } from '../../../state.js';
 import { safeEvalMath } from '../../../utils.js';
 import {
-  liveSettings, newLiveOp, normalizeLiveOp, getLiveOps,
+  liveSettings, newLiveOp, normalizeLiveOp, getLiveOps, liveOpOn,
 } from './liveModel.js';
-import { buildLiveBlock } from './liveGcode.js';
-import { insertLiveBlock, removeLiveBlock, findLiveBlock, liveBlockTag } from './liveMarkers.js';
-import { drawFaceView, livePartGeometry } from './liveFaceView.js';
+import { drawFaceView, livePartGeometry, faceViewHit } from './liveFaceView.js';
 import { drawLiveSectionLayer } from './liveSection.js';
 import { LIVE_CSS } from './liveStyles.js';
 import { liveOpsFromCad } from './liveFromCad.js';
 import { cadSyncOps } from './liveCadSync.js';
+import { createLiveProgram } from './liveProgram.js';
+import { createDrillUi } from './liveDrillUi.js';
 import { settingsHtml, applySettingChange } from './liveSettingsUi.js';
 import { faceDrawingsForCam } from '../../../faceView/faceDepth.js';
 import { liveProfile, liveCutAt, autoSide, drawCutMark } from './liveCut.js';
@@ -54,12 +56,17 @@ const TITLES = {
 export function liveAfterDraw(f) {
   const c = CTRL.get(f.S);
   if (c) c.sync();
-  drawLiveSectionLayer(f, c ? c.mach() : null);
+  const mach = c ? c.mach() : null;
+  // Při vrtání a frézování soustružení (dráhy, nůž) ztlumit — vidět je vrták.
+  if (mach && mach.active) { f.ctx.save(); f.ctx.fillStyle = 'rgba(30,30,46,0.6)'; f.ctx.fillRect(0, 0, f.w, f.h); f.ctx.restore(); }
+  drawLiveSectionLayer(f, mach);
   if (c) { c.mark(f); c.redraw(); }
 }
 
 /**
- * @param deps { S, root, canvasWrap, toolbar, draw, pushHistory, saveState }
+ * @param deps { S, root, canvasWrap, toolbar, draw, pushHistory, saveState,
+ *               isoMagSlot(rec, T) — slot zásobníku ze záznamu 📚 (vrták na Ø díry),
+ *               applyChange(opts) — přegenerovat program (operace Vrtání děr z výkresu) }
  */
 export function initLiveTools(deps) {
   const { S, root, canvasWrap, toolbar } = deps;
@@ -86,7 +93,8 @@ export function initLiveTools(deps) {
     <div class="cam-live-head">
       <span class="cam-live-title">◎ <span class="cam-live-long">Pohled na </span>čelo</span>
       <button data-live="play" title="Obrábění vrtáním a frézováním: ▶ spustit / ⏸ pozastavit (rychlost jako přehrávač CAM; po soustružení se spustí samo)">▶</button>
-      <button data-live="editor" title="Operace poháněnými nástroji: vrtání do čela a pláště, frézování kapes a drážek, NC výstup">🛠 Operace</button>
+      <button data-live="drill" title="Vyvrtat: operace Vrtání s vrtákem podle děr z výkresu (je-li v části soustružení, jako nová část programu) a ▶ simulace">🔩 Vyvrtat</button>
+      <button data-live="editor" title="Operace poháněnými nástroji: vrtání do čela a pláště, frézování kapes a drážek, NC výstup">🛠<span class="cam-live-long"> Operace</span></button>
       <button data-live="bar" title="Lišta řezu (rovina Z posuvníkem, strana pohledu) — ukázat / schovat">Z↔</button>
       <button data-live="max" title="Maximalizovat pohled přes celé okno">⤢</button>
       <button data-live="close" title="Zavřít pohled na čelo">✕</button>
@@ -123,7 +131,11 @@ export function initLiveTools(deps) {
   });
   ro.observe(cvWrap);
   // Zoom kolečkem / dvěma prsty a posun tažením jako v nárysu.
-  const nav = attachFaceNav(cv, st.nav, () => redraw(true));
+  // Klepnutí na díru vybere / zruší její skupinu k vrtání (liveDrillUi.js).
+  const nav = attachFaceNav(cv, st.nav, () => redraw(true), (x, y) => {
+    const oi = faceViewHit(st.view, getLiveOps(S.params), x, y);
+    if (oi >= 0) drillUi.toggle(oi);
+  });
   const fitBtn = pane.querySelector('[data-live="fit"]');
   // Lišta plátna se zalamuje (»«, mobil) — v režimu jen čelo pod ní posunout
   // hlavičku. Široký panel (maximalizovaný na desktopu) dá editor vedle náhledu.
@@ -240,7 +252,7 @@ export function initLiveTools(deps) {
     st.key = k;
     const ops = getLiveOps(S.params);
     const c = cutState();
-    drawFaceView(cv, {
+    st.view = drawFaceView(cv, {
       prms: S.params, geo: livePartGeometry(S), ops,
       selected: st.editor && ops.length ? st.selected : null,
       mach, cut: c ? cutView(c) : null, nav: st.nav, checks: checkLiveOps(profile(), ops),
@@ -286,7 +298,7 @@ export function initLiveTools(deps) {
     if (player.active) {
       k = `p${player.serial}:${player.t}:${player.running}`;
       make = () => ({ ...player.state(), paused: !player.running && !player.finished });
-    } else if (st.turnDone && getLiveOps(S.params).length) {
+    } else if (st.turnDone && getLiveOps(S.params).some(liveOpOn) && prog.has()) {
       k = `d${JSON.stringify(S.params.liveOps)}:${S.params.rapidFeed}`;
       make = () => { const tl = buildLiveTimeline(getLiveOps(S.params), S.params); return liveStateAt(tl, tl.total); };
     } else { machMemo = { k: 'plan', v: null }; return null; }
@@ -295,19 +307,39 @@ export function initLiveTools(deps) {
   }
   // Přehrávač CAM: soustružení dojelo přehráváním → plynule navázat vrtáním
   // a frézováním (pohled se otevře); posun zpět → díry zase neobrobené.
+  // Navázat jen tehdy, když přehrávaný PROGRAM vrtání obsahuje (blok
+  // poháněných nástrojů — operace Vrtání děr z výkresu nebo 📝 Zapsat).
   function sync() {
+    if (deps.applyChange && prog.stale()) requestAnimationFrame(() => deps.applyChange({ cycle: true }));
     const done = (S.simProgress || 0) >= 1 - 1e-9;
     if (done !== st.turnDone) {
       st.turnDone = done;
       if (!done) { if (player.active) stopAnim(); }
-      else if (st.wasRunning && getLiveOps(S.params).length) requestAnimationFrame(autoStart);
+      else if ((st.wasRunning || st.playArmed) && prog.has() && getLiveOps(S.params).some(liveOpOn)) requestAnimationFrame(autoStart);
+      if (done) st.playArmed = false;
     }
     st.wasRunning = !!S.simRunning;
   }
   function autoStart() {
     if (!document.body.contains(pane) || !st.turnDone) return;
     if (!st.open) setMode('both');
-    if (player.start()) showToast('Soustružení hotovo — pokračuje vrtání a frézování (◎ pohled na čelo)', 3000);
+    const drillOnly = S.params.drillActive;
+    if (player.start()) showToast(drillOnly ? 'Vrtání děr z výkresu — kus se natáčí k nástroji (◎ pohled na čelo)' : 'Soustružení hotovo — pokračuje vrtání a frézování (◎ pohled na čelo)', 3000);
+  }
+  // ▶ v přehrávači (zachytit dřív než simulátor): rozjíždí se program — po
+  // jeho konci navázat obráběním, i když je to krátký program jen s vrtáním.
+  const simBar = root.querySelector('.cam-sim-player-bar');
+  if (simBar) simBar.addEventListener('click', e => {
+    const a = e.target.closest('[data-act]');
+    if (!a) return;
+    if (a.dataset.act === 'play' && !S.simRunning) { st.playArmed = true; st.turnDone = false; }
+    else if (a.dataset.act === 'stop') st.playArmed = false;
+  }, true);
+  /** ▶ simulace programu (🔩 Vyvrtat). */
+  function playProgram() {
+    if (S.simRunning) return;
+    const b = simBar && simBar.querySelector('[data-act="play"]');
+    if (b) setTimeout(() => b.click(), 60);   // po přegenerování
   }
   playBtn.addEventListener('click', () => {
     if (player.running) player.pause();
@@ -317,41 +349,8 @@ export function initLiveTools(deps) {
     redraw(true); queueDraw();
   });
 
-  // ── program: blok mezi značkami ──
-  function programText() { return String(S.manualGCode || ''); }
-  function programBlockState() {
-    const lines = programText().replace(/\r\n/g, '\n').split('\n');
-    const b = findLiveBlock(lines);
-    if (!b) return { cls: '', text: 'Blok poháněných nástrojů zatím není v programu.' };
-    const tag = liveBlockTag(lines);
-    const want = buildLiveBlock(S.params);
-    const same = want.join('\n') === lines.slice(b.start, b.end + 1).join('\n');
-    if (same) return { cls: 'ok', text: '✔ Blok je v programu a odpovídá operacím (úpravy se do něj zapisují samy).' };
-    const set = liveSettings(S.params);
-    if (tag && (tag.ctrl !== (S.params.controlSystem || 'sinumerik') || tag.mode !== set.mode))
-      return { cls: 'warn', text: `⚠ Blok v programu je pro ${tag.ctrl}/${tag.mode} — klikněte na 📝 Zapsat.` };
-    return { cls: 'warn', text: '⚠ Blok v programu neodpovídá operacím — klikněte na 📝 Zapsat.' };
-  }
-  function writeBlock(withHistory) {
-    const ta = root.querySelector('.cam-sim-manual-ta');
-    if (!ta) return false;
-    if (ta.readOnly) { showToast('Celý program je jen náhled — přepněte na část programu (poslední operaci)'); return false; }
-    // Části programu (➕ Operace / Po úsecích): blok patří na KONEC celku. V jiné
-    // než poslední části by po něm další soustružení jelo se zastaveným
-    // vřetenem, posuvem mm/min a poháněným nástrojem v revolveru.
-    if (S.opParts && S.opParts.length > 1 && S.activePart !== S.opParts.length - 1) {
-      showToast('Blok poháněných nástrojů patří do POSLEDNÍ části programu — přepněte na ni', 4000);
-      return false;
-    }
-    const block = buildLiveBlock(S.params);
-    const code = ta.value;
-    const next = block.length ? insertLiveBlock(code, block) : removeLiveBlock(code);
-    if (next === code) return false;
-    if (withHistory) deps.pushHistory();
-    ta.value = next;
-    ta.dispatchEvent(new Event('input'));
-    return true;
-  }
+  // ── program: blok mezi značkami (liveProgram.js) ──
+  const prog = createLiveProgram({ S, root, pushHistory: deps.pushHistory, saveState: deps.saveState, toast: showToast });
 
   // ── úpravy operací ──
   function commit(mutate) {
@@ -359,13 +358,25 @@ export function initLiveTools(deps) {
     deps.pushHistory();
     mutate(S.params);
     deps.saveState();
-    // Blok už v programu je → přepsat ho (bez další položky historie).
-    if (findLiveBlock(programText().split('\n'))) writeBlock(false);
+    // Operace Vrtání (díry z výkresu) → přegenerovat program; blok vložený
+    // ručně (📝 Zapsat) do soustružení → přepsat ho (bez položky historie).
+    // V náhledu „Celý program" nic — přegeneroval by se jeden program z panelu
+    // místo složených částí; část s Vrtáním se srovná sama (prog.stale), až
+    // na ni uživatel přepne.
+    if (S.opView === 'all') { /* jen náhled celku */ }
+    else if (S.params.drillActive && deps.applyChange) deps.applyChange({ cycle: true });
+    else if (prog.has()) prog.write(false, true);   // bez hlášek (jiná než poslední část)
     deps.draw();
     renderEditor();
     redraw(true);
   }
   function opsCopy() { return getLiveOps(S.params).map(o => JSON.parse(JSON.stringify(o))); }
+  // Výběr děr k vrtání a sekce v záložce Vrtání (liveDrillUi.js).
+  const drillUi = createDrillUi({
+    S, root, toast: showToast, commit, saveState: deps.saveState, isoMagSlot: deps.isoMagSlot,
+    openView: () => { if (!st.open) setMode('both'); },
+    play: () => { renderEditor(); if (!st.open) setMode('both'); playProgram(); },
+  });
 
   pane.addEventListener('click', e => {
     const b = e.target.closest('[data-live]');
@@ -400,18 +411,14 @@ export function initLiveTools(deps) {
       st.selected = res.ops.length - 1;
       commit(p => { p.liveOps = res.ops; });
       showToast(`Z CAD: ${res.holes} děr, ${res.slots} drážek${res.skipped ? ` (přeskočeno ${res.skipped} jiných objektů)` : ''} — doplňte hloubku a nástroj`, 5000);
-    } else if (act === 'write') {
+    } else if (act === 'drill') drillUi.drillAll();
+    else if (act === 'write') {
       if (!getLiveOps(S.params).length) { showToast('Nejdřív přidejte operaci'); return; }
-      if (writeBlock(true)) showToast('Blok poháněných nástrojů zapsán do programu (před konec programu)');
-      else showToast('Blok v programu už je aktuální');
+      if (prog.write(true)) showToast('Blok poháněných nástrojů zapsán do programu (před konec programu)');
+      else if (prog.has()) showToast('Blok v programu už je aktuální');
       renderEditor();
     } else if (act === 'unwrite') {
-      const ta = root.querySelector('.cam-sim-manual-ta');
-      if (!ta || ta.readOnly) return;
-      const next = removeLiveBlock(ta.value);
-      if (next === ta.value) { showToast('Blok v programu není'); return; }
-      deps.pushHistory(); ta.value = next; ta.dispatchEvent(new Event('input'));
-      showToast('Blok poháněných nástrojů odebrán z programu');
+      showToast(prog.unwrite() ? 'Blok poháněných nástrojů odebrán z programu' : 'Blok v programu není');
       renderEditor();
     } else if (act === 'sel' && oi >= 0) {
       st.selected = st.selected === oi ? -1 : oi; renderEditor(); redraw(true);
@@ -451,6 +458,7 @@ export function initLiveTools(deps) {
     }
     const ops = opsCopy();
     if (k.startsWith('slot.')) ops[oi].slot[k.slice(5)] = v;
+    else if (['toolNo', 'toolName', 'rpm', 'feed'].includes(k)) { ops[oi][k] = v; ops[oi].autoTool = false; }   // ručně → vrták se už nedoplňuje
     else ops[oi][k] = v;
     ops[oi] = normalizeLiveOp(ops[oi]);
     commit(p => { p.liveOps = ops; });
@@ -462,14 +470,14 @@ export function initLiveTools(deps) {
     const ops = getLiveOps(S.params);
     const set = liveSettings(S.params);
     const ctrl = S.params.controlSystem || 'sinumerik';
-    const bs = programBlockState();
+    const bs = prog.blockState();
     let h = settingsHtml(set, ctrl) + `
       <div class="cam-live-btns">
         <button data-live="add-drill">➕ Vrtání</button>
         <button data-live="add-mill">➕ Frézování</button>
         <button data-live="from-cad" title="Načíst díry (kružnice) a drážky (úsečky) nakreslené v CAD v pohledu ◎ Čelo. Nahradí dřív načtené z CAD, ručně přidané operace zůstanou.">📥 Z CAD</button>
         <button data-live="write" title="Vloží blok poháněných nástrojů do programu před jeho konec (M30), nebo přepíše ten, který už tam je">📝 Zapsat do programu</button>
-        <button data-live="unwrite" title="Odebere blok poháněných nástrojů z programu">🗑 Z programu</button>
+        <button data-live="unwrite" title="Odebere ručně zapsaný blok poháněných nástrojů z programu">🗑 Z programu</button>
       </div>
       <div class="cam-live-status ${bs.cls}">${bs.text}</div>`;
     if (!ops.length) h += '<div class="cam-live-note">Zatím žádné operace. Přidejte vrtání nebo frézování.</div>';
@@ -485,7 +493,9 @@ export function initLiveTools(deps) {
   if (fromCad) {
     S.params.liveOps = fromCad.ops;
     deps.saveState();
-    if (findLiveBlock(programText().split('\n'))) writeBlock(false);
+    // Operace Vrtání děr z výkresu → přegenerovat (až po sestavení okna).
+    if (S.params.drillActive && S.opView !== 'all' && deps.applyChange) setTimeout(() => deps.applyChange({ cycle: true }), 0);
+    else if (prog.has()) prog.write(false, true);
     showToast(`Z CAD přeneseno: ${fromCad.holes} děr, ${fromCad.slots} drážek → ◎ Pohled na čelo, 🛠 Operace (doplňte nástroj)`, 6000);
   }
   try {

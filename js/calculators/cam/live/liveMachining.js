@@ -8,7 +8,13 @@
 // (createLivePlayer) posouvá čas × rychlost přehrávače simulátoru (1×, 2×…);
 // spouští ho ▶ v pohledu na čelo i konec soustružení (livePanel.js).
 // Kreslí liveFaceView.js (bokorys) a liveSection.js (řez).
-import { livePositions, millMoves, depthLevels, faceOut } from './liveModel.js';
+//
+// Nástroj NEOBJÍŽDÍ kus jako nůž (uživatel 20. 10. 2026): poháněný nástroj
+// stojí v revolveru (liveSettings.toolAt — u soustruhu nahoře, X+) a kus se
+// k němu natáčí osou C. Stav proto nese `rot` = natočení kusu [°] tak, aby
+// bod pod nástrojem ležel na úhlu toolAt; přejezd mezi dírami je natočení C
+// (polární interpolace), ne přímka napříč čelem.
+import { livePositions, millMoves, depthLevels, faceOut, liveSettings } from './liveModel.js';
 import { rapidFeedMmMin } from '../feedRates.js';
 
 const C_POS_SEC = 0.4;        // natočení osy C / přejezd mezi dírami (orientačně)
@@ -37,6 +43,8 @@ export function buildLiveTimeline(ops, prms) {
   const dwell = sec => { if (sec > 0 && last) { t += sec; last = { ...last, t, gap: false, cut: false }; pts.push(last); } };
 
   ops.forEach((op, oi) => {
+    // Nevybraná skupina děr se nevrtá (indexy operací zůstávají).
+    if (op.enabled === false) { opEnd[oi] = t; return; }
     const feed = Math.max(1, op.feed || 100) / 60;
     if (op.kind === 'drill') {
       const radial = op.side === 'radial';
@@ -86,7 +94,7 @@ export function buildLiveTimeline(ops, prms) {
     }
     opEnd[oi] = t;
   });
-  return { pts, total: t, opEnd };
+  return { pts, total: t, opEnd, toolAt: liveSettings(prms || {}).toolAt };
 }
 
 /**
@@ -98,7 +106,10 @@ export function liveStateAt(tl, t) {
   const depth = new Map(), sweeps = new Map(), done = new Set();
   const T = Math.max(0, Math.min(t, tl.total));
   tl.opEnd.forEach((e, oi) => { if (e <= T + 1e-9) done.add(oi); });
-  let tool = null, line = null, lastOp = -1;
+  let tool = null, line = null, lastOp = -1, rot = 0;
+  const DEG = 180 / Math.PI, toolAt = Number.isFinite(tl.toolAt) ? tl.toolAt : 90;
+  // Natočení kusu, při kterém je bod q pod nástrojem (u osy beze změny).
+  const turn = q => { if (Math.hypot(q.x, q.y) > 0.3) rot = wrap180(toolAt - Math.atan2(q.y, q.x) * DEG); };
   const note = p => {
     const k = `${p.op}:${p.hole}`;
     if (p.d > (depth.get(k) ?? 0)) depth.set(k, p.d);
@@ -115,20 +126,31 @@ export function liveStateAt(tl, t) {
     const p = pts[i];
     if (p.t > T) {
       const a = pts[i - 1];
-      if (a && !p.gap && p.t > a.t) {
+      if (a && p.gap && p.t > a.t) {
+        // Polohování: osa C natáčí kus a nástroj jede po poloměru (polárně).
+        const f = (T - a.t) / (p.t - a.t);
+        const ra = Math.hypot(a.x, a.y), rp = Math.hypot(p.x, p.y);
+        const aa = Math.atan2(a.y, a.x), dl = wrapPi(Math.atan2(p.y, p.x) - aa);
+        const ang = ra < 0.3 ? Math.atan2(p.y, p.x) : (rp < 0.3 ? aa : aa + dl * f), rr = ra + (rp - ra) * f;
+        tool = { ...p, x: rr * Math.cos(ang), y: rr * Math.sin(ang), z: a.z + (p.z - a.z) * f, d: Math.min(a.d, p.d), cut: false };
+        line = null; turn(tool);
+      } else if (a && p.t > a.t) {
         const f = (T - a.t) / (p.t - a.t);
         const c = { ...p, x: a.x + (p.x - a.x) * f, y: a.y + (p.y - a.y) * f, z: a.z + (p.z - a.z) * f, d: a.d + (p.d - a.d) * f };
         c.cut = p.cut && c.d > 1e-9;
-        note(c); stroke(a, c); tool = c;
+        note(c); stroke(a, c); tool = c; turn(c);
       } else tool = a || null;
       break;
     }
     note(p);
     if (i > 0 && !p.gap) stroke(pts[i - 1], p); else line = null;
-    tool = p;
+    tool = p; turn(p);
   }
-  return { t: T, total: tl.total, tool, active: tool && T < tl.total ? { op: tool.op, hole: tool.hole } : null, depth, sweeps, done };
+  return { t: T, total: tl.total, tool, rot, active: tool && T < tl.total ? { op: tool.op, hole: tool.hole } : null, depth, sweeps, done };
 }
+
+const wrapPi = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+const wrap180 = a => { while (a > 180) a -= 360; while (a <= -180) a += 360; return a; };
 
 /**
  * Přehrávač: čas × rychlost (`getSpeed`), snímek přes requestAnimationFrame.

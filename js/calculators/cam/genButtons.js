@@ -14,16 +14,23 @@
  *    nahradí jedním programem (`regenWholeProgram`). Části z „➕ Operace"
  *    se v celém programu negenerují (přegeneruje se klikem na chip části).
  *  • „↺ Reset" — jen když program má části.
+ *  • Vrtání / závit / upich (záložka nebo nástroj vrták, závitový nůž,
+ *    upichovák) úseky nemá — „✂ Po úsecích" se schová, dráhy generuje
+ *    jediné „🔄 Dráhy" (uživatel 20. 10. 2026: „tři druhy výběru, měl bych
+ *    mít jenom jednu možnost").
  *
  * @param o.hasParts      program je rozdělený na části
  * @param o.allView       náhled „Celý program"
  * @param o.fromSections  části vznikly z „✂ Po úsecích" (první má `baseLimits`)
  * @param o.face          v panelu je čelní hrubování
  * @param o.sectionsOk    `sectionSteps(calc)` nehlásí chybu
+ * @param [o.op]          záložka obrábění (hrub, hot, upich, zavit, vrt, vyvrt)
+ * @param [o.tool]        tvar nástroje (drill, threading, parting, …)
  * @returns {{ refresh: boolean, section: boolean, reset: boolean }}
  */
-export function genButtonsHidden({ hasParts, allView, fromSections, face, sectionsOk }) {
-  const section = face || !(fromSections || sectionsOk);
+export function genButtonsHidden({ hasParts, allView, fromSections, face, sectionsOk, op, tool }) {
+  const other = ['upich', 'zavit', 'vrt'].includes(op) || ['drill', 'threading', 'parting'].includes(tool);
+  const section = face || other || !(fromSections || sectionsOk);
   const refresh = hasParts && allView && !(fromSections && section);
   return { refresh, section, reset: !hasParts };
 }

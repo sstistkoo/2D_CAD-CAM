@@ -1,6 +1,8 @@
 // Zoom a posun POHLEDU NA ČELO (CAM) — ovládání jako nárys simulátoru:
 // kolečko = zoom o 15 % kolem kurzoru, tažení myší / jedním prstem = posun,
-// dva prsty = zoom (pinch) i posun, dvojklik / dvojí ťuknutí = vycentrovat.
+// dva prsty = zoom (pinch) i posun, dvojklik / dvojí ťuknutí = vycentrovat,
+// jedno klepnutí bez posunu = `onTap(x, y)` (výběr díry; až po 300 ms, kdy
+// je jasné, že nejde o dvojklik).
 // Stav `nav` = { zoom, panX, panY } (px od středu plátna) čte drawFaceView.
 
 const ZMIN = 0.3, ZMAX = 40;
@@ -22,8 +24,9 @@ export function zoomAt(n, k, mx, my, w, h) {
  * @param el plátno pohledu (canvas)
  * @param nav stav { zoom, panX, panY } — mění se na místě
  * @param onChange překreslit (volá se nejvýš jednou za snímek)
+ * @param [onTap] klepnutí bez posunu: (x, y) v px plátna
  */
-export function attachFaceNav(el, nav, onChange) {
+export function attachFaceNav(el, nav, onChange, onTap = null) {
   let queued = false;
   const changed = () => {
     if (queued) return;
@@ -32,6 +35,8 @@ export function attachFaceNav(el, nav, onChange) {
   };
   const local = e => { const r = el.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   const reset = () => { Object.assign(nav, defaultNav()); changed(); };
+  let tapTimer = 0;
+  const cancelTap = () => { if (tapTimer) { clearTimeout(tapTimer); tapTimer = 0; return true; } return false; };
 
   el.addEventListener('wheel', e => {
     e.preventDefault();
@@ -74,14 +79,16 @@ export function attachFaceNav(el, nav, onChange) {
   const up = e => {
     if (!pts.delete(e.pointerId)) return;
     pinch = pts.size === 2 ? two() : null;
-    // Dvojí ťuknutí bez posunu (dotyk) = vycentrovat; myš má dblclick.
-    if (e.type === 'pointerup' && e.pointerType !== 'mouse' && !pts.size && moved < 8) {
-      const t = performance.now();
-      if (t - lastTap < 320) { lastTap = 0; reset(); } else lastTap = t;
-    }
+    if (e.type !== 'pointerup' || pts.size || moved >= 8) return;
+    // Druhé klepnutí do 300 ms = dvojklik → vycentrovat (myš má i dblclick),
+    // jinak po prodlevě jedno klepnutí.
+    const t = performance.now(), at = local(e);
+    if (cancelTap() || t - lastTap < 300) { lastTap = 0; if (e.pointerType !== 'mouse') reset(); return; }
+    lastTap = t;
+    if (onTap) tapTimer = setTimeout(() => { tapTimer = 0; onTap(at[0], at[1]); }, 300);
   };
   el.addEventListener('pointerup', up);
   el.addEventListener('pointercancel', up);
-  el.addEventListener('dblclick', e => { e.preventDefault(); reset(); });
+  el.addEventListener('dblclick', e => { e.preventDefault(); cancelTap(); reset(); });
   return { reset };
 }
