@@ -36,8 +36,11 @@ export function initCutDrag({ setFaceZ, onDone }) {
   let drag = null;          // { off } rozdíl mezi Z pod kurzorem a Z řezu při chycení
   let savedCursor = null;   // inline kurzor před najetím
 
+  let dragEndAt = -1e9;     // kdy skončilo tažení myší (pak přijde ještě 'click')
+
+  // Ne během rozkresleného objektu ani rozmisťované kóty (tu umístí puštění myši).
   const canGrab = () => !state.drawing && !(state.tempPoints && state.tempPoints.length)
-    && !state.dragging && !state.holderDrawMode;
+    && !state.dragging && !state.holderDrawMode && !state._dimPlacing;
   const local = (cx, cy) => { const r = canvas.getBoundingClientRect(); return [cx - r.left, cy - r.top]; };
   const zAt = (sx, sy) => { const w = screenToWorld(sx, sy); const cut = faceCutGeom(); return cut.isCar ? w[1] : w[0]; };
 
@@ -97,7 +100,14 @@ export function initCutDrag({ setFaceZ, onDone }) {
     setCursor(over);
     setFaceCutHot(over);
   }, true);
-  window.addEventListener('mouseup', () => { if (drag) end(); }, true);
+  window.addEventListener('mouseup', () => { if (drag) { end(); dragEndAt = performance.now(); } }, true);
+  // 'click' po puštění řezu nepatří plátnu — 🎯 výběr z plátna (canvasPick)
+  // a dialogy poslouchají 'click' a vzaly by bod, kde se řez pustil.
+  wrap.addEventListener('click', e => {
+    if (performance.now() - dragEndAt > 400) return;
+    dragEndAt = -1e9;
+    e.stopImmediatePropagation(); e.preventDefault();
+  }, true);
 
   // ── dotyk ──
   wrap.addEventListener('touchstart', e => {

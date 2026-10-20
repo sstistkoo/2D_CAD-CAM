@@ -85,3 +85,26 @@ describe('dotyk: posuvník a značka řezu', () => {
     expect(cutHit(cut, w2s, ...at(-span - 5), 8, 12, true)).toBe(true);
   });
 });
+
+describe('lišta čela stojí pevně', () => {
+  it('poloha se při tažení řezu nemění s průměrem v Z (stupňovitý polotovar)', () => {
+    const stock = { layer: 3, type: 'line', isStock: true };
+    state.objects = [
+      { id: 1, layer: 0, type: 'line', x1: 0, y1: 40, x2: -50, y2: 40 },
+      { id: 2, layer: 0, type: 'line', x1: -50, y1: 40, x2: -50, y2: 20 },
+      { id: 3, layer: 0, type: 'line', x1: -50, y1: 20, x2: -100, y2: 20 },
+      { id: 4, ...stock, x1: 2, y1: 45, x2: -50, y2: 45 },
+      { id: 5, ...stock, x1: -50, y1: 45, x2: -50, y2: 25 },
+      { id: 6, ...stock, x1: -50, y1: 25, x2: -102, y2: 25 },
+    ];
+    const cuts = [], ys = [-25, -75].map(z => {
+      getFaceLayer().faceZ = z;
+      drawFaceReference(g, w2s);
+      cuts.push(faceCutGeom().b[1]);
+      return faceBarGeom(getFaceLayer(), -100, 0, w2s).y;
+    });
+    expect(cuts[0]).toBeGreaterThan(cuts[1]);    // délka řezu se mění s průměrem…
+    expect(ys[0]).toBe(ys[1]);                   // …lišta ne
+    expect(ys[0]).toBeGreaterThanOrEqual(cuts[0] + 12);   // pod řezem přes největší průměr
+  });
+});

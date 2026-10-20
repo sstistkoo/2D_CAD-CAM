@@ -95,10 +95,13 @@ function buildBar() {
   // a jezdcem nešlo pohnout (uživatel 20. 10. 2026). Klávesnice zůstává nativní.
   let rangeDrag = null;   // pointerId taženého prstu / myši
   const dragTo = x => {
-    const v = rangeValueAt(range.getBoundingClientRect(), range.offsetWidth,
+    // Šířka ze stylu (offsetWidth je zaokrouhlená na celé px).
+    const v = rangeValueAt(range.getBoundingClientRect(), parseFloat(range.style.width) || range.offsetWidth,
       +range.min, +range.max, range.style.direction === 'rtl', x);
-    range.value = String(v);
     deps.setFaceZ(v, rangeSnap());
+    // Jezdec na přichycené Z (updateBar ho při fokusu posuvníku nepřepíše).
+    const cur = getFaceLayer();
+    range.value = String(cur ? cur.faceZ : v);
   };
   range.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
@@ -202,8 +205,14 @@ export function faceBarGeom(cur, zMin, zMax, w2s = worldToScreen) {
   } else {
     const b = drawnBounds();
     if (b) pts.push([b.minX, b.minY], [b.maxX, b.maxY]);
+    // Řez v délce přes NEJVĚTŠÍ průměr a mimo jeho Z: s délkou v Z lišta při
+    // tažení skákala nahoru a dolů podle průměru (uživatel 20. 10. 2026).
     const cut = faceCutGeom();
-    if (cut) pts.push(cut.a, cut.b);
+    if (cut) {
+      const m = cut.spanMax || Math.hypot(cut.b[0] - cut.a[0], cut.b[1] - cut.a[1]) / 2;
+      const at = b ? (cut.isCar ? b.maxY : b.minX) : cut.z;
+      pts.push(cut.isCar ? [-m, at] : [at, -m], cut.isCar ? [m, at] : [at, m]);
+    }
     zAligned = state.machineType !== 'karusel';
   }
   if (!pts.length) return null;

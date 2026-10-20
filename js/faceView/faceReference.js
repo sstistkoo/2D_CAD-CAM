@@ -514,9 +514,13 @@ function paintFace(g, w2s) {
   if (!layer.solo) {
     // Značka řezu v nárysu: čerchovaná čára v rovině čela, šipky ukazují směr
     // pohledu (čelo zprava = díváme se zprava doleva, k −Z), popisek Z.
-    const span = sR + Math.max(6, sR * 0.15);
+    const spanOf = r => r + Math.max(6, r * 0.15);
+    const span = spanOf(sR);
     const [x1, y1] = P(z, -span), [x2, y2] = P(z, span);
-    _cut = { z, isCar, a: [x1, y1], b: [x2, y2], sR };
+    // spanMax = délka řezu přes největší průměr dílu: lišta čela pod nárysem
+    // se staví podle ní, ne podle průměru v Z — jinak při tažení skákala
+    // nahoru a dolů (uživatel 20. 10. 2026).
+    _cut = { z, isCar, a: [x1, y1], b: [x2, y2], sR, spanMax: Math.max(span, spanOf(sRmax)) };
     // Najetí / tažení: silnější čára s podkladem, ať je vidět, že jde chytit.
     if (_cutHot) line(x1, y1, x2, y2, 'rgba(250,179,135,0.30)', null, 9);
     line(x1, y1, x2, y2, cut, [10, 3, 2, 3], _cutHot ? 2.4 : 1.5);

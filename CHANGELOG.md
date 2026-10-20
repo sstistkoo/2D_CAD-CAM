@@ -103,6 +103,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   kreslení za konce přesahující díl (šipky, popisek Z), uvnitř dílu se dál
   kreslí; ve Výběru kdekoli na čáře (`faceReference.cutHit(…, endsOnly)`,
   `faceBar.faceRangeScale`, `faceBar.rangeValueAt`).
+- **CAD: lišta čela při tažení neskáče.** Stála pod spodním koncem značky
+  řezu, jejíž délka se počítá z průměru v Z — při posunu po profilu lišta
+  skákala k ose a od osy. Teď se staví pod řez přes největší průměr dílu
+  (`faceCutGeom().spanMax`). Po tažení řezu myší se spolkne následný klik
+  (🎯 výběr z plátna by vzal bod puštění) a řez se nechytá během
+  rozmisťované kóty.
 - **CAM: zmenšený panel G-kódu ukazuje 4 řádky místo 2.** ▼ u přehrávače:
   blok, který právě prošel (ztlumeně), běžící blok a dva, které přijdou
   (`cam/sim/codeMini.js`; `camSimulator.js` se tím zmenšil).
