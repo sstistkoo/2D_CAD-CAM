@@ -23,9 +23,11 @@ const THUMB = 16;              // šířka jezdce posuvníku (výchozí vzhled p
 const RANGE_H = 18;            // výška posuvníku při měřítku 1 [px]
 const BASE_W = 340;            // šířka nárysu na plátně, při které má lišta měřítko 1 [px]
 const MIN_S = 0.7, MAX_S = 1.4;
-// Prst: posuvník aspoň takhle velký (při 0,7 měl na mobilu 12 px a jezdec
-// nešel chytit, uživatel 20. 10. 2026) → jezdec ~28 px, výška ~32 px.
-const TOUCH_S = 1.75;
+// Prst: jezdec aspoň 1,25× (~20 px; při 0,7 měl na mobilu 11 px) a vyšší
+// průhledná plocha pro dotyk — dráha i jezdec jsou vidět jako dřív, chytá se
+// do ~37 px (1,75× celé zvětšení vadilo na výšku, uživatel 20. 10. 2026).
+const TOUCH_S = 1.25;
+const TOUCH_H = 30;            // výška posuvníku pro prst při měřítku 1 [px]
 const GAP = 12;                // mezera pod nárysem (šipky řezu, čísla osy) [px]
 
 let bar = null;
@@ -88,6 +90,36 @@ function buildBar() {
   };
   range.addEventListener('input', () => deps.setFaceZ(parseFloat(range.value), rangeSnap()));
   range.addEventListener('change', () => updateLayerList());
+  // Tažení myší i prstem obsluhujeme sami (chytá se kdekoli na dráze):
+  // nativní posuvník prohlížeč při tahu prstem zrušil jako posun stránky
+  // a jezdcem nešlo pohnout (uživatel 20. 10. 2026). Klávesnice zůstává nativní.
+  let rangeDrag = null;   // pointerId taženého prstu / myši
+  const dragTo = x => {
+    const v = rangeValueAt(range.getBoundingClientRect(), range.offsetWidth,
+      +range.min, +range.max, range.style.direction === 'rtl', x);
+    range.value = String(v);
+    deps.setFaceZ(v, rangeSnap());
+  };
+  range.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    rangeDrag = e.pointerId;
+    try { range.setPointerCapture(e.pointerId); } catch { /* bez zachycení táhne jen nad lištou */ }
+    dragTo(e.clientX);
+  });
+  range.addEventListener('pointermove', e => {
+    if (e.pointerId !== rangeDrag) return;
+    e.preventDefault();
+    dragTo(e.clientX);
+  });
+  const endDrag = e => {
+    if (e.pointerId !== rangeDrag) return;
+    rangeDrag = null;
+    updateLayerList();
+  };
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => range.addEventListener(t, endDrag));
+  // Nativní obsluha dotyku by se s naší přetahovala.
+  range.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
   zIn.addEventListener('change', () => {
     const v = safeEvalMath(zIn.value);
     if (!Number.isFinite(v)) { showToast('Neplatné číslo'); updateBar(); return; }
@@ -193,6 +225,19 @@ export function faceRangeScale(s, coarse) {
   return coarse ? Math.max(s, TOUCH_S) : s;
 }
 
+/**
+ * Hodnota posuvníku pod bodem `x` [px okna]. `rect` = getBoundingClientRect
+ * (po zvětšení), `layoutW` = šířka před zvětšením; střed jezdce jde od kraje
+ * dráhy o půl jezdce (jako u nativního posuvníku), `rtl` = zrcadlená osa.
+ */
+export function rangeValueAt(rect, layoutW, min, max, rtl, x) {
+  const th = THUMB * (rect.width / (layoutW || rect.width || 1));
+  let f = (x - rect.left - th / 2) / Math.max(1, rect.width - th);
+  f = Math.max(0, Math.min(1, f));
+  if (rtl) f = 1 - f;
+  return min + f * (max - min);
+}
+
 const isCoarse = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 function placeBar() {
@@ -213,16 +258,18 @@ function placeBar() {
   const rowW = row.offsetWidth * sr;
   let left = Math.min(Math.max(g.x0, 4), cw - rowW - 4);
   left = Math.max(g.x0, Math.min(left, g.x1 - rowW));
-  const rs = faceRangeScale(s, isCoarse());
-  const key = [g.x0, g.y, W, s, sr, rs, g.rtl, left].map(v => (typeof v === 'number' ? v.toFixed(2) : v)).join();
+  const coarse = isCoarse();
+  const rs = faceRangeScale(s, coarse);
+  const rh = coarse ? TOUCH_H : RANGE_H;
+  const key = [g.x0, g.y, W, s, sr, rs, rh, g.rtl, left].map(v => (typeof v === 'number' ? v.toFixed(2) : v)).join();
   if (key === lastPlace) return;
   lastPlace = key;
   // Posuvník širší o jezdec: střed jezdce v krajních polohách přesně nad x0 / x1.
   Object.assign(range.style, {
-    left: `${g.x0 - THUMB * rs / 2}px`, top: `${g.y}px`, width: `${W / rs + THUMB}px`,
+    left: `${g.x0 - THUMB * rs / 2}px`, top: `${g.y}px`, width: `${W / rs + THUMB}px`, height: `${rh}px`,
     transform: `scale(${rs})`, direction: g.rtl ? 'rtl' : 'ltr',
   });
-  Object.assign(row.style, { left: `${left}px`, top: `${g.y + (RANGE_H + 2) * rs}px`, transform: `scale(${sr})` });
+  Object.assign(row.style, { left: `${left}px`, top: `${g.y + (rh + 2) * rs}px`, transform: `scale(${sr})` });
 }
 
 export const FACE_BAR_CSS = `
@@ -230,7 +277,7 @@ export const FACE_BAR_CSS = `
 #faceBar > * { pointer-events: auto; }
 #faceBar input[type=range] {
   position: absolute; margin: 0; padding: 0; height: ${RANGE_H}px; transform-origin: 0 0;
-  accent-color: var(--ctp-peach); background: transparent; cursor: pointer;
+  accent-color: var(--ctp-peach); background: transparent; cursor: pointer; touch-action: none;
 }
 #faceBar .fb-row {
   position: absolute; transform-origin: 0 0; display: flex; align-items: center; gap: 5px; white-space: nowrap;

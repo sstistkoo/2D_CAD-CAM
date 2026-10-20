@@ -553,8 +553,8 @@ značka řezu s popiskem Z a šipkami ve směru pohledu — **řez lze chytit my
 nebo prstem a táhnout po profilu** (bokorys zapnutý; ve Výběru kdekoli na
 čáře, v nástrojích kreslení za konce přesahující díl — šipky, popisek Z —
 uvnitř dílu se kreslí; najetí = kurzor ↔ a zvýraznění čáry, u osazení se
-přichytí, prst chytá do 22 px od čáry, myš do 8 px). Na dotykovém displeji je
-posuvník lišty čela větší, aby šel jezdec chytit prstem. Čelo se při tažení přepočítává průběžně. Kreslí se do aktuálního
+přichytí, prst chytá do 22 px od čáry, myš do 8 px). Posuvník lišty
+čela jde chytit kdekoli na dráze (myší i prstem), jezdec skočí pod prst. Čelo se při tažení přepočítává průběžně. Kreslí se do aktuálního
 čela: **kružnice = díra** (střed = poloha, Ø kružnice = Ø díry), **úsečka =
 drážka**. Kružnice **čárkovaná nebo čerchovaná** (Typ čáry) je **pomocná** —
 roztečná kružnice, díra se z ní nedělá a do CAM nejde. Šipka u +X a popisek

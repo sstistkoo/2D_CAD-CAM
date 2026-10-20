@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { state } from '../js/state.js';
 import { getFaceLayer } from '../js/faceView/faceLayer.js';
 import { drawFaceReference, faceCutGeom, cutHit } from '../js/faceView/faceReference.js';
-import { drawnBounds, faceBarGeom, faceRangeScale } from '../js/faceView/faceBar.js';
+import { drawnBounds, faceBarGeom, faceRangeScale, rangeValueAt } from '../js/faceView/faceBar.js';
 
 // Lišta sahá na seznam vrstev a plátno (DOM) — v Node stačí stuby.
 vi.mock('../js/ui.js', () => ({ updateLayerList: () => {} }));
@@ -54,10 +54,22 @@ describe('lišta čela pod nárysem', () => {
 });
 
 describe('dotyk: posuvník a značka řezu', () => {
-  it('na dotykovém displeji je posuvník aspoň 1,75× (prst), myš beze změny', () => {
-    expect(faceRangeScale(0.7, true)).toBe(1.75);
+  it('na dotykovém displeji je jezdec aspoň 1,25× (prst), myš beze změny', () => {
+    expect(faceRangeScale(0.7, true)).toBe(1.25);
     expect(faceRangeScale(0.7, false)).toBe(0.7);
-    expect(faceRangeScale(1.9, true)).toBe(1.9);
+    expect(faceRangeScale(1.4, true)).toBe(1.4);
+  });
+
+  it('tažení po dráze: hodnota pod prstem, střed jezdce v krajích nad x0 / x1', () => {
+    // dráha 100 px + jezdec 16 px při měřítku 1,25 → 120 + 20 px na obrazovce
+    const rect = { left: 40, width: 120 + 20 };
+    const at = (x, rtl = false) => rangeValueAt(rect, 140 / 1.25, -100, 0, rtl, x);
+    expect(at(40 + 10)).toBe(-100);          // střed jezdce v levé krajní poloze
+    expect(at(40 + 10 + 60)).toBe(-50);
+    expect(at(40 + 130)).toBe(0);
+    expect(at(0)).toBe(-100);                // za krajem se zastaví
+    expect(at(999)).toBe(0);
+    expect(at(40 + 10, true)).toBe(0);       // zrcadlená osa
   });
 
   it('v nástroji kreslení se řez chytá jen za konce přesahující díl', () => {
