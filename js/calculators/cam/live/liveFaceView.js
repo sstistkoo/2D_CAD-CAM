@@ -8,6 +8,8 @@
 // hloubky, stopa frézy, nástroj na své poloze a stav nahoře vlevo.
 // Sklíčidlo s čelistmi se nekreslí (jako bokorys v CAD) — zakrývalo díl a
 // k orientaci nepomáhalo; tu dává značka C0 (uživatel 18. 10. 2026).
+// Nálezy kontroly proti dílu (liveChecks.js) — díry s chybou červený
+// obrys, s upozorněním žlutý, počet nálezů dole nad popiskem.
 //
 // Souřadnice: x vpravo = +X (C 0°, tam stojí nástroj při SPOS), y nahoru =
 // C 90°. Rozměry ve světových mm, poloměry (ne průměry).
@@ -58,7 +60,8 @@ export function livePartGeometry(S) {
  * @param d { prms, geo, ops, selected (index),
  *            mach: null | liveStateAt() (+ paused) — obrábění, null = jen plán,
  *            cut: null | { z, side, at, view } (liveCutAt),
- *            nav: null | { zoom, panX, panY } (liveFaceNav.js) }
+ *            nav: null | { zoom, panX, panY } (liveFaceNav.js),
+ *            checks: null | checkLiveOps() (liveChecks.js) }
  */
 export function drawFaceView(canvas, d) {
   const ctx = canvas.getContext('2d');
@@ -147,6 +150,7 @@ export function drawFaceView(canvas, d) {
     }
   });
   ctx.globalAlpha = 1;
+  if (d.checks) drawCheckMarks(ctx, ops, d.checks, cut, P, sc, rotRect);
 
   // ── nula osy C na kusu (nad operacemi, ať ji díra na okraji nezakryje) ──
   const rPart = at && at.outerR > 0 ? at.outerR : (geo.outerR || sR);
@@ -170,7 +174,53 @@ export function drawFaceView(canvas, d) {
   const how = isCar ? (left ? 'pohled zdola' : 'pohled shora na upínací desku') : (left ? 'pohled od sklíčidla' : 'pohled proti sklíčidlu');
   ctx.fillText(cut ? `Řez Z${fmt(cut.z)} ${left ? '▶ zleva' : '◀ zprava'}  ·  ${how}` : how[0].toUpperCase() + how.slice(1), 8, h - 22);
   const outR = cut ? at.outerR : geo.outerR, inR = cut ? at.innerR : geo.innerR;
+  const nBad = (d.checks || []).reduce((n, c) => n + (c ? c.issues.length : 0), 0);
+  if (nBad) {
+    const err = d.checks.some(c => c && c.sev === 'error');
+    ctx.fillStyle = err ? CHK.error : CHK.warn;
+    ctx.fillText(`${err ? '⛔' : '⚠'} Kontrola proti dílu: ${nBad} ${nBad === 1 ? 'nález' : (nBad <= 4 ? 'nálezy' : 'nálezů')} – podrobnosti v 🛠 Operace`, 8, h - 36);
+    ctx.fillStyle = COL.text;
+  }
   ctx.fillText(`Polotovar Ø${fmt(2 * sRz)}${outR > 0 ? `  ·  ${cut ? 'v řezu' : 'obrys'} Ø${fmt(2 * outR)}` : ''}${inR > 0 ? `  ·  vývrt Ø${fmt(2 * inR)}` : ''}`, 8, h - 8);
+}
+
+const CHK = { error: '#f38ba8', warn: '#f9e2af' };
+
+/**
+ * Obrys děr s nálezem kontroly (checks[oi].marks: index díry → závažnost) přes
+ * plán i obrábění. Operace na jiném čele než v řezu jen ztlumeně.
+ */
+function drawCheckMarks(ctx, ops, checks, cut, P, sc, rotRect) {
+  ctx.save();
+  ops.forEach((op, oi) => {
+    const c = checks[oi];
+    if (!c || !c.marks.size) return;
+    const other = cut && op.side !== 'radial' && Math.abs(op.zTop - cut.z) > 0.5;
+    ctx.globalAlpha = other ? 0.5 : 1;
+    ctx.lineWidth = 2.2; ctx.setLineDash([]);
+    if (op.kind === 'mill' && op.millType === 'slot') {
+      const sev = c.marks.get(0);
+      if (!sev) return;
+      const { x1, y1, x2, y2 } = op.slot;
+      capsulePath(ctx, P, x1, y1, x2, y2, op.toolD / 2 + 2 / sc);
+      ctx.strokeStyle = CHK[sev]; ctx.stroke();
+      return;
+    }
+    livePositions(op).forEach((p, i) => {
+      const sev = c.marks.get(i);
+      if (!sev) return;
+      ctx.strokeStyle = CHK[sev];
+      if (op.side === 'radial' && op.kind !== 'mill') {
+        const r = op.xTop / 2;
+        rotRect(p.a, r - op.depth - 2 / sc, r + 2 / sc, op.holeD / 2 + 2 / sc, null, null);
+        ctx.stroke();
+        return;
+      }
+      const [sx, sy] = P(p.x, p.y);
+      ctx.beginPath(); ctx.arc(sx, sy, Math.max(2, op.holeD / 2 * sc) + 3, 0, 2 * Math.PI); ctx.stroke();
+    });
+  });
+  ctx.restore();
 }
 
 const voidFill = f => `rgba(17,17,27,${(0.5 + 0.5 * Math.min(1, f)).toFixed(2)})`;

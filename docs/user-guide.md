@@ -494,6 +494,34 @@ Když přehrávač CAM **dojede soustružení do konce**, vrtání a frézován�
 se právě vrtá). ⏹ nebo posun přehrávače zpět vrátí díry do neobrobeného
 stavu; ⏭ na konec ukáže díl rovnou obrobený.
 
+**Kontrola proti dílu.** Každá operace se porovná se skutečným tvarem dílu
+(hotová kontura — vrtá se až po soustružení). Nálezy jsou v editoru
+🛠 Operace pod formulářem operace (**⛔ chyba** červeně, **⚠ upozornění**
+žlutě), u karty operace je červená / žlutá **tečka** (najetím myší ukáže
+nálezy) a v pohledu na čelo mají problémové díry, kapsy a drážky **červený**
+(upozornění žlutý) obrys a dole je počet nálezů. Kontroluje se:
+
+- **Díra / kapsa / drážka do čela leží celá v materiálu čela** — v rovině
+  Z čela při pohledu ze strany čela (◀ zprava / ▶ zleva) mezi vývrtem
+  a obvodem (r − Ø/2 ≥ vývrt, r + Ø/2 ≤ obvod; drážka celá i s šířkou
+  frézy). Hlášky: *mimo materiál čela*, *přesah přes obvod*, *zásah do
+  vývrtu* (do zápichu); bez materiálu za čelem *zkontrolujte Z čela a stranu
+  čela*.
+- **Hloubka do čela** — díra zůstane do plné hloubky v materiálu: *skrz –
+  materiál končí v hloubce …* (upozornění: za dílem může být upínač),
+  *náraz do vývrtu Ø…*, *výjezd z obvodu Ø…* (chyba).
+- **Radiální díra** — Ø pláště musí odpovídat dílu v Z díry (± 0,1 mm),
+  jinak hláška s nalezeným Ø; díra přes konec dílu je chyba, díra na
+  přechodu průměrů (osazení, kužel pod dírou) a díra skrz stěnu do vývrtu
+  jsou upozornění. Hloubku přes osu hlídá kontrola zadání.
+- **Bezpečná vzdálenost a odjezd** nesmí vést do materiálu: u čela osazení
+  nad dírou blíž, než je odjezd (*odjezd 5 mm narazí do osazení Ø80 – je jen
+  3 mm nad čelem*), u pláště osazení vedle díry vyšší než bezpečná rovina;
+  Z čela uvnitř materiálu ukáže, kde je skutečný povrch.
+
+Kontrola NC program nemění — operace s nálezem se do bloku zapíše dál, opravte
+ji podle hlášky.
+
 **Bokorys v CAD (◎).** Tlačítko **◎ Čelo** (desktop: horní lišta; mobil:
 kulaté ◎ nahoře u 🔢) přepíná ve třech krocích: **profil → profil + bokorys
 → jen bokorys** (◉, ostatní vrstvy dočasně skryté) → profil; každé přepnutí
@@ -513,7 +541,7 @@ kříže; střed bokorysu leží na celých desítkách, takže i mřížka mě�
 
 **Čela.** Díry mohou být na kterémkoli osazení, zprava i zleva. Lišta čela
 leží přímo na plátně pod nárysem — posouvá se s výkresem a mění velikost se
-zoomem; na soustruhu je posuvník stejně dlouhý jako profil a jezdec stojí
+zoomem, a když do nárysu něco dokreslíte níž, sama se posune pod to; na soustruhu je posuvník stejně dlouhý jako profil a jezdec stojí
 přesně pod značkou řezu. Obsahuje výběr čela, **➕** nové čelo (vlastní kresba), **🗑** smazat
 čelo i s kresbou (po potvrzení, nejde vrátit; stejně tak smazání vrstvy čela
 v panelu Vrstvy — objekty se nepřesouvají na Konturu),

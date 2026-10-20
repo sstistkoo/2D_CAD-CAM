@@ -17,7 +17,7 @@ import { safeEvalMath } from '../utils.js';
 import { worldToScreen } from '../canvas.js';
 import { updateLayerList } from '../ui.js';
 import { getFaceLayer, getFaceLayers, faceViewMode, profileObjects, faceLabel } from './faceLayer.js';
-import { shoulderZs, profileBounds, profileRadii, faceRadius, faceCutGeom, onFaceDrawn } from './faceReference.js';
+import { shoulderZs, profileBounds, profileRadii, faceRadius, faceCutGeom, onFaceDrawn, objectPoints, inFaceDisc } from './faceReference.js';
 
 const THUMB = 16;              // šířka jezdce posuvníku (výchozí vzhled prohlížečů) [px]
 const RANGE_H = 18;            // výška posuvníku při měřítku 1 [px]
@@ -130,7 +130,28 @@ export function updateBar() {
 }
 
 /**
- * Kam lišta patří [px plátna]: pod nárys (s kótami a značkou řezu), v režimu
+ * Obdélník kresby v nárysu [svět]: profil (s kótami) + vše dokreslené MIMO kruh
+ * bokorysu — i do vrstvy čela, kam se v režimu čela kreslí (lišta ležela přes
+ * dokreslenou úsečku, uživatel 20. 10. 2026). Skryté vrstvy se nepočítají.
+ */
+export function drawnBounds() {
+  const hidden = new Set(state.layers.filter(l => !l.visible).map(l => l.id));
+  const faceIds = new Set(getFaceLayers().map(l => l.id));
+  const vis = state.objects.filter(o => !hidden.has(o.layer) && !o.isCamPathNote);
+  const box = profileBounds(vis.filter(o => !faceIds.has(o.layer)), true)
+    || { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+  vis.filter(o => faceIds.has(o.layer)).forEach(o => {
+    (o.type === 'text' ? [{ x: o.x, y: o.y }] : objectPoints(o)).forEach(p => {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || inFaceDisc(p.x, p.y)) return;
+      box.minX = Math.min(box.minX, p.x); box.maxX = Math.max(box.maxX, p.x);
+      box.minY = Math.min(box.minY, p.y); box.maxY = Math.max(box.maxY, p.y);
+    });
+  });
+  return Number.isFinite(box.minX) ? box : null;
+}
+
+/**
+ * Kam lišta patří [px plátna]: pod nárys (s kótami, dokreslením a značkou řezu), v režimu
  * „jen bokorys" pod bokorys. Soustruh: x0…x1 = Z min…max posuvníku, `rtl`
  * při zrcadlené ose.
  * @returns {{ x0:number, x1:number, y:number, rtl:boolean }|null}
@@ -144,7 +165,7 @@ export function faceBarGeom(cur, zMin, zMax, w2s = worldToScreen) {
     const R = faceRadius(geo ? geo.stockR : 50) * 1.08;
     pts.push([cur.origin.x - R, cur.origin.y - R], [cur.origin.x + R, cur.origin.y + R]);
   } else {
-    const b = profileBounds(profileObjects(), true);
+    const b = drawnBounds();
     if (b) pts.push([b.minX, b.minY], [b.maxX, b.maxY]);
     const cut = faceCutGeom();
     if (cut) pts.push(cut.a, cut.b);

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM: kontrola poháněných nástrojů proti dílu.** Vrtání a frézování
+  (◎ Pohled na čelo → 🛠 Operace) se porovná se skutečným tvarem dílu:
+  díra / kapsa / drážka musí ležet celá v materiálu čela (mezi vývrtem
+  a obvodem v rovině Z čela ze strany čela), do plné hloubky zůstat
+  v materiálu (skrz = upozornění, náraz do vývrtu / výjezd z obvodu =
+  chyba), radiální díra musí mít Ø pláště jako díl v Z díry (± 0,1 mm)
+  a bezpečná vzdálenost s odjezdem nesmí vést do bližšího osazení. Nálezy
+  pod formulářem operace, červená / žlutá tečka u karty, červený obrys
+  děr v pohledu na čelo. Modul `cam/live/liveChecks.js`
+  (`faceReference.materialAt`), test `tests/live-checks.test.js`.
+
 - **CAD: ◎ bokorys (pohled na čelo) vedle profilu.** Tlačítko ◎ Čelo (desktop
   v horní liště, mobil kulaté nahoře u 🔢) přepíná profil → profil + bokorys →
   jen bokorys (každé přepnutí zarámuje, co je vidět). Bokorys je vpravo vedle
@@ -67,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   velikost se zoomem. Na soustruhu posuvník Z lícuje s osou nárysu: krajní
   polohy pod konci profilu, jezdec pod značkou řezu. Lišta nástrojů ji
   překryje, kolečko nad ní zoomuje plátno (`js/faceView/faceBar.js`).
+  Lišta stojí pod VŠÍ kresbou nárysu — i pod tím, co se dokreslí (v režimu
+  čela se kreslí do vrstvy čela, dřív ležela přes dokreslenou úsečku);
+  kresba v kruhu bokorysu a skryté vrstvy se nepočítají (`drawnBounds`,
+  test `tests/face-bar.test.js`).
 - **CAM: zmenšený panel G-kódu ukazuje 4 řádky místo 2.** ▼ u přehrávače:
   blok, který právě prošel (ztlumeně), běžící blok a dva, které přijdou
   (`cam/sim/codeMini.js`; `camSimulator.js` se tím zmenšil).

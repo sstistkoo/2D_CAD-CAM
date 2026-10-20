@@ -86,6 +86,14 @@ export const LIVE_CSS = `
 .cam-live-card-h button { padding: 1px 6px; }
 .cam-live-card-b { padding: 4px 6px 8px; border-top: 1px solid #313244; }
 .cam-live-prob { color: #f38ba8; font-size: 11px; margin-top: 4px; }
+.cam-live-chk { font-size: 11px; margin-top: 6px; line-height: 1.4; }
+.cam-live-chk b { color: #bac2de; font-weight: 600; }
+.cam-live-chk .error { color: #f38ba8; }
+.cam-live-chk .warn { color: #f9e2af; }
+/* Tečka nálezu kontroly proti dílu u karty: červená = chyba, žlutá = upozornění. */
+.cam-live-flag { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 0 2px rgba(243,139,168,0.25); }
+.cam-live-flag.error { background: #f38ba8; }
+.cam-live-flag.warn { background: #f9e2af; box-shadow: 0 0 0 2px rgba(249,226,175,0.25); }
 .cam-live-note { color: #a6adc8; font-size: 11px; margin: 4px 0; }
 .cam-live-ol { margin: 4px 0 4px 16px; padding: 0; color: #bac2de; font-size: 11px; line-height: 1.45; }
 .cam-live-ol code { background: #313244; border-radius: 3px; padding: 0 3px; }

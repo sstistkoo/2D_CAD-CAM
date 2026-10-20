@@ -22,7 +22,7 @@
 import { showToast } from '../../../state.js';
 import { safeEvalMath } from '../../../utils.js';
 import {
-  liveSettings, newLiveOp, normalizeLiveOp, getLiveOps, liveOpSummary,
+  liveSettings, newLiveOp, normalizeLiveOp, getLiveOps,
 } from './liveModel.js';
 import { buildLiveBlock } from './liveGcode.js';
 import { insertLiveBlock, removeLiveBlock, findLiveBlock, liveBlockTag } from './liveMarkers.js';
@@ -36,7 +36,8 @@ import { liveProfile, liveCutAt, autoSide, drawCutMark } from './liveCut.js';
 import { createCutBar } from './liveCutBar.js';
 import { attachFaceNav, defaultNav, isDefaultNav } from './liveFaceNav.js';
 import { createLivePlayer, buildLiveTimeline, liveStateAt } from './liveMachining.js';
-import { opForm, esc } from './liveOpForm.js';
+import { opCard } from './liveOpForm.js';
+import { checkLiveOps } from './liveChecks.js';
 
 const CTRL = new WeakMap();   // S → ovladač otevřeného simulátoru
 const VIEW_KEY = 'skica-cam-live-view';   // '0' řez, '1' řez + čelo, '2' jen čelo
@@ -68,7 +69,7 @@ export function initLiveTools(deps) {
   }
   const st = {
     mode: 'off', open: false, editor: false, selected: 0, key: '', edKey: '', turnDone: false, wasRunning: false,
-    nav: defaultNav(), max: false, autoMax: false, bar: true, cutZ: null, cutSide: null, sideManual: false, prof: null, profKey: '',
+    nav: defaultNav(), max: false, autoMax: false, bar: true, cutZ: null, cutSide: null, sideManual: false, prof: null, profKey: '', profN: 0,
   };
   try { st.bar = localStorage.getItem(BAR_KEY) !== '0'; } catch (_) { /* bez úložiště */ }
 
@@ -173,7 +174,7 @@ export function initLiveTools(deps) {
   // ── řez v rovině Z (lišta) ──
   function profile() {
     const k = JSON.stringify([S.contourPoints, S.stockPoints, S.params.mode, S.params.stockMode]);
-    if (k !== st.profKey) { st.profKey = k; st.prof = liveProfile(S); }
+    if (k !== st.profKey) { st.profKey = k; st.prof = liveProfile(S); st.profN++; }
     return st.prof;
   }
   /** Rovina a strana pohledu; bez zadání pravý konec dílu (čelo zprava). */
@@ -241,7 +242,7 @@ export function initLiveTools(deps) {
     drawFaceView(cv, {
       prms: S.params, geo: livePartGeometry(S), ops,
       selected: st.editor && ops.length ? st.selected : null,
-      mach, cut: c ? cutView(c) : null, nav: st.nav,
+      mach, cut: c ? cutView(c) : null, nav: st.nav, checks: checkLiveOps(profile(), ops),
     });
     fitBtn.hidden = isDefaultNav(st.nav);
     bar.update();
@@ -259,7 +260,7 @@ export function initLiveTools(deps) {
   // místo porovnání bloku: 🔄 Dráhy blok z programu vyhodí → délka se změní).
   function edKey() {
     return JSON.stringify([S.params.liveOps, S.params.live, S.params.controlSystem, st.selected,
-      String(S.manualGCode || '').length]);
+      String(S.manualGCode || '').length, st.profN]);
   }
 
   // ── obrábění poháněnými nástroji (liveMachining.js) ──
@@ -471,19 +472,8 @@ export function initLiveTools(deps) {
       </div>
       <div class="cam-live-status ${bs.cls}">${bs.text}</div>`;
     if (!ops.length) h += '<div class="cam-live-note">Zatím žádné operace. Přidejte vrtání nebo frézování.</div>';
-    const dotCol = op => op.kind === 'mill' ? '#cba6f7' : (op.side === 'radial' ? '#94e2d5' : '#fab387');
-    ops.forEach((op, i) => {
-      const sel = i === st.selected;
-      h += `<div class="cam-live-card${sel ? ' sel' : ''}" data-op="${i}">
-        <div class="cam-live-card-h" data-live="sel">
-          <span class="cam-live-dot" style="background:${dotCol(op)}"></span>
-          <span class="t"><b>${i + 1}. ${esc(op.name)}${op.fromCad ? ' <span title="Načteno z CAD (◎ Čelo)">📐</span>' : ''}</b><small>${esc(liveOpSummary(op))}</small></span>
-          <button data-live="up" title="Dřív">▲</button><button data-live="down" title="Později">▼</button>
-          <button data-live="del" title="Smazat operaci">✕</button>
-        </div>
-        ${sel ? `<div class="cam-live-card-b">${opForm(op)}</div>` : ''}
-      </div>`;
-    });
+    const chk = checkLiveOps(profile(), ops);   // kontrola proti tvaru dílu
+    ops.forEach((op, i) => { h += opCard(op, i, i === st.selected, chk && chk[i]); });
     ed.innerHTML = h;
     st.edKey = edKey();
   }

@@ -156,6 +156,24 @@ function hitsAt(objects, isCar, z) {
   return out;
 }
 
+/** Průsečíky → mezikruží materiálu [od, do] (lichý počet → materiál od osy). */
+function intervals(h) {
+  h.sort((a, b) => a - b);
+  if (h.length % 2) h.unshift(0);
+  const iv = [];
+  for (let i = 0; i + 1 < h.length; i += 2) iv.push([h[i], h[i + 1]]);
+  return iv;
+}
+
+/**
+ * Materiál dílu v rovině Z jako mezikruží [od, do] (poloměry, vzestupně).
+ * V rovině zlomu profilu je průsečík dvojznačný — vzorkovat mimo zlomy.
+ */
+export function materialAt(objects, machineType, z) {
+  const part = (objects || []).filter(o => usable(o) && !o.isStock);
+  return intervals(hitsAt(part, machineType === 'karusel', z));
+}
+
 /**
  * Profil v rovině čela Z: poloměry kontury těsně vlevo a vpravo od roviny
  * (čelo = osazení mezi nimi), polotovar v rovině a doporučená strana čela
@@ -226,13 +244,7 @@ export function viewRadii(objects, machineType, z, side, at) {
   });
   (at.radii || []).forEach(r => { if (r > 0.05) edges.push({ r, z }); });
   // Materiál v rovině zz: dvojice průsečíků (lichý počet → od osy).
-  const material = zz => {
-    const h = hitsAt(part, isCar, zz).sort((a, b) => a - b);
-    if (h.length % 2) h.unshift(0);
-    const iv = [];
-    for (let i = 0; i + 1 < h.length; i += 2) iv.push([h[i], h[i + 1]]);
-    return iv;
-  };
+  const material = zz => intervals(hitsAt(part, isCar, zz));
   // Vzorky Z mezi hranou a řezem: středy mezi zlomy profilu (v zlomu samotném
   // je průsečík dvojznačný) + těsně za řezem.
   const zs = [...zsAll].sort((a, b) => a - b);

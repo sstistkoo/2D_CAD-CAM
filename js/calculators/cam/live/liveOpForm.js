@@ -1,9 +1,29 @@
-// Formulář jedné operace poháněného nástroje v editoru 🛠 Operace (HTML).
-// Pole nesou data-k = klíč operace; změny čte livePanel.js (událost change).
-// Vyňato z livePanel.js (velikost souboru).
-import { liveOpProblems } from './liveModel.js';
+// Karta a formulář jedné operace poháněného nástroje v editoru 🛠 Operace
+// (HTML). Pole nesou data-k = klíč operace; změny čte livePanel.js (událost
+// change). Pod formulářem chyby zadání (liveOpProblems) a nálezy kontroly
+// proti dílu (liveChecks.js), u karty tečka nálezu. Vyňato z livePanel.js.
+import { liveOpProblems, liveOpSummary } from './liveModel.js';
 
-export function opForm(op) {
+/**
+ * Karta operace: hlavička (barva druhu, název, souhrn, nález) + formulář vybrané.
+ * @param chk výsledek checkLiveOp (nebo null)
+ */
+export function opCard(op, i, sel, chk) {
+  const dot = op.kind === 'mill' ? '#cba6f7' : (op.side === 'radial' ? '#94e2d5' : '#fab387');
+  const flag = chk && chk.sev
+    ? `<span class="cam-live-flag ${chk.sev}" title="${esc(chk.issues.map(x => x.text).join('\n'))}"></span>` : '';
+  return `<div class="cam-live-card${sel ? ' sel' : ''}" data-op="${i}">
+    <div class="cam-live-card-h" data-live="sel">
+      <span class="cam-live-dot" style="background:${dot}"></span>
+      <span class="t"><b>${i + 1}. ${esc(op.name)}${op.fromCad ? ' <span title="Načteno z CAD (◎ Čelo)">📐</span>' : ''}</b><small>${esc(liveOpSummary(op))}</small></span>
+      ${flag}<button data-live="up" title="Dřív">▲</button><button data-live="down" title="Později">▼</button>
+      <button data-live="del" title="Smazat operaci">✕</button>
+    </div>
+    ${sel ? `<div class="cam-live-card-b">${opForm(op, chk)}</div>` : ''}
+  </div>`;
+}
+
+export function opForm(op, chk) {
   const f = (k, t, v, wide) => `<label class="cam-live-f${wide ? ' wide' : ''}"><span>${t}</span><input data-k="${k}" type="text" inputmode="decimal" value="${esc(v)}"></label>`;
   const txt = (k, t, v) => `<label class="cam-live-f"><span>${t}</span><input data-k="${k}" type="text" value="${esc(v)}"></label>`;
   const sel = (k, t, v, opts) => `<label class="cam-live-f"><span>${t}</span><select data-k="${k}">${opts.map(([val, lbl]) => `<option value="${val}"${val === v ? ' selected' : ''}>${lbl}</option>`).join('')}</select></label>`;
@@ -41,6 +61,11 @@ export function opForm(op) {
   h += '</div>';
   const probs = liveOpProblems(op);
   if (probs.length) h += `<div class="cam-live-prob">${probs.map(esc).join('<br>')}</div>`;
+  const found = chk ? chk.issues : [];
+  if (found.length) {
+    h += `<div class="cam-live-chk"><b>Kontrola proti dílu</b>${found.map(x =>
+      `<div class="${x.sev}">${x.sev === 'error' ? '⛔' : '⚠'} ${esc(x.text)}</div>`).join('')}</div>`;
+  }
   return h;
 }
 

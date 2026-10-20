@@ -452,7 +452,8 @@ soustružnickou pipeline — samostatná složka, `camSimulator.js` ji jen zavol
 | `live/liveFaceNav.js` | Zoom (kolečko, pinch) a posun pohledu na čelo, dvojklik = vycentrovat; stav `{ zoom, panX, panY }` čte `drawFaceView` |
 | `live/liveSection.js` | Díry sklopené do řezu na hlavním plátně; se stavem obrábění vybarví úběr do dosažené hloubky |
 | `live/liveMachining.js` | Simulace obrábění: `buildLiveTimeline` (body dráhy středu nástroje s reálným časem — posuv, rychloposuv `feedRates.rapidFeedMmMin`, natočení C, kroky vrtání, prodleva), `liveStateAt` (nástroj, hloubky děr `op:díra`, stopy frézy, hotové operace), `createLivePlayer` (čas × `S.simSpeed`, rAF). `livePanel.sync()` z `liveAfterDraw` naváže obrábění na konec soustružení (`S.simProgress` → 1 během přehrávání) |
-| `live/liveOpForm.js` | HTML formuláře operace v editoru 🛠 Operace |
+| `live/liveChecks.js` | Kontrola operací proti tvaru dílu nad `liveProfile(S)`: materiál v rovině Z = mezikruží (`faceReference.materialAt`), stopa díry / kapsy / drážky = rozsah poloměrů. `checkLiveOp` → `{ issues: [{ sev: 'error'\|'warn', text }], marks: Map(díra → závažnost), sev }`, `checkLiveOps` (pamatuje si poslední výsledek). Kontroly: stopa v materiálu čela, hloubka (skrz / vývrt / obvod), Ø pláště radiální díry, bezpečná vzdálenost a odjezd proti osazení. Bez DOM, NC výstup nemění |
+| `live/liveOpForm.js` | HTML karty a formuláře operace v editoru 🛠 Operace (chyby zadání + nálezy `liveChecks`, tečka nálezu u karty) |
 | `live/livePanel.js` | Panel ◎ (řez → řez + čelo → ◉ jen čelo), Z↔ lišta, ⤢ maximalizace (třída `cam-live-max`, editor ji zapne sám), editor operací, zápis bloku přes textarea programu (událost `input` → stejná cesta jako ruční úprava, ↩ přes `pushHistory`) |
 
 Pravidla: `gcodeParser.parseManualGCodeToPath` obsah bloku **přeskakuje**
@@ -469,7 +470,7 @@ dráhy soustružení). Části programu (`opParts.js`) je sdílí (`SHARED_PARAM
 | `faceView/faceReference.js` | Podklad pod objekty (volá `render/objects.js`): profil v rovině čela (`profileAtZ`), značka řezu v nárysu, promítací čáry, kříž se stupnicí, kóty Ø; `computeFaceOrigin()` (vždy vpravo), `shoulderZs()`; data pro SNAP (`faceSnapPoints/Edge`, volá `canvas.snapPt`) a `hideMainAxisLabel` (`render/axes.js`) |
 | `faceView/faceCutDrag.js` | Tažení značky řezu v nárysu (myš + dotyk, zachycovací fáze na `#canvasWrap`, jen Výběr); zásah počítá `faceReference.cutHit`, Z nastavuje `faceView.setFaceZ` |
 | `faceView/faceView.js` | Tlačítka ◎ (horní lišta + plovoucí u 🔢), tři stavy, čela (nové, smazání, `setFaceZ`), přesun kreseb čel (i ve snímcích ↩/↪) |
-| `faceView/faceBar.js` | Lišta čela (výběr, ➕, 🗑, Z, posuvník, strana) v `#canvasWrap` pod nárysem: poloha a měřítko po každém vykreslení (`faceReference.onFaceDrawn`), na soustruhu posuvník lícuje s osou Z (`faceBarGeom`); akce dostane z `faceView.js` přes `initFaceBar` (bez cyklu) |
+| `faceView/faceBar.js` | Lišta čela (výběr, ➕, 🗑, Z, posuvník, strana) v `#canvasWrap` pod nárysem: poloha a měřítko po každém vykreslení (`faceReference.onFaceDrawn`) pod veškerou kresbou nárysu mimo kruh bokorysu, i ve vrstvě čela (`drawnBounds`), na soustruhu posuvník lícuje s osou Z (`faceBarGeom`); akce dostane z `faceView.js` přes `initFaceBar` (bez cyklu) |
 | `cam/live/liveFromCad.js` | Kresby čel → operace poháněných nástrojů (kružnice → vrtání, úsečka → drážka) se `zTop` a `faceDir` čela |
 
 Kresba čela je obyčejná vrstva, takže ukládání, ↩ i export fungují bez
