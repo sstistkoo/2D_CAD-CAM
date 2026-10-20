@@ -13,8 +13,11 @@
 // vyřazují je stockTools._contourObjects a fileIO.runCncExport (podle isFace).
 // Do CAM jdou přes 🛠 Operace → 📥 Z CAD (cam/live/liveFromCad.js) v souřadnicích
 // vůči středu čela: vodorovně X (C 0°), svisle Y (C 90°), s Z a stranou čela.
-// Modul je bez UI a bez dalších importů (čte ho i vykreslování).
+// Čárkovaná / čerchovaná kružnice je POMOCNÁ (roztečná kružnice) — do CAM nejde,
+// díra se z ní nedělá (isAuxCircle).
+// Modul je bez UI; importuje jen stav a typy čar (čte ho i vykreslování).
 import { state } from '../state.js';
+import { objDash } from '../lineStyles.js';
 
 export const FACE_LAYER_NAME = 'Čelo (bokorys)';
 
@@ -70,6 +73,14 @@ export function profileObjects() {
   return ids.size ? state.objects.filter(o => !ids.has(o.layer)) : state.objects;
 }
 
+/**
+ * Pomocná kružnice čela (roztečná) — kreslená čárkovaně / čerchovaně (typ čáry
+ * s čárkováním). Díra je kružnice plnou čarou.
+ */
+export function isAuxCircle(o) {
+  return !!o && o.type === 'circle' && objDash(o).length > 0;
+}
+
 /** Kopie objektu posunutá o (−ox, −oy); jen typy, které převod do CAM čte. */
 function toLocal(o, ox, oy) {
   if (o.type === 'circle' || o.type === 'arc') return { ...o, cx: o.cx - ox, cy: o.cy - oy };
@@ -80,14 +91,15 @@ function toLocal(o, ox, oy) {
 
 /**
  * Kresby všech čel v souřadnicích vůči středu čela (kopie, výkres se nemění):
- * [{ id, name, z, side: 'right'|'left', objects }].
+ * [{ id, name, z, side: 'right'|'left', objects }]. Pomocné (roztečné)
+ * kružnice se vynechají — nejsou to díry.
  */
 export function faceDrawingsLocal() {
   return getFaceLayers().filter(l => l.origin).map(l => ({
     id: l.id, name: l.name,
     z: Number.isFinite(l.faceZ) ? l.faceZ : 0,
     side: l.faceSide === 'left' ? 'left' : 'right',
-    objects: state.objects.filter(o => o.layer === l.id).map(o => toLocal(o, l.origin.x, l.origin.y)),
+    objects: state.objects.filter(o => o.layer === l.id && !isAuxCircle(o)).map(o => toLocal(o, l.origin.x, l.origin.y)),
   }));
 }
 

@@ -7,11 +7,16 @@
 // nepletla s poli kružnice.
 
 import { showToast } from '../state.js';
+import { bridge } from '../bridge.js';
 import { rowHoles, gridHoles } from './holePatternMath.js';
 import {
   fmt, numVal as val, numField, selectField, outRow, outWarn, outHint, outMain,
   copyText, svgEl, svgClear, fitView,
 } from './calcKit.js';
+
+/** „◎ Do čela" → bridge.drawHolesToFace (faceView/facePattern.js); i v záložce Kružnice. */
+export const FACE_BTN = '<button class="cnc-btn" data-face-draw style="background:var(--ctp-surface1);color:var(--ctp-peach)" '
+  + 'title="Nakreslit díry do aktuálního čela bokorysu — X0 Y0 = osa vřetena">◎ Do čela</button>';
 
 const COMMON_TAIL =
   '<svg class="calc-svg" viewBox="0 0 340 200" data-pat="svg" role="img" aria-label="Náčrt rozmístění děr"></svg>' +
@@ -20,6 +25,7 @@ const COMMON_TAIL =
   '<div class="cnc-actions">' +
     '<button class="cnc-btn" data-pat="clear">🗑 Vymazat</button>' +
     '<button class="cnc-btn" data-pat="copy">📋 Kopírovat</button>' +
+    FACE_BTN +
   '</div>';
 
 /** Společná část panelu: události, vykreslení výsledku, náčrtu a tabulky, kopírování. */
@@ -30,9 +36,10 @@ function setup(root, compute) {
     result: root.querySelector('[data-pat="result"]'),
     table: root.querySelector('[data-pat="table"]'),
   };
-  let last = null;
+  let last = null, lastHoles = null;
 
   function render(holes, summaryHtml, d, heading) {
+    lastHoles = { holes, d };
     ui.result.innerHTML = summaryHtml;
     ui.table.innerHTML = '<table class="calc-pts"><thead><tr><th>#</th><th>X</th><th>Y</th></tr></thead><tbody>' +
       holes.map(h => '<tr><td>' + h.i + '</td><td>' + fmt(h.x) + '</td><td>' + fmt(h.y) + '</td></tr>').join('') + '</tbody></table>';
@@ -40,7 +47,7 @@ function setup(root, compute) {
     last = heading + '\n' + holes.map(h => h.i + ': X' + fmt(h.x) + ' Y' + fmt(h.y)).join('\n');
   }
   function run() {
-    last = null;
+    last = null; lastHoles = null;
     ui.table.innerHTML = '';
     svgClear(ui.svg);
     compute(ui, render);
@@ -54,6 +61,13 @@ function setup(root, compute) {
   root.querySelector('[data-pat="copy"]').addEventListener('click', () => {
     if (!last) { showToast('Zadej rozmístění děr'); return; }
     copyText(last);
+  });
+  root.querySelector('[data-face-draw]').addEventListener('click', () => {
+    if (!lastHoles) { showToast('Zadej rozmístění děr'); return; }
+    if (lastHoles.d === null) { showToast('Zadej Ø díry — kružnice v čele je díra'); return; }
+    const n = bridge.drawHolesToFace && bridge.drawHolesToFace(lastHoles);
+    const ov = n ? root.closest('.calc-overlay') : null;
+    if (ov) ov.remove();
   });
   return run;
 }

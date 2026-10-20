@@ -8,6 +8,7 @@ import { makeInputOverlay, onOverlayRemoved, focusInput } from '../dialogFactory
 import { state, showToast, axisLabels } from '../state.js';
 import { typeLabel, safeEvalMath } from '../utils.js';
 import { drawCanvas, screenToWorld, snapPt } from '../canvas.js';
+import { isFaceObject, getFaceLayers } from '../faceView/faceLayer.js';
 
 // ── Dialog pro offset (paralelní kopie / posun o úhel) ──
 /**
@@ -578,6 +579,10 @@ export function showEndpointChoiceDialog(title, seg, label1, label2, callback) {
  */
 export function showCircularArrayDialog(obj, callback) {
   const labels = axisLabels();
+  // Díra v bokorysu se otáčí kolem středu ČELA (osa vřetena), ne kolem 0,0 výkresu.
+  const face = isFaceObject(obj) ? getFaceLayers().find(l => l.id === obj.layer) : null;
+  const c0 = face && face.origin ? face.origin : { x: 0, y: 0 };
+  const fmtC = v => String(+(+v).toFixed(3));
   const overlay = makeInputOverlay(`
     <div class="input-dialog">
       <h3>🔄 Kruhové pole</h3>
@@ -588,9 +593,9 @@ export function showCircularArrayDialog(obj, callback) {
       <input type="text" id="dlgCircArrAngle" value="360" inputmode="decimal">
       <div class="input-row" style="align-items:end">
         <div><label>Střed ${labels[0]}:</label>
-        <input type="text" id="dlgCircArrCX" value="0" inputmode="decimal"></div>
+        <input type="text" id="dlgCircArrCX" value="${fmtC(c0.x)}" inputmode="decimal"></div>
         <div><label>Střed ${labels[1]}:</label>
-        <input type="text" id="dlgCircArrCZ" value="0" inputmode="decimal"></div>
+        <input type="text" id="dlgCircArrCZ" value="${fmtC(c0.y)}" inputmode="decimal"></div>
         <div class="pick-col"><button type="button" class="pick-btn" id="dlgCircArrPick" title="Vybrat střed z výkresu">🎯</button></div>
       </div>
       <label style="display:flex;align-items:center;gap:6px;margin-top:4px">

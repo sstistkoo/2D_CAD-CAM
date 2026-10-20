@@ -31,6 +31,9 @@ export const bridge = {
   maybeOfferContourDuplicates: null,
   openCamFromDrawing: null,
   deleteFace: null,   // js/faceView/faceView.js — smazání čela bokorysu (panel Vrstvy)
+  // ◎ Rozmístění děr → díry (+ roztečná kružnice) do aktuálního čela; vypnutý
+  // bokorys zapne (faceView.js + faceView/facePattern.js)
+  drawHolesToFace: null,
   // Absolutní world (x,y) → G-kód adresa (osy/jednotky dle machineType +
   // xDisplayMode) – sdílená s runCncExport(), aby se konvence os nerozjela
   // na dvou místech (viz numericalInput.js – ruční zápis G-kódu).

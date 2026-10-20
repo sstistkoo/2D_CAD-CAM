@@ -466,7 +466,8 @@ dráhy soustružení). Části programu (`opParts.js`) je sdílí (`SHARED_PARAM
 
 | Soubor | Účel |
 |--------|------|
-| `faceView/faceLayer.js` | Vrstvy čel (`isFace`, `faceZ`, `faceSide`, `faceCurrent`, společný `origin`), `profileObjects()`, `faceDrawingsLocal()` (vůči středu čela, se Z a stranou), stav ◎ (`faceViewMode`). Bez UI |
+| `faceView/faceLayer.js` | Vrstvy čel (`isFace`, `faceZ`, `faceSide`, `faceCurrent`, společný `origin`), `profileObjects()`, `faceDrawingsLocal()` (vůči středu čela, se Z a stranou; bez pomocných kružnic `isAuxCircle` = čárkovaná/čerchovaná), stav ◎ (`faceViewMode`). Bez UI |
+| `faceView/facePattern.js` | ◎ Rozmístění děr → „◎ Do čela": díry (plná čára, `dashed: false` i při aktivním Typu čáry) + roztečná kružnice (`dashDot`, `skipIntersections`) do aktuálního čela jedním ↩ (`holePatternObjects`, `drawHolesToFace`). Kalkulačky volají `bridge.drawHolesToFace` (registruje `faceView.js`, vypnutý bokorys zapne); Kr.pole v čele klikem do prázdna otevře `openBoltCircleCalc({ cx, cy })` |
 | `faceView/faceReference.js` | Podklad pod objekty (volá `render/objects.js`): profil v rovině čela (`profileAtZ`), značka řezu v nárysu, promítací čáry, kříž se stupnicí, kóty Ø; `computeFaceOrigin()` (vždy vpravo), `shoulderZs()`; data pro SNAP (`faceSnapPoints/Edge`, volá `canvas.snapPt`) a `hideMainAxisLabel` (`render/axes.js`) |
 | `faceView/faceCutDrag.js` | Tažení značky řezu v nárysu (myš + dotyk, zachycovací fáze na `#canvasWrap`, jen Výběr); zásah počítá `faceReference.cutHit`, Z nastavuje `faceView.setFaceZ` |
 | `faceView/faceView.js` | Tlačítka ◎ (horní lišta + plovoucí u 🔢), tři stavy, čela (nové, smazání, `setFaceZ`), přesun kreseb čel (i ve snímcích ↩/↪) |
@@ -479,7 +480,8 @@ kontury) a `fileIO.runCncExport()` (přenos do CAM, CNC kód). Zapnutý
 bokorys = aktuální čelo je viditelné (ostatní čela skrytá). Skrytá čela
 nevstupují do průsečíků (`geometry/intersections.js`) a skryté vrstvy se
 nechytají do SNAP bodů. Čelo zleva (`faceDir: -1`) vrtá v CAM ve směru +Z
-(`liveModel.faceOut`). Testy: `tests/face-view.test.js`, `tests/cam-live-tools.test.js`.
+(`liveModel.faceOut`). Testy: `tests/face-view.test.js`, `tests/face-hole-pattern.test.js`,
+`tests/cam-live-tools.test.js`.
 
 ### CAM: náhled × program (`cam/gcodeSync.js`)
 

@@ -554,7 +554,17 @@ nebo prstem a táhnout po profilu** (Výběr, bokorys zapnutý; najetí = kurzor
 a zvýraznění čáry, u osazení se přichytí, prst chytá do 22 px od čáry, myš do
 8 px). Čelo se při tažení přepočítává průběžně. Kreslí se do aktuálního
 čela: **kružnice = díra** (střed = poloha, Ø kružnice = Ø díry), **úsečka =
-drážka**. Šipka u +X a popisek C0° ukazují, kde stojí nástroj při SPOS.
+drážka**. Kružnice **čárkovaná nebo čerchovaná** (Typ čáry) je **pomocná** —
+roztečná kružnice, díra se z ní nedělá a do CAM nejde. Šipka u +X a popisek
+C0° ukazují, kde stojí nástroj při SPOS.
+
+**Díry na roztečné kružnici.** Nástroj **Kr.pole** v bokorysu: klepnutí do
+prázdna (typicky na **střed** — SNAP ho chytí) otevře kalkulačku
+**◎ Rozmístění děr** se středem v kliknutém bodě (X0 Y0 = osa vřetena).
+Zadejte počet děr, Ø rozteč, Ø díry (případně θ₀) a **◎ Do čela** — do
+aktuálního čela se nakreslí roztečná kružnice čerchovaně a díry plnou čarou,
+vše jedním krokem ↩. Klepnutí na už nakreslenou díru otevře dialog
+kruhového pole se středem v **ose čela** (ne v 0,0 výkresu).
 Kresby čel se ukládají s projektem; do CAM ani CNC kódu profilu nejdou —
 načtou se zvlášť:
 
@@ -1630,6 +1640,10 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   - *Mřížka*: nx × ny děr s roztečemi px, py, natočená o θ kolem první díry;
     pořadí po řádcích, nebo meandrem (každý druhý řádek opačně → kratší
     pojezdy). Tabulka X, Y, rozměr mřížky, můstky v řadě a mezi řadami.
+  - **◎ Do čela** (všechny tři záložky): nakreslí díry do aktuálního čela
+    bokorysu — X, Y vůči ose vřetena (vypnutý bokorys se zapne); záložka
+    Kružnice přidá i roztečnou kružnici čerchovaně (pomocná, do CAM nejde).
+    Potřebuje Ø díry. Z bokorysu ji otevře i Kr.pole klepnutím do prázdna.
 - **Drátky/válečky** (Další kalkulačky, ikona profilu závitu s drátky) – měření
   přes drátky a válečky:
   - *Závit – 3 drátky*: metrický ISO, UNC/UNF, Whitworth, Tr nebo vlastní úhel;

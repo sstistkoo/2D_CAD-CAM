@@ -3,9 +3,10 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { showToast } from '../state.js';
+import { bridge } from '../bridge.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { boltCircle } from './boltCircleMath.js';
-import { mountRowPanel, mountGridPanel } from './holePattern.js';
+import { mountRowPanel, mountGridPanel, FACE_BTN } from './holePattern.js';
 import {
   fmt, numVal as val, numField, selectField, outRow, outWarn, outHint, outMain,
   copyText, svgEl, svgClear, fitView, tabsHtml, wireTabs,
@@ -17,7 +18,12 @@ const TITLES = {
   grid: '◎ Rozmístění děr – mřížka',
 };
 
-export function openBoltCircleCalc() {
+/**
+ * @param [opts] { cx, cy } předvyplněný střed vůči středu čela (Kr.pole → klik
+ *   do prázdna v bokorysu). Klik na tlačítko v panelu předá Event — ten se ignoruje.
+ */
+export function openBoltCircleCalc(opts) {
+  const pre = opts && Number.isFinite(opts.cx) && Number.isFinite(opts.cy) ? opts : null;
   const body =
     '<div class="cnc-fields">' +
       numField('n', 'Počet děr', '', 'n', ' value="6"') +
@@ -27,8 +33,8 @@ export function openBoltCircleCalc() {
       selectField('mode', 'Rozložení', [['full', 'Celý kruh'], ['pitch', 'Zadaná rozteč']]) +
       '<span data-show="pitch">' + numField('step', 'Δθ', '° mezi dírami', 'Úhlová rozteč') + '</span>' +
       selectField('dir', 'Směr', [['ccw', 'Proti hodinám (+)'], ['cw', 'Po směru hodin (−)']]) +
-      numField('cx', 'Střed X', 'mm', '0', ' value="0"') +
-      numField('cy', 'Střed Y', 'mm', '0', ' value="0"') +
+      numField('cx', 'Střed X', 'mm', '0', ' value="' + (pre ? fmt(pre.cx) : 0) + '"') +
+      numField('cy', 'Střed Y', 'mm', '0', ' value="' + (pre ? fmt(pre.cy) : 0) + '"') +
     '</div>' +
     '<svg class="calc-svg" viewBox="0 0 340 240" id="bcSvg" role="img" aria-label="Náčrt děr na roztečné kružnici"></svg>' +
     '<div class="calc-out" id="bcResult"></div>' +
@@ -36,9 +42,11 @@ export function openBoltCircleCalc() {
     '<div class="cnc-actions">' +
       '<button class="cnc-btn cnc-btn-clear">🗑 Vymazat</button>' +
       '<button class="cnc-btn cnc-btn-copy">📋 Kopírovat</button>' +
+      FACE_BTN +
     '</div>' +
     '<div class="calc-note">Úhel 0° = kladná osa X, kladný směr proti hodinám. Soustruh s osou C (vrtání do čela): ' +
-      'X = roztečný průměr, C = úhel. Frézka / karusel s hlavou: X, Y.</div>';
+      'X = roztečný průměr, C = úhel. Frézka / karusel s hlavou: X, Y. ' +
+      '◎ Do čela nakreslí díry do bokorysu (střed X0 Y0 = osa vřetena) a roztečnou kružnici čerchovaně — ta do CAM nejde.</div>';
 
   const overlay = makeOverlay('boltCircle', TITLES.circle, body);
   if (!overlay) return;
@@ -91,7 +99,7 @@ export function openBoltCircleCalc() {
     tableWrap.innerHTML = '<table class="calc-pts"><thead><tr><th>#</th><th>C (úhel)</th><th>X</th><th>Y</th></tr></thead><tbody>' +
       r.holes.map(h => '<tr><td>' + h.i + '</td><td>' + fmt(h.c, 4) + '°</td><td>' + fmt(h.x) + '</td><td>' + fmt(h.y) + '</td></tr>').join('') +
       '</tbody></table>';
-    last = { r, pcd };
+    last = { r, pcd, d, cx, cy };
   }
 
   function draw(r, pcd, d, cx, cy) {
@@ -132,6 +140,12 @@ export function openBoltCircleCalc() {
     const lines = ['Roztečná kružnice Ø' + fmt(last.pcd) + ', ' + last.r.holes.length + ' děr po ' + fmt(last.r.pitch, 4) + '°'];
     last.r.holes.forEach(h => lines.push(h.i + ': X' + fmt(h.x) + ' Y' + fmt(h.y) + '  C' + fmt(h.c, 4)));
     copyText(lines.join('\n'));
+  });
+  overlay.querySelector('[data-pat-mode="circle"] [data-face-draw]').addEventListener('click', () => {
+    if (!last) { showToast('Zadej počet děr a roztečný průměr'); return; }
+    if (last.d === null) { showToast('Zadej Ø díry — kružnice v čele je díra'); inp.d.focus(); return; }
+    const n = bridge.drawHolesToFace && bridge.drawHolesToFace({ holes: last.r.holes, d: last.d, pcd: last.pcd, cx: last.cx, cy: last.cy });
+    if (n) overlay.remove();
   });
 
   showMode();

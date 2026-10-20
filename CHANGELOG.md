@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAD: díry na roztečné kružnici v bokorysu.** Kr.pole v bokorysu uměl jen
+  kopírovat nakreslený objekt — klepnutí na střed čela (kde ještě nic není)
+  skončilo hláškou „Klepněte na objekt". Teď klepnutí do prázdna v čele
+  (SNAP chytí střed) otevře **◎ Rozmístění děr** se středem v kliknutém
+  bodě a nové tlačítko **◎ Do čela** (záložky Kružnice, Řada, Mřížka)
+  nakreslí díry do aktuálního čela (vypnutý bokorys zapne), u Kružnice
+  i roztečnou kružnici čerchovaně — jedním krokem ↩. Čárkovaná / čerchovaná
+  kružnice v čele je pomocná: do CAM (📥 Z CAD) nejde, takže se z roztečné
+  kružnice neudělá díra; nedělá ani průsečíky s dírami. Dialog Kr.pole na
+  díře v čele má výchozí střed v ose čela místo 0,0 výkresu. Modul
+  `faceView/facePattern.js`, test `tests/face-hole-pattern.test.js`.
+
 - **CAM: kontrola poháněných nástrojů proti dílu.** Vrtání a frézování
   (◎ Pohled na čelo → 🛠 Operace) se porovná se skutečným tvarem dílu:
   díra / kapsa / drážka musí ležet celá v materiálu čela (mezi vývrtem
