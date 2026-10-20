@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM: díry z CAD se přenesou samy a vrtají od materiálu.** Při otevření
+  CAM se díry a drážky z bokorysu převedou na operace poháněných nástrojů
+  jako 📥 Z CAD (nahradí jen dřív načtené z CAD, nástroj a otáčky zůstanou).
+  Stojí-li čelo (posuvník) ve vzduchu před přírubou, operace začne vrtat
+  na prvním materiálu (Z čela = příruba, hloubka skrz = tloušťka + přesah;
+  dřív „za čelem není materiál" a výchozí hloubka). Řez v CAM má s dírami
+  i spodní polovinu (kontura a polotovar přes osu), díry 180°…360° se
+  sklopí pod osu. Moduly `cam/live/liveCadSync.js`, `cam/sim/drawLowerHalf.js`,
+  `faceDepth.holeForCam`, test `tests/face-cam-transfer.test.js`.
+
 - **CAD: díry na roztečné kružnici v bokorysu.** Kr.pole v bokorysu uměl jen
   kopírovat nakreslený objekt — klepnutí na střed čela (kde ještě nic není)
   skončilo hláškou „Klepněte na objekt". Teď klepnutí do prázdna v čele

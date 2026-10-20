@@ -30,6 +30,7 @@ import { drawFaceView, livePartGeometry } from './liveFaceView.js';
 import { drawLiveSectionLayer } from './liveSection.js';
 import { LIVE_CSS } from './liveStyles.js';
 import { liveOpsFromCad } from './liveFromCad.js';
+import { cadSyncOps } from './liveCadSync.js';
 import { settingsHtml, applySettingChange } from './liveSettingsUi.js';
 import { faceDrawingsForCam } from '../../../faceView/faceDepth.js';
 import { liveProfile, liveCutAt, autoSide, drawCutMark } from './liveCut.js';
@@ -478,6 +479,15 @@ export function initLiveTools(deps) {
     st.edKey = edKey();
   }
 
+  // Díry a drážky nakreslené v CAD (◎ bokorys) se přenesou samy jako 📥 Z CAD
+  // (liveCadSync.js); blok v programu se přepíše, je-li tam.
+  const fromCad = cadSyncOps(S.params, livePartGeometry(S));
+  if (fromCad) {
+    S.params.liveOps = fromCad.ops;
+    deps.saveState();
+    if (findLiveBlock(programText().split('\n'))) writeBlock(false);
+    showToast(`Z CAD přeneseno: ${fromCad.holes} děr, ${fromCad.slots} drážek → ◎ Pohled na čelo, 🛠 Operace (doplňte nástroj)`, 6000);
+  }
   try {
     const m = MODES[+localStorage.getItem(VIEW_KEY)];
     if (m && m !== 'off') setMode(m);

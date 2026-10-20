@@ -623,6 +623,15 @@ načtou se zvlášť:
   nahradí jen operace dřív načtené z CAD (značka 📐) a převezme jim
   hloubku, nástroj i otáčky; ručně přidané zůstanou. **Druh** u operace
   přepne vrtání ↔ frézování (např. kružnice jako kruhová kapsa).
+  **Při otevření CAM se díry a drážky z bokorysu přenesou samy** (stejně
+  jako 📥 Z CAD, hláška řekne kolik) — tlačítko je potřeba jen po změně
+  výkresu s otevřeným CAM. Stojí-li čelo (posuvník) ve vzduchu před
+  přírubou, díra začne vrtat na **prvním materiálu** pod ní (např.
+  „Díry Ø7 skrz · Z280 ◀" — Z čela 280, hloubka od něj); hloubka *Do
+  hloubky* / *Do Z* drží stejný konec díry.
+- **Řez s dírami** — jsou-li operace poháněných nástrojů, řez vlevo má
+  i **spodní polovinu** (kontura a polotovar zrcadlené přes osu) a díry
+  se do řezu sklopí: s úhlem C 0°…180° nad osu, 180°…360° pod osu.
 - **➕ Vrtání** — do čela (osa Z) nebo do pláště (osa X); rozmístění po
   roztečné kružnici (Ø, počet, počáteční úhel) nebo seznam bodů (řádek
   „úhel; poloměr", u pláště „úhel; Z"). Ø díry, hloubka, krok vrtání

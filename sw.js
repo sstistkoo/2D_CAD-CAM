@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v568';
+const CACHE_NAME = 'skica-v570';
 const ASSETS = [
   './',
   './index.html',
@@ -50,6 +50,7 @@ const ASSETS = [
   './js/calculators/cam/inserts/round.js',
   './js/calculators/cam/inserts/threading.js',
   './js/calculators/cam/interferenceGuides.js',
+  './js/calculators/cam/live/liveCadSync.js',
   './js/calculators/cam/live/liveCut.js',
   './js/calculators/cam/live/liveCutBar.js',
   './js/calculators/cam/live/liveFaceNav.js',
@@ -132,6 +133,7 @@ const ASSETS = [
   './js/calculators/cam/sim/collisionWarnings.js',
   './js/calculators/cam/sim/drawCanvas.js',
   './js/calculators/cam/sim/drawContour.js',
+  './js/calculators/cam/sim/drawLowerHalf.js',
   './js/calculators/cam/sim/drawOverlays.js',
   './js/calculators/cam/sim/drawStock.js',
   './js/calculators/cam/sim/drawToolpath.js',

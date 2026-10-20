@@ -135,17 +135,41 @@ export function resolveFaceHole(face, hole, spec) {
 }
 
 /**
- * Kresby čel pro 📥 Z CAD: jako faceDrawingsLocal(), díry s `holeDepth`
- * dostanou číselné `depth` a `depthTag` (popisek do názvu operace). Díru,
- * jejíž hloubku nejde určit, nechá bez hloubky (operace dostane výchozí).
+ * Díra pro CAM: začátek vrtání `zTop` = první materiál pod dírou za rovinou
+ * čela — čelo (posuvník = odkud se díváme) může stát ve vzduchu před
+ * přírubou a vrtat od něj by byl program naprázdno, kontrola CAM by hlásila
+ * „za čelem není materiál" (uživatel 20. 10. 2026). Hloubka se počítá od
+ * zTop: skrz = tloušťka materiálu + přesah, hloubka / do Z = konec díry
+ * stejný jako od roviny čela. Materiál hned za čelem → bez zTop (= čelo).
+ * @returns objekt díry s `depth`, `depthTag`, `zTop` (co jde určit)
+ */
+export function holeForCam(o, faceZ, side) {
+  const p = holeParams(o, faceZ, side);
+  const spec = o.holeDepth || null;
+  const span = materialSpan(p.objects, p.machineType, faceZ, side, p.lo, p.hi, !!(spec && spec.stock));
+  const start = span ? span.start : 0;
+  const dir = side === 'left' ? 1 : -1;
+  const top = start > 0 ? { zTop: r3(faceZ + dir * start) } : {};
+  if (!spec) return { ...o, ...top };
+  let depth = null;
+  if (spec.mode === 'through') {
+    if (span) depth = r3(span.end - start + (spec.value != null && spec.value >= 0 ? spec.value : throughOverrun(p.d)));
+  } else {
+    const res = resolveHoleDepth(spec, p);
+    if (res.depth > start) depth = r3(res.depth - start);
+  }
+  return depth > 0 ? { ...o, ...top, depth, depthTag: holeDepthLabel(spec) } : { ...o, ...top };
+}
+
+/**
+ * Kresby čel pro 📥 Z CAD: jako faceDrawingsLocal(), díry (kružnice) přes
+ * holeForCam — `depth` a `depthTag` (popisek do názvu operace) u děr
+ * s `holeDepth`, `zTop` u děr za vzduchem. Díru, jejíž hloubku nejde určit,
+ * nechá bez hloubky (operace dostane výchozí).
  */
 export function faceDrawingsForCam() {
   return faceDrawingsLocal().map(f => ({
     ...f,
-    objects: f.objects.map(o => {
-      if (o.type !== 'circle' || !o.holeDepth) return o;
-      const res = resolveHoleDepth(o.holeDepth, holeParams(o, f.z, f.side));
-      return res.depth > 0 ? { ...o, depth: res.depth, depthTag: holeDepthLabel(o.holeDepth) } : o;
-    }),
+    objects: f.objects.map(o => (o.type === 'circle' && o.r > 0 ? holeForCam(o, f.z, f.side) : o)),
   }));
 }

@@ -5,7 +5,13 @@
 // Bez obrábění jen náhled (čárkovaně, průsvitně); při obrábění
 // (liveMachining.js) se odebraný materiál do dosažené hloubky vybarví barvou
 // pozadí jako úběr soustružení. Úběr materiálu soustružení se nemění.
+// Řez je celý (spodní polovina — cam/sim/drawLowerHalf.js): díra s úhlem C
+// 0°…180° se sklopí nad osu, 180°…360° pod osu (uživatel 20. 10. 2026).
 import { getLiveOps, livePositions, faceOut } from './liveModel.js';
+
+const EPS = 1e-6;
+/** Patří poloha (úhel C ve stupních) do spodní poloviny řezu? */
+export const lowerAngle = a => Math.sin(a * Math.PI / 180) < -EPS;
 
 const COLS = { drill: ['rgba(250,179,135,0.22)', '#fab387'], radial: ['rgba(148,226,213,0.22)', '#94e2d5'], mill: ['rgba(203,166,247,0.22)', '#cba6f7'] };
 
@@ -16,7 +22,14 @@ const COLS = { drill: ['rgba(250,179,135,0.22)', '#fab387'], radial: ['rgba(148,
 export function drawLiveSectionLayer(f, mach = null) {
   const ops = getLiveOps(f.prms);
   if (!ops.length) return;
-  const { ctx, toScreen } = f;
+  drawHalf(f, mach, ops, f.toScreen, false);
+  drawHalf(f, mach, ops, (x, z) => f.toScreen(-x, z), true);
+}
+
+/** Jedna polovina řezu: `lower` = díry s úhlem 180°…360°, kreslené přes `toScreen` pod osu. */
+function drawHalf(f, mach, ops, toScreen, lower) {
+  const { ctx } = f;
+  const keep = p => lowerAngle(p.a) === lower;
   const voidCol = (f.C && f.C.bg) || '#1e1e2e';
   const path = (x0, x1, z0, z1) => {
     const pts = [toScreen(x0, z0), toScreen(x1, z0), toScreen(x1, z1), toScreen(x0, z1)];
@@ -38,6 +51,7 @@ export function drawLiveSectionLayer(f, mach = null) {
   const byKey = (op, oi, keyOf) => {
     const m = new Map();
     livePositions(op).forEach((p, i) => {
+      if (!keep(p)) return;
       const k = keyOf(p).toFixed(2), d = mach ? (mach.depth.get(`${oi}:${i}`) || 0) : 0;
       const e = m.get(k);
       if (!e) m.set(k, { p, d }); else e.d = Math.max(e.d, d);
@@ -53,6 +67,8 @@ export function drawLiveSectionLayer(f, mach = null) {
       const spans = [];
       if (op.millType === 'slot') {
         const { x1, y1, x2, y2 } = op.slot;
+        // Drážka do poloviny, kam zasahuje (přes osu do obou).
+        if (lower ? !(Math.min(y1, y2) < -EPS) : Math.max(y1, y2) < -EPS) return;
         // Nejbližší bod úsečky k ose (drážka přes střed má r = 0).
         const dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy;
         const t = L2 > 0 ? Math.max(0, Math.min(1, -(x1 * dx + y1 * dy) / L2)) : 0;
