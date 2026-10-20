@@ -1,19 +1,35 @@
-// Operace poháněných nástrojů v ŘEZU (hlavní plátno CAM). Díra mimo osu se
-// do řezu „sklopí" (jako na výkrese): díra do čela na poloměru r se kreslí
-// jako obdélník Ø díry × hloubka na r, radiální díra jako obdélník od pláště
-// dovnitř ve výšce Z, kapsa / drážka jako obdélník přes svůj rozsah poloměrů.
+// Operace poháněných nástrojů v ŘEZU (hlavní plátno CAM) — stejně jako díry
+// v nárysu CAD (faceView/faceFrontView.js): díra do čela se kreslí ve výšce
+// své SVISLÉ polohy v pohledu na čelo (y = r·sin C — C 0° a 180° leží na
+// ose Z, 90° nahoře, 270° dole; dřív se sklápěla na poloměr a díra na ose
+// v řezu nebyla, uživatel 20. 10. 2026) jako obdélník Ø díry × hloubka,
+// kapsa stejně, drážka přes svůj rozsah y. Radiální díra (do pláště) se
+// sklopí od pláště dovnitř: C 0°…180° nad osu, 180°…360° pod osu. Spodní
+// polovinu řezu (konturu a polotovar) kreslí cam/sim/drawLowerHalf.js.
 // Bez obrábění jen náhled (čárkovaně, průsvitně); při obrábění
 // (liveMachining.js) se odebraný materiál do dosažené hloubky vybarví barvou
 // pozadí jako úběr soustružení. Úběr materiálu soustružení se nemění.
-// Řez je celý (spodní polovina — cam/sim/drawLowerHalf.js): díra s úhlem C
-// 0°…180° se sklopí nad osu, 180°…360° pod osu (uživatel 20. 10. 2026).
 import { getLiveOps, livePositions, faceOut } from './liveModel.js';
 
+const COLS = { drill: ['rgba(250,179,135,0.22)', '#fab387'], radial: ['rgba(148,226,213,0.22)', '#94e2d5'], mill: ['rgba(203,166,247,0.22)', '#cba6f7'] };
 const EPS = 1e-6;
+
 /** Patří poloha (úhel C ve stupních) do spodní poloviny řezu? */
 export const lowerAngle = a => Math.sin(a * Math.PI / 180) < -EPS;
 
-const COLS = { drill: ['rgba(250,179,135,0.22)', '#fab387'], radial: ['rgba(148,226,213,0.22)', '#94e2d5'], mill: ['rgba(203,166,247,0.22)', '#cba6f7'] };
+/**
+ * Rozsah výšek operace do čela v řezu [od, do] pro každou polohu (díra,
+ * kapsa) nebo drážku — y = svislá souřadnice v pohledu na čelo.
+ * @returns {{ y0:number, y1:number, i:number }[]} i = index polohy (stav obrábění)
+ */
+export function faceSpans(op) {
+  if (op.kind === 'mill' && op.millType === 'slot') {
+    const { y1, y2 } = op.slot, tr = op.toolD / 2;
+    return [{ y0: Math.min(y1, y2) - tr, y1: Math.max(y1, y2) + tr, i: 0 }];
+  }
+  const h = op.holeD / 2;
+  return livePositions(op).map((p, i) => ({ y0: p.y - h, y1: p.y + h, i }));
+}
 
 /**
  * @param f snímek z drawCanvas.js ({ S, ctx, toScreen, prms, C })
@@ -22,14 +38,7 @@ const COLS = { drill: ['rgba(250,179,135,0.22)', '#fab387'], radial: ['rgba(148,
 export function drawLiveSectionLayer(f, mach = null) {
   const ops = getLiveOps(f.prms);
   if (!ops.length) return;
-  drawHalf(f, mach, ops, f.toScreen, false);
-  drawHalf(f, mach, ops, (x, z) => f.toScreen(-x, z), true);
-}
-
-/** Jedna polovina řezu: `lower` = díry s úhlem 180°…360°, kreslené přes `toScreen` pod osu. */
-function drawHalf(f, mach, ops, toScreen, lower) {
-  const { ctx } = f;
-  const keep = p => lowerAngle(p.a) === lower;
+  const { ctx, toScreen } = f;
   const voidCol = (f.C && f.C.bg) || '#1e1e2e';
   const path = (x0, x1, z0, z1) => {
     const pts = [toScreen(x0, z0), toScreen(x1, z0), toScreen(x1, z1), toScreen(x0, z1)];
@@ -47,14 +56,14 @@ function drawHalf(f, mach, ops, toScreen, lower) {
     ctx.fillStyle = voidCol; ctx.fill();
     ctx.strokeStyle = COLS[kind][1]; ctx.lineWidth = 1.2; ctx.stroke();
   };
-  // Díry na stejném poloměru (rozteč) se v řezu kryjí — nejhlubší z nich.
-  const byKey = (op, oi, keyOf) => {
+  // Polohy se stejnou výškou v řezu se kryjí (C 0° a 180°, C 60° a 120° …) —
+  // nejhlubší z nich.
+  const merged = (items, oi) => {
     const m = new Map();
-    livePositions(op).forEach((p, i) => {
-      if (!keep(p)) return;
-      const k = keyOf(p).toFixed(2), d = mach ? (mach.depth.get(`${oi}:${i}`) || 0) : 0;
-      const e = m.get(k);
-      if (!e) m.set(k, { p, d }); else e.d = Math.max(e.d, d);
+    items.forEach(it => {
+      const d = mach ? (mach.depth.get(`${oi}:${it.i}`) || 0) : 0;
+      const e = m.get(it.key);
+      if (!e) m.set(it.key, { ...it, d }); else e.d = Math.max(e.d, d);
     });
     return [...m.values()];
   };
@@ -62,45 +71,29 @@ function drawHalf(f, mach, ops, toScreen, lower) {
   ops.forEach((op, oi) => {
     const out = faceOut(op);   // čelo zleva → hloubka do +Z
     const zAt = d => op.zTop - out * d;
-    if (op.kind === 'mill') {
-      const tr = op.toolD / 2;
-      const spans = [];
-      if (op.millType === 'slot') {
-        const { x1, y1, x2, y2 } = op.slot;
-        // Drážka do poloviny, kam zasahuje (přes osu do obou).
-        if (lower ? !(Math.min(y1, y2) < -EPS) : Math.max(y1, y2) < -EPS) return;
-        // Nejbližší bod úsečky k ose (drážka přes střed má r = 0).
-        const dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy;
-        const t = L2 > 0 ? Math.max(0, Math.min(1, -(x1 * dx + y1 * dy) / L2)) : 0;
-        const d = mach ? (mach.depth.get(`${oi}:0`) || 0) : 0;
-        spans.push({ r0: Math.max(0, Math.hypot(x1 + dx * t, y1 + dy * t) - tr), r1: Math.max(Math.hypot(x1, y1), Math.hypot(x2, y2)) + tr, d });
-      } else {
-        byKey(op, oi, p => p.r).forEach(({ p, d }) => spans.push({ r0: Math.max(0, p.r - op.holeD / 2), r1: p.r + op.holeD / 2, d }));
-      }
-      spans.forEach(s => {
-        plan(s.r0, s.r1, op.zTop, zAt(op.depth), 'mill');
-        if (s.d > 0) cut(s.r0, s.r1, op.zTop, zAt(Math.min(s.d, op.depth)), 'mill');
-      });
-      return;
-    }
-    const hd = op.holeD / 2;
     if (op.side === 'radial') {
-      const rX = op.xTop / 2;
-      byKey(op, oi, p => p.z).forEach(({ p, d }) => {
-        plan(rX - op.depth, rX, p.z - hd, p.z + hd, 'radial');
-        if (d > 0) cut(rX - Math.min(d, op.depth), rX, p.z - hd, p.z + hd, 'radial');
+      const rX = op.xTop / 2, hd = op.holeD / 2;
+      const items = livePositions(op).map((p, i) => ({ s: lowerAngle(p.a) ? -1 : 1, z: p.z, i }))
+        .map(it => ({ ...it, key: `${it.s}|${it.z.toFixed(2)}` }));
+      merged(items, oi).forEach(({ s, z, d }) => {
+        plan(s * (rX - op.depth), s * rX, z - hd, z + hd, 'radial');
+        if (d > 0) cut(s * (rX - Math.min(d, op.depth)), s * rX, z - hd, z + hd, 'radial');
       });
       return;
     }
-    byKey(op, oi, p => p.r).forEach(({ p, d }) => {
-      plan(p.r - hd, p.r + hd, op.zTop, zAt(op.depth), 'drill');
-      if (d > 0) cut(p.r - hd, p.r + hd, op.zTop, zAt(Math.min(d, op.depth)), 'drill');
+    const kind = op.kind === 'mill' ? 'mill' : 'drill';
+    const items = faceSpans(op).map(sp => ({ ...sp, key: `${sp.y0.toFixed(2)}|${sp.y1.toFixed(2)}` }));
+    merged(items, oi).forEach(({ y0, y1, d }) => {
+      plan(y0, y1, op.zTop, zAt(op.depth), kind);
+      if (d > 0) cut(y0, y1, op.zTop, zAt(Math.min(d, op.depth)), kind);
+      if (kind !== 'drill') return;
       // Špička vrtáku 118° (na dně plánu, při obrábění na dosažené hloubce).
+      const hd = (y1 - y0) / 2, c = (y0 + y1) / 2;
       const dTip = mach ? Math.min(Math.max(d, 0), op.depth) : op.depth;
       if (mach && !(d > 0)) return;
       const zEnd = zAt(dTip);
-      const tip = toScreen(p.r, zEnd - out * hd * 0.6);
-      const a = toScreen(p.r - hd, zEnd), b = toScreen(p.r + hd, zEnd);
+      const tip = toScreen(c, zEnd - out * hd * 0.6);
+      const a = toScreen(y0, zEnd), b = toScreen(y1, zEnd);
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(tip.x, tip.y); ctx.lineTo(b.x, b.y);
       if (mach) { ctx.fillStyle = voidCol; ctx.fill(); }
       ctx.strokeStyle = COLS.drill[1]; ctx.lineWidth = 1; ctx.stroke();

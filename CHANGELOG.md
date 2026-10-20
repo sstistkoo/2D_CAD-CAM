@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   i spodní polovinu (kontura a polotovar přes osu), díry 180°…360° se
   sklopí pod osu. Moduly `cam/live/liveCadSync.js`, `cam/sim/drawLowerHalf.js`,
   `faceDepth.holeForCam`, test `tests/face-cam-transfer.test.js`.
+  Díry do čela leží v řezu CAM ve výšce jako v nárysu CAD (C 0°/180° na
+  ose Z, dřív se sklápěly na poloměr a díra na ose nebyla vidět) a pohled
+  na čelo kreslí polotovar jako bokorys CAD (čerchovaně se dvěma tečkami,
+  i větší polotovar za řezem) — `liveSection.faceSpans`, `liveCut.liveCutAt`.
 
 - **CAD: díry na roztečné kružnici v bokorysu.** Kr.pole v bokorysu uměl jen
   kopírovat nakreslený objekt — klepnutí na střed čela (kde ještě nic není)

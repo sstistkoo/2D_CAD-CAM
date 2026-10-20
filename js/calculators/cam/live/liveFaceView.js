@@ -1,7 +1,8 @@
 // POHLED NA ČELO — pohled podél osy vřetena proti sklíčidlu (soustruh) /
 // upínací desce (karusel). Kreslí ŘEZ dílu v rovině Z z lišty (liveCut.js:
 // plocha řezu, hrany za ním plně / zakryté čárkovaně — jako bokorys v CAD),
-// polotovar, značku nuly osy C na kusu a operace poháněných nástrojů (díry
+// polotovar (jako v CAD: čerchovaně se dvěma tečkami v rovině řezu i větší
+// polotovar za ní ve směru pohledu), značku nuly osy C na kusu a operace poháněných nástrojů (díry
 // na čele i na plášti, kapsy, drážky; operace na jiném čele než v rovině
 // řezu jsou ztlumené). Obrábění (liveMachining.js, ▶ nebo konec soustružení):
 // neobrobené díry čárkovaně, obrobené jako prázdný materiál podle dosažené
@@ -18,7 +19,7 @@ import { livePositions, liveSettings } from './liveModel.js';
 import { faceRadius } from '../../../faceView/faceReference.js';
 
 const COL = {
-  bg: '#1e1e2e', grid: '#313244', stock: 'rgba(108,112,134,0.30)', stockEdge: '#6c7086',
+  bg: '#1e1e2e', grid: '#313244', stock: 'rgba(108,112,134,0.30)', stockEdge: '#fab387',
   contour: '#89b4fa', axis: '#f38ba8', text: '#a6adc8', drill: '#fab387', radial: '#94e2d5',
   mill: '#cba6f7', tool: '#f9e2af', done: '#a6e3a1', zero: '#a6e3a1',
 };
@@ -97,7 +98,11 @@ export function drawFaceView(canvas, d) {
   // ── polotovar + díl (řez v rovině Z, bez řezu všechny průměry) ──
   const cut = d.cut, at = cut && cut.at;
   const sRz = at && at.stockR > 0 ? at.stockR : sR;
-  circle(sRz, COL.stock, COL.stockEdge, 1.2);
+  // Polotovar jako bokorys v CAD: v rovině řezu vyplněný, obrys a větší
+  // polotovar za řezem čerchovaně se dvěma tečkami (uživatel 20. 10. 2026).
+  circle(sRz, COL.stock, null);
+  const stockBehind = cut && cut.stockView ? cut.stockView.visible.filter(r => Math.abs(r - sRz) > 0.05) : [];
+  [sRz, ...stockBehind].forEach(r => circle(r, null, COL.stockEdge, 1.3, [10, 3, 2, 3, 2, 3]));
   if (cut) {
     if (at.outerR > 0) {
       ctx.beginPath(); ctx.arc(cx, cy, at.outerR * sc, 0, 2 * Math.PI);

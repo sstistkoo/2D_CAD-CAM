@@ -631,7 +631,11 @@ načtou se zvlášť:
   hloubky* / *Do Z* drží stejný konec díry.
 - **Řez s dírami** — jsou-li operace poháněných nástrojů, řez vlevo má
   i **spodní polovinu** (kontura a polotovar zrcadlené přes osu) a díry
-  se do řezu sklopí: s úhlem C 0°…180° nad osu, 180°…360° pod osu.
+  do čela leží ve výšce jako v nárysu CAD (svislá poloha v pohledu na
+  čelo: C 0° a 180° **na ose Z**, C 90° nahoře, C 270° dole); díry do
+  pláště se sklopí od pláště — C 0°…180° nad osu, 180°…360° pod osu.
+- **Polotovar v pohledu na čelo** jako v bokorysu CAD: čerchovaně se
+  dvěma tečkami v rovině řezu i větší polotovar za ní (ve směru pohledu).
 - **➕ Vrtání** — do čela (osa Z) nebo do pláště (osa X); rozmístění po
   roztečné kružnici (Ø, počet, počáteční úhel) nebo seznam bodů (řádek
   „úhel; poloměr", u pláště „úhel; Z"). Ø díry, hloubka, krok vrtání

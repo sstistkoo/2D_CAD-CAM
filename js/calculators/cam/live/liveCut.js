@@ -61,13 +61,15 @@ export function liveProfile(S) {
 
 /**
  * Řez v rovině z při pohledu ze strany side ('right' = zprava, k −Z).
- * @returns {{ z, side, at, view }} at = profileAtZ s plochou řezu (outerR,
- *   innerR) z materiálu za rovinou (sectionAt), view = { visible, hidden }
+ * @returns {{ z, side, at, view, stockView }} at = profileAtZ s plochou řezu
+ *   (outerR, innerR) z materiálu za rovinou (sectionAt), view = { visible,
+ *   hidden }, stockView = polotovar vidět za řezem (tvarový; jako bokorys CAD)
  */
 export function liveCutAt(prof, z, side) {
   const at0 = profileAtZ(prof.objects, LATHE, z);
   const view = viewRadii(prof.objects, LATHE, z, side, at0);
-  return { z, side, at: { ...at0, ...sectionAt(prof.objects, LATHE, z, side) }, view };
+  const stockView = viewRadii(prof.objects, LATHE, z, side, { radii: at0.stockRadii }, true);
+  return { z, side, at: { ...at0, ...sectionAt(prof.objects, LATHE, z, side) }, view, stockView };
 }
 
 /** Strana pohledu podle osazení v rovině z (menší průměr vpravo → zprava). */

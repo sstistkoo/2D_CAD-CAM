@@ -24,7 +24,8 @@ import { state } from '../js/state.js';
 import { holeForCam, faceDrawingsForCam } from '../js/faceView/faceDepth.js';
 import { liveOpsFromCad } from '../js/calculators/cam/live/liveFromCad.js';
 import { cadSyncOps } from '../js/calculators/cam/live/liveCadSync.js';
-import { lowerAngle } from '../js/calculators/cam/live/liveSection.js';
+import { lowerAngle, faceSpans } from '../js/calculators/cam/live/liveSection.js';
+import { liveCutAt } from '../js/calculators/cam/live/liveCut.js';
 import { contourRuns, stockRuns, lowerHalfOn } from '../js/calculators/cam/sim/drawLowerHalf.js';
 
 const L = (x1, y1, x2, y2) => ({ type: 'line', layer: 0, x1, y1, x2, y2 });
@@ -123,5 +124,27 @@ describe('spodní polovina řezu v CAM', () => {
     expect(runs[0]).toEqual([{ x: 0, z: 0 }, { x: 20, z: 0 }, { x: 20, z: -50 }]);
     expect(stockRuns({ stockMode: 'cylinder', stockDiameter: '100', stockLength: '120', stockFace: '2' }, []))
       .toEqual([[{ x: 0, z: 2 }, { x: 50, z: 2 }, { x: 50, z: -120 }, { x: 0, z: -120 }]]);
+  });
+});
+
+describe('řez v CAM jako nárys v CAD (faceSpans) a polotovar v pohledu na čelo', () => {
+  it('díra na C0° a C180° leží na ose Z, C90° nahoře, C270° dole', () => {
+    const op = { kind: 'drill', side: 'face', pattern: 'pcd', pcd: 80, count: 4, startAngle: 0, holeD: 7 };
+    const sp = faceSpans(op).map(s => [+s.y0.toFixed(3), +s.y1.toFixed(3)]);
+    expect(sp).toEqual([[-3.5, 3.5], [36.5, 43.5], [-3.5, 3.5], [-43.5, -36.5]]);
+  });
+  it('drážka přes svůj rozsah y (+ poloměr frézy)', () => {
+    const op = { kind: 'mill', millType: 'slot', side: 'face', toolD: 8, slot: { x1: -20, y1: -10, x2: 20, y2: 30 } };
+    expect(faceSpans(op)).toEqual([{ y0: -14, y1: 34, i: 0 }]);
+  });
+  it('liveCutAt: větší polotovar za řezem je vidět (jako bokorys CAD)', () => {
+    const Ls = (x1, y1, x2, y2) => ({ ...L(x1, y1, x2, y2), isStock: true });
+    const objects = [...profile(),
+      Ls(-2, 0, -2, 25), Ls(-2, 25, 195, 25), Ls(195, 25, 195, 50), Ls(195, 50, 285, 50),
+      Ls(285, 50, 285, 20), Ls(285, 20, 342, 20), Ls(342, 20, 342, 0)];
+    const c = liveCutAt({ objects }, 300, 'right');
+    expect(c.at.stockR).toBe(20);
+    expect(c.stockView.visible).toContain(50);
+    expect(c.stockView.visible).not.toContain(25);
   });
 });
