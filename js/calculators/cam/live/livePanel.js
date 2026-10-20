@@ -31,7 +31,7 @@ import { drawLiveSectionLayer } from './liveSection.js';
 import { LIVE_CSS } from './liveStyles.js';
 import { liveOpsFromCad } from './liveFromCad.js';
 import { settingsHtml, applySettingChange } from './liveSettingsUi.js';
-import { faceDrawingsLocal } from '../../../faceView/faceLayer.js';
+import { faceDrawingsForCam } from '../../../faceView/faceDepth.js';
 import { liveProfile, liveCutAt, autoSide, drawCutMark } from './liveCut.js';
 import { createCutBar } from './liveCutBar.js';
 import { attachFaceNav, defaultNav, isDefaultNav } from './liveFaceNav.js';
@@ -391,7 +391,7 @@ export function initLiveTools(deps) {
       st.selected = ops.length - 1;
       commit(p => { p.liveOps = ops; });
     } else if (act === 'from-cad') {
-      const res = liveOpsFromCad(faceDrawingsLocal(), livePartGeometry(S), getLiveOps(S.params));
+      const res = liveOpsFromCad(faceDrawingsForCam(), livePartGeometry(S), getLiveOps(S.params));
       if (!res.holes && !res.slots) {
         showToast('V CAD není nakreslené čelo — zapněte ◎ (bokorys), kružnice = díra, úsečka = drážka', 5000);
         return;

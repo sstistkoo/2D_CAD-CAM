@@ -8,6 +8,7 @@
 
 import { showToast } from '../state.js';
 import { bridge } from '../bridge.js';
+import { depthFieldsHtml, wireDepthFields, readDepth } from './holeDepthFields.js';
 import { rowHoles, gridHoles } from './holePatternMath.js';
 import {
   fmt, numVal as val, numField, selectField, outRow, outWarn, outHint, outMain,
@@ -29,7 +30,8 @@ const COMMON_TAIL =
   '</div>';
 
 /** Společná část panelu: události, vykreslení výsledku, náčrtu a tabulky, kopírování. */
-function setup(root, compute) {
+function setup(root, compute, prefix) {
+  wireDepthFields(root, prefix);
   const ui = {
     q: (id) => root.querySelector('[data-id="' + id + '"]'),
     svg: root.querySelector('[data-pat="svg"]'),
@@ -65,7 +67,9 @@ function setup(root, compute) {
   root.querySelector('[data-face-draw]').addEventListener('click', () => {
     if (!lastHoles) { showToast('Zadej rozmístění děr'); return; }
     if (lastHoles.d === null) { showToast('Zadej Ø díry — kružnice v čele je díra'); return; }
-    const n = bridge.drawHolesToFace && bridge.drawHolesToFace(lastHoles);
+    const dep = readDepth(root, prefix);
+    if (dep.error) { showToast(dep.error); return; }
+    const n = bridge.drawHolesToFace && bridge.drawHolesToFace({ ...lastHoles, depth: dep.spec });
     const ov = n ? root.closest('.calc-overlay') : null;
     if (ov) ov.remove();
   });
@@ -105,6 +109,7 @@ export function mountRowPanel(root) {
     '<div class="cnc-fields">' +
       numField('row_n', 'Počet děr', '', 'n', ' value="5" data-def="5"') +
       numField('row_d', 'Ø díry', 'mm', 'volitelně') +
+      depthFieldsHtml('row_') +
       numField('row_x0', 'Začátek X', 'mm', '0', ' value="0" data-def="0"') +
       numField('row_y0', 'Začátek Y', 'mm', '0', ' value="0" data-def="0"') +
       '<span class="cnc-field-full">' + selectField('row_mode', 'Zadání', [['pitch', 'Rozteč a úhel'], ['end', 'Koncový bod (rozteč se dopočte)']]) + '</span>' +
@@ -140,7 +145,7 @@ export function mountRowPanel(root) {
     const sum = outMain(n + ' děr po ' + fmt(r.pitch, 4) + ' mm', 'úhel řady ' + fmt(r.angle, 4) + '°') +
       (n > 1 ? outRow('Délka řady (první – poslední díra)', fmt(r.length) + ' mm') + bridgeRow('Můstek mezi dírami', r.pitch, d) : '');
     render(r.holes, sum, d, 'Řada ' + n + ' děr, rozteč ' + fmt(r.pitch, 4) + ', úhel ' + fmt(r.angle, 4) + '°');
-  });
+  }, 'row_');
   run();
 }
 
@@ -156,6 +161,7 @@ export function mountGridPanel(root) {
       numField('grid_y0', 'Začátek Y', 'mm', '0', ' value="0" data-def="0"') +
       numField('grid_ang', 'Natočení', '°', '0', ' value="0" data-def="0"') +
       numField('grid_d', 'Ø díry', 'mm', 'volitelně') +
+      depthFieldsHtml('grid_') +
       '<span class="cnc-field-full">' + selectField('grid_order', 'Pořadí vrtání', [['rows', 'Po řádcích (vždy zleva)'], ['meander', 'Meandr (klikatě, kratší pojezdy)']]) + '</span>' +
     '</div>' + COMMON_TAIL +
     '<div class="calc-note">Mřížka se otáčí kolem bodu „Začátek" (první díra). Rozteč v druhém směru je kolmá k první; u jediné řady nebo sloupce druhou rozteč nezadáváš.</div>';
@@ -184,6 +190,6 @@ export function mountGridPanel(root) {
     if (nx > 1) sum += bridgeRow('Můstek v řadě', px, d);
     if (ny > 1) sum += bridgeRow('Můstek mezi řadami', py, d);
     render(g.holes, sum, d, 'Mřížka ' + nx + ' × ' + ny + ', rozteč ' + fmt(px ?? 0) + ' × ' + fmt(py ?? 0) + (meander ? ', meandr' : ''));
-  });
+  }, 'grid_');
   run();
 }

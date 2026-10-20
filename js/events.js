@@ -15,7 +15,7 @@ import { autoDetectFeatures } from './dialogs/autoDetect.js';
 import { bulgeToCcwArc, deepClone } from './utils.js';
 import { bridge } from './bridge.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
-import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, resetOffsetState, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, handleSnapPointClick, handleMoveClick, applyDragDelta, cancelDrag, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleJoinClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState, handleFillAreaClick, startPencilStroke, addPencilPoint, finishPencilStroke, resetPencilState } from './tools/index.js';
+import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, resetOffsetState, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, handleSnapPointClick, handleMoveClick, applyDragDelta, cancelDrag, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleJoinClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleFaceHoleClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState, handleFillAreaClick, startPencilStroke, addPencilPoint, finishPencilStroke, resetPencilState } from './tools/index.js';
 import { getLineSegment } from './tools/helpers.js';
 import { showPostDrawPointDialog } from './dialogs/postDrawDialog.js';
 import { isAnyPickerArmed } from './dialogs/canvasPick.js';
@@ -1039,6 +1039,10 @@ export function handleCanvasClick(wx, wy) {
 
     case "circularArray":
       handleCircularArrayClick(wx, wy);
+      break;
+
+    case "faceHole":   // jedna díra do čela (tools/faceHoleClick.js)
+      handleFaceHoleClick(wx, wy);
       break;
 
     case "copyPlace":

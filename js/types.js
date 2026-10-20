@@ -201,7 +201,7 @@
 // ── Stav aplikace ──
 
 /**
- * @typedef {'select'|'move'|'point'|'line'|'constr'|'circle'|'arc'|'rect'|'polyline'|'pencil'|'measure'|'tangent'|'offset'|'trim'|'extend'|'fillet'|'chamfer'|'filletChamfer'|'perp'|'parallel'|'horizontal'|'dimension'|'deleteObj'|'anchor'|'break'|'join'|'centerMark'|'scale'|'mirror'} ToolType
+ * @typedef {'select'|'move'|'point'|'line'|'constr'|'circle'|'arc'|'rect'|'polyline'|'pencil'|'measure'|'tangent'|'offset'|'trim'|'extend'|'fillet'|'chamfer'|'filletChamfer'|'perp'|'parallel'|'horizontal'|'dimension'|'deleteObj'|'anchor'|'break'|'join'|'centerMark'|'scale'|'mirror'|'circularArray'|'faceHole'} ToolType
  */
 
 /**

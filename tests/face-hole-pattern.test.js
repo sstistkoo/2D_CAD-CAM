@@ -24,6 +24,7 @@ vi.mock('../js/canvas.js', () => ({ autoCenterView: vi.fn(), drawCanvas: { width
 import { state } from '../js/state.js';
 import { isAuxCircle, faceDrawingsLocal } from '../js/faceView/faceLayer.js';
 import { holePatternObjects, drawHolesToFace } from '../js/faceView/facePattern.js';
+import { materialDepth, resolveHoleDepth, throughOverrun, holeDepthLabel, faceDrawingsForCam } from '../js/faceView/faceDepth.js';
 import { boltCircle } from '../js/calculators/boltCircleMath.js';
 import { liveOpsFromCad } from '../js/calculators/cam/live/liveFromCad.js';
 
@@ -100,5 +101,56 @@ describe('Rozmístění děr → čelo', () => {
     state.layers[1].origin = null;
     expect(drawHolesToFace({ holes: holes6(), d: 8, pcd: 50 })).toBe(0);
     expect(state.objects).toHaveLength(1);
+  });
+});
+
+// Příruba: Ø200 tl. 20 (Z0…Z-20), za ní náboj Ø80 do Z-60, vývrt Ø30 skrz.
+const FLANGE = [
+  [0, 15, 0, 100], [0, 100, -20, 100], [-20, 100, -20, 40], [-20, 40, -60, 40],
+  [-60, 40, -60, 15], [-60, 15, 0, 15],
+].map(([x1, y1, x2, y2], i) => ({ id: 100 + i, layer: 0, type: 'line', x1, y1, x2, y2 }));
+
+describe('hloubka děr v čele (skrz / hloubka / do Z)', () => {
+  const p = (r, d, extra = {}) => ({ faceZ: 0, side: 'right', d, lo: r - d / 2, hi: r + d / 2, objects: FLANGE, machineType: 'soustruh', ...extra });
+
+  it('skrz = materiál pod stopou díry + přesah hrotu', () => {
+    expect(materialDepth(FLANGE, 'soustruh', 0, 'right', 75, 85)).toBeCloseTo(20, 3);   // jen příruba
+    expect(materialDepth(FLANGE, 'soustruh', 0, 'right', 22, 28)).toBeCloseTo(60, 3);   // i náboj
+    expect(materialDepth(FLANGE, 'soustruh', -60, 'left', 22, 28)).toBeCloseTo(60, 3);  // zleva k +Z
+    expect(materialDepth(FLANGE, 'soustruh', 0, 'right', 3, 9)).toBeNull();             // ve vývrtu
+    expect(throughOverrun(10)).toBe(4);
+    expect(resolveHoleDepth({ mode: 'through', value: null }, p(80, 10))).toMatchObject({ depth: 24, thick: 20 });
+    expect(resolveHoleDepth({ mode: 'through', value: 2 }, p(80, 10)).depth).toBeCloseTo(22, 3);
+  });
+  it('do hloubky a do Z (Z na straně nástroje se odmítne)', () => {
+    expect(resolveHoleDepth({ mode: 'depth', value: 7.5 }, p(80, 10))).toEqual({ depth: 7.5 });
+    expect(resolveHoleDepth({ mode: 'z', value: -12 }, p(80, 10))).toEqual({ depth: 12 });
+    expect(resolveHoleDepth({ mode: 'z', value: 5 }, p(80, 10)).error).toMatch(/straně nástroje/);
+    expect(resolveHoleDepth({ mode: 'z', value: -40 }, p(25, 6, { faceZ: -60, side: 'left' })).depth).toBe(20);
+    expect(holeDepthLabel({ mode: 'z', value: -12.5 })).toBe('do Z-12,5');
+  });
+  it('📥 Z CAD: hloubka do operace, různé hloubky stejného Ø = dvě operace', () => {
+    state.objects = [...FLANGE.map(o => ({ ...o }))];
+    drawHolesToFace({ holes: boltCircle({ count: 6, pcd: 160 }).holes, d: 10, pcd: 160, depth: { mode: 'through', value: null } });
+    drawHolesToFace({ holes: boltCircle({ count: 4, pcd: 50, start: 45 }).holes, d: 10, depth: { mode: 'z', value: -12 } });
+    const res = liveOpsFromCad(faceDrawingsForCam(), { faceZ: 0, outerD: 200 }, []);
+    expect(res.holes).toBe(10);
+    const ops = res.ops.filter(o => o.kind === 'drill');
+    expect(ops.map(o => [o.name, o.depth, o.pcd, o.count])).toEqual([
+      ['Díry Ø10 do Z-12', 12, 50, 4],
+      ['Díry Ø10 skrz', 24, 160, 6],
+    ]);
+    expect(state.objects.find(o => o.holeDepth).name).toBe('Díra Ø10 skrz #1');
+  });
+  it('do Z na straně nástroje díry nenakreslí', () => {
+    state.objects = [...FLANGE.map(o => ({ ...o }))];
+    expect(drawHolesToFace({ holes: holes6(), d: 8, depth: { mode: 'z', value: 3 } })).toBe(0);
+    expect(state.objects.some(o => o.layer === 7)).toBe(false);
+  });
+  it('díra bez zadané hloubky (kružnice) si nechá výchozí / převzatou hloubku', () => {
+    state.objects.push({ id: 5, layer: 7, type: 'circle', cx: 130, cy: 0, r: 4 });
+    const op = liveOpsFromCad(faceDrawingsForCam(), { faceZ: 0, outerD: 100 }, [])
+      .ops.find(o => o.holeD === 8);
+    expect([op.name, op.depth]).toEqual(['Díry Ø8', 10]);
   });
 });

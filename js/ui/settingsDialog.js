@@ -85,7 +85,7 @@ export function showSettingsDialog() {
           <button class="calc-btn" id="settFlipZ" style="${btnS}${act(state.flipZ)}" title="Otočit vodorovnou osu Z">⇄ Z+ ${state.flipZ ? 'vlevo ←' : 'vpravo →'}</button>
         </div>
         <div style="display:flex;gap:6px;margin-top:6px">
-          <button class="calc-btn" id="settMirrorPreview" style="${btnS}${act(state.mirrorPreview)}" title="Zobrazit poloprůhledný náhled kontury zrcadlené kolem osy rotace (y=0)">⇋ Zrcadlit kolem osy: ${state.mirrorPreview ? 'ON' : 'OFF'}</button>
+          <button class="calc-btn" id="settMirrorPreview" style="${btnS}${act(state.mirrorPreview)}" title="Dokreslit konturu zrcadlenou kolem osy rotace (y=0) — druhá polovina nárysu; jen zobrazení, objekty nevznikají">⇋ Zrcadlit kolem osy: ${state.mirrorPreview ? 'ON' : 'OFF'}</button>
         </div>
         <div style="display:flex;gap:6px;margin-top:6px">
           <button class="calc-btn" id="settContourGaps" style="${btnS}${act(state.showContourGaps)}" title="Zvýraznit mezery/přerušení v kontuře na plátně">⊗ Mezery v kontuře: ${state.showContourGaps ? 'ON' : 'OFF'}</button>

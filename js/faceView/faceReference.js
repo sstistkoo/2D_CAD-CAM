@@ -194,9 +194,10 @@ export function profileAtZ(objects, machineType, z) {
   const innerR = radii.length > 1 && radii[0] > 0.05 ? radii[0] : 0;
   const sHits = [...hitsAt(stock, isCar, z - d), ...hitsAt(stock, isCar, z + d)];
   const stockR = sHits.length ? Math.max(...sHits) : 0;
+  const stockRadii = [...new Set(sHits.filter(r => r > 0.05).map(r => +r.toFixed(2)))];
   const mL = L.length ? Math.max(...L) : 0, mR = Rr.length ? Math.max(...Rr) : 0;
   const side = mR < mL - 0.05 ? 'right' : (mL < mR - 0.05 ? 'left' : null);
-  return { radii: radii.slice(-8), outerR, innerR, stockR, side };
+  return { radii: radii.slice(-8), outerR, innerR, stockR, stockRadii, side };
 }
 
 /**
@@ -222,13 +223,15 @@ export function sectionAt(objects, machineType, z, side) {
  * kružnice. Větší průměry za řezem (osazení) a průměry uvnitř vývrtu jsou
  * vidět, průměry mezi vývrtem a obvodem řezu zakrývá plocha řezu (skryté).
  * Co leží před řezem (na straně pozorovatele), se nekreslí.
+ * `stock` = totéž pro polotovar (`at.radii` = polotovar v rovině): větší
+ * polotovar za řezem je vidět (uživatel 20. 10. 2026), dílem se nezakrývá.
  * @returns {{ visible:number[], hidden:number[] }}
  */
-export function viewRadii(objects, machineType, z, side, at) {
+export function viewRadii(objects, machineType, z, side, at, stock = false) {
   const isCar = machineType === 'karusel';
   const dir = side === 'left' ? 1 : -1;   // směr pohledu v Z (zprava = k −Z)
   const behind = zz => (zz - z) * dir >= -1e-6;
-  const part = (objects || []).filter(o => usable(o) && !o.isStock);
+  const part = (objects || []).filter(o => usable(o) && !o.isStock === !stock);
   // Hrany = kružnice v místech zlomu profilu (konce úseček, vrcholy, konce
   // oblouků) za rovinou řezu: { r, z }.
   const edges = [];
@@ -345,16 +348,21 @@ export function setFaceCutHot(on) {
   _cutHot = on;
   return true;
 }
-/** Levný otisk profilu (souřadnice objektů) + roviny čela pro cache řezu. */
-function geoKey(objects, z, side) {
+/** Levný otisk souřadnic objektů — klíč cache výpočtů nad profilem. */
+export function objectsHash(objects) {
   let h = 0;
   const add = v => { if (Number.isFinite(v)) h = (h * 31 + Math.round(v * 1000)) | 0; };
   (objects || []).forEach(o => {
     add(o.x1); add(o.y1); add(o.x2); add(o.y2); add(o.cx); add(o.cy); add(o.r);
     add(o.startAngle); add(o.endAngle); h = (h * 31 + (o.isStock ? 1 : 0) + (o.ccw === false ? 2 : 0)) | 0;
     if (Array.isArray(o.vertices)) o.vertices.forEach(v => { add(v.x); add(v.y); });
+    if (Array.isArray(o.bulges)) o.bulges.forEach(add);
   });
-  return `${objects.length}|${h}|${z}|${side}|${state.machineType}`;
+  return `${(objects || []).length}|${h}`;
+}
+/** Otisk profilu + roviny čela pro cache řezu. */
+function geoKey(objects, z, side) {
+  return `${objectsHash(objects)}|${z}|${side}|${state.machineType}`;
 }
 
 // ── Geometrie posledního vykreslení: SNAP a skrývání čísel hlavních os ──
@@ -487,13 +495,16 @@ function paintFace(g, w2s) {
   if (!_viewCache || _viewCache.key !== key) {
     const at0 = profileAtZ(prof, state.machineType, z);
     const view = viewRadii(prof, state.machineType, z, layer.faceSide, at0);
+    // Polotovar vidět za řezem (větší průměr polotovaru dál od roviny).
+    const stockView = viewRadii(prof, state.machineType, z, layer.faceSide, { radii: at0.stockRadii }, true);
     // Plocha řezu z materiálu za rovinou (v rovině osazení bez falešného vývrtu).
-    _viewCache = { key, at: { ...at0, ...sectionAt(prof, state.machineType, z, layer.faceSide) }, view };
+    _viewCache = { key, at: { ...at0, ...sectionAt(prof, state.machineType, z, layer.faceSide) }, view, stockView };
   }
-  const { at, view } = _viewCache;
+  const { at, view, stockView } = _viewCache;
   const sR = at.stockR || sRmax;
+  const stockCircles = [sR, ...stockView.visible.filter(r => Math.abs(r - sR) > 0.05)];
   const radii = at.radii.filter(r => r > 0.05);
-  _disc = { x: O.x, y: O.y, r: bodyR * 1.15, R: bodyR, radii: [...view.visible, sR], solo: !!layer.solo, isCar };
+  _disc = { x: O.x, y: O.y, r: bodyR * 1.15, R: bodyR, radii: [...view.visible, ...stockCircles], solo: !!layer.solo, isCar };
   const zoom = state.zoom;
   const circle = (r, fill, stroke, lw = 1, dash) => {
     const [cx, cy] = w2s(O.x, O.y);
@@ -524,7 +535,9 @@ function paintFace(g, w2s) {
     // stranu, pod osu jen krátký přesah bez šipky — lišta čela pak stojí hned
     // pod osou, ne pod prázdným spodkem řezu (uživatel 20. 10. 2026).
     const pb = profileBounds(prof, true);
-    const below = !pb || (isCar ? pb.minX : pb.minY) < -0.01;
+    // ⇋ Zrcadlit kolem osy (Nastavení, osa y = 0 → jen soustruh; „◎ Do čela"
+    // ho zapne) dokreslí spodní polovinu — řez i lišta jdou pod ni.
+    const below = !pb || (isCar ? pb.minX : pb.minY) < -0.01 || (!isCar && !!state.mirrorPreview);
     const lo = below ? -span : -STUB_PX / (zoom || 1);
     const [x1, y1] = P(z, lo), [x2, y2] = P(z, span);
     // spanMax / loMax = řez přes největší průměr dílu: lišta čela pod nárysem
@@ -559,7 +572,8 @@ function paintFace(g, w2s) {
   // Polotovar v barvě vrstvy Polotovar (jako v nárysu), kontura modře.
   const stockLayer = (state.layers || []).find(l => l.id === 3);
   // Čerchovaně se dvěma tečkami (pomocná čára) — odlišné od skrytých hran.
-  circle(sR, null, (stockLayer && stockLayer.color) || '#fab387', 1.3, [10, 3, 2, 3, 2, 3]);
+  // V rovině řezu i větší polotovar za ní (ve směru pohledu).
+  stockCircles.forEach(r => circle(r, null, (stockLayer && stockLayer.color) || '#fab387', 1.3, [10, 3, 2, 3, 2, 3]));
   // Plocha řezu (mezikruží vývrt … obvod v rovině čela), pak hrany za řezem:
   // viditelné plně, zakryté řezem slabě čárkovaně.
   if (at.outerR > 0) {

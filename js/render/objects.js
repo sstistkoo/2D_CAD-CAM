@@ -18,6 +18,7 @@ import { drawText } from './text.js';
 import { bulgeToArc, deepClone } from '../utils.js';
 import { resetDimLabelRects } from './view.js';
 import { drawFaceReference, inFaceDisc } from '../faceView/faceReference.js';
+import { drawFrontView } from '../faceView/faceFrontView.js';
 import { faceViewMode } from '../faceView/faceLayer.js';
 
 // ── Vykreslení objektů ──
@@ -35,6 +36,8 @@ export function renderObjects() {
 
   // Bokorys (faceView/): podklad polotovar / profil / sklíčidlo úplně dospod.
   drawFaceReference(ctx, worldToScreen);
+  // Nárys dokreslený pod osu + díry čel skrytou čarou (jen podklad).
+  drawFrontView(ctx, worldToScreen);
 
   // Výplně (nástroj "Vybarvit") – kreslí se jako první vrstva, pod obrysy.
   drawFills(vp);
@@ -243,7 +246,8 @@ export function renderObjects() {
         (sy1 + sy2) / 2 - 8,
       );
     }
-    if (state.tool === "circle") {
+    // Kr.pole v bokorysu: roztečná kružnice od středu (tools/circularArrayClick.js).
+    if (state.tool === "circle" || state.tool === "circularArray") {
       const [sx, sy] = worldToScreen(tp[0].x, tp[0].y);
       const rw = Math.hypot(mx - tp[0].x, my - tp[0].y);
       const r = rw * state.zoom;
@@ -252,7 +256,7 @@ export function renderObjects() {
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.font = `${labelSize}px Consolas`;
-      ctx.fillText(`R ${rw.toFixed(3)}`, sx + r + 6, sy);
+      ctx.fillText(state.tool === "circle" ? `R ${rw.toFixed(3)}` : `Ø ${(2 * rw).toFixed(3)}`, sx + r + 6, sy);
     }
     if (state.tool === "rect") {
       const [sx1, sy1] = worldToScreen(tp[0].x, tp[0].y);

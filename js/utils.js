@@ -519,6 +519,7 @@ export function toolLabel(t) {
       filletChamfer: "Zaob./Zkos.",
       mirror: "Zrcadlení",
       circularArray: "Kruhové pole",
+      faceHole: "Díra",
       linearArray: "Lineární pole",
       copyPlace: "Kopírovat",
       boolean: "Boolean",

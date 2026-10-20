@@ -20,6 +20,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   kružnice neudělá díra; nedělá ani průsečíky s dírami. Dialog Kr.pole na
   díře v čele má výchozí střed v ose čela místo 0,0 výkresu. Modul
   `faceView/facePattern.js`, test `tests/face-hole-pattern.test.js`.
+  Roztečnou kružnici jde z bokorysu rovnou **vytáhnout**: Kr.pole → klik na
+  střed čela → tažení nebo 2. klik na obvod (náhled s Ø) → kalkulačka má
+  předvyplněný střed i Ø rozteče. Díry mají **hloubku**: Skrz (materiál pod
+  dírou + přesah, výchozí hrot 0,3·Ø + 1 mm) / Do hloubky / Do Z (konec díry;
+  Z na straně nástroje se odmítne). Hloubka se spočte při 📥 Z CAD
+  z aktuálního profilu a Z čela a operace ji dostane (stejné Ø s jinou
+  hloubkou = zvlášť operace). Moduly `faceView/faceDepth.js`,
+  `calculators/holeDepthFields.js`.
+  **Díry v nárysu** se kreslí jako na výkresu: tenkou čárkovanou čarou
+  (skrytá hrana) v prvním materiálu za rovinou čela — i když posuvník stojí
+  před přírubou (skrz = přes materiál, hloubka / do Z = válec + špička 118°),
+  s osou díry čerchovaně. „◎ Do čela" na soustruhu zapne ⇋ Zrcadlit kolem
+  osy — nárys se dokreslí pod osu, díry pod osou mají kde ležet, a značka
+  řezu i lišta čela jdou pod spodní polovinu. Bokorys ukazuje i **větší
+  polotovar za řezem** ve směru pohledu, dřív jen polotovar v rovině čela.
+  Modul `faceView/faceFrontView.js`, `faceDepth.materialSpan`, test
+  `tests/face-front-view.test.js`.
+  **SNAP** chytá dokreslenou spodní polovinu, hrany přes osu i čáry děr
+  v nárysu (kótování, kreslení od díry) — `render/mirrorSnap.js`. Hloubka
+  **Skrz** má volbu *Hotová kontura* / *I polotovar* (vrtání před
+  soustružením; „skrz vč. polotovaru" = samostatná operace v CAM).
+  Nový nástroj **Díra** (Více, vedle Kr.pole): klepnutí do bokorysu →
+  okno ◎ Díra do čela (X, Y, polárně Ø a C, Ø díry, hloubka) → jedna díra
+  do čela. Moduly `tools/faceHoleClick.js`, `calculators/singleHole.js`,
+  test `tests/face-single-hole.test.js`.
+
+- **CAD: lišta nástrojů na mobilu na výšku.** Rozbalené Více má pevné
+  řádky po čtyřech (Řet.kóta přesunuta k DIN · Závit · Bool, Díra vedle
+  Kr.pole) a tlačítko **▴** v řádku s Kr.pole sbalí řádky nad Více —
+  zůstane hlavička a nástroje Více. `js/toolbarCollapse.js`.
 
 - **CAM: kontrola poháněných nástrojů proti dílu.** Vrtání a frézování
   (◎ Pohled na čelo → 🛠 Operace) se porovná se skutečným tvarem dílu:
@@ -76,6 +106,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Nápověda Sinumerik rozcestníku: sekce „Editor“.** CNC Editor se otevírá z plátna, v rozcestníku dlaždici nemá; popis se odstranil (`js/calculators/help.js`).
 
 ### Changed
+
+- **CAD: ⇋ Zrcadlit kolem osy jako technologický výkres.** Spodní polovina
+  se kreslí čarou originálu (plně, polotovar svou čarou) místo
+  poloprůhledné čárkované, hrany a přechody (osazení, sražení, zápich,
+  konec polotovaru) se spojí přes osu — viditelné čarou obrysu, zakryté
+  tence čárkovaně, tečné přechody zaoblení ne (ISO 128). Kresba čel
+  (bokorys) se nezrcadlí. Modul `render/mirrorEdges.js`.
 
 - **CAM: simulace vrtání a frézování v pohledu na čelo.** ▶ / ⏸ v hlavičce
   pohledu: nástroj jede v pořadí NC s reálným časem (posuv F, rychloposuv,

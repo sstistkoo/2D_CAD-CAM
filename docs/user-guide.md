@@ -107,9 +107,15 @@ ukazateli — velikost mřížky a krok úhlu se tam nastaví v ⚙️ Nastaven�
     Kruh · Obdé · **✕** (zavřít panel)
   - Tečna · za/zk · Vybarvit · Tužka · Detekce · Profil · př/pl · Oříz ·
     Prodl. · **▾** (rozbalí všechny zbývající nástroje najednou)
-  - po rozbalení: Přichytit … Rozděl · Spoj (jeden řádek), Řet.kóta …
-    Drážka a Polygon … Bool, vpravo na stejném řádku Smaž vše · Kotva ·
-    Kóty · ❓
+  - po rozbalení: Přichytit … Rozděl · Spoj (jeden řádek), Oblouk …
+    Drážka · Řet.kóta a Polygon … Bool, vpravo na stejném řádku Smaž vše ·
+    Kotva · Kóty · ❓
+- Panel nástrojů **na výšku** — rozbalené **Více** má pevné řádky:
+  Oblouk · Lin.pole · Kr.pole · **Díra** · **▴** / Text · Nul.bod · Měřítko ·
+  Oz.kolo / Pár kol · Drážka · Polygon · Hvězda / Řet.kóta · DIN · Závit ·
+  Bool / Smaž vše · Kotva · Kóty · ❓. **▴** sbalí řádky nad Více (zůstane
+  hlavička Výběr · Kóta · ✕ a nástroje Více, ať se mezi nimi vybírá bez
+  dalších tlačítek okolo); **▾** je zase rozbalí. Naležato se nesbaluje.
 - **Na šířku** jsou Dvojklik, ↩ / ↪, 🔢 kalkulačka (a její schránka),
   🧲 přichycení a ⊙ vycentrování přímo v horní liště vpravo vedle
   SOU/ABS/R…, souřadnice hned pod ní (při kreslení vlevo od nich
@@ -532,8 +538,9 @@ plocha řezu v rovině vybraného čela a za ní (ve směru pohledu) hrany
 profilu — hrana je **plná**, když ji mezi ní a řezem nezakrývá materiál,
 jinak **tenká čárkovaná** (skrytá hrana); co leží před řezem, se nekreslí,
 téměř totožné kružnice (konce zaoblení) se sloučí. Kontura je modrá,
-**polotovar v barvě vrstvy Polotovar** čerchovaně se dvěma tečkami,
-středový kříž se **stupnicí v mm od středu čela** a kóty Ø (jen náhled;
+**polotovar v barvě vrstvy Polotovar** čerchovaně se dvěma tečkami — v rovině
+čela i **větší polotovar za ní** (ve směru pohledu; menší, který zakrývá,
+ne), středový kříž se **stupnicí v mm od středu čela** a kóty Ø (jen náhled;
 sklíčidlo se nekreslí). Čísla hlavních os se
 v bokorysu a za ním nekreslí, v „jen bokorysu" ani průsečíky profilu.
 **SNAP** chytá střed bokorysu, kvadranty a obvod kružnic podkladu i osy
@@ -561,20 +568,58 @@ drážka**. Kružnice **čárkovaná nebo čerchovaná** (Typ čáry) je **pomoc
 roztečná kružnice, díra se z ní nedělá a do CAM nejde. Šipka u +X a popisek
 C0° ukazují, kde stojí nástroj při SPOS.
 
-**Díry na roztečné kružnici.** Nástroj **Kr.pole** v bokorysu: klepnutí do
-prázdna (typicky na **střed** — SNAP ho chytí) otevře kalkulačku
-**◎ Rozmístění děr** se středem v kliknutém bodě (X0 Y0 = osa vřetena).
-Zadejte počet děr, Ø rozteč, Ø díry (případně θ₀) a **◎ Do čela** — do
-aktuálního čela se nakreslí roztečná kružnice čerchovaně a díry plnou čarou,
-vše jedním krokem ↩. Klepnutí na už nakreslenou díru otevře dialog
+**Díry na roztečné kružnici.** Nástroj **Kr.pole** v bokorysu: klepněte do
+prázdna (typicky na **střed** — SNAP ho chytí) a **vytáhněte roztečnou
+kružnici** — tažením se stisknutým tlačítkem, nebo druhým klepnutím na obvod
+(náhled ukazuje Ø; SNAP chytá i kružnice podkladu a mřížku). Otevře se
+kalkulačka **◎ Rozmístění děr** se středem (X0 Y0 = osa vřetena) a Ø rozteče;
+druhé klepnutí znovu do středu = Ø zadáte číslem. Doplňte počet děr, Ø díry,
+**hloubku díry** (případně θ₀) a **◎ Do čela** — do aktuálního čela se
+nakreslí roztečná kružnice čerchovaně a díry plnou čarou, vše jedním krokem ↩.
+**Hloubka díry:** *Skrz* — skrz materiál pod dírou až tam, kde z něj vyjde
+(stěna příruby, ne náboj za ní) + přesah (prázdný = hrot 0,3·Ø + 1 mm);
+**Skrz materiálem** *Hotová kontura* (výchozí) nebo *I polotovar* — počítá
+i přídavek polotovaru (vrtá se před soustružením; díra „skrz vč. polotovaru"
+je v CAM samostatná operace);
+*Do hloubky* — od roviny čela; *Do Z* — absolutní Z konce díry (Z na straně
+nástroje se odmítne). Hloubka se počítá až při 📥 Z CAD z aktuálního profilu
+a Z čela, takže po posunu čela sedí; hláška po nakreslení ji ukáže hned. Klepnutí na už nakreslenou díru otevře dialog
 kruhového pole se středem v **ose čela** (ne v 0,0 výkresu).
+**Jedna díra:** nástroj **Díra** (Více, vedle Kr.pole) — klepněte do
+bokorysu na místo díry (SNAP chytá střed, kružnice podkladu, mřížku);
+otevře se okno **◎ Díra do čela** s polohou X, Y vůči ose vřetena (vidět
+i polárně: Ø a úhel C), Ø díry a hloubkou jako výše → **◎ Do čela**. Ø
+a hloubku si okno pamatuje pro další díru. Bez zapnutého bokorysu se okno
+otevře s X0 Y0 a ◎ Do čela bokorys zapne.
+**Díry v nárysu:** díry všech čel se v nárysu kreslí jako na výkresu —
+**tenkou čárkovanou čarou** (skrytá hrana) v materiálu, kterým díra vede:
+od prvního materiálu za rovinou čela (stojí-li posuvník před přírubou, díra
+začne až na přírubě) — *Skrz* po místo, kde z materiálu vyjde (bez
+přesahu; díra bez hloubky je průchozí), *Do hloubky* / *Do Z* (měřeno od
+roviny čela) po dno se špičkou vrtáku 118°; osa díry čerchovaně. Výška díry
+v nárysu = její svislá poloha v bokorysu (karusel: vodorovná). Díry pod osou
+leží ve spodní polovině nárysu: **◎ Do čela** proto na soustruhu zapne
+**☰ Nastavení → ⇋ Zrcadlit kolem osy** a značka řezu i lišta čela se
+posunou pod spodní polovinu.
+
+**⇋ Zrcadlit kolem osy** (☰ Nastavení) dokreslí nárys pod osu jako
+technologický výkres — hotová kontura i polotovar dokola, **plnou čarou**
+jako originál (jen zobrazení, objekty nevznikají; kresba čel se nezrcadlí).
+Hrany a přechody (osazení, sražení, zápich, konec polotovaru) se spojí
+**přes osu**: viditelná hrana čarou obrysu, zakrytá (např. hrana vývrtu
+uvnitř dílu) tenkou čárkovanou, tečný přechod zaoblení se nekreslí (ISO 128).
+Jen soustruh (zrcadlí se kolem y = 0). **SNAP** chytá i dokreslenou spodní
+polovinu, hrany přes osu a čáry děr v nárysu (rohy, hrany, osu díry) —
+jde od nich kótovat i kreslit dál.
 Kresby čel se ukládají s projektem; do CAM ani CNC kódu profilu nejdou —
 načtou se zvlášť:
 
 **🛠 Operace** otevře editor:
 - **📥 Z CAD** — načte díry a drážky z bokorysu (souřadnice vůči středu
   čela): kružnice stejného Ø = jedna operace (pravidelně rozmístěné se
-  poznají jako roztečná kružnice), úsečka = drážka. Opakované načtení
+  poznají jako roztečná kružnice), úsečka = drážka. Díry z ◎ Rozmístění
+  děr nesou hloubku (skrz / hloubka / do Z) — operace ji dostane a díry
+  stejného Ø s jinou hloubkou jsou zvlášť (např. „Díry Ø10 skrz"). Opakované načtení
   nahradí jen operace dřív načtené z CAD (značka 📐) a převezme jim
   hloubku, nástroj i otáčky; ručně přidané zůstanou. **Druh** u operace
   přepne vrtání ↔ frézování (např. kružnice jako kruhová kapsa).
@@ -1646,7 +1691,9 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   - **◎ Do čela** (všechny tři záložky): nakreslí díry do aktuálního čela
     bokorysu — X, Y vůči ose vřetena (vypnutý bokorys se zapne); záložka
     Kružnice přidá i roztečnou kružnici čerchovaně (pomocná, do CAM nejde).
-    Potřebuje Ø díry. Z bokorysu ji otevře i Kr.pole klepnutím do prázdna.
+    Potřebuje Ø díry a **hloubku díry**: Skrz (+ přesah) / Do hloubky / Do Z.
+    Z bokorysu ji otevře i Kr.pole (klepnutí na střed, vytažení roztečné
+    kružnice — předvyplní střed i Ø rozteče).
 - **Drátky/válečky** (Další kalkulačky, ikona profilu závitu s drátky) – měření
   přes drátky a válečky:
   - *Závit – 3 drátky*: metrický ISO, UNC/UNF, Whitworth, Tr nebo vlastní úhel;

@@ -4,55 +4,26 @@
 import { boundsOverlap, getObjectBounds } from './bounds.js';
 import { ctx, worldToScreen } from '../canvas.js';
 import { resolveObjectColor } from './common.js';
-import { COLORS, CONSTRUCTION_DASH, LINE_WIDTH } from '../constants.js';
+import { COLORS, LINE_WIDTH } from '../constants.js';
+import { objDash, objWidthMul } from '../lineStyles.js';
 import { drawArc, drawCircle, drawLine, drawPoint, drawPolyline, drawRect } from './primitives.js';
 import { state } from '../state.js';
+import { drawAxisEdges } from './mirrorEdges.js';
+import { mirrorObjectAcrossY, mirrorable } from './mirrorSnap.js';
 
 /**
- * Vrátí mělkou kopii geometrického objektu zrcadlenou podle osy y=0
- * (cad_y -> -cad_y). Oblouky/bulge mění směr (ccw flip), úhly se negují.
- * Vrátí null pro typy, které nedává smysl zrcadlit (text, kóty, ...).
+ * Vykreslí zrcadlenou kopii kontury kolem osy y=0 (jen zobrazení, objekty
+ * nevznikají). Čarou jako originál — dokreslená druhá polovina nárysu má být
+ * jako na výkresu plná; tenká čárkovaná patří skrytým hranám, třeba dírám
+ * čel (uživatel 20. 10. 2026).
  */
-function mirrorObjectAcrossY(obj) {
-  switch (obj.type) {
-    case 'point':
-      return { ...obj, y: -obj.y };
-    case 'line':
-    case 'constr':
-      return { ...obj, y1: -obj.y1, y2: -obj.y2 };
-    case 'circle':
-      return { ...obj, cy: -obj.cy };
-    case 'arc':
-      return {
-        ...obj,
-        cy: -obj.cy,
-        startAngle: -obj.startAngle,
-        endAngle: -obj.endAngle,
-        ccw: !(obj.ccw !== false),
-      };
-    case 'rect':
-      return { ...obj, y1: -obj.y1, y2: -obj.y2 };
-    case 'polyline':
-      return {
-        ...obj,
-        vertices: obj.vertices.map(v => ({ x: v.x, y: -v.y })),
-        bulges: (obj.bulges || []).map(b => -b),
-      };
-    default:
-      return null;
-  }
-}
-
-/** Vykreslí poloprůhlednou zrcadlenou kopii kontury kolem osy y=0 (jen náhled). */
 export function renderMirrorPreview(vp) {
   ctx.save();
-  ctx.globalAlpha = 0.35;
-  ctx.setLineDash(CONSTRUCTION_DASH);
 
   state.objects.forEach((obj, idx) => {
-    if (obj.isDimension || obj.isCoordLabel || obj.type === 'text') return;
+    // Bez kót, textů, kresby čel (bokorys) a skrytých vrstev (mirrorSnap.js).
+    if (!mirrorable(obj)) return;
     const layer = state.layers.find(l => l.id === obj.layer);
-    if (layer && !layer.visible) return;
 
     const mirrored = mirrorObjectAcrossY(obj);
     if (!mirrored) return;
@@ -62,10 +33,11 @@ export function renderMirrorPreview(vp) {
       if (bounds && !boundsOverlap(bounds, vp)) return;
     }
 
-    const baseColor = resolveObjectColor(obj);
+    const baseColor = (obj.type === 'constr' && !obj.color) ? COLORS.construction : resolveObjectColor(obj);
     ctx.strokeStyle = baseColor;
     ctx.fillStyle = baseColor;
-    ctx.lineWidth = LINE_WIDTH;
+    ctx.lineWidth = (layer?.lineWidth ?? LINE_WIDTH) * objWidthMul(obj);
+    ctx.setLineDash(objDash(obj));
 
     switch (mirrored.type) {
       case 'point':
@@ -90,6 +62,8 @@ export function renderMirrorPreview(vp) {
     }
   });
 
+  // Hrany a přechody přes osu — celý pohled jako na výkrese (mirrorEdges.js).
+  drawAxisEdges(ctx, worldToScreen);
   ctx.setLineDash([]);
   ctx.restore();
 }

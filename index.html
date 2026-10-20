@@ -1153,77 +1153,6 @@
         <div class="sep"></div>
         <button
           class="tool-btn"
-          data-tool="chainDimension"
-          title="Řetězcová kóta – klik na body v řadě, Enter = konec"
-        >
-          <svg viewBox="0 0 24 24">
-            <line
-              x1="2"
-              y1="18"
-              x2="2"
-              y2="10"
-              stroke="currentColor"
-              stroke-width="1"
-            />
-            <line
-              x1="10"
-              y1="18"
-              x2="10"
-              y2="10"
-              stroke="currentColor"
-              stroke-width="1"
-            />
-            <line
-              x1="18"
-              y1="18"
-              x2="18"
-              y2="10"
-              stroke="currentColor"
-              stroke-width="1"
-            />
-            <line
-              x1="2"
-              y1="13"
-              x2="10"
-              y2="13"
-              stroke="currentColor"
-              stroke-width="1.5"
-            />
-            <line
-              x1="10"
-              y1="13"
-              x2="18"
-              y2="13"
-              stroke="currentColor"
-              stroke-width="1.5"
-            />
-            <path d="M2 13l3-2v4z" fill="currentColor" />
-            <path d="M10 13l-3-2v4z" fill="currentColor" />
-            <path d="M10 13l3-2v4z" fill="currentColor" />
-            <path d="M18 13l-3-2v4z" fill="currentColor" />
-            <text
-              x="6"
-              y="9"
-              text-anchor="middle"
-              font-size="6"
-              fill="currentColor"
-            >
-              A
-            </text>
-            <text
-              x="14"
-              y="9"
-              text-anchor="middle"
-              font-size="6"
-              fill="currentColor"
-            >
-              B
-            </text>
-          </svg>
-          Řet.kóta
-        </button>
-        <button
-          class="tool-btn"
           data-tool="arc"
           title="Oblouk – klikni 3 body: počátek, bod na oblouku, konec"
         >
@@ -1332,6 +1261,26 @@
           Kr.pole
         </button>
         <button
+          class="tool-btn"
+          data-tool="faceHole"
+          title="Díra – jedna díra do čela: klepněte do bokorysu na místo díry (Ø, hloubka → ◎ Do čela)"
+        >
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.5" />
+            <path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="1" stroke-dasharray="3 2" />
+          </svg>
+          Díra
+        </button>
+        <button
+          class="tool-btn toolbar-collapse-btn"
+          id="btnToolbarCollapse"
+          title="Sbalit řádky nad Více – zůstanou jen tyto nástroje"
+          aria-label="Sbalit řádky nad Více"
+        >
+          <span class="toolbar-toggle-arrow">▴</span>
+        </button>
+        <span class="toolbar-row-break toolbar-row-break-p" aria-hidden="true"></span>
+        <button
           class="tool-btn mobile-hide"
           id="btnNumInput"
           title="Zadání objektu – číselný vstup (druhá záložka: VK kontura)"
@@ -1412,6 +1361,7 @@
           </svg>
           Oz.kolo
         </button>
+        <span class="toolbar-row-break toolbar-row-break-p" aria-hidden="true"></span>
         <button class="tool-btn" data-tool="gearpair" title="Pár zabírajících ozubených kol – automatická osová vzdálenost a fáze rotace">
           <svg viewBox="0 0 24 24">
             <circle cx="8" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/>
@@ -1436,6 +1386,78 @@
             <polygon points="12,2 14.5,9 22,9 16,13.5 18.5,21 12,16.5 5.5,21 8,13.5 2,9 9.5,9" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
           </svg>
           Hvězda
+        </button>
+        <span class="toolbar-row-break toolbar-row-break-p" aria-hidden="true"></span>
+        <button
+          class="tool-btn"
+          data-tool="chainDimension"
+          title="Řetězcová kóta – klik na body v řadě, Enter = konec"
+        >
+          <svg viewBox="0 0 24 24">
+            <line
+              x1="2"
+              y1="18"
+              x2="2"
+              y2="10"
+              stroke="currentColor"
+              stroke-width="1"
+            />
+            <line
+              x1="10"
+              y1="18"
+              x2="10"
+              y2="10"
+              stroke="currentColor"
+              stroke-width="1"
+            />
+            <line
+              x1="18"
+              y1="18"
+              x2="18"
+              y2="10"
+              stroke="currentColor"
+              stroke-width="1"
+            />
+            <line
+              x1="2"
+              y1="13"
+              x2="10"
+              y2="13"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+            <line
+              x1="10"
+              y1="13"
+              x2="18"
+              y2="13"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+            <path d="M2 13l3-2v4z" fill="currentColor" />
+            <path d="M10 13l-3-2v4z" fill="currentColor" />
+            <path d="M10 13l3-2v4z" fill="currentColor" />
+            <path d="M18 13l-3-2v4z" fill="currentColor" />
+            <text
+              x="6"
+              y="9"
+              text-anchor="middle"
+              font-size="6"
+              fill="currentColor"
+            >
+              A
+            </text>
+            <text
+              x="14"
+              y="9"
+              text-anchor="middle"
+              font-size="6"
+              fill="currentColor"
+            >
+              B
+            </text>
+          </svg>
+          Řet.kóta
         </button>
         <button class="tool-btn" data-tool="groove" title="Zápich (DIN 76 / DIN 509) – výběh závitu / broušení">
           <svg viewBox="0 0 24 24">

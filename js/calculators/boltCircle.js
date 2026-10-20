@@ -7,6 +7,7 @@ import { bridge } from '../bridge.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { boltCircle } from './boltCircleMath.js';
 import { mountRowPanel, mountGridPanel, FACE_BTN } from './holePattern.js';
+import { depthFieldsHtml, wireDepthFields, readDepth } from './holeDepthFields.js';
 import {
   fmt, numVal as val, numField, selectField, outRow, outWarn, outHint, outMain,
   copyText, svgEl, svgClear, fitView, tabsHtml, wireTabs,
@@ -19,17 +20,19 @@ const TITLES = {
 };
 
 /**
- * @param [opts] { cx, cy } předvyplněný střed vůči středu čela (Kr.pole → klik
- *   do prázdna v bokorysu). Klik na tlačítko v panelu předá Event — ten se ignoruje.
+ * @param [opts] { cx, cy, pcd? } předvyplněný střed vůči středu čela a Ø rozteče
+ *   (Kr.pole v bokorysu: klik na střed, vytažení kružnice). Klik na tlačítko
+ *   v panelu předá Event — ten se ignoruje.
  */
 export function openBoltCircleCalc(opts) {
   const pre = opts && Number.isFinite(opts.cx) && Number.isFinite(opts.cy) ? opts : null;
   const body =
     '<div class="cnc-fields">' +
       numField('n', 'Počet děr', '', 'n', ' value="6"') +
-      numField('pcd', 'Ø rozteč', 'mm', 'Roztečný průměr') +
+      numField('pcd', 'Ø rozteč', 'mm', 'Roztečný průměr', pre && pre.pcd > 0 ? ' value="' + fmt(pre.pcd) + '"' : '') +
       numField('a0', 'θ₀', '° první díra', '0', ' value="0"') +
       numField('d', 'Ø díry', 'mm', 'volitelně') +
+      depthFieldsHtml('bc_') +
       selectField('mode', 'Rozložení', [['full', 'Celý kruh'], ['pitch', 'Zadaná rozteč']]) +
       '<span data-show="pitch">' + numField('step', 'Δθ', '° mezi dírami', 'Úhlová rozteč') + '</span>' +
       selectField('dir', 'Směr', [['ccw', 'Proti hodinám (+)'], ['cw', 'Po směru hodin (−)']]) +
@@ -144,10 +147,13 @@ export function openBoltCircleCalc(opts) {
   overlay.querySelector('[data-pat-mode="circle"] [data-face-draw]').addEventListener('click', () => {
     if (!last) { showToast('Zadej počet děr a roztečný průměr'); return; }
     if (last.d === null) { showToast('Zadej Ø díry — kružnice v čele je díra'); inp.d.focus(); return; }
-    const n = bridge.drawHolesToFace && bridge.drawHolesToFace({ holes: last.r.holes, d: last.d, pcd: last.pcd, cx: last.cx, cy: last.cy });
+    const dep = readDepth(overlay, 'bc_');
+    if (dep.error) { showToast(dep.error); return; }
+    const n = bridge.drawHolesToFace && bridge.drawHolesToFace({ holes: last.r.holes, d: last.d, pcd: last.pcd, cx: last.cx, cy: last.cy, depth: dep.spec });
     if (n) overlay.remove();
   });
 
+  wireDepthFields(overlay, 'bc_');
   showMode();
   solve();
 }

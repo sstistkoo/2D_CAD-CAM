@@ -2,9 +2,11 @@
 //
 // Každé čelo má rovinu Z a stranu (◀ zprava / ▶ zleva; šipka = směr pohledu)
 // → op.zTop a op.faceDir.
-//   kružnice → vrtání do čela; kružnice se STEJNÝM Ø na stejném čele = jedna
-//              operace. Stejný poloměr středů + pravidelné rozestupy →
+//   kružnice → vrtání do čela; kružnice se STEJNÝM Ø (a hloubkou) na stejném
+//              čele = jedna operace. Stejný poloměr středů + pravidelné rozestupy →
 //              roztečná kružnice (Ø, počet, počáteční úhel), jinak seznam bodů.
+//              Díra s `depth` (z ◎ Rozmístění děr: skrz / hloubka / do Z,
+//              faceView/faceDepth.js) dá operaci tuhle hloubku.
 //   úsečka   → drážka (osa drážky, šířka = Ø frézy).
 //   ostatní (oblouky, kontury, obdélníky, texty, kóty) se přeskočí a řekne se kolik.
 //
@@ -52,7 +54,7 @@ export function liveOpsFromCad(input, geo, prevOps) {
     const faceDir = face.side === 'left' ? -1 : 1;
     const tag = many ? ` · Z${zTop} ${faceDir < 0 ? '▶' : '◀'}` : '';
     const sameFace = o => Math.abs((o.zTop ?? 0) - zTop) < 1e-3 && (o.faceDir === -1 ? -1 : 1) === faceDir;
-    const byD = new Map();
+    const byD = new Map();   // klíč Ø|hloubka → { d, depth, tag, pts }
     const lines = [];
     (face.objects || []).forEach(o => {
       if (!o || o.isDimension || o.isCoordLabel || o.isMeasureTemp) return;
@@ -60,19 +62,25 @@ export function liveOpsFromCad(input, geo, prevOps) {
         const d = r3(2 * o.r);
         const r = Math.hypot(o.cx, o.cy);
         const a = r < 1e-6 ? 0 : norm360(Math.atan2(o.cy, o.cx) * 180 / Math.PI);
-        if (!byD.has(d)) byD.set(d, []);
-        byD.get(d).push({ a: r3(a), r: r3(r) });
+        const depth = o.depth > 0 ? r3(o.depth) : null;
+        const key = depth == null ? `${d}` : `${d}|${depth}|${o.depthTag || ''}`;
+        if (!byD.has(key)) byD.set(key, { d, depth, tag: depth == null ? '' : (o.depthTag || ''), pts: [] });
+        byD.get(key).pts.push({ a: r3(a), r: r3(r) });
       } else if (o.type === 'line') lines.push(o);
       else if (o.type !== 'point' && o.type !== 'constr') skipped++;
     });
-    [...byD.keys()].sort((x, y) => x - y).forEach(d => {
-      const pts = byD.get(d).sort((p, q) => p.r - q.r || p.a - q.a);
+    [...byD.values()].sort((x, y) => x.d - y.d || (x.depth ?? -1) - (y.depth ?? -1)).forEach(g => {
+      const d = g.d;
+      const pts = g.pts.sort((p, q) => p.r - q.r || p.a - q.a);
       holes += pts.length;
       const op = newLiveOp('drill', geo, ++n);
-      op.name = `Díry Ø${d}${tag}`;
-      carry(op, prev.find(o => o.side !== 'radial' && !(o.kind === 'mill' && o.millType === 'slot')
-        && Math.abs(o.holeD - d) < 1e-3 && sameFace(o)));
+      op.name = `Díry Ø${d}${g.tag ? ' ' + g.tag : ''}${tag}`;
+      const isHole = o => o.side !== 'radial' && !(o.kind === 'mill' && o.millType === 'slot')
+        && Math.abs(o.holeD - d) < 1e-3 && sameFace(o);
+      // Se zadanou hloubkou přednost dřívější operaci se stejnou hloubkou.
+      carry(op, (g.depth != null && prev.find(o => isHole(o) && Math.abs(o.depth - g.depth) < 1e-3)) || prev.find(isHole));
       Object.assign(op, { holeD: d, side: 'face', zTop, faceDir, fromCad: true });
+      if (g.depth != null) op.depth = g.depth;
       const pcd = detectPcd(pts);
       if (pcd) Object.assign(op, { pattern: 'pcd' }, pcd);
       else { op.pattern = 'points'; op.points = pts.map(p => `${p.a}; ${p.r}`).join('\n'); }

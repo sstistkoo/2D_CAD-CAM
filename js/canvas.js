@@ -6,6 +6,7 @@ import { state, showToast } from './state.js';
 import { getObjectSnapPoints, isAngleBetween, bulgeToArc, getNearestPointOnObject } from './utils.js';
 import { renderAll } from './render.js';
 import { faceSnapPoints, faceSnapEdge } from './faceView/faceReference.js';
+import { refSnapObjects } from './render/mirrorSnap.js';
 import { SNAP_POINT_THRESHOLD, SNAP_EDGE_THRESHOLD, VIBRATE_SNAP_POINT, VIBRATE_SNAP_EDGE, AUTO_CENTER_PADDING, ZOOM_MIN, ZOOM_MAX } from './constants.js';
 
 export const wrap = document.getElementById("canvasWrap");
@@ -209,6 +210,19 @@ export function snapPt(wx, wy) {
         objSource = null;
       }
     }
+    // Podklad mimo objekty: spodní polovina (⇋ Zrcadlit kolem osy), hrany
+    // přes osu a díry čel v nárysu (render/mirrorSnap.js).
+    for (const ref of refSnapObjects()) {
+      for (const p of getObjectSnapPoints(ref)) {
+        const d = Math.hypot(p.x - wx, p.y - wy);
+        if (d < (p.mid ? midThreshold : threshold) && d < objD) {
+          objD = d;
+          objX = p.x;
+          objY = p.y;
+          objSource = null;
+        }
+      }
+    }
     // Průsečíky mají bonus – při stejné vzdálenosti vyhrávají
     for (const pt of state.intersections) {
       const d = Math.hypot(pt.x - wx, pt.y - wy);
@@ -244,6 +258,17 @@ export function snapPt(wx, wy) {
       // kreslení držáku má být snapovatelná, i když leží na zamčené vrstvě.
       if (layer && (!layer.visible || (layer.locked && !obj.isToolInsert))) continue;
       const np = getNearestPointOnObject(obj, wx, wy);
+      if (np && np.dist < edgeThreshold && np.dist < edgeD) {
+        edgeD = np.dist;
+        edgeX = np.x;
+        edgeY = np.y;
+      }
+    }
+    // Spodní polovina, hrany přes osu a díry v nárysu (zamčená vrstva nechytá).
+    for (const ref of refSnapObjects()) {
+      const layer = state.layers ? state.layers.find(l => l.id === ref.layer) : null;
+      if (layer && layer.locked) continue;
+      const np = getNearestPointOnObject(ref, wx, wy);
       if (np && np.dist < edgeThreshold && np.dist < edgeD) {
         edgeD = np.dist;
         edgeX = np.x;

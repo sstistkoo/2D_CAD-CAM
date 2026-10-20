@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v563';
+const CACHE_NAME = 'skica-v568';
 const ASSETS = [
   './',
   './index.html',
@@ -202,6 +202,7 @@ const ASSETS = [
   './js/calculators/heidenhainTools.js',
   './js/calculators/help.js',
   './js/calculators/holderIsoData.js',
+  './js/calculators/holeDepthFields.js',
   './js/calculators/holePattern.js',
   './js/calculators/holePatternMath.js',
   './js/calculators/insert.js',
@@ -221,6 +222,7 @@ const ASSETS = [
   './js/calculators/revolveMath.js',
   './js/calculators/roughness.js',
   './js/calculators/shortcuts.js',
+  './js/calculators/singleHole.js',
   './js/calculators/sinumerikAlarms.js',
   './js/calculators/sinumerikHub.js',
   './js/calculators/sinumerikTools.js',
@@ -281,6 +283,8 @@ const ASSETS = [
   './js/events.js',
   './js/faceView/faceBar.js',
   './js/faceView/faceCutDrag.js',
+  './js/faceView/faceDepth.js',
+  './js/faceView/faceFrontView.js',
   './js/faceView/faceLayer.js',
   './js/faceView/facePattern.js',
   './js/faceView/faceReference.js',
@@ -316,7 +320,9 @@ const ASSETS = [
   './js/render/common.js',
   './js/render/constraints.js',
   './js/render/labels.js',
+  './js/render/mirrorEdges.js',
   './js/render/mirrorFills.js',
+  './js/render/mirrorSnap.js',
   './js/render/objects.js',
   './js/render/overlays.js',
   './js/render/primitives.js',
@@ -332,6 +338,7 @@ const ASSETS = [
   './js/storage/projectManager.js',
   './js/storage/settingsStore.js',
   './js/storage/svgCanvasContext.js',
+  './js/toolbarCollapse.js',
   './js/toolLibrary.js',
   './js/tools/anchorClick.js',
   './js/tools/arcClick.js',
@@ -344,6 +351,7 @@ const ASSETS = [
   './js/tools/copyPlaceClick.js',
   './js/tools/dimensionClick.js',
   './js/tools/extendClick.js',
+  './js/tools/faceHoleClick.js',
   './js/tools/fillClick.js',
   './js/tools/filletChamferClick.js',
   './js/tools/gearClick.js',

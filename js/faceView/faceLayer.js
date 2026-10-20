@@ -81,6 +81,22 @@ export function isAuxCircle(o) {
   return !!o && o.type === 'circle' && objDash(o).length > 0;
 }
 
+/**
+ * Díry všech čel (kružnice plnou čarou, ne pomocné roztečné): [{ face, o }].
+ * Čte je dokreslení nárysu (faceFrontView.js) — i u skrytých čel, výkres
+ * ukazuje všechny díry dílu.
+ */
+export function faceHoles() {
+  const out = [];
+  getFaceLayers().forEach(l => {
+    if (!l.origin) return;
+    state.objects.forEach(o => {
+      if (o.layer === l.id && o.type === 'circle' && o.r > 0 && !isAuxCircle(o)) out.push({ face: l, o });
+    });
+  });
+  return out;
+}
+
 /** Kopie objektu posunutá o (−ox, −oy); jen typy, které převod do CAM čte. */
 function toLocal(o, ox, oy) {
   if (o.type === 'circle' || o.type === 'arc') return { ...o, cx: o.cx - ox, cy: o.cy - oy };

@@ -6,8 +6,8 @@
 // nárysu (i na mobilu), na ose vřetena. Kreslí se do aktuálního čela
 // (faceLayer.js): kružnice = díra, úsečka = drážka; v CAM je načte
 // 🛠 Operace → 📥 Z CAD. Čerchovaná kružnice = roztečná (pomocná). Díry na
-// roztečné kružnici: Kr.pole → klik do prázdna v čele → ◎ Rozmístění děr →
-// „◎ Do čela" (facePattern.js).
+// roztečné kružnici: Kr.pole → klik na střed, vytáhnout kružnici → ◎ Rozmístění
+// děr (+ hloubka skrz / hloubka / do Z, faceDepth.js) → „◎ Do čela" (facePattern.js).
 //
 // Čel může být víc (díry na osazení uprostřed profilu, zleva i zprava):
 // lišta čela na plátně pod nárysem (faceBar.js) — výběr čela, ➕ nové, 🗑
@@ -149,7 +149,7 @@ export function enableFaceView() {
   fitView('both');
   refresh();
   // Na mobilu pod zvoneček 🔔 (okénko dole by zakrylo lištu čela).
-  showToast('◎ Bokorys: kreslete do čela — kružnice = díra, úsečka = drážka, čerchovaná kružnice = roztečná (pomocná). Díry na roztečné kružnici: Kr.pole → klik do prázdna v čele. Čelo (Z, strana) vyberte v liště pod nárysem. V CAM: 🛠 Operace → 📥 Z CAD', 6000, { bell: true });
+  showToast('◎ Bokorys: kreslete do čela — kružnice = díra, úsečka = drážka, čerchovaná kružnice = roztečná (pomocná). Díry na roztečné kružnici: Kr.pole → klik na střed a vytáhnout kružnici. Čelo (Z, strana) vyberte v liště pod nárysem. V CAM: 🛠 Operace → 📥 Z CAD', 6000, { bell: true });
 }
 
 /** Jen bokorys: skrýt ostatní viditelné vrstvy (zapamatovat si které). */

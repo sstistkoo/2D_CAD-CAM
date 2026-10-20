@@ -29,6 +29,7 @@ import './render.js';
 import './objects.js';
 import './events.js';
 import './touch.js';
+import './toolbarCollapse.js'; // mobil na výšku: ▴ sbalí řádky nad Více
 import './dialogs.js';
 import './dialogs/contourCheck.js'; // zdvojené čáry + jen hlavní profil do CAM (bridge)
 import './faceView/faceView.js'; // ◎ bokorys (pohled na čelo) pro poháněné nástroje
