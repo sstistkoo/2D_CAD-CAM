@@ -94,6 +94,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   čela se kreslí do vrstvy čela, dřív ležela přes dokreslenou úsečku);
   kresba v kruhu bokorysu a skryté vrstvy se nepočítají (`drawnBounds`,
   test `tests/face-bar.test.js`).
+- **CAD: lišta čela a značka řezu jdou chytit prstem.** Na dotykovém displeji
+  je posuvník nejméně 1,75× (jezdec ~28 px, dřív při měřítku 0,7 jen 12 px
+  vysoký). Značka řezu v nárysu jde chytit i mimo Výběr — po nakreslení
+  úsečky zůstal nástroj Úsečka a řez nešel chytit vůbec: v nástrojích
+  kreslení za konce přesahující díl (šipky, popisek Z), uvnitř dílu se dál
+  kreslí; ve Výběru kdekoli na čáře (`faceReference.cutHit(…, endsOnly)`,
+  `faceBar.faceRangeScale`).
 - **CAM: zmenšený panel G-kódu ukazuje 4 řádky místo 2.** ▼ u přehrávače:
   blok, který právě prošel (ztlumeně), běžící blok a dva, které přijdou
   (`cam/sim/codeMini.js`; `camSimulator.js` se tím zmenšil).

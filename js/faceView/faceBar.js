@@ -23,6 +23,9 @@ const THUMB = 16;              // šířka jezdce posuvníku (výchozí vzhled p
 const RANGE_H = 18;            // výška posuvníku při měřítku 1 [px]
 const BASE_W = 340;            // šířka nárysu na plátně, při které má lišta měřítko 1 [px]
 const MIN_S = 0.7, MAX_S = 1.4;
+// Prst: posuvník aspoň takhle velký (při 0,7 měl na mobilu 12 px a jezdec
+// nešel chytit, uživatel 20. 10. 2026) → jezdec ~28 px, výška ~32 px.
+const TOUCH_S = 1.75;
 const GAP = 12;                // mezera pod nárysem (šipky řezu, čísla osy) [px]
 
 let bar = null;
@@ -185,6 +188,13 @@ export function faceBarScale(width) {
   return Math.max(MIN_S, Math.min(MAX_S, width / BASE_W));
 }
 
+/** Měřítko posuvníku: na dotykovém displeji nejméně TOUCH_S (prst). */
+export function faceRangeScale(s, coarse) {
+  return coarse ? Math.max(s, TOUCH_S) : s;
+}
+
+const isCoarse = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
 function placeBar() {
   if (!bar || bar.style.display === 'none') return;
   const cur = getFaceLayer();
@@ -203,15 +213,16 @@ function placeBar() {
   const rowW = row.offsetWidth * sr;
   let left = Math.min(Math.max(g.x0, 4), cw - rowW - 4);
   left = Math.max(g.x0, Math.min(left, g.x1 - rowW));
-  const key = [g.x0, g.y, W, s, sr, g.rtl, left].map(v => (typeof v === 'number' ? v.toFixed(2) : v)).join();
+  const rs = faceRangeScale(s, isCoarse());
+  const key = [g.x0, g.y, W, s, sr, rs, g.rtl, left].map(v => (typeof v === 'number' ? v.toFixed(2) : v)).join();
   if (key === lastPlace) return;
   lastPlace = key;
   // Posuvník širší o jezdec: střed jezdce v krajních polohách přesně nad x0 / x1.
   Object.assign(range.style, {
-    left: `${g.x0 - THUMB * s / 2}px`, top: `${g.y}px`, width: `${W / s + THUMB}px`,
-    transform: `scale(${s})`, direction: g.rtl ? 'rtl' : 'ltr',
+    left: `${g.x0 - THUMB * rs / 2}px`, top: `${g.y}px`, width: `${W / rs + THUMB}px`,
+    transform: `scale(${rs})`, direction: g.rtl ? 'rtl' : 'ltr',
   });
-  Object.assign(row.style, { left: `${left}px`, top: `${g.y + (RANGE_H + 2) * s}px`, transform: `scale(${sr})` });
+  Object.assign(row.style, { left: `${left}px`, top: `${g.y + (RANGE_H + 2) * rs}px`, transform: `scale(${sr})` });
 }
 
 export const FACE_BAR_CSS = `

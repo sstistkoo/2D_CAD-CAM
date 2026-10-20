@@ -7,8 +7,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { state } from '../js/state.js';
 import { getFaceLayer } from '../js/faceView/faceLayer.js';
-import { drawFaceReference } from '../js/faceView/faceReference.js';
-import { drawnBounds, faceBarGeom } from '../js/faceView/faceBar.js';
+import { drawFaceReference, faceCutGeom, cutHit } from '../js/faceView/faceReference.js';
+import { drawnBounds, faceBarGeom, faceRangeScale } from '../js/faceView/faceBar.js';
 
 // Lišta sahá na seznam vrstev a plátno (DOM) — v Node stačí stuby.
 vi.mock('../js/ui.js', () => ({ updateLayerList: () => {} }));
@@ -50,5 +50,26 @@ describe('lišta čela pod nárysem', () => {
     state.layers.push({ id: 5, name: 'Pomocná', visible: false });
     state.objects.push({ id: 21, layer: 5, type: 'line', x1: -40, y1: -80, x2: -10, y2: -80 });
     expect(drawnBounds().minY).toBe(15);
+  });
+});
+
+describe('dotyk: posuvník a značka řezu', () => {
+  it('na dotykovém displeji je posuvník aspoň 1,75× (prst), myš beze změny', () => {
+    expect(faceRangeScale(0.7, true)).toBe(1.75);
+    expect(faceRangeScale(0.7, false)).toBe(0.7);
+    expect(faceRangeScale(1.9, true)).toBe(1.9);
+  });
+
+  it('v nástroji kreslení se řez chytá jen za konce přesahující díl', () => {
+    const cut = faceCutGeom();   // řez v Z0 od −span do +span, polotovar R50
+    expect(cut.sR).toBe(50);
+    const span = cut.b[1];
+    const at = r => w2s(cut.z, r);
+    // uprostřed dílu (osazení R40): ve Výběru ano, v kreslení ne
+    expect(cutHit(cut, w2s, ...at(40), 8, 12)).toBe(true);
+    expect(cutHit(cut, w2s, ...at(40), 8, 12, true)).toBe(false);
+    // konec za polotovarem a šipka za koncem: chytí se i v kreslení
+    expect(cutHit(cut, w2s, ...at((span + 50) / 2), 8, 12, true)).toBe(true);
+    expect(cutHit(cut, w2s, ...at(-span - 5), 8, 12, true)).toBe(true);
   });
 });

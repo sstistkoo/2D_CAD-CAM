@@ -316,9 +316,11 @@ let _cut = null, _cutHot = false;
 export function faceCutGeom() { return _cut; }
 /**
  * Zásah značky řezu: je bod (sx, sy) [px] do `tol` od čáry řezu, prodloužené o
- * `pad` px na obou koncích (šipky)? `w2s` = worldToScreen.
+ * `pad` px na obou koncích (šipky)? `w2s` = worldToScreen. `endsOnly`: jen konce
+ * přesahující polotovar (šipky, popisek) — uvnitř dílu jsou body, na které se
+ * v nástrojích kreslení kreslí (řez stojí často přímo na osazení).
  */
-export function cutHit(cut, w2s, sx, sy, tol, pad = 12) {
+export function cutHit(cut, w2s, sx, sy, tol, pad = 12, endsOnly = false) {
   if (!cut) return false;
   const a = w2s(...cut.a), b = w2s(...cut.b);
   const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
@@ -326,7 +328,12 @@ export function cutHit(cut, w2s, sx, sy, tol, pad = 12) {
   const a2 = [a[0] - ux * pad, a[1] - uy * pad], b2 = [b[0] + ux * pad, b[1] + uy * pad];
   const dx = b2[0] - a2[0], dy = b2[1] - a2[1], L2 = dx * dx + dy * dy;
   const t = L2 ? Math.max(0, Math.min(1, ((sx - a2[0]) * dx + (sy - a2[1]) * dy) / L2)) : 0;
-  return Math.hypot(sx - (a2[0] + t * dx), sy - (a2[1] + t * dy)) <= tol;
+  if (Math.hypot(sx - (a2[0] + t * dx), sy - (a2[1] + t * dy)) > tol) return false;
+  if (!endsOnly || !(cut.sR > 0)) return true;
+  // Vzdálenost průmětu od osy [mm]: řez jde od −span do +span, osa je uprostřed.
+  const half = Math.hypot(cut.b[0] - cut.a[0], cut.b[1] - cut.a[1]) / 2;
+  const u = ((sx - a[0]) * ux + (sy - a[1]) * uy) / L;
+  return Math.abs(u - 0.5) * 2 * half >= cut.sR;
 }
 
 /** Zvýraznit řez (najetí / tažení). Vrací true, když se stav změnil (překreslí volající). */
@@ -509,7 +516,7 @@ function paintFace(g, w2s) {
     // pohledu (čelo zprava = díváme se zprava doleva, k −Z), popisek Z.
     const span = sR + Math.max(6, sR * 0.15);
     const [x1, y1] = P(z, -span), [x2, y2] = P(z, span);
-    _cut = { z, isCar, a: [x1, y1], b: [x2, y2] };
+    _cut = { z, isCar, a: [x1, y1], b: [x2, y2], sR };
     // Najetí / tažení: silnější čára s podkladem, ať je vidět, že jde chytit.
     if (_cutHot) line(x1, y1, x2, y2, 'rgba(250,179,135,0.30)', null, 9);
     line(x1, y1, x2, y2, cut, [10, 3, 2, 3], _cutHot ? 2.4 : 1.5);

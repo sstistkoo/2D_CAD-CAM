@@ -5,9 +5,12 @@
 // nebo prstem a posouvat po profilu — Z čela se mění průběžně, bokorys se
 // překresluje, u osazení profilu se řez přichytí (stejně jako posuvník pod nárysem).
 //
-// Zachytává se jen ve Výběru a mimo kreslení; do 8 px (prst 22 px) od čáry
-// klik patří řezu, ne objektu pod ním. Listenery jsou v zachycovací fázi na
-// #canvasWrap, takže se dostanou před obsluhu myši (events.js) i dotyku
+// Zachytává se mimo rozkreslený objekt; do 8 px (prst 22 px) od čáry klik
+// patří řezu, ne objektu pod ním. Ve Výběru kdekoli na čáře, v ostatních
+// nástrojích za konce přesahující díl (šipky, popisek) — po nakreslení úsečky
+// zůstane nástroj Úsečka a řez nešel chytit vůbec (uživatel 20. 10. 2026);
+// uvnitř dílu se kreslí (řez stojí často přímo na osazení).
+// Listenery jsou v zachycovací fázi na #canvasWrap, takže se dostanou před obsluhu myši (events.js) i dotyku
 // (touch.js) na plátně, a při chycení řezu je nepustí dál.
 import { state } from '../state.js';
 import { worldToScreen, screenToWorld } from '../canvas.js';
@@ -19,7 +22,8 @@ const setFaceCutHot = on => { if (setHot(on)) renderAll(); };
 const MOUSE_PX = 8, TOUCH_PX = 22, END_PAD = 12;
 
 /** Je bod (sx, sy) v plátně na značce řezu? (čistá geometrie: faceReference.cutHit) */
-const hitCut = (sx, sy, tol) => cutHit(faceCutGeom(), worldToScreen, sx, sy, tol, END_PAD);
+const hitCut = (sx, sy, tol) =>
+  cutHit(faceCutGeom(), worldToScreen, sx, sy, tol, END_PAD, state.tool !== 'select');
 
 /**
  * @param deps { setFaceZ(z, snapMm), onDone() } — nastaví Z aktuálního čela
@@ -32,7 +36,8 @@ export function initCutDrag({ setFaceZ, onDone }) {
   let drag = null;          // { off } rozdíl mezi Z pod kurzorem a Z řezu při chycení
   let savedCursor = null;   // inline kurzor před najetím
 
-  const canGrab = () => state.tool === 'select' && !state.drawing && !state.dragging && !state.holderDrawMode;
+  const canGrab = () => !state.drawing && !(state.tempPoints && state.tempPoints.length)
+    && !state.dragging && !state.holderDrawMode;
   const local = (cx, cy) => { const r = canvas.getBoundingClientRect(); return [cx - r.left, cy - r.top]; };
   const zAt = (sx, sy) => { const w = screenToWorld(sx, sy); const cut = faceCutGeom(); return cut.isCar ? w[1] : w[0]; };
 

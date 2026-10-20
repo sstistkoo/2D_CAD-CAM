@@ -550,9 +550,11 @@ k osazením profilu, a **◀ zprava / ▶ zleva** — odkud se na čelo díváte
 odkud nástroj přijíždí; šipka ukazuje směr pohledu (podle osazení se strana
 nastaví sama, dokud ji nepřepnete). V nárysu je
 značka řezu s popiskem Z a šipkami ve směru pohledu — **řez lze chytit myší
-nebo prstem a táhnout po profilu** (Výběr, bokorys zapnutý; najetí = kurzor ↔
-a zvýraznění čáry, u osazení se přichytí, prst chytá do 22 px od čáry, myš do
-8 px). Čelo se při tažení přepočítává průběžně. Kreslí se do aktuálního
+nebo prstem a táhnout po profilu** (bokorys zapnutý; ve Výběru kdekoli na
+čáře, v nástrojích kreslení za konce přesahující díl — šipky, popisek Z —
+uvnitř dílu se kreslí; najetí = kurzor ↔ a zvýraznění čáry, u osazení se
+přichytí, prst chytá do 22 px od čáry, myš do 8 px). Na dotykovém displeji je
+posuvník lišty čela větší, aby šel jezdec chytit prstem. Čelo se při tažení přepočítává průběžně. Kreslí se do aktuálního
 čela: **kružnice = díra** (střed = poloha, Ø kružnice = Ø díry), **úsečka =
 drážka**. Kružnice **čárkovaná nebo čerchovaná** (Typ čáry) je **pomocná** —
 roztečná kružnice, díra se z ní nedělá a do CAM nejde. Šipka u +X a popisek
