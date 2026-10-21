@@ -14,7 +14,7 @@
 // k němu natáčí osou C. Stav proto nese `rot` = natočení kusu [°] tak, aby
 // bod pod nástrojem ležel na úhlu toolAt; přejezd mezi dírami je natočení C
 // (polární interpolace), ne přímka napříč čelem.
-import { livePositions, millMoves, depthLevels, faceOut, liveSettings } from './liveModel.js';
+import { livePositions, millMoves, depthLevels, faceOut, liveSettings, liveOpProblems } from './liveModel.js';
 import { rapidFeedMmMin } from '../feedRates.js';
 
 const C_POS_SEC = 0.4;        // natočení osy C / přejezd mezi dírami (orientačně)
@@ -43,8 +43,9 @@ export function buildLiveTimeline(ops, prms) {
   const dwell = sec => { if (sec > 0 && last) { t += sec; last = { ...last, t, gap: false, cut: false }; pts.push(last); } };
 
   ops.forEach((op, oi) => {
-    // Nevybraná skupina děr se nevrtá (indexy operací zůstávají).
-    if (op.enabled === false) { opEnd[oi] = t; return; }
+    // Nevybraná skupina děr se nevrtá (indexy operací zůstávají); chybné
+    // zadání NC blok vynechá (liveGcode.js) — simulace ho nesmí obrobit.
+    if (op.enabled === false || liveOpProblems(op).length) { opEnd[oi] = t; return; }
     const feed = Math.max(1, op.feed || 100) / 60;
     if (op.kind === 'drill') {
       const radial = op.side === 'radial';
@@ -146,7 +147,10 @@ export function liveStateAt(tl, t) {
     if (i > 0 && !p.gap) stroke(pts[i - 1], p); else line = null;
     tool = p; turn(p);
   }
-  return { t: T, total: tl.total, tool, rot, active: tool && T < tl.total ? { op: tool.op, hole: tool.hole } : null, depth, sweeps, done };
+  const active = tool && T < tl.total ? { op: tool.op, hole: tool.hole } : null;
+  // Čas operace [od, do] — poloha v jejím bloku G-kódu (liveNcSync.liveCodeLine).
+  const opSpan = active ? [active.op > 0 ? (tl.opEnd[active.op - 1] || 0) : 0, tl.opEnd[active.op]] : null;
+  return { t: T, total: tl.total, tool, rot, active, opSpan, depth, sweeps, done };
 }
 
 const wrapPi = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };

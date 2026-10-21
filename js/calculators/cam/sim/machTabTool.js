@@ -18,7 +18,7 @@
 // Vyňato do modulu — camSimulator.js (obří soubor) jen předá funkce v ctx.
 import { showToast } from '../../../state.js';
 import { camConfirm } from '../camSimulatorDialogs.js';
-import { getLiveOps, liveOpOn } from '../live/liveModel.js';
+import { getLiveOps, liveOpOn, liveDrillFromCad } from '../live/liveModel.js';
 import { autoDrillTools, addCatalogDrills } from '../live/liveDrillTools.js';
 
 const OWN = { vrt: 'drill', zavit: 'threading', upich: 'parting' };
@@ -64,6 +64,9 @@ export async function machTabClick(tab, ctx) {
     ctx.applyChange({ cycle: true });
     return true;
   }
+  // Vrták už je, ale díry z výkresu mají jiný Ø (např. přidaný Ø10 vs aktivní
+  // Ø20 — uživatel 21. 10. 2026) → vybrat vrták jejich operace.
+  if (plan === 'keep' && tab === 'vrt' && S.params.drillSource !== 'axis' && getLiveOps(S.params).some(liveOpOn)) return pickDrill(ctx);
   if (plan === 'keep') { if (ctx.setMachiningSubTab(tab)) ctx.applyChange(); return true; }
   const goPart = i => {
     const chip = i >= 0 && rootEl && rootEl.querySelector(`.cam-sim-parts-bar [data-op="${i}"]`);
@@ -165,10 +168,29 @@ export function turningPartIndex(S) {
   return -1;
 }
 
+/**
+ * Operace Vrtání děr z výkresu: nástroj části = vrták PRVNÍ vybrané skupiny
+ * (operace má T8 Ø10, nahoře zůstal dřív vybraný Ø20 — uživatel 21. 10.
+ * 2026). Volá ho úprava operací v ◎ (livePanel.commit přes S._syncLiveDrill
+ * — cam/live nesmí importovat cam/sim).
+ * @returns true = nástroj přepnut (_applyMagSlot přegeneroval program)
+ */
+export function syncLiveDrillTool(ctx) {
+  const { S } = ctx;
+  if (!S.params.drillActive || !liveDrillFromCad(S.params)) return false;
+  const first = getLiveOps(S.params).find(o => liveOpOn(o) && o.kind === 'drill');
+  const idx = first ? S.toolMagazine.findIndex(s => s.shape === 'drill' && s.slot === first.toolNo) : -1;
+  if (idx < 0 || idx === S.activeMagazineSlot) return false;
+  ctx._applyMagSlot(idx);
+  return true;
+}
+
 /** Vrtání: vrták podle děr z výkresu (nebo první v zásobníku) a přegenerovat. */
 function pickDrill(ctx) {
   const { S } = ctx;
   let idx = -1, note = '';
+  const wasOn = !!S.params.drillActive;
+  const before = JSON.stringify([S.params.liveOps, S.toolMagazine.length]);
   ctx.pushHistory();   // před změnou operací i zásobníku — ↩ vrátí obojí
   if (getLiveOps(S.params).some(liveOpOn)) {
     const pre = autoDrillTools(getLiveOps(S.params), S.toolMagazine, S.params);
@@ -191,6 +213,11 @@ function pickDrill(ctx) {
   if (S.params.partOffZ != null) S.params.partOffZ = null;
   S.params.drillActive = true;
   ctx.setMachiningSubTab('vrt');
+  if (wasOn && idx === S.activeMagazineSlot) {
+    // Vrták už sedí — přegenerovat jen po změně operací / zásobníku.
+    if (JSON.stringify([S.params.liveOps, S.toolMagazine.length]) !== before) ctx.applyChange({ cycle: true });
+    return true;
+  }
   ctx._applyMagSlot(idx);   // vrták ↔ nůž = jiná operace → přegeneruje (afterToolChange)
   const slot = S.toolMagazine[idx];
   showToast(`Vrtání — vrták T${slot.slot} ${slot.name}${note}`, 4500);

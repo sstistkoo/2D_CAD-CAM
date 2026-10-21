@@ -9,7 +9,8 @@
 //              faceView/faceDepth.js) dá operaci tuhle hloubku; se `zTop`
 //              (první materiál za čelem, když čelo stojí ve vzduchu) začne
 //              operace vrtat tam — díry s jiným zTop jsou zvlášť operace.
-//   úsečka   → drážka (osa drážky, šířka = Ø frézy).
+//   úsečka   → drážka (osa drážky, šířka = Ø frézy); se `zTop` (slotForCam,
+//              čelo ve vzduchu) se frézuje od prvního materiálu.
 //   ostatní (oblouky, kontury, obdélníky, texty, kóty) se přeskočí a řekne se kolik.
 //
 // Opakované načtení nahradí jen operace dřív načtené z CAD (`fromCad`);
@@ -49,13 +50,22 @@ export function liveOpsFromCad(input, geo, prevOps) {
   const ops = [...manual];
   let n = ops.length, holes = 0, slots = 0, skipped = 0;
   const many = faces.length > 1;
-  const carry = (op, old) => { if (old) KEEP.forEach(k => { if (old[k] !== undefined) op[k] = old[k]; }); };
+  // Název z výkresu (`autoName`) se generuje znovu — jinak by po změně hloubky
+  // v CAD zůstal „Díry Ø8 skrz" u díry hl. 12; přejmenovaná operace si název
+  // nechá. Starší uložení bez autoName: výchozí tvar názvu = z výkresu.
+  const carry = (op, old) => {
+    const name = op.name;
+    op.autoName = name;
+    if (!old) return;
+    KEEP.forEach(k => { if (old[k] !== undefined) op[k] = old[k]; });
+    const auto = old.autoName != null ? old.name === old.autoName : /^(Díry Ø|Drážka \d)/.test(old.name || '');
+    if (auto) op.name = name;
+  };
 
   faces.forEach(face => {
     const zTop = r3(face.z);
     const faceDir = face.side === 'left' ? -1 : 1;
     const tag = many ? ` · Z${zTop} ${faceDir < 0 ? '▶' : '◀'}` : '';
-    const sameFace = o => Math.abs((o.zTop ?? 0) - zTop) < 1e-3 && (o.faceDir === -1 ? -1 : 1) === faceDir;
     const byD = new Map();   // klíč Ø|hloubka|zTop → { d, depth, tag, zTop, pts }
     const lines = [];
     (face.objects || []).forEach(o => {
@@ -66,8 +76,8 @@ export function liveOpsFromCad(input, geo, prevOps) {
         const a = r < 1e-6 ? 0 : norm360(Math.atan2(o.cy, o.cx) * 180 / Math.PI);
         const depth = o.depth > 0 ? r3(o.depth) : null;
         const zt = Number.isFinite(o.zTop) ? r3(o.zTop) : zTop;
-        const key = (depth == null ? `${d}` : `${d}|${depth}|${o.depthTag || ''}`) + (zt === zTop ? '' : `|z${zt}`);
-        if (!byD.has(key)) byD.set(key, { d, depth, tag: depth == null ? '' : (o.depthTag || ''), zTop: zt, pts: [] });
+        const key = (depth == null ? `${d}` : `${d}|${depth}|${o.depthTag || ''}`) + (zt === zTop ? '' : `|z${zt}`) + (o.throughStock ? '|s' : '');
+        if (!byD.has(key)) byD.set(key, { d, depth, tag: depth == null ? '' : (o.depthTag || ''), zTop: zt, stock: !!o.throughStock, pts: [] });
         byD.get(key).pts.push({ a: r3(a), r: r3(r) });
       } else if (o.type === 'line') lines.push(o);
       else if (o.type !== 'point' && o.type !== 'constr') skipped++;
@@ -85,7 +95,8 @@ export function liveOpsFromCad(input, geo, prevOps) {
         && Math.abs(o.holeD - d) < 1e-3 && sameZ(o);
       // Se zadanou hloubkou přednost dřívější operaci se stejnou hloubkou.
       carry(op, (g.depth != null && prev.find(o => isHole(o) && Math.abs(o.depth - g.depth) < 1e-3)) || prev.find(isHole));
-      Object.assign(op, { holeD: d, side: 'face', zTop: g.zTop, faceDir, fromCad: true });
+      // throughStock: díra skrz vč. polotovaru — kontrola i proti polotovaru (liveChecks).
+      Object.assign(op, { holeD: d, side: 'face', zTop: g.zTop, faceDir, fromCad: true, ...(g.stock ? { throughStock: true } : {}) });
       if (g.depth != null) op.depth = g.depth;
       const pcd = detectPcd(pts);
       if (pcd) Object.assign(op, { pattern: 'pcd' }, pcd);
@@ -94,14 +105,20 @@ export function liveOpsFromCad(input, geo, prevOps) {
       if (op.kind !== 'mill') op.kind = 'drill';
       ops.push(normalizeLiveOp(op));
     });
-    const prevSlots = prev.filter(o => o.kind === 'mill' && o.millType === 'slot' && sameFace(o));
+    // Drážka se `zTop` (první materiál za čelem ve vzduchu, faceDepth.slotForCam)
+    // frézuje od něj; dřívější drážky čela = stejná strana a Z čela nebo
+    // začátek některé z drážek.
+    const zts = new Set(lines.map(l => (Number.isFinite(l.zTop) ? r3(l.zTop) : zTop)));
+    const prevSlots = prev.filter(o => o.kind === 'mill' && o.millType === 'slot' && (o.faceDir === -1 ? -1 : 1) === faceDir
+      && [...zts].some(z => Math.abs((o.zTop ?? 0) - z) < 1e-3));
     lines.forEach((l, i) => {
       slots++;
+      const zt = Number.isFinite(l.zTop) ? r3(l.zTop) : zTop;
       const op = newLiveOp('mill', geo, ++n);
-      op.name = `Drážka ${i + 1}${tag}`;
+      op.name = `Drážka ${i + 1}${zt === zTop ? tag : ` · Z${zt} ${faceDir < 0 ? '▶' : '◀'}`}`;
       carry(op, prevSlots[i]);
       Object.assign(op, {
-        kind: 'mill', millType: 'slot', zTop, faceDir, fromCad: true,
+        kind: 'mill', millType: 'slot', zTop: zt, faceDir, fromCad: true,
         slot: { x1: r3(l.x1), y1: r3(l.y1), x2: r3(l.x2), y2: r3(l.y2) },
       });
       ops.push(normalizeLiveOp(op));

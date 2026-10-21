@@ -48,15 +48,28 @@ export function pointsToChains(points, half, isStock = false) {
 
 /**
  * Profil dílu pro řezy: objekty (kontura + tvarový polotovar) a osazení.
- * Válcový polotovar se nepřidává — jeho poloměr je všude stejný (geo.stockR).
+ * Válcový polotovar se do `objects` nepřidává — jeho poloměr je všude stejný
+ * (geo.stockR); je zvlášť v `cylStock` (kontrola děr skrz vč. polotovaru).
+ * `lo` / `hi` / `zsAll` = rozsah a značky posuvníku řezu i přes polotovar
+ * (úplně vpravo = před polotovarem); `min` / `max` = hotový díl.
  */
 export function liveProfile(S) {
   const prms = S.params || {};
   const half = prms.mode === 'DIAMON' ? 0.5 : 1;
   const objects = pointsToChains(S.contourPoints, half);
   if (prms.stockMode !== 'cylinder') objects.push(...pointsToChains(S.stockPoints, half, true));
+  const cylStock = cylinderStock(prms);
   const sh = shoulderZs(objects, LATHE);
-  return { objects, empty: !objects.some(o => !o.isStock), zs: sh.zs, min: sh.min, max: sh.max };
+  const all = shoulderZs([...objects, ...cylStock], LATHE, true);
+  return { objects, cylStock, empty: !objects.some(o => !o.isStock), zs: sh.zs, min: sh.min, max: sh.max, lo: all.min, hi: all.max, zsAll: all.zs };
+}
+
+/** Válcový polotovar (stockFace / stockLength / stockDiameter) jako obrys v (Z, poloměr). */
+function cylinderStock(prms) {
+  const R = (parseFloat(prms.stockDiameter) || 0) / 2;
+  const f = parseFloat(prms.stockFace) || 0, l = parseFloat(prms.stockLength) || 0;
+  if (prms.stockMode !== 'cylinder' || !(R > 0) || !(f + l > 0)) return [];
+  return [{ type: 'polyline', isStock: true, vertices: [{ x: f, y: 0 }, { x: f, y: R }, { x: -l, y: R }, { x: -l, y: 0 }] }];
 }
 
 /**

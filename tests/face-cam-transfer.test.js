@@ -27,6 +27,8 @@ import { cadSyncOps } from '../js/calculators/cam/live/liveCadSync.js';
 import { lowerAngle, faceSpans } from '../js/calculators/cam/live/liveSection.js';
 import { liveCutAt } from '../js/calculators/cam/live/liveCut.js';
 import { contourRuns, stockRuns, lowerHalfOn } from '../js/calculators/cam/sim/drawLowerHalf.js';
+import { shoulderZs } from '../js/faceView/faceReference.js';
+import { checkLiveOp } from '../js/calculators/cam/live/liveChecks.js';
 
 const L = (x1, y1, x2, y2) => ({ type: 'line', layer: 0, x1, y1, x2, y2 });
 // Hřídel Ø40 (Z0–200), příruba Ø90 (Z200–280), čep Ø30 (Z280–340).
@@ -46,8 +48,10 @@ beforeEach(() => {
   state.machineType = 'soustruh';
 });
 
+const skrz0 = { mode: 'through', value: null };
+
 describe('díra pro CAM (holeForCam)', () => {
-  const skrz = { mode: 'through', value: null };
+  const skrz = skrz0;
   it('čelo ve vzduchu (Z312): vrtá se od příruby Z280, skrz = 80 + hrot 3,1', () => {
     expect(holeForCam(local(0, 40, skrz), 312, 'right')).toMatchObject({ zTop: 280, depth: 83.1, depthTag: 'skrz' });
   });
@@ -67,6 +71,55 @@ describe('díra pro CAM (holeForCam)', () => {
     const h = holeForCam(local(0, 40), 312, 'right');
     expect(h.zTop).toBe(280);
     expect(h.depth).toBeUndefined();
+  });
+});
+
+describe('díra skrz vč. polotovaru (uživatel 21. 10. 2026)', () => {
+  // Polotovar Ø100 od Z-5 do Z350 — přesahuje konec hotové kontury Z340.
+  const stock = () => [L(-5, 0, -5, 50), L(-5, 50, 350, 50), L(350, 50, 350, 0)].map(o => ({ ...o, isStock: true }));
+  const skrzS = { mode: 'through', value: null, stock: true };
+  it('posuvník čela sahá přes polotovar (úplně vpravo = před polotovarem)', () => {
+    state.objects.push(...stock());
+    expect(shoulderZs(state.objects, 'soustruh').max).toBe(340);
+    const all = shoulderZs(state.objects, 'soustruh', true);
+    expect([all.min, all.max]).toEqual([-5, 350]);
+    expect(all.zs).toContain(350);
+  });
+  it('čelo na konci kontury uvnitř polotovaru: vrtá se od povrchu polotovaru', () => {
+    state.objects.push(...stock());
+    // Z350 → Z-5 = 355 mm + hrot 3,1; dřív začátek Z340 (konec kontury v polotovaru).
+    expect(holeForCam(local(0, 40, skrzS), 340, 'right')).toMatchObject({ zTop: 350, depth: 358.1, throughStock: true });
+    expect(holeForCam(local(0, 40, skrzS), 360, 'right')).toMatchObject({ zTop: 350, depth: 358.1 });
+    // Jen hotová kontura: beze změny (čelo Z340 na materiálu).
+    expect(holeForCam(local(0, 10, skrz0), 340, 'right').zTop).toBeUndefined();
+  });
+  it('CAM: operace nese throughStock a kontrola bere i polotovar', () => {
+    state.objects.push(...stock(), hole(0, 10, skrzS));
+    state.layers[1].faceZ = 340;
+    const op = liveOpsFromCad(faceDrawingsForCam(), GEO, []).ops[0];
+    expect(op).toMatchObject({ zTop: 350, throughStock: true });
+    const prof = { objects: state.objects.filter(o => o.layer === 0).map(o => ({ ...o })), cylStock: [] };
+    expect(checkLiveOp(prof, op).issues.filter(i => i.sev === 'error')).toEqual([]);
+    expect(checkLiveOp(prof, { ...op, throughStock: false }).sev).toBe('error');   // jen díl: za Z350 nic
+  });
+});
+
+describe('drážka z CAD od prvního materiálu (uživatel 21. 10. 2026)', () => {
+  const line = (x1, y1, x2, y2) => ({ type: 'line', layer: 7, x1: O.x + x1, y1: O.y + y1, x2: O.x + x2, y2: O.y + y2 });
+  it('čelo ve vzduchu Z312: drážka na přírubě (R30…40) se frézuje od Z280', () => {
+    state.objects.push(line(-30, 25, 30, 25));   // poloměry 25…39 — nad čepem R15, na přírubě
+    const op = liveOpsFromCad(faceDrawingsForCam(), GEO, []).ops.find(o => o.millType === 'slot');
+    expect(op).toMatchObject({ zTop: 280, faceDir: 1 });
+    expect(op.name).toMatch(/Z280/);
+  });
+  it('čelo na materiálu: zTop = čelo; nástroj z dřívější drážky se převezme', () => {
+    state.layers[1].faceZ = 280;
+    state.objects.push(line(-30, 25, 30, 25));
+    const first = liveOpsFromCad(faceDrawingsForCam(), GEO, []).ops;
+    expect(first[0].zTop).toBe(280);
+    state.layers[1].faceZ = 312;   // posuvník do vzduchu — drážka zůstane na Z280 i s frézou
+    const again = liveOpsFromCad(faceDrawingsForCam(), GEO, first.map(o => ({ ...o, toolD: 6 }))).ops;
+    expect(again[0]).toMatchObject({ zTop: 280, toolD: 6 });
   });
 });
 
@@ -99,6 +152,18 @@ describe('přenos sám při otevření CAM (cadSyncOps)', () => {
     state.objects[state.objects.length - 1].cy = 30;
     const res2 = cadSyncOps(params, GEO, faceDrawingsForCam());
     expect(res2.ops[0].toolD).toBe(6.8);
+  });
+  it('změna hloubky v CAD přejmenuje operaci z výkresu, přejmenovanou ne', () => {
+    state.objects.push(hole(0, 40, { mode: 'through', value: null }));
+    const params = { liveOps: cadSyncOps({ liveOps: [] }, GEO, faceDrawingsForCam()).ops };
+    expect(params.liveOps[0].name).toMatch(/skrz/);
+    state.objects[state.objects.length - 1].holeDepth = { mode: 'depth', value: 50 };
+    const res = cadSyncOps(params, GEO, faceDrawingsForCam());
+    expect(res.ops[0].name).toMatch(/hl\. 50/);
+    expect(res.ops[0].name).not.toMatch(/skrz/);
+    params.liveOps = res.ops.map(o => ({ ...o, name: 'Moje díry' }));
+    state.objects[state.objects.length - 1].holeDepth = { mode: 'depth', value: 60 };
+    expect(cadSyncOps(params, GEO, faceDrawingsForCam()).ops[0].name).toBe('Moje díry');
   });
   it('v CAD nic → nic se nemění', () => {
     expect(cadSyncOps({ liveOps: [] }, GEO, faceDrawingsForCam())).toBeNull();

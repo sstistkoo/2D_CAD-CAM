@@ -11,7 +11,7 @@ import { faceDrawingsForCam } from '../../../faceView/faceDepth.js';
 // Co z operace pochází z výkresu — porovnává se jen to (nástroj, otáčky,
 // posuvy zůstávají z dřívější operace).
 const GEO = ['kind', 'millType', 'side', 'holeD', 'zTop', 'faceDir', 'pattern', 'pcd', 'count',
-  'startAngle', 'points', 'depth', 'slot'];
+  'startAngle', 'points', 'depth', 'slot', 'throughStock'];
 
 /** Otisk operací načtených z CAD (jen geometrie z výkresu). */
 export function cadOpsSignature(ops) {

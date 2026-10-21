@@ -125,6 +125,26 @@ describe('NC výstup', () => {
     const F = buildLiveBlock(prms({ controlSystem: 'fanuc', liveOps: [op] }));
     expect(F.some(l => /^G83 .* Z-40 R3 /.test(l))).toBe(true);
   });
+  it('odjezd na bezpečnou polohu: nejdřív X, pak Z — od čela zleva ne šikmo skrz díl', () => {
+    for (const controlSystem of ['sinumerik', 'fanuc', 'heidenhain']) {
+      const L = buildLiveBlock(prms({ controlSystem, liveOps: [drill({ zTop: -50, faceDir: -1 })] }));
+      expect(L.some(l => /^G0 X150 Z5/.test(l))).toBe(false);
+      const x = L.lastIndexOf('G0 X150');
+      expect(x).toBeGreaterThan(L.findIndex(l => /díra 3/.test(l)));
+      expect(L[x + 1]).toBe('G0 Z5');
+    }
+  });
+  it('frézování přes osu C (Fanuc, Heidenhain): úhel v G1 bez skoku přes 0°/360°', () => {
+    // Kapsa pod nástrojem (90° → C0): body kolem C0 dřív šly C357,7 → C0.
+    const pocket = { ...newLiveOp('mill', { faceZ: 0, outerD: 100 }, 1), pcd: 40, count: 1, startAngle: 90, holeD: 16, toolD: 10, depth: 2, stepDown: 2 };
+    for (const controlSystem of ['fanuc', 'heidenhain']) {
+      const L = buildLiveBlock({ ...prms({ controlSystem, liveOps: [pocket] }), live: { mode: 'caxis' } });
+      const cs = L.filter(l => l.startsWith('G1 ')).map(l => +l.match(/ C(-?[\d.]+)/)[1]);
+      expect(cs.length).toBeGreaterThan(10);
+      const jump = Math.max(...cs.slice(1).map((c, i) => Math.abs(c - cs[i])));
+      expect(jump).toBeLessThan(15);
+    }
+  });
   it('CYCLE83: DAM = 0 (stálý záběr), FDEP absolutně, dno s prodlevou', () => {
     const L = buildLiveBlock(prms({ liveOps: [drill({ dwell: 0.5 })] }));
     expect(L).toContain('CYCLE83(5, 0, 2, -10, , -3, , 0, 0.5, 0, 1, 1)');

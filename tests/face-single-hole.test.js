@@ -68,7 +68,9 @@ describe('Skrz: jen hotová kontura / i polotovar', () => {
     const objs = [...part, ...stock];
     const p = { faceZ: 280, side: 'right', d: 7, lo: 36.5, hi: 43.5, objects: objs, machineType: 'soustruh' };
     expect(resolveHoleDepth({ mode: 'through', value: 0 }, p)).toEqual({ depth: 80, thick: 80 });
-    expect(resolveHoleDepth({ mode: 'through', value: 0, stock: true }, p)).toEqual({ depth: 282, thick: 282 });
+    // Polotovar sahá 2 mm před čelo (Z282): vrtá se od jeho povrchu — 284 mm
+    // (dřív 282 od roviny čela, vrták začínal v polotovaru; uživatel 21. 10. 2026).
+    expect(resolveHoleDepth({ mode: 'through', value: 0, stock: true }, p)).toEqual({ depth: 284, thick: 284 });
   });
 });
 

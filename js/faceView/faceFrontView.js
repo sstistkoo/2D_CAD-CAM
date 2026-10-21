@@ -16,7 +16,7 @@
 import { state } from '../state.js';
 import { faceHoles, profileObjects } from './faceLayer.js';
 import { faceCutGeom, objectsHash } from './faceReference.js';
-import { resolveHoleDepth, materialSpan } from './faceDepth.js';
+import { resolveHoleDepth, materialSpan, stockSpan } from './faceDepth.js';
 
 const TIP = 0.3;              // délka špičky vrtáku 118° = 0,3·Ø
 const CENTER_EXT = 3;         // přesah osy díry za díru [mm]
@@ -67,7 +67,8 @@ export function frontHoles(holes, objects, machineType) {
     const spec = o.holeDepth || { mode: 'through', value: 0 };
     const p = { faceZ, side, d: 2 * o.r, lo: Math.max(0, ra - o.r), hi: ra + o.r, objects, machineType };
     const key = [faceZ, side, p.lo.toFixed(4), p.hi.toFixed(4), !!spec.stock].join('|');
-    if (!memo.has(key)) memo.set(key, materialSpan(objects, machineType, faceZ, side, p.lo, p.hi, !!spec.stock));
+    // Skrz vč. polotovaru i s polotovarem před čelem (jako CAM, faceDepth.holeForCam).
+    if (!memo.has(key)) memo.set(key, spec.stock ? stockSpan(objects, machineType, faceZ, side, p.lo, p.hi) : materialSpan(objects, machineType, faceZ, side, p.lo, p.hi));
     const span = memo.get(key);
     if (!span) return;
     let end = span.end, tip = false;

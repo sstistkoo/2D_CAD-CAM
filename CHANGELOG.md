@@ -121,6 +121,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CAM: Výstup NC poháněných nástrojů jen v pravém panelu.** Polohování
+  (SPOS / osa C / TRANSMIT), cykly, vřeteno, jméno osy C, kalibrace úhlu
+  a M-kódy jsou v ⚙ Parametry → Obrábění → Vrtání (rozbalovací blok pod
+  seznamem děr); pod pohledem na čelo zůstal jen souhrn a tlačítko, které
+  blok otevře — nastavení už není na dvou místech.
 - **CAM: vrtání děr z výkresu je operace Vrtání — záložka vybere nástroj,
   jedno 🔄 Dráhy.** Klik na záložku obrábění přepne nástroj své operace:
   Vrtání → vrták (podle Ø děr z výkresu ze 🔧 Zásobníku; chybějící se doplní
@@ -265,6 +270,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAD/CAM: díra skrz vč. polotovaru začínala uvnitř polotovaru.**
+  Posuvník čela (bokorys CAD i lišta řezu v CAM) sahal jen po konec hotové
+  kontury, takže úplně vpravo stál v polotovaru a díra *I polotovar* začala
+  vrtat na konci kontury. Posuvník teď sahá přes polotovar (přichytí se
+  i k jeho koncům) a díra skrz vč. polotovaru začne na povrchu polotovaru na
+  straně nástroje, i když čelo stojí uvnitř něj (`faceDepth.stockSpan`,
+  nárys CAD stejně). Operace nese `throughStock` a kontrola proti dílu ji
+  porovná s dílem i polotovarem (dřív by hlásila „za čelem není materiál").
+- **CAM: nástroj nahoře zůstal vrták Ø20, i když díry vrtá T8 Ø10.** Po
+  doplnění vrtáku do 🔧 Zásobníku nebo změně výběru děr se teď nástroj části
+  přepne na vrták první vybrané skupiny (i T v hlavičce programu); klik na
+  záložku Vrtání ho srovná také (`machTabTool.syncLiveDrillTool`).
+- **CAM: vrtání nešlo pozastavit, ▶ spustilo program od začátku.** Po dojetí
+  programu (u operace Vrtání je to jen najetí G0 X150 Z5) ▶ / ⏸ v přehrávači
+  dole teď pozastaví a pustí dál vrtání. Při přehrávání se v G-kódu zvýrazní
+  řádek bloku, který se vrtá, nad časem je nástroj, otáčky a posuv a v řezu
+  jsou dráhy vrtáku (posuv zeleně, rychloposuv čárkovaně) — dřív to vypadalo,
+  že se dráhy vrtání nevygenerovaly (`cam/live/liveNcSync.js`).
+- **CAM: drážka z CAD frézovala od roviny čela ve vzduchu.** Stojí-li čelo
+  před přírubou, drážka (úsečka v bokorysu) se teď frézuje od prvního
+  materiálu pod svou osou jako díry („Drážka 1 · Z280 ◀",
+  `faceDepth.slotForCam`).
+- **CAM: poháněné nástroje — odjezd od čela zleva vedl skrz díl.** Po každé
+  operaci jel blok na bezpečnou polohu šikmo `G0 X… Z…` naráz; od čela
+  zleva (nástroj vlevo od příruby, bezpečná poloha vpravo) tak rychloposuvem
+  projel materiálem. Teď nejdřív radiálně ven `G0 X`, pak `G0 Z` (jako
+  vrtání v ose) — `liveGcode.buildLiveBlock`.
+- **CAM: frézování přes osu C (Fanuc, Heidenhain) — skok úhlu přes 0°.**
+  Kapsa / drážka rozložená na G1 v X + C psala absolutní úhel 0…360°, takže
+  kolem C0 (kapsa pod nástrojem) šlo `C357,677 → C0`: stroj bez nejkratší
+  cesty by kus v řezu otočil o −358° a fréza by vyjela celé mezikruží čela.
+  Úhel se teď píše spojitě od předchozího bodu (může být < 0 nebo > 360);
+  Sinumerik dál `C=DC(…)`.
+- **CAM: simulace obráběla operaci, kterou NC blok vynechal.** Operace
+  s chybným zadáním (kapsa menší než fréza, hloubka ≤ 0 …) se do programu
+  nezapíše, ale ◎ simulace ji vrtala / frézovala — teď ji přeskočí také.
+- **CAM: název operace z CAD se po změně hloubky nepřepsal.** Po změně díry
+  ze „skrz" na „hl. 12" v CAD zůstal v CAM název „Díry Ø8 skrz". Název
+  z výkresu se teď generuje znovu (`autoName`), ručně přejmenovaná operace
+  si název nechá.
 - **CAM: vrták na Ø, který 📚 katalog nemá (např. 7), se nedal přidat.**
   Postaví se podle nejbližšího katalogového Ø s přesným Ø díry.
 - **CAD: tlačítko Kr.pole bez výběru nic nedělalo.** Jen hláška „Nejdříve

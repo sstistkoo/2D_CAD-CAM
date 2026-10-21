@@ -85,7 +85,7 @@ function buildBar() {
   });
   // Posuvník přichytává k osazení do 1,5 % rozsahu (min. 0,2 mm).
   const rangeSnap = () => {
-    const sh = shoulderZs(profileObjects(), state.machineType);
+    const sh = shoulderZs(profileObjects(), state.machineType, true);
     return Math.max(0.2, (sh.max - sh.min) * 0.015);
   };
   range.addEventListener('input', () => deps.setFaceZ(parseFloat(range.value), rangeSnap()));
@@ -156,7 +156,7 @@ export function updateBar() {
   const zIn = bar.querySelector('[data-fb="z"]');
   if (document.activeElement !== zIn) zIn.value = String(cur.faceZ);
   bar.querySelector('[data-fb="side"]').textContent = cur.faceSide === 'left' ? '▶ zleva' : '◀ zprava';
-  const sh = shoulderZs(profileObjects(), state.machineType);
+  const sh = shoulderZs(profileObjects(), state.machineType, true);   // i přes polotovar
   const range = bar.querySelector('[data-fb="range"]');
   range.min = String(Math.min(sh.min, cur.faceZ));
   range.max = String(Math.max(sh.max, cur.faceZ));

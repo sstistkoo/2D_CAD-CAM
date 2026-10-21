@@ -1,7 +1,8 @@
-// Nastavení NC výstupu poháněných nástrojů (panel 🛠 Operace): polohování,
-// vřeteno nástroje, jméno osy C, kalibrace úhlu, M-kódy stroje a návod, jak
-// to všechno ověřit na stroji. Čisté HTML + zápis změny — bez stavu panelu
-// (livePanel.js jen zavolá a uloží přes commit()).
+// Nastavení NC výstupu poháněných nástrojů: polohování, vřeteno nástroje,
+// jméno osy C, kalibrace úhlu, M-kódy stroje a návod, jak to všechno ověřit
+// na stroji. Jediné místo je pravý panel ⚙ Parametry → Vrtání (liveDrillUi.js;
+// dřív i pod pohledem na čelo — uživatel 21. 10. 2026). Čisté HTML + zápis
+// změny — bez stavu panelu.
 import { LIVE_MODES } from './liveModel.js';
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -15,14 +16,17 @@ export function modeNote(mode, ctrl) {
     : 'TRANSMIT: vřeteno do osy (M70) a na čele kartézsky X/Y (v poloměru). Radiální díry se polohují osou C.';
 }
 
-/** HTML nastavení výstupu (nadpis, přepínače, kalibrace, M-kódy, poznámka). */
-export function settingsHtml(set, ctrl) {
+/** Název bloku nastavení: „Výstup NC (Sinumerik)". */
+export const settingsTitle = ctrl => `Výstup NC (${ctrl === 'fanuc' ? 'Fanuc' : ctrl === 'heidenhain' ? 'Heidenhain' : 'Sinumerik'})`;
+
+/** HTML nastavení výstupu (přepínače, kalibrace, M-kódy, poznámka; `heading` = s nadpisem). */
+export function settingsHtml(set, ctrl, heading = true) {
   const modeOpts = Object.entries(LIVE_MODES).map(([k, t]) => `<option value="${k}"${k === set.mode ? ' selected' : ''}>${t}</option>`).join('');
   const mf = (k, t) => `<label class="cam-live-f"><span>${t}</span><input data-g="m.${k}" type="text" value="${esc(set.m[k])}"></label>`;
   const nf = (g, t, v, title) => `<label class="cam-live-f" title="${esc(title)}"><span>${t}</span><input data-g="${g}" type="text" inputmode="decimal" value="${esc(v)}"></label>`;
   const sin = ctrl === 'sinumerik';
   return `
-      <h4>Výstup NC (${ctrl === 'fanuc' ? 'Fanuc' : ctrl === 'heidenhain' ? 'Heidenhain' : 'Sinumerik'})</h4>
+      ${heading ? `<h4>${settingsTitle(ctrl)}</h4>` : ''}
       <div class="cam-live-grid">
         <label class="cam-live-f"><span>Polohování / interpolace</span><select data-g="mode">${modeOpts}</select></label>
         <label class="cam-live-f" title="Vrtací cykly (CYCLE82/83, G83/G87). Vypnuto = rozepsané G0/G1 pohyby. Heidenhain vždy rozepsané."><span>Vrtací cykly</span><input data-g="cycles" type="checkbox"${set.cycles ? ' checked' : ''}></label>

@@ -204,7 +204,7 @@ export function setFaceZ(z, snapMm = 0) {
   const cur = getFaceLayer();
   if (!cur || !Number.isFinite(z)) return;
   if (snapMm > 0) {
-    const sh = shoulderZs(profileObjects(), state.machineType);
+    const sh = shoulderZs(profileObjects(), state.machineType, true);   // i konce polotovaru
     const near = sh.zs.reduce((b, s) => (Math.abs(s - z) < Math.abs(b - z) ? s : b), Infinity);
     if (Math.abs(near - z) <= snapMm) z = near;
   }

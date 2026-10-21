@@ -15,9 +15,14 @@
 // • 🔩 Vyvrtat (i v hlavičce pohledu na čelo) = záložka Vrtání (přes hook
 //   S._machTabClick — cam/live nesmí importovat cam/sim) + přegenerovat +
 //   ▶ simulace.
+// • Výstup NC (polohování, osa C, M-kódy, kalibrace — liveSettingsUi.js) pod
+//   seznamem děr: jediné místo nastavení (dřív i pod pohledem na čelo,
+//   uživatel 21. 10. 2026).
 // Výběr = `op.enabled` (liveModel.liveOpOn); nevybrané se nevrtají.
-import { getLiveOps, liveOpOn, liveOpSummary, liveDrillFromCad } from './liveModel.js';
+import { getLiveOps, liveOpOn, liveOpSummary, liveDrillFromCad, liveSettings } from './liveModel.js';
 import { drillToolText, toggleLiveGroup, autoDrillTools, pickDrill, magazineDrills, addCatalogDrills, catalogDrillD } from './liveDrillTools.js';
+import { settingsHtml, settingsTitle, applySettingChange } from './liveSettingsUi.js';
+import { safeEvalMath } from '../../../utils.js';
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -111,6 +116,8 @@ export function createDrillUi(d) {
       <small class="cam-livedrill-note">${active
         ? 'Program této části = vrtání vybraných děr (kus se natáčí osou C k poháněnému nástroji). Po změně výběru se přegeneruje sám, jinak 🔄 Dráhy.'
         : 'Skupinu vyberete i klepnutím na díru v pohledu na čelo. 🔩 přepne nástroj na vrták (podle Ø ze 🔧 Zásobníku, otáčky a posuv z jeho Vc a f; Q, prodleva a bezp. vzdálenost z polí níž) — je-li v části soustružení, přidá vrtání jako novou operaci.'}</small>`;
+    const ctrl = S.params.controlSystem || 'sinumerik';
+    h += `<details class="cam-livedrill-nc"><summary>${settingsTitle(ctrl)} — osa C, M-kódy, kalibrace</summary>${settingsHtml(liveSettings(S.params), ctrl, false)}</details>`;
     return h;
   }
   let present = false;
@@ -118,7 +125,12 @@ export function createDrillUi(d) {
     const box = root.querySelector('.cam-livedrill');
     if (!box) { present = false; return; }
     const html = sectionHtml();
-    if (box.innerHTML !== html) box.innerHTML = html;
+    if (box.innerHTML !== html) {
+      // Rozbalené části (Výstup NC, kalibrace…) zůstanou rozbalené.
+      const open = [...box.querySelectorAll('details')].map(x => x.open);
+      box.innerHTML = html;
+      box.querySelectorAll('details').forEach((x, i) => { if (open[i]) x.open = true; });
+    }
     if (!present) { present = true; d.openView(); }   // přepnuto na záložku Vrtání
   }
   // Panel parametrů se překresluje celý — sekci doplnit, kdykoli se objeví.
@@ -142,7 +154,14 @@ export function createDrillUi(d) {
     });
     side.addEventListener('change', e => {
       const b = e.target.closest('[data-livedrill="toggle"]');
-      if (b) toggle(+b.dataset.oi, true);
+      if (b) { toggle(+b.dataset.oi, true); return; }
+      const el = e.target.closest('.cam-livedrill-nc [data-g]');
+      if (!el) return;
+      const ctrl = S.params.controlSystem || 'sinumerik';
+      const live = JSON.parse(JSON.stringify(S.params.live || {}));
+      if (!applySettingChange(live, el.dataset.g, el, ctrl, safeEvalMath)) { d.toast('Neplatné číslo'); refresh(); return; }
+      d.commit(p => { p.live = live; });
+      refresh();
     });
   }
 

@@ -4,7 +4,8 @@
 // y = poloměr). Díl je rotační — materiál v rovině Z jsou mezikruží
 // (faceReference.materialAt), takže díru / kapsu / drážku na čele stačí
 // porovnat jejím rozsahem poloměrů [lo, hi] („stopa"). Kontroluje se HOTOVÝ
-// díl (kontura): blok poháněných nástrojů jede až po soustružení.
+// díl (kontura): blok poháněných nástrojů jede až po soustružení — kromě
+// díry skrz vč. polotovaru (op.throughStock), ta se vrtá do polotovaru.
 //
 // Kontroly (každá = jedna ověřitelná podmínka):
 //   1. čelo: stopa leží celá v materiálu čela (řez 0,3 mm za rovinou zTop
@@ -24,20 +25,36 @@ const SECT = 0.3;      // [mm] řez za rovinou čela (jako sectionAt v pohledu)
 const TOL = 1e-3;      // [mm] dotyk se za zásah nepočítá
 const DIA_TOL = 0.1;   // [mm] shoda Ø pláště s dílem
 
-/** Sonda materiálu: mezikruží v rovině z (cache), Z zlomů profilu. */
-export function materialProbe(prof) {
+/**
+ * Sonda materiálu: mezikruží v rovině z (cache), Z zlomů profilu.
+ * `withStock`: materiál = díl NEBO polotovar (díra skrz vč. polotovaru se
+ * vrtá před soustružením — op.throughStock z CAD, faceDepth.holeForCam).
+ */
+export function materialProbe(prof, withStock = false) {
   const objs = prof.objects.filter(o => !o.isStock);
-  const breaks = [...new Set(objs.flatMap(o => objectPoints(o).map(p => +(+p.x).toFixed(4))))]
+  const stock = withStock ? [...prof.objects, ...(prof.cylStock || [])].filter(o => o.isStock).map(o => ({ ...o, isStock: false })) : [];
+  const breaks = [...new Set([...objs, ...stock].flatMap(o => objectPoints(o).map(p => +(+p.x).toFixed(4))))]
     .filter(Number.isFinite).sort((a, b) => a - b);
   const cache = new Map();
   const at = z => {
     // V rovině zlomu je průsečík dvojznačný (konec úsečky = začátek další).
     if (breaks.some(b => Math.abs(b - z) < 1e-4)) z += 2e-4;
     const k = z.toFixed(5);
-    if (!cache.has(k)) cache.set(k, materialAt(objs, LATHE, z));
+    if (!cache.has(k)) cache.set(k, stock.length ? unionIv(materialAt(objs, LATHE, z), materialAt(stock, LATHE, z)) : materialAt(objs, LATHE, z));
     return cache.get(k);
   };
   return { at, breaks };
+}
+
+/** Sjednocení mezikruží [[a, b]…] (seřazené, překryvy slité). */
+function unionIv(a, b) {
+  const out = [];
+  [...a, ...b].sort((p, q) => p[0] - q[0]).forEach(([lo, hi]) => {
+    const last = out[out.length - 1];
+    if (last && lo <= last[1] + TOL) last[1] = Math.max(last[1], hi);
+    else out.push([lo, hi]);
+  });
+  return out;
 }
 
 const holding = (iv, lo, hi) => iv.find(([a, b]) => a <= lo + TOL && hi <= b + TOL);
@@ -215,7 +232,7 @@ export function checkLiveOp(prof, op, probe) {
   const res = { issues: [], marks: new Map(), sev: null };
   // Bez kontury není s čím porovnat; chybné zadání hlásí liveOpProblems.
   if (!prof || prof.empty || liveOpProblems(op).length) return res;
-  const pr = probe || materialProbe(prof);
+  const pr = probe || materialProbe(prof, !!op.throughStock);
   const found = [];
   if (op.kind === 'drill' && op.side === 'radial') radialChecks(pr, op, found);
   else faceChecks(pr, prof, op, found);
@@ -245,7 +262,8 @@ export function checkLiveOps(prof, ops) {
   const key = JSON.stringify(ops);
   if (_memo.prof === prof && _memo.key === key) return _memo.v;
   const probe = materialProbe(prof);
-  const v = ops.map(op => checkLiveOp(prof, op, probe));
+  let probeS = null;   // díl + polotovar, jen když je potřeba
+  const v = ops.map(op => checkLiveOp(prof, op, op.throughStock ? (probeS || (probeS = materialProbe(prof, true))) : probe));
   _memo = { prof, key, v };
   return v;
 }

@@ -54,7 +54,9 @@ export function buildLiveBlock(prms) {
   const sWord = rpm => /\d$/.test(m.toolS) ? `${m.toolS}=${rpm}` : `${m.toolS}${rpm}`;
   const L = [];
   const add = s => L.push(s);
-  const safe = () => add(`G0 X${prms.safeX} Z${prms.safeZ}`);
+  // Nejdřív radiálně ven, pak v Z (jako ops/drill.js): šikmý G0 X Z naráz by
+  // od čela zleva (nástroj vlevo, bezpečná poloha vpravo) vedl skrz díl.
+  const safe = () => { add(`G0 X${prms.safeX}`); add(`G0 Z${prms.safeZ}`); };
 
   add(cmt(`${LIVE_BEGIN} [${ctrl}/${set.mode}] generuje Pohled na čelo, ručně neupravovat`));
   add(cmt(`Nástroj v revolveru na ${set.toolAt} st. pohledu na čelo – díra se k němu natočí osou C`));
@@ -297,7 +299,16 @@ function emitMill(ctx) {
       if (r > 1e-6) lastA = norm360(Math.atan2(y, x) * 180 / Math.PI);
       return { r, a: lastA };
     };
-    const cw = a => ctrl === 'sinumerik' ? `${set.cName}=DC(${f3(angOf(set, a))})` : `${set.cName}${f3(angOf(set, a))}`;
+    // Fanuc / Heidenhain: absolutní C bez nejkratší cesty by v G1 přes 0°/360°
+    // (C357,7 → C0) otočil kus o −358° s frézou v materiálu → úhel spojitě
+    // od předchozího bodu (může vyjít < 0 nebo > 360). Sinumerik: DC().
+    let lastC = null;
+    const cw = a => {
+      const an = angOf(set, a);
+      if (ctrl === 'sinumerik') return `${set.cName}=DC(${f3(an)})`;
+      lastC = lastC == null ? an : an + 360 * Math.round((lastC - an) / 360);
+      return `${set.cName}${f3(lastC)}`;
+    };
     const emitPt = (type, x, y, z, F) => {
       const p = polar(x, y);
       add(`${type} X${xo(p.r)} ${cw(p.a)} Z${f3(z)}${F ? ` F${F}` : ''}`);

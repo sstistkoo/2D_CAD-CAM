@@ -8,7 +8,7 @@ import { MATERIALS } from './materials.js';
 import { holderInflateAll } from '../collisionValidator.js';
 import { xBoundOn } from '../rangeX.js';
 import { wireAllAngleCompasses } from '../insertPreview.js';
-import { machTabClick } from './machTabTool.js';
+import { machTabClick, syncLiveDrillTool } from './machTabTool.js';
 
 export function attachParamsEventsGeneral(ctx) {
   const { tabBody, S, renderTab, recalcNow, draw, saveState, gcodeStale, convertGCodeControlSystem, pathInputsKey, fullUpdate, applyParamChange, _polygonForStrategy, toolbar, dropInsertGuides, applyChange } = ctx;
@@ -30,6 +30,7 @@ export function attachParamsEventsGeneral(ctx) {
   // Záložka obrábění vybere i nástroj své operace (machTabTool.js). Panel ◎
   // (🔩 Vyvrtat) ji volá přes S._machTabClick — cam/live nesmí do cam/sim.
   S._machTabClick = tab => machTabClick(tab, ctx);
+  S._syncLiveDrill = () => syncLiveDrillTool(ctx);
   tabBody.querySelectorAll('[data-machtab]').forEach(btn => {
     btn.addEventListener('click', () => {
       machTabClick(btn.dataset.machtab, ctx).catch(e => { console.error(e); showToast(`⚠ Přepnutí operace selhalo: ${e.message}`, 5000); });

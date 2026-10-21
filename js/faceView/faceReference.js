@@ -290,13 +290,22 @@ export function viewRadii(objects, machineType, z, side, at, stock = false) {
   };
 }
 
-/** Z osazení profilu (úsečky kolmé na osu) a krajní Z — značky na posuvníku. */
-export function shoulderZs(objects, machineType) {
+/**
+ * Z osazení profilu (úsečky kolmé na osu) a krajní Z — značky na posuvníku.
+ * `withStock`: rozsah i značky sahají přes konce polotovaru (posuvník čela
+ * úplně vpravo = před polotovarem, ne jen před hotovou konturou — uživatel
+ * 21. 10. 2026); osazení polotovaru se neznačí.
+ */
+export function shoulderZs(objects, machineType, withStock = false) {
   const isCar = machineType === 'karusel';
   const zs = new Set();
-  let min = Infinity, max = -Infinity;
+  let min = Infinity, max = -Infinity, sMin = Infinity, sMax = -Infinity;
   (objects || []).forEach(o => {
-    if (!usable(o) || o.isStock) return;
+    if (!usable(o)) return;
+    if (o.isStock) {
+      if (withStock) chainPoints(o).forEach(p => { const z = zOf(p, isCar); if (Number.isFinite(z)) { sMin = Math.min(sMin, z); sMax = Math.max(sMax, z); } });
+      return;
+    }
     const pts = chainPoints(o);
     pts.forEach(p => { const z = zOf(p, isCar); if (Number.isFinite(z)) { min = Math.min(min, z); max = Math.max(max, z); } });
     for (let i = 1; i < pts.length; i++) {
@@ -306,6 +315,10 @@ export function shoulderZs(objects, machineType) {
     }
   });
   if (Number.isFinite(min)) { zs.add(+min.toFixed(3)); zs.add(+max.toFixed(3)); }
+  if (Number.isFinite(sMin)) {
+    zs.add(+sMin.toFixed(3)); zs.add(+sMax.toFixed(3));
+    min = Math.min(min, sMin); max = Math.max(max, sMax);
+  }
   return { zs: [...zs].sort((a, b) => a - b), min: Number.isFinite(min) ? min : -100, max: Number.isFinite(max) ? max : 0 };
 }
 

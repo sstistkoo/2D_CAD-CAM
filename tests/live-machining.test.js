@@ -56,4 +56,12 @@ describe('časová osa obrábění', () => {
     expect(bottom.y).toBeCloseTo(40 - 8, 6);       // úhel 90° → osa Y, poloměr 40 − 8
     expect(bottom.z).toBe(-20);
   });
+  it('chybné zadání (NC blok ho vynechá) se ani v simulaci neobrobí', () => {
+    const bad = op('mill', { count: 1, pcd: 40, holeD: 6, toolD: 10, depth: 4 });   // kapsa menší než fréza
+    const two = buildLiveTimeline([bad, drill], prms);
+    const end = liveStateAt(two, two.total);
+    expect([...end.depth.keys()].some(k => k.startsWith('0:'))).toBe(false);
+    expect(end.depth.get('1:0')).toBe(10);
+    expect(two.total).toBeCloseTo(tl.total, 6);
+  });
 });

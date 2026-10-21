@@ -136,4 +136,7 @@ export const LIVE_CSS = `
 }
 .cam-livedrill-src button.on { background: #89b4fa; color: #1e1e2e; border-color: #89b4fa; }
 .cam-livedrill-src button:disabled { opacity: 0.4; cursor: default; }
+.cam-livedrill-nc { margin: 8px 0 4px; padding-top: 6px; border-top: 1px solid #45475a; font-size: 12px; color: #cdd6f4; }
+.cam-livedrill-nc > summary { cursor: pointer; font-weight: bold; color: #cdd6f4; margin-bottom: 4px; }
+.cam-livedrill-nc .cam-live-note { font-size: 10.5px; }
 `;

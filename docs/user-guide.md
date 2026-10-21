@@ -467,7 +467,8 @@ jiného čela než v rovině řezu jsou ztlumené). Sklíčidlo s čelistmi se
 nekreslí (jako v bokorysu CAD).
 
 **Lišta řezu** pod hlavičkou pohledu: **Z** (políčko, lze i výraz),
-**posuvník** roviny řezu po dílu (přichytí se k osazením a k čelům operací)
+**posuvník** roviny řezu po dílu i polotovaru (přichytí se k osazením,
+koncům polotovaru a k čelům operací)
 a **◀ zprava / ▶ zleva** (šipka = směr pohledu; dokud ji nepřepnete ručně,
 volí se podle osazení). Výchozí rovina je pravý konec dílu. V řezu vlevo je
 rovina vidět jako čerchovaná čára se šipkou a popiskem Z. Tlačítko **Z↔**
@@ -506,10 +507,17 @@ ve výšce díry pod nástrojem. Když přehrávač CAM **dojede program, ve kte
 je vrtání** (operace Vrtání nebo 📝 blok), vrtání a frézování **plynule
 naváže** (pohled na čelo se sám otevře a sleduje čelo, na kterém se
 právě vrtá). ⏹ nebo posun přehrávače zpět vrátí díry do neobrobeného
-stavu; ⏭ na konec ukáže díl rovnou obrobený.
+stavu; ⏭ na konec ukáže díl rovnou obrobený. Dojel-li program a vrtá se,
+**▶ / ⏸ v přehrávači dole vrtání pozastaví a pustí dál** (neskočí na začátek
+programu). Při přehrávání se v G-kódu **zvýrazní řádek bloku**, který se
+právě vrtá / frézuje (najetí na díru, cyklus), nad časem je nástroj, otáčky
+a posuv (nebo G0 / natočení C) a v řezu jsou **dráhy vrtáku** jako dráhy
+soustružení — posuv plně zeleně, rychloposuv čárkovaně (bezpečná X → Z
+odjezdu → poloměr díry → do hloubky; přepínač drah platí i pro ně).
 
 **Kontrola proti dílu.** Každá operace se porovná se skutečným tvarem dílu
-(hotová kontura — vrtá se až po soustružení). Nálezy jsou v editoru
+(hotová kontura — vrtá se až po soustružení; díra skrz vč. polotovaru i proti
+polotovaru). Nálezy jsou v editoru
 🛠 Operace pod formulářem operace (**⛔ chyba** červeně, **⚠ upozornění**
 žlutě), u karty operace je červená / žlutá **tečka** (najetím myší ukáže
 nálezy) a v pohledu na čelo mají problémové díry, kapsy a drážky **červený**
@@ -561,7 +569,8 @@ přesně pod značkou řezu. Obsahuje výběr čela, **➕** nové čelo (vlastn
 čelo i s kresbou (po potvrzení, nejde vrátit; stejně tak smazání vrstvy čela
 v panelu Vrstvy — objekty se nepřesouvají na Konturu),
 **Z** roviny čela (políčko, lze i výraz) a **posuvník**, který se přichytává
-k osazením profilu, a **◀ zprava / ▶ zleva** — odkud se na čelo díváte a
+k osazením profilu a ke koncům polotovaru (sahá i přes polotovar — úplně
+vpravo = před polotovarem, ne jen před hotovou konturou), a **◀ zprava / ▶ zleva** — odkud se na čelo díváte a
 odkud nástroj přijíždí; šipka ukazuje směr pohledu (podle osazení se strana
 nastaví sama, dokud ji nepřepnete). V nárysu je
 značka řezu s popiskem Z a šipkami ve směru pohledu (je-li pod osou prázdno,
@@ -589,7 +598,9 @@ nakreslí roztečná kružnice čerchovaně a díry plnou čarou, vše jedním k
 (stěna příruby, ne náboj za ní) + přesah (prázdný = hrot 0,3·Ø + 1 mm);
 **Skrz materiálem** *Hotová kontura* (výchozí) nebo *I polotovar* — počítá
 i přídavek polotovaru (vrtá se před soustružením; díra „skrz vč. polotovaru"
-je v CAM samostatná operace);
+je v CAM samostatná operace a kontroluje se i proti polotovaru). Stojí-li
+čelo uvnitř polotovaru (např. na konci hotové kontury), díra *I polotovar*
+začne na **povrchu polotovaru** na straně nástroje, ne v něm;
 *Do hloubky* — od roviny čela; *Do Z* — absolutní Z konce díry (Z na straně
 nástroje se odmítne). Hloubka se počítá až při 📥 Z CAD z aktuálního profilu
 a Z čela, takže po posunu čela sedí; hláška po nakreslení ji ukáže hned. Klepnutí na už nakreslenou díru otevře dialog
@@ -637,7 +648,10 @@ načtou se zvlášť:
   výkresu s otevřeným CAM. Stojí-li čelo (posuvník) ve vzduchu před
   přírubou, díra začne vrtat na **prvním materiálu** pod ní (např.
   „Díry Ø7 skrz · Z280 ◀" — Z čela 280, hloubka od něj); hloubka *Do
-  hloubky* / *Do Z* drží stejný konec díry.
+  hloubky* / *Do Z* drží stejný konec díry. **Drážka** (úsečka) se stejně
+  frézuje od prvního materiálu pod svou osou („Drážka 1 · Z280 ◀"). Změní-li
+  se v CAD hloubka díry, přepíše se i název operace (ručně přejmenovaná
+  operace si název nechá).
 - **Řez s dírami** — jsou-li operace poháněných nástrojů, řez vlevo má
   i **spodní polovinu** (kontura a polotovar zrcadlené přes osu) a díry
   do čela leží ve výšce jako v nárysu CAD (svislá poloha v pohledu na
@@ -651,6 +665,10 @@ načtou se zvlášť:
   (0 = naráz), prodleva, nástroj, otáčky, posuv v mm/min.
 - **➕ Frézování** — kruhová kapsa na pozicích vzoru nebo přímá drážka z X1/Y1
   do X2/Y2 (šířka = Ø frézy), krok do hloubky. Frézuje se jen na čele.
+- **Výstup NC** (všechno níž až po *Jak ověřit na stroji*) se nastavuje jen
+  v pravém panelu **⚙ Parametry → Obrábění → Vrtání** — rozbalovací blok
+  *Výstup NC (…)* pod seznamem děr. Pod pohledem na čelo je jen souhrn
+  a tlačítko **⚙ Parametry → Vrtání**, které blok otevře.
 - **Polohování / interpolace** (přepínač NC výstupu): **SPOS** (vřeteno se
   natočí na úhel díry, vrtá se v poloze nástroje), **Osa C** (C = úhel) nebo
   **TRANSMIT** (Sinumerik kartézsky X/Y, Fanuc polární interpolace G12.1).
@@ -797,7 +815,10 @@ SPOS / osa C) — žádné dráhy hrubování ani díra v ose:
   **➕ Přidat vrták Ø… z 📚 do Zásobníku** (HSS 118°; Ø, který katalog nemá,
   např. 7, se postaví podle nejbližšího) — záložka Vrtání ho doplní sama.
   Co v 🛠 Operace přepíšete ručně (T, nástroj, otáčky, posuv), už se
-  nepředvyplňuje.
+  nepředvyplňuje. **Nástroj části** (⚙ Parametry → Nástroj nahoře i T
+  v hlavičce programu) je vrták **první vybrané skupiny** — po doplnění
+  vrtáku nebo změně výběru se přepne sám (dřív zůstal např. Ø20, i když
+  díry vrtal T8 Ø10).
 - **Kód:** vygeneruje ho 🔄 Dráhy (po změně výběru děr se program části
   přegeneruje sám); **🔩 Vyvrtat vybrané** přepne na operaci Vrtání a pustí
   ▶ simulaci (po dojetí programu se díry vrtají v pohledu na čelo i v řezu).

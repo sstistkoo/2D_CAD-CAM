@@ -80,6 +80,29 @@ export function materialSpan(objects, machineType, faceZ, side, lo, hi, withStoc
 }
 
 /**
+ * Jako materialSpan(…, withStock), jen u díry skrz VČ. POLOTOVARU (vrtá se
+ * před soustružením) i s polotovarem PŘED rovinou čela: stojí-li čelo
+ * v polotovaru (např. na konci hotové kontury), vrták začne na povrchu
+ * polotovaru na straně nástroje — `start` je pak záporný (před čelem).
+ * Dřív začínal na konci hotové kontury uvnitř polotovaru (uživatel
+ * 21. 10. 2026).
+ */
+export function stockSpan(objects, machineType, faceZ, side, lo, hi) {
+  const span = materialSpan(objects, machineType, faceZ, side, lo, hi, true);
+  const stock = (objects || []).filter(o => o.isStock).map(o => ({ ...o, isStock: false }));
+  if (!stock.length) return span;
+  const dir = side === 'left' ? 1 : -1;
+  const sh = shoulderZs(stock, machineType);
+  const outer = dir < 0 ? sh.max : sh.min;   // konec polotovaru na straně nástroje
+  if ((faceZ - outer) * dir <= TOL) return span;   // polotovar před čelo nesahá
+  const s = materialSpan(objects, machineType, outer, side, lo, hi, true);
+  if (!s) return span;
+  const a = r3((outer - faceZ) * dir + s.start), b = r3((outer - faceZ) * dir + s.end);
+  // Materiál začíná před rovinou čela a vede přes ni → vrtat od jeho začátku.
+  return a <= TOL && b > TOL ? { start: a, end: b } : span;
+}
+
+/**
  * Tloušťka materiálu pod stopou díry [lo, hi] (poloměry) od roviny čela ve
  * směru vrtání až po místo, kde stopa z materiálu VYJDE (první souvislý
  * materiál; mezera a další stěna za ní se už nevrtá).
@@ -108,7 +131,10 @@ export function resolveHoleDepth(spec, p) {
       : { error: `Z${fmt(spec.value)} leží na straně nástroje — čelo Z${fmt(p.faceZ)} ${dir < 0 ? '◀ vrtá k −Z' : '▶ vrtá k +Z'}` };
   }
   if (spec.mode === 'through') {
-    const thick = materialDepth(p.objects, p.machineType, p.faceZ, p.side, p.lo, p.hi, !!spec.stock);
+    // Vč. polotovaru: tloušťka i s polotovarem před čelem (stockSpan).
+    const ss = spec.stock ? stockSpan(p.objects, p.machineType, p.faceZ, p.side, p.lo, p.hi) : null;
+    const thick = spec.stock ? (ss && ss.start <= 0 ? r3(ss.end - ss.start) : null)
+      : materialDepth(p.objects, p.machineType, p.faceZ, p.side, p.lo, p.hi);
     if (thick == null) return { error: 'pod dírou za čelem není materiál' };
     const over = spec.value != null && spec.value >= 0 ? spec.value : throughOverrun(p.d);
     return { depth: r3(thick + over), thick };
@@ -146,30 +172,57 @@ export function resolveFaceHole(face, hole, spec) {
 export function holeForCam(o, faceZ, side) {
   const p = holeParams(o, faceZ, side);
   const spec = o.holeDepth || null;
-  const span = materialSpan(p.objects, p.machineType, faceZ, side, p.lo, p.hi, !!(spec && spec.stock));
+  const withStock = !!(spec && spec.mode === 'through' && spec.stock);
+  const span = withStock ? stockSpan(p.objects, p.machineType, faceZ, side, p.lo, p.hi)
+    : materialSpan(p.objects, p.machineType, faceZ, side, p.lo, p.hi);
   const start = span ? span.start : 0;
   const dir = side === 'left' ? 1 : -1;
-  const top = start > 0 ? { zTop: r3(faceZ + dir * start) } : {};
+  // `throughStock`: CAM kontroluje díru proti dílu I polotovaru (liveChecks).
+  const top = { ...(Math.abs(start) > TOL ? { zTop: r3(faceZ + dir * start) } : {}), ...(withStock ? { throughStock: true } : {}) };
   if (!spec) return { ...o, ...top };
   let depth = null;
   if (spec.mode === 'through') {
     if (span) depth = r3(span.end - start + (spec.value != null && spec.value >= 0 ? spec.value : throughOverrun(p.d)));
   } else {
     const res = resolveHoleDepth(spec, p);
-    if (res.depth > start) depth = r3(res.depth - start);
+    if (res.depth > start) depth = r3(res.depth - Math.max(0, start));
   }
   return depth > 0 ? { ...o, ...top, depth, depthTag: holeDepthLabel(spec) } : { ...o, ...top };
+}
+
+/**
+ * Drážka (úsečka) pro CAM jako díra (holeForCam): stojí-li čelo ve vzduchu
+ * před přírubou, frézuje se od prvního materiálu pod osou drážky (`zTop`)
+ * — dřív od roviny čela naprázdno a kontrola hlásila „za čelem není
+ * materiál" (uživatel 21. 10. 2026). Šířka drážky (Ø frézy) se volí až
+ * v CAM — stopa je rozsah poloměrů osy drážky.
+ * @returns úsečka se `zTop` (když materiál nezačíná hned za čelem)
+ */
+export function slotForCam(o, faceZ, side) {
+  const lo = segDist(o.x1, o.y1, o.x2, o.y2), hi = Math.max(Math.hypot(o.x1, o.y1), Math.hypot(o.x2, o.y2));
+  const span = materialSpan(profileObjects(), state.machineType, faceZ, side, lo, Math.max(hi, lo + 0.01));
+  if (!span || !(span.start > TOL)) return o;
+  return { ...o, zTop: r3(faceZ + (side === 'left' ? 1 : -1) * span.start) };
+}
+
+/** Vzdálenost bodu (0, 0) od úsečky — nejmenší poloměr drážky. */
+function segDist(x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy;
+  const t = L2 ? Math.max(0, Math.min(1, -(x1 * dx + y1 * dy) / L2)) : 0;
+  return Math.hypot(x1 + t * dx, y1 + t * dy);
 }
 
 /**
  * Kresby čel pro 📥 Z CAD: jako faceDrawingsLocal(), díry (kružnice) přes
  * holeForCam — `depth` a `depthTag` (popisek do názvu operace) u děr
  * s `holeDepth`, `zTop` u děr za vzduchem. Díru, jejíž hloubku nejde určit,
- * nechá bez hloubky (operace dostane výchozí).
+ * nechá bez hloubky (operace dostane výchozí). Drážky (úsečky) přes
+ * slotForCam — `zTop` za vzduchem.
  */
 export function faceDrawingsForCam() {
   return faceDrawingsLocal().map(f => ({
     ...f,
-    objects: f.objects.map(o => (o.type === 'circle' && o.r > 0 ? holeForCam(o, f.z, f.side) : o)),
+    objects: f.objects.map(o => (o.type === 'circle' && o.r > 0 ? holeForCam(o, f.z, f.side)
+      : o.type === 'line' && !o.isDimension ? slotForCam(o, f.z, f.side) : o)),
   }));
 }

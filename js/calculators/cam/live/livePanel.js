@@ -33,7 +33,7 @@ import { liveOpsFromCad } from './liveFromCad.js';
 import { cadSyncOps } from './liveCadSync.js';
 import { createLiveProgram } from './liveProgram.js';
 import { createDrillUi } from './liveDrillUi.js';
-import { settingsHtml, applySettingChange } from './liveSettingsUi.js';
+import { settingsTitle } from './liveSettingsUi.js';
 import { faceDrawingsForCam } from '../../../faceView/faceDepth.js';
 import { liveProfile, liveCutAt, autoSide, drawCutMark } from './liveCut.js';
 import { createCutBar } from './liveCutBar.js';
@@ -41,6 +41,7 @@ import { attachFaceNav, defaultNav, isDefaultNav } from './liveFaceNav.js';
 import { createLivePlayer, buildLiveTimeline, liveStateAt } from './liveMachining.js';
 import { opCard } from './liveOpForm.js';
 import { checkLiveOps } from './liveChecks.js';
+import { liveCodeLine, liveMotionText, showLiveCodeLine, livePathSegments, drawLivePaths } from './liveNcSync.js';
 
 const CTRL = new WeakMap();   // S → ovladač otevřeného simulátoru
 const VIEW_KEY = 'skica-cam-live-view';   // '0' řez, '1' řez + čelo, '2' jen čelo
@@ -59,6 +60,7 @@ export function liveAfterDraw(f) {
   const mach = c ? c.mach() : null;
   // Při vrtání a frézování soustružení (dráhy, nůž) ztlumit — vidět je vrták.
   if (mach && mach.active) { f.ctx.save(); f.ctx.fillStyle = 'rgba(30,30,46,0.6)'; f.ctx.fillRect(0, 0, f.w, f.h); f.ctx.restore(); }
+  if (c) c.nc(f, mach);
   drawLiveSectionLayer(f, mach);
   if (c) { c.mark(f); c.redraw(); }
 }
@@ -216,9 +218,9 @@ export function initLiveTools(deps) {
   const bar = createCutBar(pane.querySelector('.cam-live-barhost'), {
     get: () => {
       const prof = profile(), c = cutState();
-      const zs = new Set(prof.zs);   // osazení + čela operací do čela
+      const zs = new Set(prof.zsAll);   // osazení, konce polotovaru + čela operací do čela
       getLiveOps(S.params).forEach(op => { if (op.side !== 'radial' && Number.isFinite(op.zTop)) zs.add(+op.zTop.toFixed(3)); });
-      return { z: c ? c.z : 0, side: c ? c.side : 'right', min: prof.min, max: prof.max, ticks: [...zs].sort((a, b) => a - b) };
+      return { z: c ? c.z : 0, side: c ? c.side : 'right', min: prof.lo, max: prof.hi, ticks: [...zs].sort((a, b) => a - b) };
     },
     setZ: (z, o = {}) => {
       if (o.resetSide) st.sideManual = false;
@@ -282,12 +284,18 @@ export function initLiveTools(deps) {
     getSpeed: () => S.simSpeed || 1,   // stejná rychlost jako přehrávač soustružení
     onFrame: () => {
       if (!document.body.contains(pane)) { player.stop(); return; }
-      playBtn.textContent = player.running ? '⏸' : '▶';
+      syncPlayBtns();
       redraw(true); queueDraw();
     },
-    onEnd: () => { playBtn.textContent = '▶'; },
+    onEnd: () => { syncPlayBtns(); },
   });
-  function stopAnim() { player.stop(); playBtn.textContent = '▶'; }
+  function stopAnim() { player.stop(); syncPlayBtns(); }
+  /** ▶/⏸ v pohledu na čelo i v přehrávači programu podle přehrávání vrtání. */
+  function syncPlayBtns() {
+    playBtn.textContent = player.running ? '⏸' : '▶';
+    const main = !S.simRunning && root.querySelector('.cam-sim-player-bar [data-act="play"]');
+    if (main && st.turnDone) main.textContent = player.running ? '⏸' : '▶';
+  }
   /**
    * Stav pro kreslení: přehrávané obrábění; po dojetí soustružení (přehrávač
    * CAM na konci) vše obrobeno; jinak null = jen plán.
@@ -332,6 +340,14 @@ export function initLiveTools(deps) {
   if (simBar) simBar.addEventListener('click', e => {
     const a = e.target.closest('[data-act]');
     if (!a) return;
+    // Program dojel a běží (nebo stojí) vrtání ◎ → ▶/⏸ ho pozastaví / pustí
+    // dál; dřív simulátor program přetočil na začátek (uživatel 21. 10. 2026).
+    if (a.dataset.act === 'play' && !S.simRunning && st.turnDone && player.active && !player.finished) {
+      e.stopPropagation(); e.preventDefault();
+      if (player.running) player.pause(); else player.resume();
+      syncPlayBtns();
+      return;
+    }
     if (a.dataset.act === 'play' && !S.simRunning) { st.playArmed = true; st.turnDone = false; }
     else if (a.dataset.act === 'stop') st.playArmed = false;
   }, true);
@@ -345,7 +361,7 @@ export function initLiveTools(deps) {
     if (player.running) player.pause();
     else if (player.active && !player.finished) player.resume();
     else if (!player.start()) { showToast('Žádné operace — přidejte je přes 🛠 Operace'); return; }
-    playBtn.textContent = player.running ? '⏸' : '▶';
+    syncPlayBtns();
     redraw(true); queueDraw();
   });
 
@@ -358,12 +374,15 @@ export function initLiveTools(deps) {
     deps.pushHistory();
     mutate(S.params);
     deps.saveState();
+    // Vrták první vybrané skupiny = nástroj části (cam/sim/machTabTool.js);
+    // přepnutí nástroje program přegeneruje samo.
+    const switched = S.opView !== 'all' && S.params.drillActive && S._syncLiveDrill ? S._syncLiveDrill() : false;
     // Operace Vrtání (díry z výkresu) → přegenerovat program; blok vložený
     // ručně (📝 Zapsat) do soustružení → přepsat ho (bez položky historie).
     // V náhledu „Celý program" nic — přegeneroval by se jeden program z panelu
     // místo složených částí; část s Vrtáním se srovná sama (prog.stale), až
     // na ni uživatel přepne.
-    if (S.opView === 'all') { /* jen náhled celku */ }
+    if (S.opView === 'all' || switched) { /* jen náhled celku / přegenerováno */ }
     else if (S.params.drillActive && deps.applyChange) deps.applyChange({ cycle: true });
     else if (prog.has()) prog.write(false, true);   // bez hlášek (jiná než poslední část)
     deps.draw();
@@ -396,6 +415,13 @@ export function initLiveTools(deps) {
     else if (act === 'fit') nav.reset();
     else if (act === 'bar') setBar(!st.bar);
     else if (act === 'close') setMode('off');
+    else if (act === 'nc-settings') {
+      // Pravý panel ⚙ Parametry; nastavení je v záložce Vrtání (pod seznamem děr).
+      root.querySelector('[data-code="show-sidebar"]')?.click();
+      root.querySelector('[data-tab="params"]')?.click();
+      const nc = root.querySelector('.cam-livedrill-nc');
+      if (nc) { nc.open = true; nc.scrollIntoView({ block: 'nearest' }); } else showToast('⚙ Parametry → Obrábění → Vrtání → Výstup NC', 4000);
+    }
     else if (act === 'add-drill' || act === 'add-mill') {
       const ops = opsCopy();
       const geo = livePartGeometry(S);
@@ -439,14 +465,6 @@ export function initLiveTools(deps) {
     'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'slot.x1', 'slot.y1', 'slot.x2', 'slot.y2']);
   ed.addEventListener('change', e => {
     const el = e.target;
-    if (el.dataset.g) {
-      const g = el.dataset.g;
-      const ctrl = S.params.controlSystem || 'sinumerik';
-      const live = JSON.parse(JSON.stringify(S.params.live || {}));
-      if (!applySettingChange(live, g, el, ctrl, safeEvalMath)) { showToast('Neplatné číslo'); renderEditor(); return; }
-      commit(p => { p.live = live; });
-      return;
-    }
     const k = el.dataset.k;
     const card = el.closest('[data-op]');
     if (!k || !card) return;
@@ -471,7 +489,8 @@ export function initLiveTools(deps) {
     const set = liveSettings(S.params);
     const ctrl = S.params.controlSystem || 'sinumerik';
     const bs = prog.blockState();
-    let h = settingsHtml(set, ctrl) + `
+    // Výstup NC se nastavuje jen v pravém panelu (⚙ Parametry → Vrtání, liveDrillUi.js).
+    let h = `<div class="cam-live-note">${settingsTitle(ctrl)} · ${({ spos: 'SPOS', caxis: 'osa C', transmit: 'TRANSMIT' })[set.mode]}${set.cycles ? ', cykly' : ''} — nastavení v pravém panelu <button data-live="nc-settings" class="cam-sim-btn cam-sim-btn-gray">⚙ Parametry → Vrtání</button></div>` + `
       <div class="cam-live-btns">
         <button data-live="add-drill">➕ Vrtání</button>
         <button data-live="add-mill">➕ Frézování</button>
@@ -506,6 +525,18 @@ export function initLiveTools(deps) {
     redraw: () => redraw(false),
     sync,
     mach: () => machState(),
+    // Blok v programu: dráhy v řezu; při přehrávání řádek G-kódu a údaj nad
+    // časem (liveNcSync.js) — soustružení blok přeskakuje.
+    nc: (f, mach) => {
+      if (!prog.has()) return;
+      const ops = getLiveOps(S.params);
+      drawLivePaths(f.ctx, f.toScreen, livePathSegments(ops, S.params), S.showSimPath || 'all');
+      if (!player.active || !mach || !mach.active) return;
+      const m = liveMotionText(ops, mach);
+      if (m && f.motionOverlay) { f.motionOverlay.textContent = m.text; f.motionOverlay.classList.toggle('cam-sim-motion-rapid', m.rapid); }
+      const li = liveCodeLine(prog.text().replace(/\r\n/g, '\n').split('\n'), ops, mach);
+      if (li != null && (li !== st.codeLine || !root.querySelector('.cam-sim-code-bd-line.cam-sim-code-active'))) { st.codeLine = li; showLiveCodeLine(root, li); }
+    },
     mark: f => {
       if (!st.open || st.mode === 'solo') return;
       const c = cutState();
