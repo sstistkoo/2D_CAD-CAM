@@ -192,7 +192,8 @@ function pickDrill(ctx) {
   const wasOn = !!S.params.drillActive;
   const before = JSON.stringify([S.params.liveOps, S.toolMagazine.length]);
   ctx.pushHistory();   // před změnou operací i zásobníku — ↩ vrátí obojí
-  if (getLiveOps(S.params).some(liveOpOn)) {
+  // „Středová díra v ose" (drillSource 'axis'): vrták děr z výkresu nevnucovat.
+  if (S.params.drillSource !== 'axis' && getLiveOps(S.params).some(liveOpOn)) {
     const pre = autoDrillTools(getLiveOps(S.params), S.toolMagazine, S.params);
     if (pre.missing.length && ctx._isoMagSlot) {
       const added = addCatalogDrills(S.toolMagazine, pre.missing.map(m => m.D), ctx._isoMagSlot);

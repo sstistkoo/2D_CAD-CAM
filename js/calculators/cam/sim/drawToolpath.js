@@ -173,9 +173,10 @@ export function drawToolpathLayer(f) {
     ctx.restore();
   }
 
-  // tool position during sim
+  // tool position during sim — ne při vrtání ◎ (f.liveBusy): v řezu je jen
+  // poháněný nástroj, který vrtá, údaj nad časem píše livePanel
   motionOverlay.textContent = '';   // naplní showMotionInfo, když sim běží/stojí na dráze
-  if ((S.simRunning || S.simProgress > 0) && calc.simPath.length > 0) {
+  if ((S.simRunning || S.simProgress > 0) && calc.simPath.length > 0 && !f.liveBusy) {
     const totalPoints = calc.simPath.length;
     const floatIndex = S.simProgress * (totalPoints - 1);
     const idx = Math.floor(floatIndex);

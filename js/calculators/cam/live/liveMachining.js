@@ -62,7 +62,8 @@ export function buildLiveTimeline(ops, prms) {
         const levels = depthLevels(op.depth, op.peck > 0 ? op.peck : op.depth);
         levels.forEach((L, i) => {
           at(P(L), feed);
-          if (i < levels.length - 1) { at(P(-op.safe), rapid); at(P(Math.max(0, L - 0.5)), rapid); }
+          // Vyjetí na R rovinu a zpět 0,3 mm nad dno jako NC (liveGcode.explicitDrill).
+          if (i < levels.length - 1) { at(P(-op.safe), rapid); at(P(Math.max(0, L - 0.3)), rapid); }
         });
         dwell(op.dwell);
         at(P(-op.retract), rapid);
@@ -123,9 +124,11 @@ export function liveStateAt(tl, t) {
     lastOp = b.op;
   };
   const pts = tl.pts;
+  let target = pts.length - 1;   // bod, ke kterému nástroj právě jede
   for (let i = 0; i < pts.length; i++) {
     const p = pts[i];
     if (p.t > T) {
+      target = i;
       const a = pts[i - 1];
       if (a && p.gap && p.t > a.t) {
         // Polohování: osa C natáčí kus a nástroj jede po poloměru (polárně).
@@ -150,7 +153,13 @@ export function liveStateAt(tl, t) {
   const active = tool && T < tl.total ? { op: tool.op, hole: tool.hole } : null;
   // Čas operace [od, do] — poloha v jejím bloku G-kódu (liveNcSync.liveCodeLine).
   const opSpan = active ? [active.op > 0 ? (tl.opEnd[active.op - 1] || 0) : 0, tl.opEnd[active.op]] : null;
-  return { t: T, total: tl.total, tool, rot, active, opSpan, depth, sweeps, done };
+  // Pohyb díry: 0 = najetí na ni (natočení C, X), 1… = pohyby v díře v pořadí
+  // NC (R rovina, záběry, vyjetí, prodleva, odjezd) — řádek rozepsaného kódu.
+  let g = target, n = target + 1;
+  while (g > 0 && !pts[g].gap) g--;
+  while (n < pts.length && !pts[n].gap) n++;
+  const step = active ? target - g : null, holeSteps = active ? n - g - 1 : null;
+  return { t: T, total: tl.total, tool, rot, active, opSpan, step, holeSteps, depth, sweeps, done };
 }
 
 const wrapPi = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };

@@ -121,6 +121,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CAM: Zápis vrtání v záložce Vrtání — Cyklus × Rozepsaně G0 / G1 (ISO).**
+  Přepínač je přímo pod seznamem děr (dřív jen zaškrtávátko *Vrtací cykly*
+  ve sbaleném Výstupu NC); rozepsaný kód má každý pohyb zvlášť.
 - **CAM: Výstup NC poháněných nástrojů jen v pravém panelu.** Polohování
   (SPOS / osa C / TRANSMIT), cykly, vřeteno, jméno osy C, kalibrace úhlu
   a M-kódy jsou v ⚙ Parametry → Obrábění → Vrtání (rozbalovací blok pod
@@ -270,6 +273,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM karusel: díry do čela a vrták v řezu na špatném místě.** Řez v CAM
+  počítal výšku díry r·sin C i na karuselu, kde rovina řezu leží v pohledu
+  na čelo vodorovně (nárys CAD bere vodorovnou souřadnici) — díra C 0° byla
+  na ose a poháněný vrták (stojí vpravo, 0°) se kreslil na ose místo na
+  poloměru díry. Teď r·cos C (`liveSection.sectBase` / `sectHeight`).
+- **CAM: Vrtání se „Středovou dírou v ose" si bralo vrták děr z výkresu.**
+  Klik na záložku Vrtání teď při zdroji *V ose* vrták děr nevnucuje.
+- **CAM: dráhy radiálních děr stejné výšky v řezu jezdily mezi dírami ven.**
+  Jako v NC jen natočení C; údaj nad časem píše „natočení C" jen při najetí
+  na další díru.
+- **CAM: při vrtání byl v řezu vidět i vrták soustružení.** Nástroj části
+  stál na bezpečné poloze vedle poháněného vrtáku; po dobu vrtání ◎ se teď
+  nekreslí (`livePanel.liveBusy` → drawToolpath).
+- **CAM: „4 řádky" G-kódu na mobilu ukazovaly při vrtání pořád
+  G0 X150 Z5.** Teď sledují řádek bloku jako celý panel.
+- **CAM: při odvodu třísky skákalo zvýraznění mezi řádkem díry a cyklem.**
+  Celé vrtání díry stojí na řádku cyklu (najetí na díru = řádek „díra k");
+  rozepsaný kód jde řádek po řádku podle pohybu (G0 R rovina, G1 záběr,
+  G0 vyjetí, návrat 0,3 mm nad dno — simulace teď stejně jako NC).
 - **CAD/CAM: díra skrz vč. polotovaru začínala uvnitř polotovaru.**
   Posuvník čela (bokorys CAD i lišta řezu v CAM) sahal jen po konec hotové
   kontury, takže úplně vpravo stál v polotovaru a díra *I polotovar* začala

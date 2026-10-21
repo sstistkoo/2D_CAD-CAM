@@ -13,7 +13,7 @@ import { drawContourLayer } from './drawContour.js';
 import { drawToolpathLayer } from './drawToolpath.js';
 import { drawOverlayLayer } from './drawOverlays.js';
 import { drawLowerHalfLayer } from './drawLowerHalf.js';
-import { liveAfterDraw } from '../live/livePanel.js';
+import { liveAfterDraw, liveBusy } from '../live/livePanel.js';
 
 /**
  * @param d stav a funkce simulátoru (skládá se při každém kreslení, ať vrstvy
@@ -46,7 +46,8 @@ export function drawCanvas(d) {
     return { x: S.view.panX + hS * z * S.view.scale, y: S.view.panY + vS * x * S.view.scale };
   };
 
-  const f = { ...d, calc, prms, w, h, C, vS, hS, toScreen };
+  // liveBusy: vrtá se ◎ → nástroj soustružení se nekreslí (drawToolpath.js).
+  const f = { ...d, calc, prms, w, h, C, vS, hS, toScreen, liveBusy: liveBusy(S) };
   drawStockLayer(f);
   drawContourLayer(f);
   drawToolpathLayer(f);

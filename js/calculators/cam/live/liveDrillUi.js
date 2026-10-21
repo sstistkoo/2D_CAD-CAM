@@ -109,6 +109,15 @@ export function createDrillUi(d) {
     });
     const nOn = list.filter(liveOpOn).length;
     const active = S.params.drillActive && liveDrillFromCad(S.params);
+    // Zápis vrtání: cyklus × rozepsaný ISO kód (= „Vrtací cykly" ve Výstupu NC,
+    // tady na očích — uživatel 21. 10. 2026). Heidenhain jen rozepsaně.
+    const ctrl0 = S.params.controlSystem || 'sinumerik', heid = ctrl0 === 'heidenhain';
+    const cyc = liveSettings(S.params).cycles && !heid;
+    h += `<div class="cam-livedrill-h">Zápis vrtání</div>
+      <div class="cam-livedrill-src">
+        <button data-livedrill="cyc" data-v="1" class="${cyc ? 'on' : ''}"${heid ? ' disabled title="Heidenhain: vždy rozepsané pohyby"' : ' title="Celé vrtání díry jedním řádkem cyklu"'}>Cyklus ${ctrl0 === 'fanuc' ? 'G83 / G87' : 'CYCLE82 / 83'}</button>
+        <button data-livedrill="cyc" data-v="0" class="${cyc ? '' : 'on'}" title="Každý pohyb zvlášť: G0 na R rovinu, G1 záběr, G0 vyjetí pro odvod třísky…">Rozepsaně G0 / G1 (ISO)</button>
+      </div>`;
     h += `<div class="cam-livedrill-btns">
         <button data-livedrill="go" class="cam-sim-btn cam-sim-btn-green"${nOn ? '' : ' disabled'}>🔩 ${active ? 'Přehrát vrtání' : 'Vyvrtat vybrané'} (${nOn})</button>
         <button data-livedrill="all" class="cam-sim-btn cam-sim-btn-gray"${nOn === list.length ? ' disabled' : ''}>Vybrat vše</button>
@@ -151,6 +160,10 @@ export function createDrillUi(d) {
       else if (act === 'all') setAll();
       else if (act === 'addmag') addMissing([parseFloat(b.dataset.d)]);
       else if (act === 'src') { d.commit(p => { p.drillSource = b.dataset.v; }); refresh(); }
+      else if (act === 'cyc') {
+        const on = b.dataset.v === '1';
+        if (liveSettings(S.params).cycles !== on) { d.commit(p => { p.live = { ...(p.live || {}), cycles: on }; }); refresh(); }
+      }
     });
     side.addEventListener('change', e => {
       const b = e.target.closest('[data-livedrill="toggle"]');

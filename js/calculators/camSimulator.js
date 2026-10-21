@@ -5360,7 +5360,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     else draw();
   });
   resizeObs.observe(canvasWrap);
-  initLiveTools({ S, root, canvasWrap, toolbar, draw, pushHistory, saveState, isoMagSlot: _isoMagSlot, applyChange });   // ◎ pohled na čelo, poháněné nástroje (+ vrták z 📚 do zásobníku)
+  initLiveTools({ S, root, canvasWrap, toolbar, draw, pushHistory, saveState, isoMagSlot: _isoMagSlot, applyChange, renderCodeMini });   // ◎ pohled na čelo, poháněné nástroje (+ vrták z 📚 do zásobníku)
 
   // ── CLEANUP on overlay removal ──
   const cleanupObs = new MutationObserver((_, obs) => {

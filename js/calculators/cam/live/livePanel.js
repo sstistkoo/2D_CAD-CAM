@@ -53,6 +53,15 @@ const TITLES = {
   solo: 'Jen pohled na čelo — klik: zpět jen řez',
 };
 
+/**
+ * Běží (nebo stojí rozjeté) vrtání / frézování ◎? drawToolpath.js pak nekreslí
+ * nástroj soustružení — v řezu je jen nástroj, který vrtá (uživatel 21. 10. 2026).
+ */
+export function liveBusy(S) {
+  const c = CTRL.get(S);
+  return !!(c && c.busy());
+}
+
 /** Volá drawCanvas.js po vykreslení řezu. */
 export function liveAfterDraw(f) {
   const c = CTRL.get(f.S);
@@ -534,9 +543,12 @@ export function initLiveTools(deps) {
       if (!player.active || !mach || !mach.active) return;
       const m = liveMotionText(ops, mach);
       if (m && f.motionOverlay) { f.motionOverlay.textContent = m.text; f.motionOverlay.classList.toggle('cam-sim-motion-rapid', m.rapid); }
-      const li = liveCodeLine(prog.text().replace(/\r\n/g, '\n').split('\n'), ops, mach);
-      if (li != null && (li !== st.codeLine || !root.querySelector('.cam-sim-code-bd-line.cam-sim-code-active'))) { st.codeLine = li; showLiveCodeLine(root, li); }
+      const lines = prog.text().replace(/\r\n/g, '\n').split('\n');
+      const li = liveCodeLine(lines, ops, mach);
+      if (li != null) showLiveCodeLine(root, li, lines, deps.renderCodeMini);
     },
+    // Běží / stojí vrtání ◎ — nástroj soustružení se nekreslí (drawToolpath).
+    busy: () => player.active && !player.finished,
     mark: f => {
       if (!st.open || st.mode === 'solo') return;
       const c = cutState();

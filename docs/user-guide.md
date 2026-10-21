@@ -510,10 +510,15 @@ právě vrtá). ⏹ nebo posun přehrávače zpět vrátí díry do neobrobenéh
 stavu; ⏭ na konec ukáže díl rovnou obrobený. Dojel-li program a vrtá se,
 **▶ / ⏸ v přehrávači dole vrtání pozastaví a pustí dál** (neskočí na začátek
 programu). Při přehrávání se v G-kódu **zvýrazní řádek bloku**, který se
-právě vrtá / frézuje (najetí na díru, cyklus), nad časem je nástroj, otáčky
-a posuv (nebo G0 / natočení C) a v řezu jsou **dráhy vrtáku** jako dráhy
-soustružení — posuv plně zeleně, rychloposuv čárkovaně (bezpečná X → Z
-odjezdu → poloměr díry → do hloubky; přepínač drah platí i pro ně).
+právě vrtá / frézuje — najetí na díru (řádek „díra k"), pak celé vrtání
+díry na řádku **cyklu** (i vyjíždění pro odvod třísky); rozepsaný kód jde
+řádek po řádku (G0 na R rovinu, G1 záběr, G0 vyjetí, návrat, prodleva,
+odjezd). Totéž ukazují i **4 řádky** G-kódu na mobilu. Nad časem je
+nástroj, otáčky a posuv (nebo G0 / natočení C), v řezu jsou **dráhy
+vrtáku** jako dráhy soustružení — posuv plně zeleně, rychloposuv čárkovaně
+(bezpečná X → Z odjezdu → poloměr díry → do hloubky; přepínač drah platí
+i pro ně) — a nástroj soustružení (např. vrták části na bezpečné poloze)
+se po dobu vrtání nekreslí, vidět je jen nástroj, který vrtá.
 
 **Kontrola proti dílu.** Každá operace se porovná se skutečným tvarem dílu
 (hotová kontura — vrtá se až po soustružení; díra skrz vč. polotovaru i proti
@@ -657,6 +662,8 @@ načtou se zvlášť:
   do čela leží ve výšce jako v nárysu CAD (svislá poloha v pohledu na
   čelo: C 0° a 180° **na ose Z**, C 90° nahoře, C 270° dole); díry do
   pláště se sklopí od pláště — C 0°…180° nad osu, 180°…360° pod osu.
+  Na **karuselu** leží rovina řezu v pohledu na čelo vodorovně (jako nárys
+  CAD): C 0° = +X, C 90° a 270° na ose, C 180° na druhé straně.
 - **Polotovar v pohledu na čelo** jako v bokorysu CAD: čerchovaně se
   dvěma tečkami v rovině řezu i větší polotovar za ní (ve směru pohledu).
 - **➕ Vrtání** — do čela (osa Z) nebo do pláště (osa X); rozmístění po
@@ -819,6 +826,11 @@ SPOS / osa C) — žádné dráhy hrubování ani díra v ose:
   v hlavičce programu) je vrták **první vybrané skupiny** — po doplnění
   vrtáku nebo změně výběru se přepne sám (dřív zůstal např. Ø20, i když
   díry vrtal T8 Ø10).
+- **Zápis vrtání:** **Cyklus** (Sinumerik CYCLE82 / 83, Fanuc G83 / G87 —
+  celé vrtání díry jedním řádkem) nebo **Rozepsaně G0 / G1 (ISO)** — každý
+  pohyb zvlášť (R rovina, záběr, vyjetí pro odvod třísky, návrat 0,3 mm nad
+  dno, prodleva, odjezd). Totéž jako *Vrtací cykly* ve Výstupu NC;
+  Heidenhain jen rozepsaně.
 - **Kód:** vygeneruje ho 🔄 Dráhy (po změně výběru děr se program části
   přegeneruje sám); **🔩 Vyvrtat vybrané** přepne na operaci Vrtání a pustí
   ▶ simulaci (po dojetí programu se díry vrtají v pohledu na čelo i v řezu).

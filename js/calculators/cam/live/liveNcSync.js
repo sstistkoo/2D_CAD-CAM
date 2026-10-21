@@ -12,18 +12,27 @@
 // Poháněný nástroj stojí nahoře (X+, liveSettings.toolAt) a díry se k němu
 // natáčejí osou C — dráha v řezu proto leží na poloměru díry nad osou.
 import { findLiveBlock } from './liveMarkers.js';
-import { livePositions, faceOut, liveOpProblems, liveOpOn } from './liveModel.js';
+import { livePositions, faceOut, liveOpProblems, liveOpOn, liveSettings } from './liveModel.js';
+import { sectBase, sectHeight } from './liveSection.js';
 
 const HEAD = /^[;(]\s*\[(\d+)\] /;   // „; [2] Díry Ø8: …" / „( [2] … )"
 const MOVE = /^(N\d+\s+)?G0?[0-3]\b/i;
-const DRILL = /^(N\d+\s+)?(CYCLE8\d|G8[0-9]|G0?1\b)/i;
+const CYCLE = /^(N\d+\s+)?(CYCLE8\d|G8[1-9])/i;
+/** Řádek pohybu v díře: cyklus, prodleva, nebo G0–G3 s X / Y / Z (ne samotné natočení C). */
+function inHole(l) {
+  const t = String(l).trim();
+  return !/díra/.test(t) && (CYCLE.test(t) || /^(N\d+\s+)?G0?4\b/i.test(t) || (MOVE.test(t) && /\s[XYZ]-?[\d.]/.test(t)));
+}
 
 /**
  * Řádek programu (index v `lines`), který odpovídá stavu obrábění, nebo null.
- * Operace jsou v bloku číslované [1]…[n] přes vybrané (liveOpOn); vrtání =
- * řádek „díra k" (při řezu první vrtací řádek za ním), frézování = poměr
- * času operace na jejích řádcích pohybu.
- * @param mach stav z liveStateAt (tool, active, opSpan, t)
+ * Operace jsou v bloku číslované [1]…[n] přes vybrané (liveOpOn). Vrtání:
+ * najetí = řádek „díra k"; v díře celé vrtání na řádku CYKLU (i vyjíždění
+ * pro odvod třísky — dřív to skákalo mezi řádkem díry a cyklem, uživatel
+ * 21. 10. 2026), rozepsaně (G0/G1) řádek po řádku podle pohybu díry
+ * (mach.step / holeSteps; řádky navíc na začátku = najetí k plášti).
+ * Frézování = poměr času operace na jejích řádcích pohybu.
+ * @param mach stav z liveStateAt (tool, active, opSpan, step, holeSteps, t)
  */
 export function liveCodeLine(lines, ops, mach) {
   if (!mach || !mach.active || !mach.tool) return null;
@@ -42,14 +51,17 @@ export function liveCodeLine(lines, ops, mach) {
   const op = ops[oi];
   if (op.kind !== 'mill') {
     const re = new RegExp(`díra ${mach.active.hole + 1}(?!\\d)`);
-    for (let i = s + 1; i < e; i++) {
-      if (!re.test(lines[i])) continue;
-      if (mach.tool.cut && !DRILL.test(String(lines[i]).trim())) {
-        for (let j = i + 1; j < Math.min(e, i + 4); j++) if (DRILL.test(String(lines[j]).trim())) return j;
-      }
-      return i;
-    }
-    return s;
+    let h = -1;
+    for (let i = s + 1; i < e && h < 0; i++) if (re.test(lines[i])) h = i;
+    if (h < 0) return s;
+    if (!(mach.step > 0) || CYCLE.test(String(lines[h]).trim())) return h;   // najetí / Fanuc: cyklus na řádku díry
+    const hole = [];
+    for (let i = h + 1; i < e && inHole(lines[i]); i++) hole.push(i);
+    const cyc = hole.find(i => CYCLE.test(String(lines[i]).trim()));
+    if (cyc != null) return cyc;
+    if (!hole.length) return h;   // Fanuc: další díry cyklu („X… C… ( díra 2 )")
+    const k = hole.length - (mach.holeSteps || hole.length) + mach.step - 1;
+    return hole[Math.max(0, Math.min(hole.length - 1, k))];
   }
   const moves = [];
   for (let i = s + 1; i < e; i++) if (MOVE.test(String(lines[i]).trim())) moves.push(i);
@@ -66,30 +78,46 @@ export function liveMotionText(ops, mach) {
   const op = mach && mach.active ? ops[mach.active.op] : null;
   if (!op) return null;
   const time = `⏱ ${clock(mach.t)} / ${clock(mach.total)}`;
-  if (!mach.tool || !mach.tool.cut) return { text: `${time} · G0 rychloposuv · natočení C`, rapid: true };
+  // Natočení C jen při najetí na další díru (gap), v díře jen rychloposuv.
+  if (!mach.tool || !mach.tool.cut) return { text: `${time} · G0 rychloposuv${mach.tool && mach.tool.gap ? ' · natočení C' : ''}`, rapid: true };
   return { text: `${time} · T${op.toolNo} ${op.toolName || ''} · ${Math.round(op.rpm)} ot/min · F ${Math.round(op.feed)} mm/min`, rapid: false };
 }
 
-/** Zvýraznit řádek `idx` v editoru G-kódu (třída a posun jako u soustružení). */
-export function showLiveCodeLine(root, idx) {
-  const els = root.querySelectorAll('.cam-sim-code-bd-line');
-  els.forEach((el, i) => el.classList.toggle('cam-sim-code-active', i === idx));
-  const ta = root.querySelector('.cam-sim-manual-ta'), el = els[idx];
-  if (!ta || !el || document.activeElement === ta) return;
+/**
+ * Zvýraznit řádek `idx` v editoru G-kódu (třída a posun jako u soustružení)
+ * i ve „4 řádcích" na mobilu (dřív tam zůstal G0 X150 Z5 — uživatel
+ * 21. 10. 2026). `renderMini` = codeMini.renderCodeMini, předá ho
+ * camSimulator (cam/live nesmí importovat cam/sim). Volá se každý snímek —
+ * beze změny nic nepřekresluje.
+ */
+export function showLiveCodeLine(root, idx, lines, renderMini) {
+  const mini = renderMini && root.querySelector('.cam-sim-code-mini.cam-sim-mini-on');
+  if (mini && (mini.dataset.liveIdx !== String(idx) || !mini.children[1] || mini.children[1].textContent !== lines[idx])) {
+    renderMini(mini, lines, idx);
+    mini.dataset.liveIdx = String(idx);
+  }
+  const bd = root.querySelector('.cam-sim-code-backdrop'), el = bd && bd.children[idx];
+  if (!el || el.classList.contains('cam-sim-code-active')) return;
+  bd.querySelectorAll('.cam-sim-code-active').forEach(x => x.classList.remove('cam-sim-code-active'));
+  el.classList.add('cam-sim-code-active');
+  const ta = root.querySelector('.cam-sim-manual-ta');
+  if (!ta || document.activeElement === ta) return;
   const top = el.offsetTop, bottom = top + el.offsetHeight;
   if (top >= ta.scrollTop && bottom <= ta.scrollTop + ta.clientHeight) return;
   ta.scrollTop = Math.max(0, top - ta.clientHeight / 2);
-  const bd = root.querySelector('.cam-sim-code-backdrop');
-  if (bd) bd.scrollTop = ta.scrollTop;
+  bd.scrollTop = ta.scrollTop;
 }
 
 /**
  * Dráha středu nástroje v řezu (x = poloměr, z) po operacích jako úseky
  * { a, b, rapid }. Chybné zadání (liveOpProblems) a nevybrané se nekreslí
- * stejně jako v NC bloku.
+ * stejně jako v NC bloku. Díra je natočená pod nástroj (toolAt) — výška
+ * v řezu jako vrták v liveSection (soustruh nahoře, karusel vpravo = +r).
  */
 export function livePathSegments(ops, prms) {
-  const safeR = (parseFloat(prms.safeX) || 0) * (prms.mode === 'DIAMON' ? 0.5 : 1);
+  const k = sectHeight(liveSettings(prms).toolAt, 1, sectBase(prms));   // výška díry pod nástrojem / r
+  const sg = k < -1e-9 ? -1 : 1;
+  const safeR = sg * (parseFloat(prms.safeX) || 0) * (prms.mode === 'DIAMON' ? 0.5 : 1);
   const safeZ = parseFloat(prms.safeZ) || 0;
   const segs = [];
   let cur = { x: safeR, z: safeZ };
@@ -101,17 +129,20 @@ export function livePathSegments(ops, prms) {
     if (!liveOpOn(op) || liveOpProblems(op).length) return;
     if (op.side === 'radial') {
       const rX = op.xTop / 2;
+      let zPrev = null;
       livePositions(op).forEach(p => {
-        go(safeR, cur.z, true); go(safeR, p.z, true); go(rX + op.retract, p.z, true);
-        go(rX + op.safe, p.z, true); go(rX - op.depth, p.z, false); go(rX + op.retract, p.z, true);
+        // Jako NC: jiná výška = ven na bezpečnou X, Z, k plášti; stejná = jen natočení C.
+        if (zPrev == null || Math.abs(p.z - zPrev) > 1e-6) { go(safeR, cur.z, true); go(safeR, p.z, true); go(sg * (rX + op.retract), p.z, true); }
+        go(sg * (rX + op.safe), p.z, true); go(sg * (rX - op.depth), p.z, false); go(sg * (rX + op.retract), p.z, true);
+        zPrev = p.z;
       });
     } else {
       const out = faceOut(op), rtp = op.zTop + out * op.retract, sdis = op.zTop + out * op.safe, zEnd = op.zTop - out * op.depth;
       go(safeR, rtp, true);
       radiiOf(op).forEach(([r0, r1]) => {
-        go(r0, rtp, true); go(r0, sdis, true); go(r0, zEnd, false);
-        if (r1 !== r0) { go(r1, zEnd, false); go(r0, zEnd, false); }   // kapsa / drážka přes poloměry
-        go(r0, rtp, true);
+        go(k * r0, rtp, true); go(k * r0, sdis, true); go(k * r0, zEnd, false);
+        if (r1 !== r0) { go(k * r1, zEnd, false); go(k * r0, zEnd, false); }   // kapsa / drážka přes poloměry
+        go(k * r0, rtp, true);
       });
     }
     go(safeR, cur.z, true); go(safeR, safeZ, true);
