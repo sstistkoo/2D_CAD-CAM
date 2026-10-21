@@ -278,6 +278,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM: záložka Vrtání se při aktivním vrtáku neotevřela.** S vrtákem už
+  nasazeným (panel na Hrub.) klik na Vrtání přepnul záložku jen ve stavu,
+  panel se nepřekreslil a „Co vrtat" se ukázalo až po kliku na nástroj.
+  `machTabTool.pickDrill` teď panel překreslí, test v `drill-from-cad`.
+
 - **CAM: frézování přes osu C jelo jiným posuvem, než je zadaný.** Kapsa
   a drážka bez TRANSMIT (krátké G1 X… C…) měly F jen na prvním řádku;
   řídicí systém ale v pohybu X + C počítá stupně jako mm, takže na R100

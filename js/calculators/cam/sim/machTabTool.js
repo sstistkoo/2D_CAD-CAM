@@ -213,10 +213,14 @@ function pickDrill(ctx) {
   S.params.threadActive = false; S.params.boreActive = false;
   if (S.params.partOffZ != null) S.params.partOffZ = null;
   S.params.drillActive = true;
-  ctx.setMachiningSubTab('vrt');
+  const tabChanged = ctx.setMachiningSubTab('vrt');
   if (wasOn && idx === S.activeMagazineSlot) {
-    // Vrták už sedí — přegenerovat jen po změně operací / zásobníku.
+    // Vrták už sedí — přegenerovat jen po změně operací / zásobníku. Jinak
+    // aspoň překreslit panel: setMachiningSubTab jen přepne stav, a bez
+    // applyChange zůstala vidět stará záložka (Hrub.) a „Co vrtat" se
+    // ukázalo až po kliku na nástroj (uživatel z mobilu 22. 10. 2026).
     if (JSON.stringify([S.params.liveOps, S.toolMagazine.length]) !== before) ctx.applyChange({ cycle: true });
+    else if (tabChanged) ctx.applyChange();
     return true;
   }
   ctx._applyMagSlot(idx);   // vrták ↔ nůž = jiná operace → přegeneruje (afterToolChange)

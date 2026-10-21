@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { emitDrill, drillHoleLoop } from '../js/calculators/cam/ops/drill.js';
 import { newLiveOp, liveDrillFromCad } from '../js/calculators/cam/live/liveModel.js';
 import { findLiveBlock } from '../js/calculators/cam/live/liveMarkers.js';
-import { machTabPlan } from '../js/calculators/cam/sim/machTabTool.js';
+import { machTabPlan, machTabClick } from '../js/calculators/cam/sim/machTabTool.js';
 import { genButtonsHidden } from '../js/calculators/cam/genButtons.js';
 import { buildLiveTimeline, liveStateAt } from '../js/calculators/cam/live/liveMachining.js';
 import { catalogDrillRec, addCatalogDrills } from '../js/calculators/cam/live/liveDrillTools.js';
@@ -78,6 +78,28 @@ describe('záložka obrábění → nástroj', () => {
   it('Vyvrt. si nástroj volí sám — jen záložka', () => {
     expect(machTabPlan('vyvrt', S('drill', 'N10'))).toBe('keep');
     expect(machTabPlan('vyvrt', S('polygon', 'N10'))).toBe('keep');
+  });
+});
+
+describe('klik na Vrtání při aktivním vrtáku překreslí panel', () => {
+  // Uživatel 22. 10. 2026: vrták aktivní, panel na Hrub. → klik na Vrtání
+  // přepnul záložku jen ve stavu, „Co vrtat" se ukázalo až po kliku na nástroj.
+  it('záložka se změní → applyChange', async () => {
+    const op = hole({ enabled: true, toolNo: 8 });
+    const S = {
+      params: { ...base, drillActive: true, liveOps: [op] }, manualGCode: 'N10',
+      machiningSubTab: 'hrub', activeMagazineSlot: 0,
+      toolMagazine: [{ slot: 8, shape: 'drill', name: 'Vrtak HSS D8', diameter: op.holeD }],
+    };
+    const calls = [];
+    const ctx = {
+      S, tabBody: null, partsActive: () => false, pushHistory: () => {},
+      setMachiningSubTab: t => { const ch = S.machiningSubTab !== t; S.machiningSubTab = t; return ch; },
+      applyChange: o => calls.push(o || {}), _applyMagSlot: () => calls.push('mag'),
+    };
+    await machTabClick('vrt', ctx);
+    expect(S.machiningSubTab).toBe('vrt');
+    expect(calls.length).toBeGreaterThan(0);
   });
 });
 
