@@ -134,12 +134,25 @@ function explicitDrill(ctx, ax, w, rfp, op, out = 1) {
   lv.forEach((d, k) => {
     add(`G1 ${ax}${w(rfp - out * d)} F${f3(op.feed)}`);
     if (k < lv.length - 1) {
-      add(`G0 ${ax}${w(rfp + out * op.safe)}`);
-      add(`G0 ${ax}${w(rfp - out * (d - 0.3))}`);
+      // Lámání třísky: jen odskok o chipBack; vyjíždění: ven na R rovinu a zpět 0,3 nad dno.
+      if (op.chipMode === 'break') add(`G0 ${ax}${w(rfp - out * (d - op.chipBack))}`);
+      else {
+        add(`G0 ${ax}${w(rfp + out * op.safe)}`);
+        add(`G0 ${ax}${w(rfp - out * (d - 0.3))}`);
+      }
     }
   });
   dwell(ctx, op.dwell);
   add(`G0 ${ax}${w(rfp + out * op.retract)}`);
+}
+
+/**
+ * Fanuc G83 / G87 s Q: vyjíždění × lámání třísky v programu nejde zvolit —
+ * určuje ho parametr stroje (0i: č. 5101 bit 2 RTR). Poznámka do programu,
+ * ať se to ověří (op.chipMode = co chce uživatel).
+ */
+function fanucChipNote({ add, cmt, op }) {
+  add(cmt(`Tříska: ${op.chipMode === 'break' ? 'lámání' : 'vyjíždění'} — u G83/G87 ho volí parametr stroje (Fanuc 0i: 5101 bit 2 RTR) — ověřte, případně Zápis vrtání Rozepsaně`));
 }
 
 /** Sinumerik CYCLE82 / CYCLE83 (klasické pořadí parametrů). */
@@ -149,8 +162,9 @@ function sinCycle(op, rfp, w, out = 1) {
   if (op.peck > 0 && op.peck < op.depth)
     // CYCLE83(RTP, RFP, SDIS, DP, DPR, FDEP, FDPR, DAM, DTB, DTS, FRF, VARI):
     // FDEP = 1. záběr (absolutně), DAM = 0 → všechny záběry stejné (DAM > 0
-    // by je zkracovalo), VARI = 1 → vyjetí z díry (odlamování třísek = 0).
-    return `CYCLE83(${rtp}, ${rf}, ${sd}, ${dp}, , ${w(rfp - out * op.peck)}, , 0, ${f3(op.dwell)}, 0, 1, 1)`;
+    // by je zkracovalo), VARI = 1 → vyjetí z díry, 0 → lámání třísky (op.chipMode;
+    // velikost odskoku u VARI = 0 dává strojní data cyklu).
+    return `CYCLE83(${rtp}, ${rf}, ${sd}, ${dp}, , ${w(rfp - out * op.peck)}, , 0, ${f3(op.dwell)}, 0, 1, ${op.chipMode === 'break' ? 0 : 1})`;
   return `CYCLE82(${rtp}, ${rf}, ${sd}, ${dp}, , ${f3(op.dwell)})`;
 }
 
@@ -182,6 +196,7 @@ function emitFaceDrill(ctx) {
   } else if (ctrl === 'fanuc' && cyc) {
     // G83 X C Z R Q P F — R = vzdálenost výchozí roviny → roviny R (poloměrem).
     const q = op.peck > 0 && op.peck < op.depth ? ` Q${Math.round(op.peck * 1000)}` : '';
+    if (q) fanucChipNote(ctx);
     const p = op.dwell > 0 ? ` P${Math.round(op.dwell * 1000)}` : '';
     pos.forEach((h, k) => {
       if (k === 0) {
@@ -217,6 +232,7 @@ function emitRadialDrill(ctx) {
   toolStart(c2);
   if (ctrl === 'fanuc' && cyc) {
     const q = op.peck > 0 && op.peck < op.depth ? ` Q${Math.round(op.peck * 1000)}` : '';
+    if (q) fanucChipNote(ctx);
     const p = op.dwell > 0 ? ` P${Math.round(op.dwell * 1000)}` : '';
     pos.forEach((h, k) => {
       // Jiná výška Z: zrušit cyklus, vyjet na bezpečnou X, přejet a cyklus znovu
@@ -299,19 +315,30 @@ function emitMill(ctx) {
       if (r > 1e-6) lastA = norm360(Math.atan2(y, x) * 180 / Math.PI);
       return { r, a: lastA };
     };
-    // Fanuc / Heidenhain: absolutní C bez nejkratší cesty by v G1 přes 0°/360°
-    // (C357,7 → C0) otočil kus o −358° s frézou v materiálu → úhel spojitě
-    // od předchozího bodu (může vyjít < 0 nebo > 360). Sinumerik: DC().
-    let lastC = null;
-    const cw = a => {
-      const an = angOf(set, a);
-      if (ctrl === 'sinumerik') return `${set.cName}=DC(${f3(an)})`;
-      lastC = lastC == null ? an : an + 360 * Math.round((lastC - an) / 360);
-      return `${set.cName}${f3(lastC)}`;
-    };
-    const emitPt = (type, x, y, z, F) => {
+    // Úhel C: Fanuc / Heidenhain absolutně bez nejkratší cesty by v G1 přes
+    // 0°/360° (C357,7 → C0) otočil kus o −358° s frézou v materiálu → úhel
+    // spojitě od předchozího bodu (může vyjít < 0 nebo > 360). Sinumerik: DC().
+    // POSUV (uživatel 21. 10. 2026): v G1 X… C… řídicí systém počítá dráhu se
+    // stupni osy C jako s milimetry (Fanuc, Heidenhain; Sinumerik s FGROUP
+    // X, Z, C a výchozím FGREF 57,296 mm = 1° ~ 1 mm), břit ale jede r·Δφ —
+    // na R100 je 1° = 1,75 mm, fréza by jela 1,75× rychleji. F se proto
+    // přepočítá pro každý úsek: F · L(ΔX poloměrem, ΔC°, ΔZ) / L(skutečně, mm).
+    if (ctrl === 'sinumerik') add(`FGROUP(X, Z, ${set.cName})${note('posuv po dráze X, Z i C (FGREF: 1° = 1 mm)')}`);
+    add(ctx.cmt('F přepočten pro každý úsek X + C na skutečný posuv břitu — ověřte na stroji'));
+    const plungeN = Math.max(1, op.feed * 0.3);
+    let last = null;   // poslední bod { x, y, z } kartézsky a { r, c } na stroji
+    const emitPt = (type, x, y, z, fBase) => {
       const p = polar(x, y);
-      add(`${type} X${xo(p.r)} ${cw(p.a)} Z${f3(z)}${F ? ` F${F}` : ''}`);
+      const an = angOf(set, p.a);
+      const c = last ? an + 360 * Math.round((last.c - an) / 360) : an;
+      let fw = '';
+      if (type === 'G1' && fBase > 0) {
+        const la = last ? Math.hypot(x - last.x, y - last.y, z - last.z) : 0;
+        const lc = last ? Math.hypot(p.r - last.r, c - last.c, z - last.z) : 0;
+        fw = ` F${f3(la > 1e-9 ? fBase * lc / la : fBase)}`;
+      }
+      add(`${type} X${xo(p.r)} ${ctrl === 'sinumerik' ? `${set.cName}=DC(${f3(an)})` : `${set.cName}${f3(c)}`} Z${f3(z)}${fw}`);
+      last = { x, y, z, r: p.r, c };
     };
     moves.forEach(mv => {
       if (!cur) add(`G0 Z${f3(mv.z)}`);   // první najetí: nejdřív Z (venku na bezpečné X)
@@ -322,8 +349,7 @@ function emitMill(ctx) {
         const n = Math.max(1, Math.ceil(Math.hypot(mv.x - from.x, mv.y - from.y) / 1));
         for (let j = 1; j <= n; j++) {
           const t = j / n;
-          emitPt('G1', from.x + (mv.x - from.x) * t, from.y + (mv.y - from.y) * t, mv.z,
-            j === 1 ? (mv.plunge ? plungeF : f3(op.feed)) : null);
+          emitPt('G1', from.x + (mv.x - from.x) * t, from.y + (mv.y - from.y) * t, mv.z, mv.plunge ? plungeN : op.feed);
         }
       } else {
         const r = Math.hypot(cur.x - mv.cx, cur.y - mv.cy);
@@ -332,11 +358,12 @@ function emitMill(ctx) {
         const n = Math.max(8, Math.ceil(r * (a1 - a0) / 1));
         for (let j = 1; j <= n; j++) {
           const a = a0 + (a1 - a0) * j / n;
-          emitPt('G1', mv.cx + r * Math.cos(a), mv.cy + r * Math.sin(a), mv.z);
+          emitPt('G1', mv.cx + r * Math.cos(a), mv.cy + r * Math.sin(a), mv.z, op.feed);
         }
       }
       cur = mv;
     });
+    if (ctrl === 'sinumerik') add(`FGROUP()${note('posuv zpět jen po geometrických osách')}`);
   }
   toolStop(c2);
   cOff(c2);

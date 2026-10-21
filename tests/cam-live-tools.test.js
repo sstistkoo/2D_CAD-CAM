@@ -145,6 +145,43 @@ describe('NC výstup', () => {
       expect(jump).toBeLessThan(15);
     }
   });
+  it('frézování přes osu C: F po úsecích = zadaný posuv břitu i na R100 (stupně se počítají jako mm)', () => {
+    const pocket = { ...newLiveOp('mill', { faceZ: 0, outerD: 300 }, 1), pcd: 200, count: 1, startAngle: 90, holeD: 16, toolD: 10, depth: 2, stepDown: 2, feed: 300 };
+    for (const controlSystem of ['sinumerik', 'fanuc', 'heidenhain']) {
+      const L = buildLiveBlock({ ...prms({ controlSystem, liveOps: [pocket] }), live: { mode: 'caxis' } });
+      if (controlSystem === 'sinumerik') {
+        expect(L).toContain('FGROUP(X, Z, C) ; posuv po dráze X, Z i C [FGREF: 1° = 1 mm]');
+        expect(L.some(l => l.startsWith('FGROUP()'))).toBe(true);
+      }
+      // Skutečná rychlost břitu z každého G1 X(Ø) C Z F: F · L(mm) / L(X, C°, Z).
+      let prev = null;
+      const tip = [];
+      L.filter(l => (l.startsWith('G1 ') || l.startsWith('G0 X')) && l.includes(' C')).forEach(l => {
+        const r = +l.match(/X(-?[\d.]+)/)[1] / 2, c = +l.match(/ C(?:=DC\()?(-?[\d.]+)/)[1], z = +l.match(/Z(-?[\d.]+)/)[1];
+        const F = l.match(/F([\d.]+)/);
+        if (prev && F && l.startsWith('G1')) {
+          let dc = c - prev.c; dc -= 360 * Math.round(dc / 360);
+          const a0 = prev.c * Math.PI / 180, a1 = c * Math.PI / 180;
+          const la = Math.hypot(r * Math.cos(a1) - prev.r * Math.cos(a0), r * Math.sin(a1) - prev.r * Math.sin(a0), z - prev.z);
+          const lc = Math.hypot(r - prev.r, dc, z - prev.z);
+          if (la > 0.2 && Math.abs(z - prev.z) < 1e-9) tip.push(+F[1] * la / lc);
+        }
+        prev = { r, c, z };
+      });
+      expect(tip.length).toBeGreaterThan(20);
+      tip.forEach(v => expect(Math.abs(v - 300)).toBeLessThan(3));   // zaokrouhlení výstupu na 0,001
+    }
+  });
+  it('lámání třísky: CYCLE83 VARI = 0, rozepsaně jen odskok, Fanuc poznámka o parametru', () => {
+    const op = drill({ count: 1, depth: 10, peck: 4, chipMode: 'break', chipBack: 1 });
+    expect(buildLiveBlock(prms({ liveOps: [op] }))).toContain('CYCLE83(5, 0, 2, -10, , -4, , 0, 0, 0, 1, 0)');
+    expect(buildLiveBlock(prms({ liveOps: [drill({ count: 1, depth: 10, peck: 4 })] }))).toContain('CYCLE83(5, 0, 2, -10, , -4, , 0, 0, 0, 1, 1)');
+    const E = buildLiveBlock(prms({ liveOps: [op], live: { cycles: false } }));
+    const i = E.indexOf('G1 Z-4 F120');
+    expect(E.slice(i, i + 5)).toEqual(['G1 Z-4 F120', 'G0 Z-3', 'G1 Z-8 F120', 'G0 Z-7', 'G1 Z-10 F120']);
+    const F = buildLiveBlock(prms({ controlSystem: 'fanuc', liveOps: [op] }));
+    expect(F.some(l => /Tříska: lámání .*5101/.test(l))).toBe(true);
+  });
   it('CYCLE83: DAM = 0 (stálý záběr), FDEP absolutně, dno s prodlevou', () => {
     const L = buildLiveBlock(prms({ liveOps: [drill({ dwell: 0.5 })] }));
     expect(L).toContain('CYCLE83(5, 0, 2, -10, , -3, , 0, 0.5, 0, 1, 1)');

@@ -51,6 +51,10 @@ export function opForm(op, chk) {
   if (op.kind === 'drill') {
     h += f('holeD', 'Ø díry', op.holeD) + f('depth', 'Hloubka', op.depth);
     h += f('peck', 'Krok vrtání (0 = naráz)', op.peck) + f('dwell', 'Prodleva dole [s]', op.dwell);
+    if (op.peck > 0) {
+      h += sel('chipMode', 'Tříska mezi záběry', op.chipMode, [['clear', '⇡ Vyjíždění (odvod)'], ['break', '↯ Lámání (odskok)']]);
+      if (op.chipMode === 'break') h += f('chipBack', 'Odskok [mm]', op.chipBack);
+    }
   } else {
     if (!slot) h += f('holeD', 'Ø kapsy', op.holeD);
     h += f('toolD', slot ? 'Ø frézy = šířka' : 'Ø frézy', op.toolD) + f('depth', 'Hloubka', op.depth) + f('stepDown', 'Krok do hloubky', op.stepDown);

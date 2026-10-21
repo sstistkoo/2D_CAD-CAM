@@ -62,8 +62,12 @@ export function buildLiveTimeline(ops, prms) {
         const levels = depthLevels(op.depth, op.peck > 0 ? op.peck : op.depth);
         levels.forEach((L, i) => {
           at(P(L), feed);
-          // Vyjetí na R rovinu a zpět 0,3 mm nad dno jako NC (liveGcode.explicitDrill).
-          if (i < levels.length - 1) { at(P(-op.safe), rapid); at(P(Math.max(0, L - 0.3)), rapid); }
+          // Jako NC (liveGcode.explicitDrill): lámání = odskok o chipBack,
+          // vyjíždění = ven na R rovinu a zpět 0,3 mm nad dno.
+          if (i < levels.length - 1) {
+            if (op.chipMode === 'break') at(P(Math.max(0, L - op.chipBack)), rapid);
+            else { at(P(-op.safe), rapid); at(P(Math.max(0, L - 0.3)), rapid); }
+          }
         });
         dwell(op.dwell);
         at(P(-op.retract), rapid);

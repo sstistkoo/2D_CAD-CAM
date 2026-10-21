@@ -471,7 +471,7 @@ export function initLiveTools(deps) {
   });
 
   const NUM_KEYS = new Set(['faceDir', 'pcd', 'count', 'startAngle', 'zTop', 'xTop', 'zPos', 'holeD', 'depth', 'peck',
-    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'slot.x1', 'slot.y1', 'slot.x2', 'slot.y2']);
+    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'chipBack', 'slot.x1', 'slot.y1', 'slot.x2', 'slot.y2']);
   ed.addEventListener('change', e => {
     const el = e.target;
     const k = el.dataset.k;

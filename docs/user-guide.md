@@ -679,7 +679,12 @@ načtou se zvlášť:
 - **Polohování / interpolace** (přepínač NC výstupu): **SPOS** (vřeteno se
   natočí na úhel díry, vrtá se v poloze nástroje), **Osa C** (C = úhel) nebo
   **TRANSMIT** (Sinumerik kartézsky X/Y, Fanuc polární interpolace G12.1).
-  Frézování mimo osu bez TRANSMIT se rozloží na krátké G1 v X + C.
+  Frézování mimo osu bez TRANSMIT se rozloží na krátké G1 v X + C a **posuv
+  F se přepočítá pro každý úsek** tak, aby břit jel zadanou rychlostí:
+  řídicí systém v pohybu X + C počítá stupně osy C jako milimetry (na R100
+  je ale 1° = 1,75 mm — bez přepočtu by fréza jela 1,75× rychleji).
+  Sinumerik k tomu dostane `FGROUP(X, Z, C)` (na konci `FGROUP()`).
+  Ověřte na stroji (poznámka je i v programu).
   **Vrtací cykly** zap = CYCLE82/83 (Fanuc G83/G87), vyp = rozepsané G0/G1.
   Heidenhain vždy rozepsané pohyby.
 - **M-kódy stroje** (osa C zap/vyp, start/stop poháněného nástroje, adresa
@@ -817,8 +822,13 @@ SPOS / osa C) — žádné dráhy hrubování ani díra v ose:
   ubírají; **Vybrat vše** vrátí všechny. Nevybrané díry jsou v pohledu
   ztlumené a nevrtají se (nejsou v kódu ani v simulaci).
 - **Vrták se vybere sám:** ze 🔧 Zásobníku vrták na Ø díry (první v pořadí T),
-  otáčky n = Vc·1000/(π·Ø) a posuv F = f·n z jeho Vc a f; záběr Q, prodleva
-  a bezpečná vzdálenost z polí záložky níž. Chybí-li vrták na Ø díry,
+  otáčky n = Vc·1000/(π·Ø) a posuv F = f·n z jeho Vc a f; záběr Q, prodleva,
+  bezpečná vzdálenost a **tříska** (⇡ Vyjíždění × ↯ Lámání + Odskok) z polí
+  záložky níž — jejich změna se do vybraných děr propíše hned. Lámání
+  třísky: cyklus `CYCLE83 … VARI = 0`, rozepsaně jen odskok o *Odskok*
+  a další záběr; Fanuc G83 / G87 volí lámání parametrem stroje (0i: 5101
+  bit 2 RTR — poznámka v programu). Jde nastavit i u operace v 🛠 Operace
+  (*Tříska mezi záběry*). Chybí-li vrták na Ø díry,
   **➕ Přidat vrták Ø… z 📚 do Zásobníku** (HSS 118°; Ø, který katalog nemá,
   např. 7, se postaví podle nejbližšího) — záložka Vrtání ho doplní sama.
   Co v 🛠 Operace přepíšete ručně (T, nástroj, otáčky, posuv), už se

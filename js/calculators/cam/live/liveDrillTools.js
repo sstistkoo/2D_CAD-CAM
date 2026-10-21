@@ -42,19 +42,38 @@ export function drillCutData(drill) {
 export function autoDrillTools(ops, magazine, prms = {}) {
   const drills = magazineDrills(magazine);
   const filled = [], missing = [];
-  const q = parseFloat(prms.drillPeck), dw = parseFloat(prms.drillDwell), sf = parseFloat(prms.drillClearance);
   const out = ops.map((op, i) => {
     if (op.kind !== 'drill' || !liveOpOn(op) || op.autoTool === false) return op;
     const { drill, near } = pickDrill(drills, op.holeD);
     if (!drill) { missing.push({ op: i, D: op.holeD, near }); return op; }
-    const o = { ...op, toolNo: drill.slot, toolName: drill.name, ...drillCutData(drill) };
-    if (Number.isFinite(q) && q >= 0) o.peck = q;
-    if (Number.isFinite(dw) && dw >= 0) o.dwell = dw;
-    if (Number.isFinite(sf) && sf > 0) o.safe = sf;
     filled.push({ op: i, drill });
-    return o;
+    return drillTabParams({ ...op, toolNo: drill.slot, toolName: drill.name, ...drillCutData(drill) }, prms);
   });
   return { ops: out, filled, missing };
+}
+
+/**
+ * Pole záložky Vrtání do operace vrtání: záběr Q, prodleva, bezpečná
+ * vzdálenost a tříska (Vyjíždění × Lámání + Odskok → chipMode / chipBack).
+ */
+export function drillTabParams(op, prms = {}) {
+  const o = { ...op };
+  const q = parseFloat(prms.drillPeck), dw = parseFloat(prms.drillDwell), sf = parseFloat(prms.drillClearance), rb = parseFloat(prms.drillRetract);
+  if (Number.isFinite(q) && q >= 0) o.peck = q;
+  if (Number.isFinite(dw) && dw >= 0) o.dwell = dw;
+  if (Number.isFinite(sf) && sf > 0) o.safe = sf;
+  if (prms.drillChipMode) o.chipMode = prms.drillChipMode === 'break' ? 'break' : 'clear';
+  if (Number.isFinite(rb) && rb > 0) o.chipBack = rb;
+  return o;
+}
+
+/**
+ * Změna polí záložky Vrtání (Q, prodleva, bezp. vzdálenost, tříska) se
+ * propíše do vybraných děr z výkresu, které uživatel ručně nepřepsal —
+ * dřív jen při kliknutí na záložku / výběru děr (21. 10. 2026).
+ */
+export function syncDrillTabParams(ops, prms) {
+  return ops.map(op => (op.kind === 'drill' && liveOpOn(op) && op.autoTool !== false ? drillTabParams(op, prms) : op));
 }
 
 /** Text o vrtáku operace pro záložku Vrtání. */

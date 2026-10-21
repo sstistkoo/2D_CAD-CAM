@@ -49,7 +49,7 @@ describe('odvod třísky a rozepsaný kód (uživatel 21. 10. 2026)', () => {
     const tl = buildLiveTimeline(ops, P);
     const pts = tl.pts.filter(q => q.hole === hole);
     const out = [];
-    for (let t = pts[1].t - 0.001; t < pts[pts.length - 1].t; t += 0.02) {
+    for (let t = pts[1].t - 0.001; t < pts[pts.length - 1].t; t += 0.002) {   // odskok 1 mm trvá ~6 ms
       const m = liveStateAt(tl, t);
       if (m.active && m.active.hole === hole && m.step > 0) out.push(lines[liveCodeLine(lines, ops, m)]);
     }
@@ -65,6 +65,11 @@ describe('odvod třísky a rozepsaný kód (uživatel 21. 10. 2026)', () => {
     expect(linesDuring(ops, P, 1)).toEqual([
       'G0 Z2', 'G1 Z-4 F120', 'G0 Z-3.7', 'G1 Z-8 F120', 'G0 Z-7.7', 'G1 Z-10 F120', 'G4 F0.5', 'G0 Z5',
     ]);
+  });
+  it('rozepsaně s lámáním třísky: záběr, odskok, záběr… (simulace = NC)', () => {
+    const ops = [drill({ peck: 4, depth: 10, chipMode: 'break', chipBack: 1 })];
+    const P = { ...prms({ liveOps: ops }), live: { cycles: false } };
+    expect(linesDuring(ops, P, 1)).toEqual(['G0 Z2', 'G1 Z-4 F120', 'G0 Z-3', 'G1 Z-8 F120', 'G0 Z-7', 'G1 Z-10 F120', 'G0 Z5']);
   });
   it('rozepsaně do pláště: najetí X k plášti se přeskočí, záběr = G1 X', () => {
     const ops = [drill({ side: 'radial', count: 2, xTop: 80, zPos: -20, depth: 8, peck: 0 })];

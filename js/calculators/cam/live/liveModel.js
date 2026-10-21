@@ -86,6 +86,9 @@ export function newLiveOp(kind, geo, n) {
     holeD: kind === 'mill' ? 20 : 8,
     depth: 10,
     peck: kind === 'mill' ? 0 : 3,   // vrtání: krok (0 = na jeden záběr)
+    // Tříska mezi záběry: 'clear' = vyjetí z díry (odvod), 'break' = jen
+    // odskok o chipBack mm (lámání) — jako záložka Vrtání (drillChipMode).
+    chipMode: 'clear', chipBack: 1,
     dwell: 0,
     safe: 2, retract: 5,
     millType: 'pocket',       // 'pocket' (kruhová kapsa na pozicích) | 'slot'
@@ -104,8 +107,9 @@ export function normalizeLiveOp(op) {
   const d = newLiveOp(op && op.kind === 'mill' ? 'mill' : 'drill');
   const o = { ...d, ...(op || {}) };
   for (const k of ['pcd', 'count', 'startAngle', 'zTop', 'xTop', 'zPos', 'holeD', 'depth', 'peck',
-    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'faceDir']) o[k] = num(o[k], d[k]);
+    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'faceDir', 'chipBack']) o[k] = num(o[k], d[k]);
   o.faceDir = o.faceDir < 0 ? -1 : 1;
+  o.chipMode = o.chipMode === 'break' ? 'break' : 'clear';
   o.count = Math.max(1, Math.min(360, Math.round(o.count)));
   o.slot = { ...d.slot, ...(o.slot || {}) };
   for (const k of ['x1', 'y1', 'x2', 'y2']) o.slot[k] = num(o.slot[k], 0);
@@ -232,6 +236,7 @@ export function liveOpProblems(op) {
   const out = [];
   if (!(op.depth > 0)) out.push('Hloubka musí být větší než 0.');
   if (op.kind === 'drill' && !(op.holeD > 0)) out.push('Zadejte Ø díry.');
+  if (op.kind === 'drill' && op.chipMode === 'break' && op.peck > 0 && !(op.chipBack > 0)) out.push('Odskok pro lámání třísky musí být větší než 0.');
   if (op.kind === 'mill') {
     if (!(op.toolD > 0)) out.push('Zadejte Ø frézy.');
     if (op.millType === 'pocket' && op.holeD < op.toolD) out.push('Kapsa je menší než fréza.');
@@ -259,5 +264,6 @@ export function liveOpSummary(op) {
     return `Kapsa Ø${op.holeD} hl. ${op.depth} – ${pos}`;
   }
   const face = op.faceDir === -1 ? 'Čelo zleva' : 'Čelo';
-  return `${op.side === 'radial' ? 'Radiálně' : face} Ø${op.holeD} hl. ${op.depth} – ${pos}`;
+  const chip = op.peck > 0 && op.peck < op.depth && op.chipMode === 'break' ? ', lámání třísky' : '';
+  return `${op.side === 'radial' ? 'Radiálně' : face} Ø${op.holeD} hl. ${op.depth}${chip} – ${pos}`;
 }

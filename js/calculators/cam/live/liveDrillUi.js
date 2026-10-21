@@ -20,7 +20,7 @@
 //   uživatel 21. 10. 2026).
 // Výběr = `op.enabled` (liveModel.liveOpOn); nevybrané se nevrtají.
 import { getLiveOps, liveOpOn, liveOpSummary, liveDrillFromCad, liveSettings } from './liveModel.js';
-import { drillToolText, toggleLiveGroup, autoDrillTools, pickDrill, magazineDrills, addCatalogDrills, catalogDrillD } from './liveDrillTools.js';
+import { drillToolText, toggleLiveGroup, autoDrillTools, pickDrill, magazineDrills, addCatalogDrills, catalogDrillD, syncDrillTabParams } from './liveDrillTools.js';
 import { settingsHtml, settingsTitle, applySettingChange } from './liveSettingsUi.js';
 import { safeEvalMath } from '../../../utils.js';
 
@@ -165,6 +165,17 @@ export function createDrillUi(d) {
         if (liveSettings(S.params).cycles !== on) { d.commit(p => { p.live = { ...(p.live || {}), cycles: on }; }); refresh(); }
       }
     });
+    // Pole záložky Vrtání (Q, Odskok, Prodleva, Bezp. vzdál.) a ⇡ Vyjíždění /
+    // ↯ Lámání třísky → do vybraných děr z výkresu. Až po obsluze simulátoru
+    // (ta S.params zapíše a panel překreslí).
+    const TAB_P = new Set(['drillPeck', 'drillRetract', 'drillDwell', 'drillClearance']);
+    const syncTab = () => setTimeout(() => {
+      if (!liveDrillFromCad(S.params)) return;
+      const cur = ops(), next = syncDrillTabParams(cur, S.params);
+      if (JSON.stringify(next) !== JSON.stringify(cur)) { d.commit(p => { p.liveOps = next; }); refresh(); }
+    }, 0);
+    side.addEventListener('change', e => { if (e.target.dataset && TAB_P.has(e.target.dataset.p)) syncTab(); });
+    side.addEventListener('click', e => { if (e.target.closest('[data-drillmode]')) syncTab(); });
     side.addEventListener('change', e => {
       const b = e.target.closest('[data-livedrill="toggle"]');
       if (b) { toggle(+b.dataset.oi, true); return; }

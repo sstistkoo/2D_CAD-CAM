@@ -1,7 +1,7 @@
 // Výběr děr k vrtání a vrták ze 🔧 Zásobníku podle Ø (cam/live/liveDrillTools.js),
 // nevybrané skupiny se nevrtají (NC blok, časová osa obrábění).
 import { describe, it, expect } from 'vitest';
-import { magazineDrills, pickDrill, drillCutData, autoDrillTools, toggleLiveGroup, drillToolText } from '../js/calculators/cam/live/liveDrillTools.js';
+import { magazineDrills, pickDrill, drillCutData, autoDrillTools, toggleLiveGroup, drillToolText, syncDrillTabParams } from '../js/calculators/cam/live/liveDrillTools.js';
 import { newLiveOp, normalizeLiveOp, liveOpOn } from '../js/calculators/cam/live/liveModel.js';
 import { buildLiveBlock } from '../js/calculators/cam/live/liveGcode.js';
 import { buildLiveTimeline, liveStateAt } from '../js/calculators/cam/live/liveMachining.js';
@@ -64,5 +64,17 @@ describe('výběr skupin děr', () => {
     expect(end.depth.has('0:0')).toBe(true);
     expect([...end.depth.keys()].some(k => k.startsWith('1:'))).toBe(false);
     expect(buildLiveBlock({ controlSystem: 'sinumerik', liveOps: [two[1]] })).toEqual([]);
+  });
+});
+
+describe('pole záložky Vrtání → díry z výkresu (21. 10. 2026)', () => {
+  it('Q, odskok, prodleva, bezp. vzdálenost a lámání třísky se propíšou; ručně přepsané a nevybrané ne', () => {
+    const base = newLiveOp('drill', { faceZ: 0, outerD: 100 }, 1);
+    const ops = [base, { ...base, autoTool: false }, { ...base, enabled: false }, newLiveOp('mill', null, 2)].map(normalizeLiveOp);
+    const P = { drillPeck: 2.5, drillRetract: 0.8, drillDwell: 0.3, drillClearance: 1.5, drillChipMode: 'break' };
+    const out = syncDrillTabParams(ops, P);
+    expect(out[0]).toMatchObject({ peck: 2.5, chipBack: 0.8, dwell: 0.3, safe: 1.5, chipMode: 'break' });
+    [1, 2, 3].forEach(i => expect(out[i]).toEqual(ops[i]));
+    expect(syncDrillTabParams(out, { ...P, drillChipMode: 'clear' })[0].chipMode).toBe('clear');
   });
 });

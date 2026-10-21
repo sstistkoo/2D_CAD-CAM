@@ -121,6 +121,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CAM: lámání třísky i u děr z výkresu.** ⇡ Vyjíždění × ↯ Lámání třísky
+  a Odskok ze záložky Vrtání (nebo *Tříska mezi záběry* u operace):
+  Sinumerik `CYCLE83 … VARI = 0`, rozepsaně jen odskok a další záběr,
+  simulace stejně; Fanuc G83 / G87 volí lámání parametrem stroje — v programu
+  je poznámka.
 - **CAM: Zápis vrtání v záložce Vrtání — Cyklus × Rozepsaně G0 / G1 (ISO).**
   Přepínač je přímo pod seznamem děr (dřív jen zaškrtávátko *Vrtací cykly*
   ve sbaleném Výstupu NC); rozepsaný kód má každý pohyb zvlášť.
@@ -273,6 +278,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM: frézování přes osu C jelo jiným posuvem, než je zadaný.** Kapsa
+  a drážka bez TRANSMIT (krátké G1 X… C…) měly F jen na prvním řádku;
+  řídicí systém ale v pohybu X + C počítá stupně jako mm, takže na R100
+  jela fréza 1,75× rychleji (Sinumerik bez FGROUP dokonce podle samotné X).
+  F se teď přepočítá pro každý úsek na skutečný posuv břitu, Sinumerik
+  dostane `FGROUP(X, Z, C)` … `FGROUP()`.
+- **CAM: změna Q / odskoku / prodlevy v záložce Vrtání se do děr z výkresu
+  nepropsala** (jen při kliknutí na záložku nebo výběru děr). Teď hned
+  (`liveDrillTools.syncDrillTabParams`).
 - **CAM karusel: díry do čela a vrták v řezu na špatném místě.** Řez v CAM
   počítal výšku díry r·sin C i na karuselu, kde rovina řezu leží v pohledu
   na čelo vodorovně (nárys CAD bere vodorovnou souřadnici) — díra C 0° byla
