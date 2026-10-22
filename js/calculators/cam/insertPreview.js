@@ -6,6 +6,11 @@ import { getInsert } from './inserts/index.js';
 import { drillDims } from './inserts/drill.js';
 
 export const PARTING_BODY_MIN_H_MM = 15;
+/** Vnitřní zapichovací tyč (`toolInternal`): destička sedí v tyči, nad rádiem
+ *  vyčnívá jen tělo k tyči — zbytek drží krk držáku (isoInternalTools). */
+export const PARTING_BODY_INNER_H_MM = 1;
+/** Výška těla upichovací destičky nad rádiem [mm] podle druhu nože. */
+export const partingBodyMinH = (prms) => (prms && prms.toolInternal === true ? PARTING_BODY_INNER_H_MM : PARTING_BODY_MIN_H_MM);
 
 // Délka hrany tělesa ZÁVITOVÉ destičky (rovnostranný trojúhelník 16ER/IR,
 // nejběžnější velikost) — JEN pro kreslení celé destičky, výpočet ji nečte.
@@ -250,7 +255,7 @@ export function drawInsertAndHolderPreview(ctx, w, h, prms, opts) {
     // přiblížení nesmyslně nízké. Stejná konstanta se používá i v
     // getInsertAnchorPoints() a buildInsertProfileSegments() (📐 Kreslit na
     // CAD plátně), ať plátek vždy vypadá stejně vysoký (~15 mm reálně).
-    const bodyH = Math.max(wPix * 0.6, r + PARTING_BODY_MIN_H_MM * scale);
+    const bodyH = Math.max(wPix * 0.6, r + partingBodyMinH(prms) * scale);
     ctx.save(); ctx.rotate(rotRad);
     ctx.beginPath();
     ctx.moveTo(-r, r - bodyH);
@@ -381,7 +386,7 @@ export function getInsertAnchorPoints(prms) {
     const R = Math.max(parseFloat(prms.toolRadius) || 0.8, 0.05);
     const r = Math.min(R, toolLen / 2);
     const w2 = toolLen - 2 * r;
-    const bodyH = Math.max(toolLen * 0.6, r + PARTING_BODY_MIN_H_MM);
+    const bodyH = Math.max(toolLen * 0.6, r + partingBodyMinH(prms));
     const rotRad = -(parseFloat(prms.toolAngle) || 0) * Math.PI / 180;
     const rot = (x, y) => ({
       x: x * Math.cos(rotRad) - y * Math.sin(rotRad),
@@ -453,7 +458,7 @@ export function buildInsertProfileSegments(prms, opts) {
     const rotRad = -(parseFloat(prms.toolAngle) || 0) * Math.PI / 180;
     const r = Math.min(R, toolLen / 2);
     const w2 = toolLen - 2 * r;
-    const bodyH = Math.max(toolLen * 0.6, r + PARTING_BODY_MIN_H_MM);
+    const bodyH = Math.max(toolLen * 0.6, r + partingBodyMinH(prms));
     const rot = (x, y) => ({
       x: x * Math.cos(rotRad) - y * Math.sin(rotRad),
       z: -(x * Math.sin(rotRad) + y * Math.cos(rotRad)),

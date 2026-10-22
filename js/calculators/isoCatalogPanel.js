@@ -25,7 +25,7 @@ import { ISO_MILL_KINDS, isoMillDiameters, isoMillLabel, buildIsoMill, isoMillCo
 import { ISO_TAP_KINDS, METRIC_THREADS, threadLabel, buildIsoTap, isoTapCount, isoTapSvg } from './isoTaps.js';
 import {
   ISO_INTERNAL_TYPES, isoInternalBars, isoInternalVariants, isoInternalSizes, buildIsoInternalKnife, isoInternalCount,
-  isoThreadInsertsForBar,
+  isoThreadInsertsForBar, isoInnerGrooveWidths,
 } from './isoInternalTools.js';
 import { isoThreadInsertLabel } from './isoThreadInserts.js';
 
@@ -60,6 +60,7 @@ function savePrefs(p) {
 
 function shapeLabel(t) {
   if (t.special === 'parting') return t.round ? '▮ radiusový zápich' : t.long ? '▮ upichovací lišta, dlouhý dosah' : '▮ zapichovací';
+  if (t.special === 'grooving') return '▮ vnitřní zapichovací';
   if (t.special === 'threading') return '▽ závitová';
   if (t.special === 'drill') return '⌀ vrták';
   if (t.special === 'mill') return '✣ fréza';
@@ -113,6 +114,10 @@ export function mountIsoCatalog(root, opts) {
     if (isInternal(t)) {
       const bar = select('bar', isoInternalBars(t).map((b) => [b.d, `tyč ⌀${b.d} · díra od ⌀${b.dmin}`]), k.bar,
         'Vyvrtávací tyč — průměr a nejmenší díra, do které se tyč se špičkou vejde (Dmin)');
+      if (t.special === 'grooving') {
+        return bar + select('width', isoInnerGrooveWidths(k.bar).map((g) => [g.w, `š ${cz(g.w)} mm · R ${cz(g.r)} · dosah ${cz(g.a)}`]), k.width,
+          'Zapichovací destička — šířka; dosah = největší hloubka zápichu od stěny díry (poloměr)');
+      }
       if (t.special === 'threading') {
         return bar + select('thread', isoThreadInsertsForBar(k.bar).map((x) => [x.id, isoThreadInsertLabel(x, true)]), k.thread,
           'Vnitřní závitová destička (IR) — částečný profil 60° / 55° na rozsah stoupání, plný profil Tr / Acme jen na jedno stoupání');
@@ -206,7 +211,7 @@ export function mountIsoCatalog(root, opts) {
       </div>
       <div class="iso-cat-list">${visibleTypes().map(cardHTML).join('') || '<div class="iso-cat-empty">Pro tento dřík tu není žádný nůž.</div>'}</div>
       <div class="iso-cat-note">Dřík ${shank.h}×${shank.b}: l1 ${shank.l1} mm, u přesazených držáků f1 ${shank.f1} mm. Katalog umí ${isoCatalogCount()} kombinací vnějších nožů, ${isoInternalCount()} vnitřních, ${isoDrillCount()} vrtáků, ${isoMillCount()} fréz a ${isoTapCount()} závitníků.
-        Vnitřní nože mají místo dříku tyč ⌀ na kartě; CAM je zatím použije na vnitřní závit (vyvrtávání v CAM teprve bude).
+        Vnitřní nože mají místo dříku tyč ⌀ na kartě; CAM je použije na vyvrtávání (Hrub./Hot. + ◎ Vnitřní), zápich v díře (Upich + ◎ Vnitřní) a vnitřní závit.
         Rozměry držáků a tvar hlavy jsou <b>orientační</b> podle ISO 5608/5610 a typických katalogů — ověřte v katalogu výrobce.
         Po použití jde obrys upravit v 🔪 Geometrii.</div>`;
   }

@@ -11,8 +11,8 @@ import { applyPreDrillPlan } from '../ops/borePreDrill.js';
 import { camConfirm } from '../camSimulatorDialogs.js';
 import { attachSurfaceEvents } from './machSurface.js';
 
-export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange, draw, saveState, fullUpdate, applyShapeChange, applyTipMirrorToggle, canvas, showMagazineDialog, showThreadPickerDialog, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, partsActive, _isoDefaultMagSlots, markGCodeGenerated, _applyMagSlot }) {
-  attachSurfaceEvents({ tabBody, S, applyChange, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, _applyMagSlot });
+export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange, draw, saveState, fullUpdate, applyShapeChange, applyTipMirrorToggle, canvas, showMagazineDialog, showThreadPickerDialog, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, grooveEnsureBar, partsActive, _isoDefaultMagSlots, markGCodeGenerated, _applyMagSlot }) {
+  attachSurfaceEvents({ tabBody, S, applyChange, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, grooveEnsureBar, _applyMagSlot });
   tabBody.querySelectorAll('[data-tshape]').forEach(btn => {
     btn.addEventListener('click', () => applyShapeChange(btn.dataset.tshape));
   });

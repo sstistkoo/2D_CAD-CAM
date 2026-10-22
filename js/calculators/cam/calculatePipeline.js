@@ -504,8 +504,11 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     }
   }
 
-  // Dokončovací dráha — celá operace v ops/finish.js.
-  if (prms.doFinishing || prms.finishOnly) {
+  // Dokončovací dráha — celá operace v ops/finish.js. Zápich v díře
+  // (Upich + ◎ Vnitřní, ops/grooveInner.js) vnější obrys nedokončuje — tyč
+  // by se na něm jen falešně hlásila jako kolize držáku.
+  const grooveInnerOp = !!prms.partOffInner && prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
+  if ((prms.doFinishing || prms.finishOnly) && !grooveInnerOp) {
     finishOffsetPath = buildFinishPath({
       prms, clearance, contourSegments, preBridgeContour, machinableContour,
       rawContourForInterference, stockPathSegments, tipR,

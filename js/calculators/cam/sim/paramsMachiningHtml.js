@@ -10,6 +10,7 @@ import { getInsert } from '../inserts/index.js';
 import { computeThreadPassCuts } from '../threadHelpers.js';
 import { drillGeom, drillAutoFaceZ } from '../ops/drill.js';
 import { paramsBoreHtml } from './paramsBoreHtml.js';
+import { grooveInnerFieldsHtml } from './paramsGrooveHtml.js';
 import { SURFACE_TABS, surfaceInner, programInner } from './machSurface.js';
 
 /** @param ctx { S, escHTML, escAttr } */
@@ -55,8 +56,8 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
       <button data-side="right" class="${(prms.roughingSide || 'right') === 'right' ? 'cam-sim-active' : ''}" title="Zaber zprava doleva (standard)">← Zprava</button>
     </div>
     ${SURFACE_TABS.has(_machSubTab) ? `<div class="cam-sim-toggle-row">
-      <button data-surface="outer" class="${surfaceInner(prms, _machSubTab) ? '' : 'cam-sim-active'}" title="${_machSubTab === 'zavit' ? 'Vnější závit — přísuv z povrchu ⌀D dolů na dno profilu' : 'Vnější obrábění — obrys dílu zvenku (soustružnický nůž)'}">◯ Vnější</button>
-      <button data-surface="inner" class="${surfaceInner(prms, _machSubTab) ? 'cam-sim-active' : ''}" title="${_machSubTab === 'zavit' ? 'Vnitřní závit — přísuv z předvrtané díry ⌀(D−2H) nahoru na ⌀D' : 'Vnitřní obrábění — vyvrtávání díry vyvrtávací tyčí (tyč a předvrtání se vyberou samy)'}">◎ Vnitřní</button>
+      <button data-surface="outer" class="${surfaceInner(prms, _machSubTab) ? '' : 'cam-sim-active'}" title="${_machSubTab === 'zavit' ? 'Vnější závit — přísuv z povrchu ⌀D dolů na dno profilu' : _machSubTab === 'upich' ? 'Upichnutí / zápich zvenku — upichovák' : 'Vnější obrábění — obrys dílu zvenku (soustružnický nůž)'}">◯ Vnější</button>
+      <button data-surface="inner" class="${surfaceInner(prms, _machSubTab) ? 'cam-sim-active' : ''}" title="${_machSubTab === 'zavit' ? 'Vnitřní závit — přísuv z předvrtané díry ⌀(D−2H) nahoru na ⌀D' : _machSubTab === 'upich' ? 'Zápich v díře — vnitřní zapichovací tyčí ven od stěny díry, libovolná šířka (tyč se vybere sama)' : _machSubTab === 'hot' ? 'Jen dokončení v díře — díra vyhrubovaná s přídavky (vyvrtávací tyč se vybere sama)' : 'Vnitřní obrábění — vyvrtávání díry vyvrtávací tyčí (tyč a předvrtání se vyberou samy)'}">◎ Vnitřní</button>
     </div>` : ''}
     <div class="cam-sim-row">
       <div class="cam-sim-field"><label data-tooltip="Hrubovací offset = Rádius (R) + Přídavek X/Z + Přídavek na hotovo. Dokončovací offset = jen Rádius (R).">Přídavek na hotovo</label><input type="number" step="0.1" data-p="finishAllowance" value="${prms.finishAllowance}"></div>
@@ -221,13 +222,15 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
   } else if (_machSubTab === 'upich') {
     const _poActive = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
     const _shapeOk = prms.toolShape === 'round' || prms.toolShape === 'parting';
+    const _inner = !!prms.partOffInner;
     html += `<div class="cam-sim-row" style="align-items:flex-end">
-      <div class="cam-sim-field" style="flex:2"><label title="Upichnutí (part-off): klikni na canvas → v daném Z vznikne svislá úsečka kontury, kterou plátek obrobí zápichem s korekcí rádiusu a přídavky (jen kulatý / upichovací plátek). Prázdné = běžné zapichování/hrubování tvaru.">Upichnutí (part-off)</label>
+      <div class="cam-sim-field" style="flex:2"><label title="${_inner ? 'Zápich v díře: klikni na canvas → Z boku zápichu u ústí díry; šířka vede hlouběji do díry.' : 'Upichnutí (part-off): klikni na canvas → v daném Z vznikne svislá úsečka kontury, kterou plátek obrobí zápichem s korekcí rádiusu a přídavky (jen kulatý / upichovací plátek). Prázdné = běžné zapichování/hrubování tvaru.'}">${_inner ? 'Zápich v díře — bok u ústí' : 'Upichnutí (part-off)'}</label>
         <button data-act="partoff-pick" class="cam-sim-btn ${S.partOffPickMode ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="width:100%;font-size:11px;padding:5px 6px">${S.partOffPickMode ? '⊹ Klikni na canvas…' : (_poActive ? `✂️ Z=${parseFloat(prms.partOffZ).toFixed(2)} (změnit)` : '✂️ Ukázat bod')}</button>
       </div>
       <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="partoff-clear" class="cam-sim-btn cam-sim-btn-gray" style="width:100%;font-size:11px;padding:5px 6px" ${_poActive || S.partOffPickMode ? '' : 'disabled'} title="Zrušit upichnutí — zpět na zapichování/hrubování tvaru">✖ Zrušit</button></div>
     </div>
-    ${_poActive ? `${!_shapeOk ? `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#f38ba8">⚠ Upichnutí podporuje jen kulatý / upichovací plátek — přepni tvar plátku (dráhy se nevygenerují).</small>` : ''}
+    ${_poActive && _inner ? grooveInnerFieldsHtml(prms) : ''}
+    ${_poActive && !_inner ? `${!_shapeOk ? `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#f38ba8">⚠ Upichnutí podporuje jen kulatý / upichovací plátek — přepni tvar plátku (dráhy se nevygenerují).</small>` : ''}
     <div class="cam-sim-row">
       <div class="cam-sim-field"><label title="Dojezd: cílová radiální poloha SPODNÍ HRANY plátku. 0 = spodní hrana na osu (X0), 10 = hrana na X10. Střed pracovního rádiusu dojede na (Dojezd X + R).">Dojezd X</label><input type="number" step="0.1" data-p="allowanceX" value="${prms.allowanceX}"></div>
       <div class="cam-sim-field"><label title="Start X: radiální poloha SPODNÍ HRANY, kam se z povrchu polotovaru dojede RYCHLOPOSUVEM a teprve odtud jede posuv (užitečné v kapse — nástroj dojede blíž k ose bez řezání). 0 = zápich začne od povrchu polotovaru.">Start X</label><input type="number" step="0.1" data-p="partOffStartX" value="${prms.partOffStartX}"></div>

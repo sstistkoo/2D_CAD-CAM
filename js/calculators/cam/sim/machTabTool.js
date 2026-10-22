@@ -132,9 +132,13 @@ export async function machTabClick(tab, ctx) {
   if (tab === 'upich') {
     ctx.pushHistory();
     S.params.threadActive = false; S.params.boreActive = false;
-    const picked = ctx.autoPickToolFor('partoff');
+    // ◎ Vnitřní (zápich v díře) = zapichovací tyč, jinak upichovák.
+    const inner = !!S.params.partOffInner;
+    const picked = ctx.autoPickToolFor(inner ? 'groovein' : 'partoff');
     ctx.setMachiningSubTab('upich');
-    showToast(`Upichnutí${picked.msg || ' — upichovák'} · bod upichnutí naklikněte v záložce`, 4000);
+    showToast(inner
+      ? `Zápich v díře${picked.msg || ' — zapichovací tyč'} · bok zápichu u ústí naklikněte v záložce`
+      : `Upichnutí${picked.msg || ' — upichovák'} · bod upichnutí naklikněte v záložce`, 4000);
     ctx.applyChange({ cycle: true });
     return true;
   }

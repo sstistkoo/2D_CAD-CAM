@@ -240,6 +240,21 @@ protější stěny díry. Kde se nevejde, dráha se nevydá a nahlásí se.**
   (stěna Ph + Přídavek X, dno Ph + Přídavek Z). Tyč se musí vejít do
   vyhrubované díry — protější stěna = nejužší místo vyhrubované díry od
   ústí po špičku. Kde se nevejde, dráha se nevydá a nahlásí se.
+- **Zápich v díře (Upich + ◎ Vnitřní)** ✅ schválil uživatel 22. 10. 2026
+  = vnější Upich v zrcadle: zápich **ven** od stěny díry vnitřní zapichovací
+  tyčí. Z roviny (naklikaná jako u upichu) = bok zápichu blíž k ústí díry,
+  **Šířka zápichu** vede od ní hlouběji do díry; Dojezd = ⌀ dna zápichu
+  (větší než díra). Šířka libovolná: zápichy vedle sebe s krokem nejvýš
+  šířka destičky (překryv), boky a dno nechají Přídavek na hotovo;
+  dokončení (se zapnutou dokončovací operací) jede po prvním boku na dno,
+  po dně ke druhému boku a po něm zpátky ke stěně díry. Šířka ≤ šířka
+  destičky = jeden zápich jako u upichu. Peckování / plynulý zápich jako
+  u upichu.
+  Díra = hotový ⌀ díry z Hrub./Hot. + ◎ Vnitřní, jinak předvrtání. Tyč se
+  musí vejít: Dmin tyče ≤ ⌀ díry a hloubka zápichu (Dojezd − ⌀ díry)/2 ≤
+  dosah destičky v tyči. Pohyb: rychloposuvem do díry k ose → na Z → ke
+  stěně → zápich → zpět k ose → ven z díry. Kde se nevejde, dráha se
+  nevydá a nahlásí se.
 - **Dno díry čelně** (návrh 9. 10. 2026, ke schválení uživatelem): u vyvrtávání
   z plného s kuželem špičky se po podélné fázi dno (prstenec + kužel) dobere
   čelním hrubováním v témže zrcadle, od osy ven, tenkými vrstvami (tloušťka ≤

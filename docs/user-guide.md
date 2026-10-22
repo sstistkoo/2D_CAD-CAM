@@ -897,13 +897,45 @@ Vynechaný kus hlásí panel ⚠ větou **„Dokončování: … řetěz(ů) za�
 **◯ Vnější / ◎ Vnitřní** — říká, kde se obrábí, a patří k záložce operace:
 **Hrub. + ◎ Vnitřní** = vyvrtávání díry vyvrtávací tyčí (dřív samostatná
 záložka Vyvrt.; tyč a předvrtání se vyberou samy, viz *Vyvrtávání* níž),
+**Hot. + ◎ Vnitřní** = jen dokončení stěny díry (viz níž),
+**Upich + ◎ Vnitřní** = zápich v díře (viz níž),
 **Závit + ◎ Vnitřní** = vnitřní závit (destička IR v tyči). Přepínač čte
 přímo nastavení operace, takže ukazuje vždy to, co program opravdu dělá
 (i závit načtený z výkresu jako vnitřní). **◯ Vnější** vyvrtávání vypne
-a vrátí naposledy použitý vnější nůž. U **Hot.** a **Upich** se přepínač
-neukazuje — dokončení a zapichování uvnitř díry generátor zatím neumí
-(dokončení stěny díry je zaškrtávátko v Hrub. + ◎ Vnitřní); u **Vrtání**
-a **Frézování** nemá smysl.
+a vrátí naposledy použitý vnější nůž (u Upich upichovák). U **Vrtání**
+a **Frézování** přepínač nemá smysl.
+
+**Jen dokončení v díře (Hot. + ◎ Vnitřní).** Jeden dokončovací průchod
+po stěně díry (sražení, schody, dno) bez hrubování a bez předvrtání
+vrtákem — jako vnější Hot., jen v zrcadle (pravidlo 13). Počítá s dírou
+**vyhrubovanou předchozí operací s přídavky**: stěna je o Ph + Přídavek X
+a dno o Ph + Přídavek Z menší než hotový obrys. Dokončovací tyč se musí
+vejít do nejužšího místa vyhrubované díry (ne do předvrtání), jinak se
+dráha nevydá a ⚠ to nahlásí. Typický postup: část 1 Hrub. + ◎ Vnitřní,
+část 2 Hot. + ◎ Vnitřní s jemnější tyčí. Pole díry (tvar, ⌀, délka) jsou
+stejná jako u vyvrtávání.
+
+**Zápich v díře (Upich + ◎ Vnitřní).** Zápich **ven** od stěny díry
+vnitřní zapichovací tyčí (📚 katalog → Vnitřní (do díry) → vnitřní
+zapichovací; přepnutím na ◎ se vybere sama — ze 🔧 Zásobníku, jinak
+nejtlustší tyč z katalogu, která se do díry vejde). Pravidlo 13: vnější
+Upich v zrcadle.
+
+1. **✂️ Ukázat bod** → klik na **bok zápichu u ústí díry** (Z bok u ústí).
+2. **Šířka zápichu** vede od boku hlouběji do díry; 0 = šířka destičky
+   (jeden zápich). Širší zápich = víc zápichů vedle sebe s krokem nejvýš
+   0,8 × šířka destičky.
+3. **Dno X** = poloměr vnější hrany destičky na dně (za stěnou díry).
+   Hloubka zápichu smí být nejvýš **dosah** destičky v tyči (čip na kartě).
+4. **⌀ díry** 0 = automaticky: hotový ⌀ z vyvrtávání, jinak předvrtání.
+
+Boky nechají Přídavek Z + Přídavek na hotovo, dno Přídavek na hotovo.
+S **Dokončovací operací** jede tyč po prvním boku na dno, po dně ke
+druhému boku a po něm zpátky ke stěně. Plynulý zápich / peckování jako
+u upichu (výjezdy jen ke stěně díry). Do díry i ven jede tyč osou díry
+(před ústí → k ose → na Z), nikdy šikmo přes stěnu. Když se tyč do díry
+nevejde nebo zápich přesáhne dosah, dráha se nevydá a pod poli i v ⚠ je
+důvod.
 
 **Proč se negenerují hrubovací dráhy?** Pět nastavení hrubování přebíjí, a
 každé sedí v jiné záložce: **Závit** (aktivní závitování), **Upich**
@@ -1543,6 +1575,7 @@ s rozumným vyložením ocelové tyče (4×⌀). Ruka R/L nahoře platí.
 | S..-PDUNR / SDUCR | D 55° (DNMG od ⌀20 / DCMT) | 93° | kopírování v díře, zanoření do ~30° |
 | S..-PDQNR / SDQCR | D 55° | 107,5° | kopírování se zpětným záběrem |
 | S..-SVUBR | V 35° (VBMT, od ⌀16) | 93° | jemné kopírování, úzká vybrání |
+| GIR / GIL | zapichovací š 1,5–5 mm | — | zápich v díře (dosah 2,5–6 mm, od ⌀16) |
 | SNR / SNL | 11–27IR (stejná řada jako ER) | — | vnitřní závit |
 
 | Tyč ⌀ | 10 | 12 | 16 | 20 | 25 | 32 | 40 | 50 | 63 | 80 |
@@ -1555,7 +1588,9 @@ Negativní destička (upnutí páčkou) se do hlavy vejde až od tyče ⌀20;
 destička nesmí vyčnívat nad tyč víc než 1,5 mm (proto V16 až od ⌀25).
 Náhled kreslí tyč tak, jak jde v díře podél osy (destička u stěny díry,
 tyč vede ven z díry). Vnitřní nože jdou do zásobníku a použije je
-**Hrub. + ◎ Vnitřní** (vyvrtávání) a **Závit + ◎ Vnitřní** (vnitřní závit).
+**Hrub. / Hot. + ◎ Vnitřní** (vyvrtávání), **Upich + ◎ Vnitřní** (zápich v díře)
+a **Závit + ◎ Vnitřní** (vnitřní závit). Zapichovací tyč: ⌀16 dosah 2,5 mm
+(š 1,5–2), ⌀20 → 3 (š 1,5–3), ⌀25 → 4 (š 2–4), ⌀32 → 5 (š 2–5), ⌀40–80 → 6 (š 3–5).
 Rozměry jsou **orientační** — data
 v `js/calculators/isoInternalTools.js`.
 

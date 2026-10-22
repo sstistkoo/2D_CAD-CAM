@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ISO_INTERNAL_TYPES, ISO_BARS, isoInternalBars, isoInternalVariants, isoInternalSizes,
-  buildIsoInternalKnife, isoInternalCount, isoThreadInsertsForBar,
+  buildIsoInternalKnife, isoInternalCount, isoThreadInsertsForBar, isoInnerGrooveWidths,
 } from '../js/calculators/isoInternalTools.js';
 import { isoRadii } from '../js/calculators/isoToolCatalog.js';
 import { isoThreadTooth, isoThreadInsertByCode } from '../js/calculators/isoThreadInserts.js';
@@ -21,6 +21,7 @@ function allCombos() {
   for (const t of ISO_INTERNAL_TYPES) {
     for (const b of isoInternalBars(t)) {
       if (t.special === 'threading') { isoThreadInsertsForBar(b.d).forEach((th) => out.push([t.id, { bar: b.d, thread: th.id }])); continue; }
+      if (t.special === 'grooving') { isoInnerGrooveWidths(b.d).forEach((g) => out.push([t.id, { bar: b.d, width: g.w }])); continue; }
       for (const variant of isoInternalVariants(t, b.d)) {
         for (const size of isoInternalSizes(t, variant, b.d)) {
           isoRadii(t, size).forEach((radius) => out.push([t.id, { bar: b.d, variant, size, radius }]));

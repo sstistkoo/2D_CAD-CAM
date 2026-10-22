@@ -6,7 +6,7 @@
 import { arcSteps } from '../camMath.js';
 import { partOffGeom } from '../threadHelpers.js';
 import { elapsedAtProgress } from '../feedRates.js';
-import { drawHolderProfileLocal, drawThreadingInsert, drawPolygonInsert, PARTING_BODY_MIN_H_MM, drawDrillTool } from '../insertPreview.js';
+import { drawHolderProfileLocal, drawThreadingInsert, drawPolygonInsert, partingBodyMinH, drawDrillTool } from '../insertPreview.js';
 
 /** @param f snímek kreslení z drawCanvas(): { S, ctx, calc, prms, C, toScreen, getGNodes, _draggingPartOff, motionOverlay, preDrillPhase, showMotionInfo, simTimeProfile, toolMirrored, getHolderGouge, getContourGouge } */
 export function drawToolpathLayer(f) {
@@ -186,7 +186,8 @@ export function drawToolpathLayer(f) {
     const preTool = preDrillPhase(calc);
     const drillNow = !!preTool && floatIndex < preTool.iSplit;
     const tp = drillNow ? preTool.params : prms;
-    const boreView = !drillNow && !!S.params.boreActive;
+    // Vyvrtávání i zápich v díře (Upich + ◎ Vnitřní): tyč leží v díře, nůž k ose.
+    const boreView = !drillNow && (!!S.params.boreActive || (!!S.params.partOffInner && S.params.partOffZ != null));
     const pCurrent = calc.simPath[idx];
     if (pCurrent) {
       const pNext = calc.simPath[Math.min(idx + 1, totalPoints - 1)] || pCurrent;
@@ -321,7 +322,7 @@ export function drawToolpathLayer(f) {
         const w2 = wPix - 2 * r;                   // rovná část spodního ostří
         // Stejná mm-výška jako v dialogu "⚙️ Geometrie" (PARTING_BODY_MIN_H_MM),
         // aby plátek vypadal stejně vysoký v simulaci i v náhledu geometrie.
-        const bodyH = Math.max(wPix * 0.6, r + PARTING_BODY_MIN_H_MM * S.view.scale);
+        const bodyH = Math.max(wPix * 0.6, r + partingBodyMinH(tp) * S.view.scale);
         ctx.save(); ctx.translate(pt.x, pt.y);
         // Zrcadlení: strana obrábění (zleva = otočený plátek) XOR flipZ
         // vodorovně; flipX svisle — ladí s vS/hS v toScreen.

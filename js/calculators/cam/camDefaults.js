@@ -101,6 +101,13 @@ export function _defaultCamParams() {
     // z povrchu polotovaru se sem dojede RYCHLOPOSUVEM (kapsa/volno) a teprve
     // odtud jede posuv. 0 = neaktivní (zápich začíná od povrchu polotovaru).
     partOffStartX: 0,
+    // Zápich v díře (Upich + ◎ Vnitřní, ops/grooveInner.js, pravidlo 13):
+    // partOffZ = bok u ústí, šířka hlouběji do díry (0 = šířka destičky),
+    // dno = poloměr vnější hrany destičky, ⌀ díry 0 = z vyvrtávání/předvrtání.
+    partOffInner: false,
+    grooveWidth: 0,
+    grooveBottomX: 0,
+    grooveHoleD: 0,
     finishingSlot: null,  // index do toolMagazine pro dokončování (null = stejný nástroj)
     // ── Závitování (záložka „Závit") ──
     // Aktivní = generuje se závitovací cyklus (G33/G32 průchody) místo

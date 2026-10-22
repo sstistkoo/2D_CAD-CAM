@@ -108,19 +108,24 @@ describe('záložka Frézování → část programu', () => {
 });
 
 describe('◯ Vnější / ◎ Vnitřní', () => {
-  it('jen u Hrub. a Závitu', () => {
-    expect([...SURFACE_TABS].sort()).toEqual(['hrub', 'zavit']);
+  it('u Hrub., Hot., Upich a Závitu (ne u Vrtání a Frézování)', () => {
+    expect([...SURFACE_TABS].sort()).toEqual(['hot', 'hrub', 'upich', 'zavit']);
   });
-  it('čte parametr operace: Hrub. = vyvrtávání, Závit = vnitřní závit', () => {
+  it('čte parametr operace: Hrub./Hot. = vyvrtávání, Závit = vnitřní závit', () => {
     expect(surfaceInner({ boreActive: true }, 'hrub')).toBe(true);
     expect(surfaceInner({ boreActive: false }, 'hrub')).toBe(false);
     expect(surfaceInner({ threadExternal: false }, 'zavit')).toBe(true);
     expect(surfaceInner({}, 'zavit')).toBe(false);                     // výchozí vnější
-    expect(surfaceInner({ boreActive: true }, 'hot')).toBe(false);
+    expect(surfaceInner({ boreActive: true }, 'hot')).toBe(true);     // jen dokončení v díře
+    expect(surfaceInner({ boreActive: false }, 'hot')).toBe(false);
+    expect(surfaceInner({ boreActive: true }, 'upich')).toBe(false);
+    expect(surfaceInner({ partOffInner: true }, 'upich')).toBe(true);     // zápich v díře
   });
   it('čip souhrnu: program uvnitř díry', () => {
     expect(programInner({ boreActive: true })).toBe(true);
     expect(programInner({ threadActive: true, threadExternal: false })).toBe(true);
     expect(programInner({ threadActive: false, threadExternal: false })).toBe(false);
+    expect(programInner({ partOffZ: -10, partOffInner: true })).toBe(true);
+    expect(programInner({ partOffZ: null, partOffInner: true })).toBe(false);
   });
 });

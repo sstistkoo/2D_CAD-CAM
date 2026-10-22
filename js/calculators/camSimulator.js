@@ -2596,14 +2596,14 @@ export function openCamSimulator(initialContour, initialGCode) {
     dropInsertGuides, applyParamChange, applyShapeChange, setMachiningSubTab, afterToolChange,
     applyAfterToolChange, applyTipMirrorToggle, _resortToolMagazineToDefaults, _reorderMagazine, _polygonForStrategy,
     _applyMagSlot, _loadMagSlot, _rememberShapeKnife, _loadShapeKnife, _loadPresetKnife,
-    _slotToParams, autoPickToolFor, boreEnsureBar, boreHoleSolid, boreEnsurePreDrill,
+    _slotToParams, autoPickToolFor, boreEnsureBar, grooveEnsureBar, boreHoleSolid, boreEnsurePreDrill,
     boreTakePreHoleFromDrill, _syncParamsToSlot, _paramsIntoSlot, flushMagSlotEdit, saveCurrentToolToMagazine,
   } = createKnives({ S, toolUi, applyChange, renderTab, withBusy, gcodeStale, pathInputsKey, fullUpdate, saveState, pushHistory });
 
   function attachParamsEvents() {
     // → cam/sim/paramsEventsGeneral.js + paramsEventsMachining.js
     const ctx = {
-      tabBody, S, renderTab, setMachiningSubTab, applyChange, recalcNow, draw, saveState, gcodeStale, convertGCodeControlSystem, pathInputsKey, fullUpdate, applyParamChange, _polygonForStrategy, toolbar, dropInsertGuides, applyShapeChange, applyTipMirrorToggle, canvas, showMagazineDialog, showThreadPickerDialog, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, partsActive, _isoDefaultMagSlots, markGCodeGenerated, _applyMagSlot, handleAddOperation, _isoMagSlot,
+      tabBody, S, renderTab, setMachiningSubTab, applyChange, recalcNow, draw, saveState, gcodeStale, convertGCodeControlSystem, pathInputsKey, fullUpdate, applyParamChange, _polygonForStrategy, toolbar, dropInsertGuides, applyShapeChange, applyTipMirrorToggle, canvas, showMagazineDialog, showThreadPickerDialog, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, grooveEnsureBar, partsActive, _isoDefaultMagSlots, markGCodeGenerated, _applyMagSlot, handleAddOperation, _isoMagSlot,
     };
     attachParamsEventsGeneral(ctx);
     attachParamsEventsMachining(ctx);
@@ -4313,14 +4313,14 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.params.partOffZ = Math.round(wz * 1000) / 1000;
         S.partOffPickMode = false;
         S.params.drillActive = false; S.params.boreActive = false;   // jeden cyklus na program (vrtání/vyvrtávání by upich schovalo)
-        const picked = autoPickToolFor('partoff').msg;
+        const picked = autoPickToolFor(S.params.partOffInner ? 'groovein' : 'partoff').msg;   // zápich v díře = zapichovací tyč
         // Horní bod úsečky (Start X) předvyplnit povrchem polotovaru — jen když
         // ještě není nastavený (uživatel ho pak může přetáhnout níž do kapsy).
-        if (!(parseFloat(S.params.partOffStartX) > 0)) {
+        if (!S.params.partOffInner && !(parseFloat(S.params.partOffStartX) > 0)) {
           const stTop = (S._cachedCalc && parseFloat(S._cachedCalc.stockTopX)) || (parseFloat(S.params.stockDiameter) || 0) / 2;
           if (stTop > 0) S.params.partOffStartX = Math.round(stTop * 100) / 100;
         }
-        showToast(`Upichnutí v Z=${S.params.partOffZ.toFixed(2)}${picked}${S.gcodeDirty ? ' — program má ruční úpravy, cyklus vygeneruj přes 🔄 Dráhy' : ''}`);
+        showToast(`${S.params.partOffInner ? 'Zápich v díře (bok u ústí)' : 'Upichnutí'} v Z=${S.params.partOffZ.toFixed(2)}${picked}${S.gcodeDirty ? ' — program má ruční úpravy, cyklus vygeneruj přes 🔄 Dráhy' : ''}`);
         // Zapnutí režimu → cyklus se projeví hned (pokud v programu nejsou
         // ruční úpravy, které mají přednost).
         applyChange({ cycle: true });

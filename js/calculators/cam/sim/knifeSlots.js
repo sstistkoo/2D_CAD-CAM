@@ -7,7 +7,7 @@ import { showToast } from '../../../state.js';
 import { pointInLoop } from '../../../geom/geomCore.js';
 import { defaultMagazineKnives, presetKnifeForShape, presetSlotIndex, sameKnifeGeometry } from '../../magazineDefaults.js';
 import { isoThreadInsertByCode, isoThreadInsertHint, threadInsertFitsPitch, threadInsertFitsSide } from '../../isoThreadInserts.js';
-import { isoInternalThreadHint, isoBarFitsHole, isoBoringBarDiameter, buildIsoInternalKnife, isoInternalBars, isoInternalTypeById } from '../../isoInternalTools.js';
+import { isoInternalThreadHint, isoBarFitsHole, isoBoringBarDiameter, buildIsoInternalKnife, isoInternalBars, isoInternalTypeById, isoGroovingBar } from '../../isoInternalTools.js';
 import { getInsert } from '../inserts/index.js';
 import { buildStockLoopRaw } from '../materialRemoval.js';
 import { holderInflate, holderInflateAll } from '../collisionValidator.js';
@@ -214,10 +214,19 @@ export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpd
           ? `v zásobníku není ${what} a do díry ⌀${cz(hole)} se tyč z 📚 ISO katalogu nevejde (nejmenší potřebuje ⌀${r.holeMin})`
           : `v zásobníku není ${what} a 📚 ISO katalog ho nemá — nakresli vlastní ▽ nůž`;
     } else if (op === 'partoff') {
-      if (S.params.toolShape === 'parting') return same;
-      idx = mag.findIndex(s => s.shape === 'parting');
+      // Vnější upich: upichovák, ne vnitřní zapichovací tyč.
+      if (S.params.toolShape === 'parting' && S.params.toolInternal !== true) return same;
+      idx = mag.findIndex(s => s.shape === 'parting' && s.internal !== true);
       if (idx < 0 && S.params.toolShape === 'round') return same;
       missing = 'v zásobníku není upichovák — přidej ho z 🧰 Knihovna → 📚 ISO katalog';
+    } else if (op === 'groovein') {
+      // Zápich v díře (ops/grooveInner.js): vnitřní zapichovací tyč, která
+      // se vejde do díry; z vhodných nejtlustší (největší dosah).
+      const D = grooveHoleDiameter();
+      const ok = (name) => { const b = isoGroovingBar(name); return b !== null && isoBarFitsHole(b.d, D); };
+      if (ok(S.params.toolName)) return same;
+      mag.forEach((s, i) => { if (ok(s.name) && (idx < 0 || isoGroovingBar(s.name).d > isoGroovingBar(mag[idx].name).d)) idx = i; });
+      missing = `v zásobníku není vnitřní zapichovací tyč do díry ⌀${D} — přidej ji z 🧰 Knihovna → 📚 ISO katalog → Vnitřní (do díry)`;
     } else if (op === 'drill') {
       if (getInsert(S.params).canDrill) return same;
       idx = mag.findIndex(s => s.shape === 'drill');
@@ -249,6 +258,28 @@ export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpd
     const bars = isoInternalBars(isoInternalTypeById('BCL')).filter(b => isoBarFitsHole(b.d, d0)).sort((a, b) => b.d - a.d);
     const rec = bars.length ? buildIsoInternalKnife('BCL', { bar: bars[0].d }) : null;
     if (!rec) return r.msg;
+    if (!Array.isArray(S.toolMagazine)) S.toolMagazine = [];
+    const num = S.toolMagazine.length > 0 ? Math.max(...S.toolMagazine.map(t => t.slot || 0)) + 1 : 1;
+    S.toolMagazine.push(_isoMagSlot(rec, num));
+    _loadMagSlot(S.toolMagazine.length - 1);
+    return ` — tyč ${rec.name} přidána z 📚 katalogu do 🔧 Zásobníku jako T${num}`;
+  }
+
+  /** ⌀ díry pro zápich v díře: ruční, jinak vyvrtávání, jinak předvrtání. */
+  function grooveHoleDiameter() {
+    const p = S.params;
+    return parseFloat(p.grooveHoleD) || parseFloat(p.boreDiameter) || parseFloat(p.borePreDiameter) || 0;
+  }
+
+  /** Zápich v díře: tyč ze 🔧 Zásobníku, jinak nejtlustší vhodná z 📚 katalogu. @returns doplněk toastu */
+  function grooveEnsureBar() {
+    const r = autoPickToolFor('groovein');
+    if (r.changed || !/⚠/.test(r.msg)) return r.msg;
+    const D = grooveHoleDiameter();
+    if (!(D > 0)) return r.msg;
+    const bars = isoInternalBars(isoInternalTypeById('BGI')).filter(b => isoBarFitsHole(b.d, D)).sort((a, b) => b.d - a.d);
+    const rec = bars.length ? buildIsoInternalKnife('BGI', { bar: bars[0].d }) : null;
+    if (!rec) return ` ⚠ do díry ⌀${D} se žádná zapichovací tyč z 📚 katalogu nevejde`;
     if (!Array.isArray(S.toolMagazine)) S.toolMagazine = [];
     const num = S.toolMagazine.length > 0 ? Math.max(...S.toolMagazine.map(t => t.slot || 0)) + 1 : 1;
     S.toolMagazine.push(_isoMagSlot(rec, num));
@@ -384,6 +415,6 @@ export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpd
     showToast(`Nůž (destička + držák) uložen do zásobníku jako T${slot.slot}`);
   }
   return {
-    _resortToolMagazineToDefaults, _reorderMagazine, _polygonForStrategy, _applyMagSlot, _loadMagSlot, _rememberShapeKnife, _loadShapeKnife, _loadPresetKnife, _slotToParams, autoPickToolFor, boreEnsureBar, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, _syncParamsToSlot, _paramsIntoSlot, flushMagSlotEdit, saveCurrentToolToMagazine,
+    _resortToolMagazineToDefaults, _reorderMagazine, _polygonForStrategy, _applyMagSlot, _loadMagSlot, _rememberShapeKnife, _loadShapeKnife, _loadPresetKnife, _slotToParams, autoPickToolFor, boreEnsureBar, grooveEnsureBar, grooveHoleDiameter, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, _syncParamsToSlot, _paramsIntoSlot, flushMagSlotEdit, saveCurrentToolToMagazine,
   };
 }

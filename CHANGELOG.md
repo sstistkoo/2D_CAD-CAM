@@ -9,13 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM: zápich v díře (Upich + ◎ Vnitřní).** Zápich ven od stěny díry
+  vnitřní zapichovací tyčí, libovolná šířka: zápichy vedle sebe s krokem
+  ≤ 0,8 × šířka destičky, boky a dno s přídavky, dokončení bok → dno →
+  bok. Díra z vyvrtávání / předvrtání (nebo ruční ⌀), tyč se musí vejít
+  a hloubka ≤ dosah destičky; nájezd i výjezd osou díry. Nový typ
+  📚 katalogu **vnitřní zapichovací tyč** (GIR/GIL ⌀16–80, š 1,5–5 mm,
+  dosah 2,5–6 mm); přepnutím na ◎ se tyč vybere sama. Doplnění pravidla 13
+  schválené 22. 10. 2026. Moduly `cam/ops/grooveInner.js`,
+  `cam/sim/paramsGrooveHtml.js`, test `tests/cam-groove-inner.test.js`.
+
+- **CAM: jen dokončení v díře (Hot. + ◎ Vnitřní).** Jeden dokončovací
+  průchod vyvrtávací tyčí po stěně díry bez hrubování a bez předvrtání
+  vrtákem (`finishOnly`, `cam/ops/bore.js` + `cam/ops/boreFinish.js`). Polotovar díry = hotový obrys
+  zmenšený o přídavky (díra vyhrubovaná předchozí operací); tyč se musí
+  vejít do nejužšího místa vyhrubované díry. Doplnění pravidla 13
+  schválené 22. 10. 2026. Test `tests/cam-bore-finish-only.test.js`.
+
 - **CAM: Obrábění ◯ Vnější / ◎ Vnitřní a samostatná záložka Frézování.**
   Pod Zleva / Zprava přepínač Vnější / Vnitřní místo záložky „Vyvrt.":
   Hrub. + ◎ Vnitřní = vyvrtávání tyčí (tyč a předvrtání se vyberou samy,
   ◯ Vnější vrátí naposledy použitý vnější nůž), Závit + ◎ Vnitřní =
   vnitřní závit (přepínač ze záložky Závit se přesunul sem). Přepínač čte
-  parametr operace, nemá vlastní stav; u Hot. a Upich se neukazuje
-  (vnitřní dokončení a zapichování generátor zatím neumí). Frézování
+  parametr operace, nemá vlastní stav. Frézování
   z výkresu (kapsy, drážky, pera) má vlastní záložku za Vrtáním a vlastní
   část programu jen s frézami (`liveKind: 'mill'`, `liveModel.liveRunOps`);
   část Vrtání má v bloku jen díry. Moduly `cam/sim/machSurface.js`,

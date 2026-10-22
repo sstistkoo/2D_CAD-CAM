@@ -23,7 +23,7 @@ import {
   isoClearanceLetter, isoInsertClearance, ISO_HOLDER_GEOM,
 } from './isoToolCatalog.js';
 import { ISO_THREAD_INSERTS, isoThreadTooth, isoThreadInsertsForPitch } from './isoThreadInserts.js';
-import { buildInsertProfileSegments, buildInsertOutlineSegments } from './cam/insertPreview.js';
+import { buildInsertProfileSegments, buildInsertOutlineSegments, PARTING_BODY_INNER_H_MM } from './cam/insertPreview.js';
 import { segPoints } from './knifeThumb.js';
 import { SHAPES, sizeInfo, RADIUS_MM } from './vbdIso.js';
 
@@ -50,6 +50,29 @@ const THREAD_BAR_FIT = { 10: [11], 12: [11], 16: [11, 16], 20: [11, 16], 25: [16
 /** Páčka negativní destičky (upnutí P) se do hlavy vejde až od tyče ⌀20. */
 const NEG_MIN_D = 20;
 const RELIEF_MAIN_DEG = 3;   // čelo tyče za hlavní hranou (jako levý bok vnějších držáků)
+/**
+ * Vnitřní zapichovací tyče (22. 10. 2026, zápich v díře — pravidlo 13):
+ * šířky destiček do tyče ⌀d a dosah a = největší hloubka zápichu (poloměr)
+ * od stěny díry. Dmin tyče ≥ d + a (tyč i destička se vejdou). Rozměry
+ * ORIENTAČNÍ (typické řady výrobců).
+ */
+const GROOVE_BAR_FIT = {
+  16: { w: [1.5, 2], a: 2.5 }, 20: { w: [1.5, 2, 2.5, 3], a: 3 }, 25: { w: [2, 2.5, 3, 4], a: 4 },
+  32: { w: [2, 3, 4, 5], a: 5 }, 40: { w: [3, 4, 5], a: 6 }, 50: { w: [3, 4, 5], a: 6 },
+  63: { w: [3, 4, 5], a: 6 }, 80: { w: [3, 4, 5], a: 6 },
+};
+/** Rohový rádius zapichovací destičky podle šířky. */
+const grooveInsertR = (w) => (w <= 1.5 ? 0.1 : w <= 3 ? 0.2 : 0.4);
+/** Šířky zapichovacích destiček do tyče ⌀d → [{ w, r, a, code }]. */
+export function isoInnerGrooveWidths(d) {
+  const fit = GROOVE_BAR_FIT[Number(d)];
+  return fit ? fit.w.map((w) => ({ w, r: grooveInsertR(w), a: fit.a, code: `GI${String(Math.round(w * 100)).padStart(3, '0')}-R${grooveInsertR(w)}` })) : [];
+}
+/** Vnitřní zapichovací tyč ze jména („GIR20S-3-A3" → { d: 20, w: 3, a: 3 }), jinak null. */
+export function isoGroovingBar(name) {
+  const m = /^GI[RL](\d{2})[A-Z]-([\d.]+)-A([\d.]+)$/.exec(String(name || '').trim());
+  return m ? { d: Number(m[1]), w: Number(m[2]), a: Number(m[3]) } : null;
+}
 
 export const ISO_INTERNAL_TYPES = [
   { id: 'BCL', shape: 'C', style: 'L', kr: 95, neg: 'P', pos: 'S',
@@ -62,6 +85,8 @@ export const ISO_INTERNAL_TYPES = [
     desc: 'Kopírování v díře se zpětným záběrem (κr 107,5°) — vyjede i z vybrání směrem ven.' },
   { id: 'BVU', shape: 'V', style: 'U', kr: 93, pos: 'S', minD: 16,
     desc: 'Jemné kopírování v díře (κr 93°), V 35° — úzká vybrání, zanoření do ~50°.' },
+  { id: 'BGI', special: 'grooving',
+    desc: 'Vnitřní zápich — kulatá tyč se zapichovací destičkou š 1,5–5 mm; zápich ven od stěny díry, širší zápich víc zápichy vedle sebe.' },
   { id: 'BTH', special: 'threading',
     desc: 'Vnitřní závit — kulatá tyč SNR s laydown destičkou 11–27IR: 60° / 55° na rozsah stoupání, Tr a Acme na jedno stoupání.' },
 ];
@@ -121,6 +146,7 @@ export function isoInternalThreadHint(angle, P, holeD = Infinity) {
  */
 export function isoInternalSizes(type, variant, d) {
   const bar = barOf(d);
+  if (type.special) return [];   // závitová / zapichovací tyč nemá polygonální destičku
   if (!bar || (type.minD && bar.d < type.minD) || (variant === 'neg' && bar.d < NEG_MIN_D)) return [];
   const eps = SHAPES.find((s) => s.v === type.shape).angle;
   return isoSizesByIc(type, variant, bar.ic[0], bar.ic[1]).filter((size) => {
@@ -133,6 +159,7 @@ export function isoInternalSizes(type, variant, d) {
 /** Varianty (neg/pos), pro které má tyč aspoň jednu destičku. */
 export function isoInternalVariants(type, d) {
   if (type.special === 'threading') return isoThreadInsertsForBar(Number(d)).length ? ['neg'] : [];
+  if (type.special === 'grooving') return isoInnerGrooveWidths(d).length ? ['neg'] : [];
   return ['neg', 'pos'].filter((v) => isoInternalSizes(type, v, d).length > 0);
 }
 
@@ -147,6 +174,7 @@ export function isoInternalCount() {
   for (const t of ISO_INTERNAL_TYPES) {
     for (const b of isoInternalBars(t)) {
       if (t.special === 'threading') { n += isoThreadInsertsForBar(b.d).length; continue; }
+      if (t.special === 'grooving') { n += isoInnerGrooveWidths(b.d).length; continue; }
       for (const v of isoInternalVariants(t, b.d)) {
         for (const sz of isoInternalSizes(t, v, b.d)) n += isoRadii(t, sz).length;
       }
@@ -196,6 +224,20 @@ function threadingBarHolder(prms, bar) {
   return [{ x: xL, z: zLo }, { x: bar.l1, z: zLo }, { x: bar.l1, z: zHi }, { x: xL, z: zHi }];
 }
 
+/**
+ * Obrys zapichovací tyče: destička (šířka w, dosah a od stěny) na konci
+ * kulaté tyče, krk šířky destičky (o 0,1 mm užší z každé strany) vede od
+ * těla destičky k tyči. Profil: +z k ose díry, +x podél tyče ven z díry.
+ */
+function groovingBarHolder(prms, bar, a) {
+  const w = prms.toolLength, r = Math.min(prms.toolRadius, w / 2);
+  const zBody = Math.max(w * 0.6, r + PARTING_BODY_INNER_H_MM) - r;   // vrch těla destičky (jako insertPreview)
+  const zLo = Math.max(zBody + 0.3, a - r);                     // bližší strana tyče
+  const xL = -r + 0.1, xR = w - r - 0.1;
+  return [{ x: xL, z: zBody }, { x: xR, z: zBody }, { x: xR, z: zLo }, { x: bar.l1, z: zLo },
+    { x: bar.l1, z: zLo + bar.d }, { x: xL - 0.5, z: zLo + bar.d }, { x: xL - 0.5, z: zLo }, { x: xL, z: zLo }];
+}
+
 // ── Stavba nože ────────────────────────────────────────────────
 
 /**
@@ -215,6 +257,16 @@ export function buildIsoInternalKnife(typeId, opts = {}) {
   const sh = { l1: bar.l1, b: bar.d };
   const iso = { type: type.id, bar: bar.d, hand, dmin: bar.dmin, internal: true };
 
+  if (type.special === 'grooving') {
+    const ws = isoInnerGrooveWidths(bar.d);
+    const g = ws.find((x) => x.w === Number(opts.width)) || ws.find((x) => x.w === 3) || ws[ws.length - 1];
+    const prms = { toolShape: 'parting', toolLength: g.w, toolRadius: g.r, toolAngle: 0, toolTipAngle: 90, toolTipFlat: 0.1,
+      toolClearanceAngle: 0, toolVbdCode: g.code };
+    return isoKnifeRecord({ name: `GI${hand}${String(bar.d).padStart(2, '0')}${bar.len}-${g.w}-A${g.a}`, vbdCode: g.code,
+      holder: isoCloseLoop(groovingBarHolder(prms, bar, g.a)), prms, sh, hand,
+      cut: { vc: 100, f: r3(0.03 + 0.01 * g.w), ap: 1 }, desc: type.desc,
+      iso: { ...iso, dmin: Math.max(bar.dmin, Math.ceil(bar.d + g.a + 1)), width: g.w, reach: g.a } });
+  }
   if (type.special === 'threading') {
     const fit = isoThreadInsertsForBar(bar.d);
     const th = fit.find((x) => x.id === opts.thread) || fit.find((x) => x.id === 'AG60') || fit[0];
