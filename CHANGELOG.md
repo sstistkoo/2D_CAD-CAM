@@ -340,6 +340,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAD: políčka Z čela a úhlu C s výpočtem a tlačítkem ✔.** Do políčka Z
+  (lišta čela) i C (natočení pohledu) jde psát výpočet (`90+60`, `76-5,5`);
+  při psaní se objeví zelené ✔, potvrdí i Enter nebo odchod z políčka, Esc
+  vrátí hodnotu. Po potvrzení je v políčku výsledek — dřív tam zůstal výraz
+  a nebylo poznat, jestli se použil. Výběr čela ukazuje pořadí a obsah
+  kresby („2: Z76 ◀ · 3 díry"), víc čel ve stejném Z šlo dřív rozlišit jen
+  naslepo. Nové čelo převezme natočení pohledu (dřív skočilo na výchozí).
+  Modul `js/faceView/exprField.js`.
+
 - **CAD/CAM: opravy po kontrole děr a drážek v plášti a na čele.** Prázdné
   „Do Ø" u díry / drážky v plášti už nevrtá tiše až do osy (`null >= 0` je
   v JS true), hlásí chybu. Drážka pro pero se seznamem bodů bere řádek

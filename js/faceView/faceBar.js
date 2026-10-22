@@ -9,15 +9,16 @@
 // bez lícování.
 //
 // Posuvník Z (značky osazení) a pod ním řádek: výběr čela, ➕ nové, 🗑 smazat,
-// Z roviny čela (políčko, i výraz), ◀ zprava / ▶ zleva (šipka = směr pohledu).
+// Z roviny čela (políčko, i výpočet, ✔ = potvrdit — exprField.js), ◀ zprava /
+// ▶ zleva (šipka = směr pohledu).
 // Lišta je v #canvasWrap pod lištou nástrojů (z-index), okraj plátna ji
 // ořízne; poloha se přepočítá po každém vykreslení (onFaceDrawn).
 import { state, showToast } from '../state.js';
-import { safeEvalMath } from '../utils.js';
 import { worldToScreen } from '../canvas.js';
 import { updateLayerList } from '../ui.js';
-import { getFaceLayer, getFaceLayers, faceViewMode, profileObjects, faceLabel } from './faceLayer.js';
+import { getFaceLayer, getFaceLayers, faceViewMode, profileObjects, faceLabel, faceHoles } from './faceLayer.js';
 import { placeRotate } from './faceRotate.js';
+import { wireExprField } from './exprField.js';
 import { shoulderZs, profileBounds, profileRadii, faceRadius, faceCutGeom, onFaceDrawn, objectPoints, inFaceDisc } from './faceReference.js';
 
 const THUMB = 16;              // šířka jezdce posuvníku (výchozí vzhled prohlížečů) [px]
@@ -54,7 +55,8 @@ function buildBar() {
       <select data-fb="sel" title="Čelo, do kterého se kreslí (každé má vlastní kresbu děr)"></select>
       <button data-fb="add" title="Nové čelo — vlastní kresba děr, poloha Z a strana">➕</button>
       <button data-fb="del" title="Smazat aktuální čelo i s jeho kresbou">🗑</button>
-      <label title="Z roviny čela v nárysu (lze zadat i výraz)">Z <input data-fb="z" type="text" inputmode="decimal" autocomplete="off"></label>
+      <label title="Z roviny čela v nárysu — lze zadat i výpočet (např. 76-5,5); potvrdit ✔ nebo Enter">Z <input data-fb="z" type="text" inputmode="decimal" autocomplete="off"></label>
+      <button data-fb="zok" class="fb-ok" title="Potvrdit Z (Enter) — výpočet se spočítá">✔</button>
       <button data-fb="side" title="Odkud se na čelo dívá a vrtá: ◀ zprava (díváme se doleva, k −Z) / ▶ zleva (doprava). Šipka = směr pohledu"></button>
     </div>`;
   (document.getElementById('canvasWrap') || document.body).appendChild(bar);
@@ -124,13 +126,15 @@ function buildBar() {
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => range.addEventListener(t, endDrag));
   // Nativní obsluha dotyku by se s naší přetahovala.
   range.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
-  zIn.addEventListener('change', () => {
-    const v = safeEvalMath(zIn.value);
-    if (!Number.isFinite(v)) { showToast('Neplatné číslo'); updateBar(); return; }
-    const cur = getFaceLayer();
-    if (cur) cur.sideManual = false;
-    deps.setFaceZ(v, 0);
-    updateLayerList();
+  wireExprField(zIn, bar.querySelector('[data-fb="zok"]'), {
+    apply: v => {
+      const cur = getFaceLayer();
+      if (cur) cur.sideManual = false;
+      deps.setFaceZ(v, 0);
+      updateLayerList();
+    },
+    current: () => { const cur = getFaceLayer(); return cur ? cur.faceZ : ''; },
+    onToggle: () => { lastPlace = ''; placeBar(); },   // ✔ rozšíří řádek
   });
   // Kolečko nad lištou zoomuje plátno jako nad výkresem (lišta je jeho součástí).
   bar.addEventListener('wheel', e => {
@@ -145,6 +149,23 @@ function buildBar() {
   window.addEventListener('resize', () => requestAnimationFrame(placeBar));
 }
 
+const czN = (n, one, few, many) => `${n} ${n === 1 ? one : n >= 2 && n <= 4 ? few : many}`;
+
+/**
+ * Položky výběru čela: pořadí, Z se stranou a obsah kresby — víc čel ve
+ * stejném Z jde rozlišit (uživatel 22. 10. 2026: pět položek „Z76 ◀").
+ */
+function faceOptions(cur) {
+  const holes = new Map();
+  faceHoles().forEach(({ face }) => holes.set(face.id, (holes.get(face.id) || 0) + 1));
+  return getFaceLayers().map((l, i) => {
+    const h = holes.get(l.id) || 0;
+    const slots = state.objects.filter(o => o.layer === l.id && (o.type === 'line' || o.type === 'polyline')).length;
+    const what = [h ? czN(h, 'díra', 'díry', 'děr') : '', slots ? czN(slots, 'drážka', 'drážky', 'drážek') : ''].filter(Boolean).join(', ');
+    return `<option value="${l.id}"${l === cur ? ' selected' : ''}>${i + 1}: ${faceLabel(l)} · ${what || 'prázdné'}</option>`;
+  }).join('');
+}
+
 /** Obnovit obsah lišty (čela, Z, strana, rozsah posuvníku) a polohu. */
 export function updateBar() {
   const mode = faceViewMode();
@@ -153,7 +174,7 @@ export function updateBar() {
   if (mode === 'off') { placeRotate(false); return; }
   const cur = getFaceLayer();
   const sel = bar.querySelector('[data-fb="sel"]');
-  sel.innerHTML = getFaceLayers().map(l => `<option value="${l.id}"${l === cur ? ' selected' : ''}>${faceLabel(l)}</option>`).join('');
+  sel.innerHTML = faceOptions(cur);
   const zIn = bar.querySelector('[data-fb="z"]');
   if (document.activeElement !== zIn) zIn.value = String(cur.faceZ);
   bar.querySelector('[data-fb="side"]').textContent = cur.faceSide === 'left' ? '▶ zleva' : '◀ zprava';
@@ -305,6 +326,7 @@ export const FACE_BAR_CSS = `
 #faceBar input[type=text] { width: 64px; }
 #faceBar button { cursor: pointer; }
 #faceBar button:disabled { opacity: 0.4; cursor: default; }
+#faceBar button.fb-ok { color: var(--ctp-green); border-color: var(--ctp-green); font-weight: 700; }
 #faceBar label { display: flex; align-items: center; gap: 3px; color: var(--ctp-subtext0); }
 /* Lišta patří k plátnu CAD — nad oknem (CAM, dialogy) by ovládala neviditelný
    výkres (uživatel 18. 10. 2026). Plovoucí okna (VK) nevadí. */

@@ -570,10 +570,15 @@ kříže; střed bokorysu leží na celých desítkách, takže i mřížka mě�
 **Čela.** Díry mohou být na kterémkoli osazení, zprava i zleva. Lišta čela
 leží přímo na plátně pod nárysem — posouvá se s výkresem a mění velikost se
 zoomem, a když do nárysu něco dokreslíte níž, sama se posune pod to; na soustruhu je posuvník stejně dlouhý jako profil a jezdec stojí
-přesně pod značkou řezu. Obsahuje výběr čela, **➕** nové čelo (vlastní kresba), **🗑** smazat
+přesně pod značkou řezu. Obsahuje výběr čela (položka = pořadí, Z se stranou
+a obsah kresby, např. „2: Z76 ◀ · 3 díry" — víc čel ve stejném Z jde rozlišit),
+**➕** nové čelo (vlastní kresba), **🗑** smazat
 čelo i s kresbou (po potvrzení, nejde vrátit; stejně tak smazání vrstvy čela
 v panelu Vrstvy — objekty se nepřesouvají na Konturu),
-**Z** roviny čela (políčko, lze i výraz) a **posuvník**, který se přichytává
+**Z** roviny čela (políčko, lze i výpočet, např. `76-5,5`; jakmile do něj
+píšete, objeví se zelené **✔** — potvrdí ho, stejně jako Enter nebo odchod
+z políčka, Esc vrátí původní hodnotu; po potvrzení je v políčku výsledek)
+a **posuvník**, který se přichytává
 k osazením profilu a ke koncům polotovaru (sahá i přes polotovar — úplně
 vpravo = před polotovarem, ne jen před hotovou konturou), a **◀ zprava / ▶ zleva** — odkud se na čelo díváte a
 odkud nástroj přijíždí; šipka ukazuje směr pohledu (podle osazení se strana
@@ -710,7 +715,9 @@ vybírají spolu se svou dírou (klepnutí v pohledu na čelo / zaškrtávátko)
 **Natočení pohledu (posuvník vpravo od bokorysu):** svislý posuvník vedle
 bokorysu nastavuje, který úhel C je v nárysu **nahoře** (výchozí soustruh
 C 90°, karusel C 0°; tažením nahoru úhel roste, přichytí se k úhlům děr
-v čele i v plášti a po 45°; pod ním políčko pro přesný úhel a ⟲ zpět).
+v čele i v plášti a po 45°; pod ním políčko pro přesný úhel — i výpočet,
+např. `90+60`, potvrdí ho **✔** nebo Enter — a ⟲ zpět; natočení platí pro
+všechna čela, nové čelo ho převezme).
 Nárys pak ukáže díry v čele i v plášti tak, jak při tomto natočení dílu
 leží — díra v plášti mířící k nám / od nás jako kružnice na ose; v bokorysu
 je natočení vidět jako průměr s trojúhelníkem „C… nahoře". Značka díry

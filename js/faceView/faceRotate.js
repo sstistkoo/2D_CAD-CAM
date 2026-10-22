@@ -9,11 +9,11 @@
 // (shellHoleView.drawViewCut). Tažením nahoru úhel roste (proti směru
 // hodinových ručiček jako C v bokorysu); přichytí se k úhlům děr v čele
 // i v plášti a k násobkům 45°. Pod posuvníkem políčko pro přesný úhel
-// a ⟲ zpět na výchozí. Prvek leží v liště čela (#faceBar, faceBar.js —
+// (i výpočet, ✔ = potvrdit — exprField.js) a ⟲ zpět na výchozí. Prvek leží v liště čela (#faceBar, faceBar.js —
 // ta ho umísťuje po každém vykreslení), skrývá se s ní.
 import { state, showToast } from '../state.js';
-import { safeEvalMath } from '../utils.js';
 import { worldToScreen } from '../canvas.js';
+import { wireExprField } from './exprField.js';
 import { renderAll } from '../render.js';
 import { getFaceLayer, faceViewC, setFaceViewC } from './faceLayer.js';
 import { faceDiscGeom } from './faceReference.js';
@@ -31,8 +31,11 @@ function build() {
   el.id = 'faceRot';
   el.innerHTML = `
     <div class="fr-track" title="Natočení dílu: úhel C nahoře v nárysu — táhněte (přichytí se k dírám a po 45°)"><div class="fr-thumb"></div></div>
-    <label title="Úhel C, který je v nárysu nahoře">C<input data-fr="c" type="text" inputmode="decimal" autocomplete="off">°</label>
-    <button data-fr="reset" title="Zpět na výchozí natočení">⟲</button>`;
+    <label title="Úhel C, který je v nárysu nahoře — lze zadat i výpočet (např. 90+60); potvrdit ✔ nebo Enter">C<input data-fr="c" type="text" inputmode="decimal" autocomplete="off">°</label>
+    <div class="fr-btns">
+      <button data-fr="ok" class="fr-ok" title="Potvrdit úhel (Enter) — výpočet se spočítá">✔</button>
+      <button data-fr="reset" title="Zpět na výchozí natočení">⟲</button>
+    </div>`;
   bar.appendChild(el);
   const track = el.querySelector('.fr-track');
   const inp = el.querySelector('[data-fr="c"]');
@@ -52,11 +55,7 @@ function build() {
   track.addEventListener('pointermove', e => { if (e.pointerId === drag) { e.preventDefault(); at(e.clientY); } });
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => track.addEventListener(t, e => { if (e.pointerId === drag) drag = null; }));
   track.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
-  inp.addEventListener('change', () => {
-    const v = safeEvalMath(inp.value);
-    if (!Number.isFinite(v)) { showToast('Neplatný úhel'); sync(); return; }
-    apply(v);
-  });
+  wireExprField(inp, el.querySelector('[data-fr="ok"]'), { apply, current: () => +faceViewC().toFixed(1) });
   el.querySelector('[data-fr="reset"]').addEventListener('click', () => {
     apply(state.machineType === 'karusel' ? 0 : 90);
     showToast('Natočení pohledu: výchozí', 1500);
@@ -123,4 +122,6 @@ export const FACE_ROT_CSS = `
   background: var(--ctp-mantle); border: 1px solid var(--ctp-surface1); border-radius: 6px; padding: 2px 4px;
 }
 #faceRot input { width: 38px; background: var(--ctp-surface0); color: var(--ctp-text); border: 1px solid var(--ctp-surface1); border-radius: 4px; padding: 1px 3px; font-size: 11px; }
-#faceRot button { background: var(--ctp-surface0); color: var(--ctp-text); border: 1px solid var(--ctp-surface1); border-radius: 5px; padding: 1px 6px; cursor: pointer; font-size: 12px; }`;
+#faceRot button { background: var(--ctp-surface0); color: var(--ctp-text); border: 1px solid var(--ctp-surface1); border-radius: 5px; padding: 1px 6px; cursor: pointer; font-size: 12px; }
+#faceRot .fr-btns { display: flex; gap: 4px; }
+#faceRot button.fr-ok { color: var(--ctp-green); border-color: var(--ctp-green); font-weight: 700; }`;

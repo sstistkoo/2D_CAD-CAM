@@ -108,9 +108,11 @@ function defaultFace() {
 }
 
 function newFaceLayer(z, side) {
+  // Natočení pohledu (viewC) je společné všem čelům — nové ho převezme.
+  const viewC = (getFaceLayers().find(f => Number.isFinite(f.viewC)) || {}).viewC;
   const l = {
     id: state.nextLayerId++, name: FACE_LAYER_NAME, color: '#fab387', visible: false, locked: false,
-    isFace: true, faceZ: z, faceSide: side,
+    isFace: true, faceZ: z, faceSide: side, ...(Number.isFinite(viewC) ? { viewC } : {}),
   };
   l.name = `Čelo ${faceLabel(l)}`;
   state.layers.push(l);
