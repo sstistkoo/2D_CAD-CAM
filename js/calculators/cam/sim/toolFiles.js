@@ -110,6 +110,8 @@ export function createToolFiles({ S, toolUi, pushHistory, saveState, fullUpdate,
         if (rec.vc) slot.vc = rec.vc;
         if (rec.f) slot.f = rec.f;
         if (rec.ap) slot.ap = rec.ap;
+        if (rec.teeth) slot.teeth = rec.teeth;                    // fréza: počet zubů
+        if (rec.centerCut !== undefined) slot.centerCut = rec.centerCut !== false;
         mag.push(slot);
         saveState();
         if (toolUi.magazineDialogRefresh) toolUi.magazineDialogRefresh();

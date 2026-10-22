@@ -169,7 +169,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
         <div style="font-size:10px;color:#6c7086;white-space:nowrap;padding-right:6px">Nástroj dok.:</div>
         <select id="cam-sim-fin-slot" style="flex:1;background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;padding:3px 6px;font-size:11px">
           <option value="" ${!finSlot ? 'selected' : ''}>— Stejný nástroj —</option>
-          ${S.toolMagazine.map((s, i) => `<option value="${i}" ${prms.finishingSlot === i ? 'selected' : ''}>T${s.slot} ${escHTML(s.name ?? '')}${s.vbdCode ? ' · ' + escHTML(s.vbdCode) : ''}</option>`).join('')}
+          ${S.toolMagazine.map((s, i) => (s && s.shape === 'mill' ? '' : `<option value="${i}" ${prms.finishingSlot === i ? 'selected' : ''}>T${s.slot} ${escHTML(s.name ?? '')}${s.vbdCode ? ' · ' + escHTML(s.vbdCode) : ''}</option>`)).join('')}
         </select>
         ${finSlot ? `<span class="cam-sim-machine-chip" style="margin-left:4px;font-family:monospace">R${finSlot.radius}</span>` : ''}
       </div>`;
@@ -186,7 +186,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
         <div style="font-size:10px;color:#6c7086;white-space:nowrap;padding-right:6px">Nástroj dok.:</div>
         <select id="cam-sim-fin-slot" style="flex:1;background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;padding:3px 6px;font-size:11px">
           <option value="" ${!finSlot ? 'selected' : ''}>— Stejný nástroj —</option>
-          ${S.toolMagazine.map((s, i) => `<option value="${i}" ${prms.finishingSlot === i ? 'selected' : ''}>T${s.slot} ${escHTML(s.name ?? '')}${s.vbdCode ? ' · ' + escHTML(s.vbdCode) : ''}</option>`).join('')}
+          ${S.toolMagazine.map((s, i) => (s && s.shape === 'mill' ? '' : `<option value="${i}" ${prms.finishingSlot === i ? 'selected' : ''}>T${s.slot} ${escHTML(s.name ?? '')}${s.vbdCode ? ' · ' + escHTML(s.vbdCode) : ''}</option>`)).join('')}
         </select>
         ${finSlot ? `<span class="cam-sim-machine-chip" style="margin-left:4px;font-family:monospace">R${finSlot.radius}</span>` : ''}
       </div>`;

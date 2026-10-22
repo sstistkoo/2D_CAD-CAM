@@ -20,10 +20,11 @@ import { showToast } from '../../../state.js';
 import { camConfirm } from '../camSimulatorDialogs.js';
 import { getLiveOps, liveOpOn, liveDrillFromCad } from '../live/liveModel.js';
 import { autoDrillTools, addCatalogDrills } from '../live/liveDrillTools.js';
+import { addCatalogMills } from '../live/liveMillTools.js';
 
 const OWN = { vrt: 'drill', zavit: 'threading', upich: 'parting' };
 const NAME = { vrt: 'Vrtání', zavit: 'Závitování', upich: 'Upichnutí' };
-const SPECIAL = new Set(['drill', 'threading', 'parting']);
+const SPECIAL = new Set(['drill', 'threading', 'parting', 'mill']);   // mill = fréza (poháněný nástroj), soustružit s ní nejde
 
 /**
  * Co klik na záložku udělá s nástrojem (čistá funkce, test machtab-tool):
@@ -196,7 +197,11 @@ function pickDrill(ctx) {
   if (S.params.drillSource !== 'axis' && getLiveOps(S.params).some(liveOpOn)) {
     const pre = autoDrillTools(getLiveOps(S.params), S.toolMagazine, S.params);
     if (pre.missing.length && ctx._isoMagSlot) {
-      const added = addCatalogDrills(S.toolMagazine, pre.missing.map(m => m.D), ctx._isoMagSlot);
+      const added = [
+        ...addCatalogDrills(S.toolMagazine, pre.missing.filter(m => m.kind !== 'mill').map(m => m.D), ctx._isoMagSlot),
+        // Chybějící frézy (kapsa, drážka, pero) z 📚 katalogu fréz.
+        ...addCatalogMills(S.toolMagazine, pre.missing.filter(m => m.kind === 'mill' && m.D).map(m => m.D), ctx._isoMagSlot),
+      ];
       if (added.length) note = ` · do 🔧 Zásobníku přidán ${added.map(s => `T${s.slot} ${s.name}`).join(', ')}`;
     }
     const auto = autoDrillTools(getLiveOps(S.params), S.toolMagazine, S.params);

@@ -22,6 +22,7 @@
 import { getLiveOps, liveOpOn, liveOpSummary, liveDrillFromCad, liveSettings } from './liveModel.js';
 import { drillToolText, toggleLiveGroup, autoDrillTools, pickDrill, magazineDrills, addCatalogDrills, catalogDrillD, syncDrillTabParams } from './liveDrillTools.js';
 import { settingsHtml, settingsTitle, applySettingChange } from './liveSettingsUi.js';
+import { pickMill, magazineMills, catalogMillD, addCatalogMills } from './liveMillTools.js';
 import { safeEvalMath } from '../../../utils.js';
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -69,6 +70,17 @@ export function createDrillUi(d) {
     d.commit(p => { p.liveOps = r.ops; });
     refresh();
   }
+  /** ➕ Fréza na Ø z 📚 katalogu fréz do zásobníku a přepočítat operace. */
+  function addMissingMill(D) {
+    if (!d.isoMagSlot || !(D > 0)) return;
+    const added = addCatalogMills(S.toolMagazine, [D], d.isoMagSlot);
+    if (!added.length) return;
+    d.saveState();
+    d.toast(`Do 🔧 Zásobníku přidána ${added.map(s => `T${s.slot} ${s.name}`).join(', ')}`, 4000);
+    const r = autoDrillTools(ops(), S.toolMagazine, S.params);
+    d.commit(p => { p.liveOps = r.ops; });
+    refresh();
+  }
   function commitOps(next, msg) { d.commit(p => { p.liveOps = next; }); refresh(); d.toast(msg, 3500); }
 
   /** Klepnutí na skupinu v pohledu na čelo; `plain` = zaškrtávátko (jen přepnout). */
@@ -84,6 +96,14 @@ export function createDrillUi(d) {
   function setAll() {
     const next = autoDrillTools(ops().map(o => ({ ...o, enabled: true })), S.toolMagazine, S.params).ops;
     commitOps(next, `✔ Vrtat vše (${next.length})`);
+  }
+
+  /** ➕ Přidat frézu z 📚, když ve zásobníku vhodná chybí a katalog ji má. */
+  function millAddBtn(op) {
+    if (op.kind !== 'mill' || !d.isoMagSlot) return '';
+    const { mill, need } = pickMill(magazineMills(S.toolMagazine), op);
+    const D = mill ? null : catalogMillD(need);
+    return D ? `<br><button data-livedrill="addmill" data-d="${D}" class="cam-sim-btn cam-sim-btn-gray">➕ Přidat frézu Ø${D} z 📚 do Zásobníku</button>` : '';
   }
 
   // ── sekce v záložce Vrtání ──
@@ -104,7 +124,7 @@ export function createDrillUi(d) {
         <input type="checkbox" data-livedrill="toggle" data-oi="${i}"${liveOpOn(op) ? ' checked' : ''}>
         <span><b>${esc(op.name)}</b> <small>${esc(liveOpSummary(op))}</small><br><small class="t">${esc(drillToolText(op, S.toolMagazine))}</small>${
   op.kind === 'drill' && !pickDrill(magazineDrills(S.toolMagazine), op.holeD).drill && d.isoMagSlot && catalogDrillD(op.holeD) != null
-    ? `<br><button data-livedrill="addmag" data-d="${op.holeD}" class="cam-sim-btn cam-sim-btn-gray">➕ Přidat vrták Ø${op.holeD} z 📚 do Zásobníku</button>` : ''}</span>
+    ? `<br><button data-livedrill="addmag" data-d="${op.holeD}" class="cam-sim-btn cam-sim-btn-gray">➕ Přidat vrták Ø${op.holeD} z 📚 do Zásobníku</button>` : ''}${millAddBtn(op)}</span>
       </label>`;
     });
     const nOn = list.filter(liveOpOn).length;
@@ -159,6 +179,7 @@ export function createDrillUi(d) {
       if (act === 'go') drillAll();
       else if (act === 'all') setAll();
       else if (act === 'addmag') addMissing([parseFloat(b.dataset.d)]);
+      else if (act === 'addmill') addMissingMill(parseFloat(b.dataset.d));
       else if (act === 'src') { d.commit(p => { p.drillSource = b.dataset.v; }); refresh(); }
       else if (act === 'cyc') {
         const on = b.dataset.v === '1';

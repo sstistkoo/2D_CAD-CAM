@@ -6,6 +6,7 @@
 import { SHAPE_CUT_DEFAULTS } from '../camDefaults.js';
 import { defaultMagazineKnives, presetKnifeForShape } from '../../magazineDefaults.js';
 import { upgradeIsoHolderProfile } from '../../isoToolCatalog.js';
+import { buildIsoMill } from '../../isoMills.js';
 
 export function _defaultMagSlot(num) {
   return {
@@ -63,6 +64,8 @@ export function _isoMagSlot(rec, num) {
   if (rec.vc) slot.vc = rec.vc;
   if (rec.f) slot.f = rec.f;
   if (rec.ap) slot.ap = rec.ap;
+  if (rec.teeth) slot.teeth = rec.teeth;                        // fréza (isoMills.js)
+  if (rec.centerCut !== undefined) slot.centerCut = rec.centerCut !== false;
   return slot;
 }
 
@@ -79,7 +82,8 @@ export function _isoDefaultMagSlots() {
  *  slotu zůstává; jméno výchozího nože se přepíše na nový nůž. */
 export function _setMagSlotShape(slot, next) {
   if (!slot || slot.shape === next) return;
-  const rec = presetKnifeForShape(next);
+  // Fréza (poháněný nástroj) — výchozí VHM Ø10 z 3 z 📚 katalogu fréz.
+  const rec = next === 'mill' ? buildIsoMill({ kind: 'hm3', diameter: 10 }) : presetKnifeForShape(next);
   if (!rec) { slot.shape = next; return; }
   const keepName = !defaultMagazineKnives().some(d => d.name === slot.name);
   const preset = _isoMagSlot(rec, slot.slot);

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM: frézy v zásobníku a jejich výběr pro frézování z výkresu.** Tvar
+  ✣ fréza ve 🔧 Zásobníku (Ø, z, Vc, fz, krok, řeže středem) a 📚 katalog
+  fréz (VHM z3 / z4, HSS z2 / z4, Ø2–25). Kapsa, drážka na čele i drážka
+  pro pero si frézu vyberou podle Ø jako vrtáky (otáčky z Vc, posuv fz·z·n,
+  T ze zásobníku), chybějící se doplní z 📚. Fréza nejde zvolit jako
+  soustružnický nůž. Moduly `isoMills.js`, `cam/live/liveMillTools.js`,
+  test `tests/mill-tools.test.js`.
+
 - **CAD → CAM: drážka do čela (ovál) i širší než fréza.** Nástroj Drážka
   v bokorysu otevře ◎ Drážka do čela (střed, délka, šířka, úhel osy
   radiálně / tečně, hloubka jako díry). Kreslí se obrys (stadion) do čela;
@@ -314,6 +322,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nemá minus). `js/calculators/tolerance.js`.
 
 ### Fixed
+
+- **CAM: frézovací operace volala T6 = upichovák.** Výchozí číslo nástroje
+  frézy bylo T6, ve výchozím zásobníku upichovák — Fanuc `T0606`,
+  Heidenhain `T6` by vzaly upichovák. Teď T frézy ze zásobníku, bez ní
+  volné T. Fréza, která neřeže středem, hlásí kontrola (zanořuje se kolmo).
 
 - **CAM: výchozí název operace bez čísla** — operace normalizovaná bez
   pořadí (např. načtená ze starého uložení bez názvu) se jmenovala

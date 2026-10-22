@@ -21,6 +21,7 @@ import {
 } from './isoToolCatalog.js';
 import { RADIUS_MM, SHAPES } from './vbdIso.js';
 import { ISO_DRILL_KINDS, isoDrillDiameters, isoDrillLabel, buildIsoDrill, isoDrillCount } from './isoDrills.js';
+import { ISO_MILL_KINDS, isoMillDiameters, isoMillLabel, buildIsoMill, isoMillCount, isoMillSvg } from './isoMills.js';
 import {
   ISO_INTERNAL_TYPES, isoInternalBars, isoInternalVariants, isoInternalSizes, buildIsoInternalKnife, isoInternalCount,
   isoThreadInsertsForBar,
@@ -31,8 +32,12 @@ const PREF_KEY = 'skica.isoCatalog';   // jen pohodlí: naposledy zvolený dří
 
 const DRILL_TYPE = { id: 'DR', special: 'drill', groups: ['drill'],
   desc: 'Šroubovitý vrták nebo navrtávák pro operaci Vrtání (v ose X0). Dřík a ruka nahoře se ho netýkají.' };
-const GROUPS = [...ISO_GROUPS, { id: 'internal', label: 'Vnitřní (do díry)' }, { id: 'drill', label: 'Vrtáky a navrtávák' }];
-const typeById = (id) => (id === DRILL_TYPE.id ? DRILL_TYPE
+// Frézy (22. 10. 2026) — poháněné nástroje pro frézování z výkresu (cam/live);
+// jako vrtáky karta mimo ISO_HOLDER_TYPES, postavená z isoMills.js.
+const MILL_TYPE = { id: 'ML', special: 'mill', groups: ['mill'],
+  desc: 'Stopková fréza pro poháněný nástroj — kapsa a drážka na čele, drážka pro pero v plášti. Do 🔧 Zásobníku; CAM ji vybere podle Ø.' };
+const GROUPS = [...ISO_GROUPS, { id: 'internal', label: 'Vnitřní (do díry)' }, { id: 'drill', label: 'Vrtáky a navrtávák' }, { id: 'mill', label: 'Frézy (poháněné)' }];
+const typeById = (id) => (id === DRILL_TYPE.id ? DRILL_TYPE : id === MILL_TYPE.id ? MILL_TYPE
   : ISO_HOLDER_TYPES.find((t) => t.id === id) || ISO_INTERNAL_TYPES.find((t) => t.id === id));
 const isInternal = (t) => ISO_INTERNAL_TYPES.includes(t);
 
@@ -52,6 +57,7 @@ function shapeLabel(t) {
   if (t.special === 'parting') return t.round ? '▮ radiusový zápich' : t.long ? '▮ upichovací lišta, dlouhý dosah' : '▮ zapichovací';
   if (t.special === 'threading') return '▽ závitová';
   if (t.special === 'drill') return '⌀ vrták';
+  if (t.special === 'mill') return '✣ fréza';
   const s = SHAPES.find((x) => x.v === t.shape);
   return s ? `${t.shape} · ${s.d.toLowerCase()}` : t.shape;
 }
@@ -74,6 +80,7 @@ export function mountIsoCatalog(root, opts) {
 
   const recFor = (t) => {
     if (t.special === 'drill') return buildIsoDrill(st.sel[t.id] || {});
+    if (t.special === 'mill') return buildIsoMill(st.sel[t.id] || {});
     if (isInternal(t)) return buildIsoInternalKnife(t.id, { ...(st.sel[t.id] || {}), hand: st.hand });
     return buildIsoKnife(t.id, { ...(st.sel[t.id] || {}), shank: st.shank, hand: st.hand });
   };
@@ -84,6 +91,10 @@ export function mountIsoCatalog(root, opts) {
   }
 
   function optionsHTML(t, k) {
+    if (t.special === 'mill') {
+      return select('kind', ISO_MILL_KINDS.map((x) => [x.id, x.label]), k.kind, 'Druh — tvrdokov 3 / 4 zuby, HSS-Co 2 zuby (řežou středem) nebo HSS-Co 4 zuby (neřeže středem, zanoření rampou)')
+        + select('diameter', isoMillDiameters().map((d) => [d, isoMillLabel(d, k.kind)]), k.diameter, 'Průměr frézy');
+    }
     if (t.special === 'drill') {
       return select('kind', ISO_DRILL_KINDS.map((x) => [x.id, x.label]), k.kind, 'Druh — vrták HSS-Co 118° (DIN 338 / 345), tvrdokov 140° (5×D, vnitřní chlazení) nebo navrtávák 90° / 120°')
         + select('diameter', isoDrillDiameters(k.kind).map((d) => [d, isoDrillLabel(d, k.kind)]), k.diameter, 'Průměr vrtáku (u předvrtání pod závit je napsaný závit)');
@@ -133,23 +144,24 @@ export function mountIsoCatalog(root, opts) {
     if (p.toolShape === 'round') chips.push(`R ${cz(p.toolRadius)}`);
     else if (p.toolShape === 'parting') chips.push(`š ${cz(p.toolLength)}`, `R ${cz(p.toolRadius)}`, ...(k.reach ? [`dosah ${k.reach}`] : []));
     else if (p.toolShape === 'threading') chips.push(`ε ${p.toolTipAngle}°`);
+    else if (p.toolShape === 'mill') chips.push(`⌀ ${cz(p.toolRadius * 2)}`, `z ${rec.teeth}`, rec.centerCut ? 'řeže středem' : 'NEřeže středem', `vyložení ${p.toolLength}`, `${rec.holderCode} ⌀${p.holderWidth}`);
     else if (p.toolShape === 'drill') chips.push(`⌀ ${cz(p.toolRadius * 2)}`, `σ ${p.toolTipAngle}°`, `vyložení ${p.toolLength}`, `${rec.holderCode} ⌀${p.holderWidth}`);
     if (p.toolClearanceAngle) chips.push(`α ${p.toolClearanceAngle}°`);
     // Vyvrtávací tyč: nejmenší díra a rozumné vyložení ocelové tyče (4×D).
     if (k.internal) chips.push(`díra ≥ ⌀${k.dmin}`, `vyložení ≤ ${4 * k.bar} (4×D)`);
-    chips.push(p.toolShape === 'drill' ? `Vc ${rec.vc} · f ${cz(rec.f)}` : `Vc ${rec.vc} · f ${cz(rec.f)} · ap ${cz(rec.ap)}`);
+    chips.push(p.toolShape === 'mill' ? `Vc ${rec.vc} · fz ${cz(rec.f)}` : p.toolShape === 'drill' ? `Vc ${rec.vc} · f ${cz(rec.f)}` : `Vc ${rec.vc} · f ${cz(rec.f)} · ap ${cz(rec.ap)}`);
     const big = st.zoom === t.id;
     return `<div class="iso-cat-card${big ? ' iso-cat-card--big' : ''}" data-id="${t.id}">
-      <button class="iso-cat-thumb" data-a="zoom" title="${big ? 'Zmenšit náhled' : 'Zvětšit náhled'}">${isoKnifeSvg(rec, big ? 200 : 68)}</button>
+      <button class="iso-cat-thumb" data-a="zoom" title="${big ? 'Zmenšit náhled' : 'Zvětšit náhled'}">${t.special === 'mill' ? isoMillSvg(rec, big ? 200 : 68) : isoKnifeSvg(rec, big ? 200 : 68)}</button>
       <div class="iso-cat-main">
-        <div class="iso-cat-title"><b>${esc(t.special === 'drill' || isInternal(t) ? rec.name : spaced(rec.name))}</b><span class="iso-cat-ins">${esc(t.special === 'drill' ? rec.holderCode : spacedInsert(rec.vbdCode))}</span></div>
-        <div class="iso-cat-desc">${esc(shapeLabel(t))} — ${esc(t.special === 'drill' ? rec.desc : t.desc)}</div>
+        <div class="iso-cat-title"><b>${esc(t.special === 'drill' || t.special === 'mill' || isInternal(t) ? rec.name : spaced(rec.name))}</b><span class="iso-cat-ins">${esc(t.special === 'drill' || t.special === 'mill' ? rec.holderCode : spacedInsert(rec.vbdCode))}</span></div>
+        <div class="iso-cat-desc">${esc(shapeLabel(t))} — ${esc(t.special === 'drill' || t.special === 'mill' ? rec.desc : t.desc)}</div>
         <div class="iso-cat-chips">${chips.map((c) => `<span>${esc(c)}</span>`).join('')}</div>
         <div class="iso-cat-opts">${optionsHTML(t, k)}</div>
         <div class="iso-cat-btns">
-          <button class="iso-cat-btn iso-cat-btn--ok" data-a="apply" title="Nastaví nůž jako aktuální nástroj — destička, držák i řezné podmínky">✅ Použít</button>
-          ${opts.onAddToMagazine ? '<button class="iso-cat-btn" data-a="mag" title="Přidá nůž do 🔧 Zásobníku jako nové T (okno zůstane otevřené)">🔧 Do zásobníku</button>' : ''}
-          <button class="iso-cat-btn" data-a="save" title="Uloží nůž do 🧰 Moje nože">🧰 Uložit</button>
+          ${t.special === 'mill' ? '' : '<button class="iso-cat-btn iso-cat-btn--ok" data-a="apply" title="Nastaví nůž jako aktuální nástroj — destička, držák i řezné podmínky">✅ Použít</button>'}
+          ${opts.onAddToMagazine ? `<button class="iso-cat-btn${t.special === 'mill' ? ' iso-cat-btn--ok' : ''}" data-a="mag" title="Přidá ${t.special === 'mill' ? 'frézu' : 'nůž'} do 🔧 Zásobníku jako nové T (okno zůstane otevřené)">🔧 Do zásobníku</button>` : ''}
+          ${t.special === 'mill' ? '<span class="iso-cat-desc">Fréza je poháněný nástroj — soustružit s ní nejde; CAM ji ze zásobníku vybere pro frézování z výkresu.</span>' : '<button class="iso-cat-btn" data-a="save" title="Uloží nůž do 🧰 Moje nože">🧰 Uložit</button>'}
         </div>
       </div>
     </div>`;
@@ -160,7 +172,8 @@ export function mountIsoCatalog(root, opts) {
       && isoVariants(t, st.shank).length > 0);
     const internal = st.group === 'all' || st.group === 'internal' ? ISO_INTERNAL_TYPES : [];
     const drill = st.group === 'all' || st.group === 'drill' ? [DRILL_TYPE] : [];
-    return [...holders, ...internal, ...drill];
+    const mill = st.group === 'all' || st.group === 'mill' ? [MILL_TYPE] : [];
+    return [...holders, ...internal, ...drill, ...mill];
   }
 
   function render() {
@@ -179,7 +192,7 @@ export function mountIsoCatalog(root, opts) {
         ${GROUPS.map((g) => `<button data-g="group" data-v="${g.id}" class="${st.group === g.id ? 'on' : ''}">${esc(g.label)}</button>`).join('')}
       </div>
       <div class="iso-cat-list">${visibleTypes().map(cardHTML).join('') || '<div class="iso-cat-empty">Pro tento dřík tu není žádný nůž.</div>'}</div>
-      <div class="iso-cat-note">Dřík ${shank.h}×${shank.b}: l1 ${shank.l1} mm, u přesazených držáků f1 ${shank.f1} mm. Katalog umí ${isoCatalogCount()} kombinací vnějších nožů, ${isoInternalCount()} vnitřních a ${isoDrillCount()} vrtáků.
+      <div class="iso-cat-note">Dřík ${shank.h}×${shank.b}: l1 ${shank.l1} mm, u přesazených držáků f1 ${shank.f1} mm. Katalog umí ${isoCatalogCount()} kombinací vnějších nožů, ${isoInternalCount()} vnitřních, ${isoDrillCount()} vrtáků a ${isoMillCount()} fréz.
         Vnitřní nože mají místo dříku tyč ⌀ na kartě; CAM je zatím použije na vnitřní závit (vyvrtávání v CAM teprve bude).
         Rozměry držáků a tvar hlavy jsou <b>orientační</b> podle ISO 5608/5610 a typických katalogů — ověřte v katalogu výrobce.
         Po použití jde obrys upravit v 🔪 Geometrii.</div>`;

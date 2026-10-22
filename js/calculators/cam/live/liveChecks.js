@@ -244,6 +244,10 @@ export function checkLiveOp(prof, op, probe) {
   const found = [];
   if (op.side === 'radial') radialChecks(pr, op, found);   // radiální díra i drážka pro pero
   else faceChecks(pr, prof, op, found);
+  // Fréza ze zásobníku, která NEŘEŽE středem (op.toolCenterCut, liveMillTools),
+  // zanořuje se kolmo jako ostatní — varovat (rampa zatím není).
+  if (op.kind === 'mill' && op.toolCenterCut === false)
+    found.push({ i: 0, sev: 'warn', text: 'fréza neřeže středem, ale zanořuje se kolmo — zvolte frézu řezající středem nebo místo zanoření předvrtejte.' });
   const groups = new Map();
   found.forEach(f => {
     const k = f.sev + '|' + f.text;

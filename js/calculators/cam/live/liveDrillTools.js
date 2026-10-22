@@ -9,6 +9,7 @@
 // ani řezné podmínky ručně nezměnil (`autoTool !== false`).
 import { liveOpOn } from './liveModel.js';
 import { buildIsoDrill, isoDrillDiameters } from '../../isoDrills.js';
+import { autoMillTools, millToolText } from './liveMillTools.js';
 
 const D_TOL = 0.01;   // vrták „na Ø díry" [mm]
 
@@ -49,7 +50,9 @@ export function autoDrillTools(ops, magazine, prms = {}) {
     filled.push({ op: i, drill });
     return drillTabParams({ ...op, toolNo: drill.slot, toolName: drill.name, ...drillCutData(drill) }, prms);
   });
-  return { ops: out, filled, missing };
+  // Frézovací operace: fréza ze zásobníku (liveMillTools.js, missing s kind 'mill').
+  const m = autoMillTools(out, magazine);
+  return { ops: m.ops, filled: [...filled, ...m.filled], missing: [...missing, ...m.missing] };
 }
 
 /**
@@ -78,7 +81,7 @@ export function syncDrillTabParams(ops, prms) {
 
 /** Text o vrtáku operace pro záložku Vrtání. */
 export function drillToolText(op, magazine) {
-  if (op.kind !== 'drill') return `T${op.toolNo} ${op.toolName || ''} · fréza Ø${op.toolD}`.trim();
+  if (op.kind !== 'drill') return millToolText(op, magazine);
   const { drill, near } = pickDrill(magazineDrills(magazine), op.holeD);
   const cut = `${op.rpm} ot/min · F${op.feed} mm/min`;
   if (drill && drill.slot === op.toolNo) return `T${drill.slot} ${drill.name} · ${cut}`;

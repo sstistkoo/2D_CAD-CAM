@@ -665,6 +665,21 @@ Frézování → Drážka pro pero (plášť)): kus stojí na úhlu C, fréza Ø
 vrstvy po kroku do hloubky tam a zpět; simulace, řez, pohled na čelo
 i kontrola proti dílu (drážka přes osazení = chyba).
 
+**Frézy (poháněné nástroje).** Fréza patří do 🔧 Zásobníku jako tvar **✣**
+(Ø, počet zubů z, vyložení, **řeže / neřeže středem**, Vc, **fz** posuv na
+zub, krok do hloubky) nebo z 🧰 Knihovna → 📚 → **Frézy (poháněné)**
+(tvrdokov 3 / 4 zuby, HSS-Co 2 zuby řežou středem, HSS-Co 4 zuby neřeže;
+Ø2–25) tlačítkem **🔧 Do zásobníku**. Soustružit s frézou nejde — jako
+aktivní nůž ji vybrat nelze. CAM ji pro frézování z výkresu vybere sám
+(záložka Vrtání, jako vrtáky): kapsa = největší fréza, která se vejde;
+drážka na čele se šířkou = největší Ø ≤ šířka (užší jede víc průjezdů);
+drážka šířky frézy a drážka pro pero = fréza přesně na šířku. Otáčky
+n = Vc·1000/(π·Ø), posuv F = fz·z·n, krok do hloubky ze slotu, číslo T ze
+zásobníku. Chybí-li vhodná fréza, při přepnutí na záložku Vrtání se doplní
+VHM z 📚 (jako vrták), u operace je i **➕ Přidat frézu z 📚**. Bez frézy
+v zásobníku dostane operace volné T (dřív výchozí T6 = upichovák). Fréza,
+která neřeže středem, se zanořuje kolmo — kontrola proti dílu to hlásí.
+
 **Natočení pohledu (posuvník vpravo od bokorysu):** svislý posuvník vedle
 bokorysu nastavuje, který úhel C je v nárysu **nahoře** (výchozí soustruh
 C 90°, karusel C 0°; tažením nahoru úhel roste, přichytí se k úhlům děr
