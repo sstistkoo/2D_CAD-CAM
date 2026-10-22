@@ -295,6 +295,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAD: díry v plášti — opravy po kontrole.** Díra vrácená ↩ po smazání
+  vrstvy Díry v plášti už nespadne do profilu (do CAM / CNC kódu): díra se
+  pozná podle svých dat i bez vrstvy, další díra ji vrátí do vrstvy. Z díry
+  na osazení (SNAP na roh profilu) se odmítne s Ø po obou stranách — plášť
+  tam byl dvojznačný. Posuvník natočení se na telefonu přisune k okraji
+  plátna (vypadával vpravo z obrazovky). Díra „skrz stěnu do vývrtu"
+  z výkresu už v CAM nehlásí varování o vrtání do vývrtu (je to záměr,
+  `op.throughWall`); ručně zadaná hloubka do vývrtu ho hlásí dál.
+
 - **CAM: záložka Vrtání se při aktivním vrtáku neotevřela.** S vrtákem už
   nasazeným (panel na Hrub.) klik na Vrtání přepnul záložku jen ve stavu,
   panel se nepřekreslil a „Co vrtat" se ukázalo až po kliku na nástroj.

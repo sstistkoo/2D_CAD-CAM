@@ -757,7 +757,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   // pak přišla jen ona (nález 10. 10. 2026, mobil).
   let exportObjects = selectedIndices.size > 0 && !asDrawn && !forCam
     ? state.objects.filter((_, i) => selectedIndices.has(i))
-    : state.objects.filter(o => !state.layers.some(l => (l.isFace || l.isShell) && l.id === o.layer));   // bez bokorysu a děr v plášti (faceView/)
+    : state.objects.filter(o => !o.shellHole && !state.layers.some(l => (l.isFace || l.isShell) && l.id === o.layer));   // bez bokorysu a děr v plášti (faceView/)
 
   // Zdvojené čáry (dvě stejné přesně přes sebe) — na plátně nejsou vidět,
   // proto se kreslí žlutě a hlásí zvlášť; jejich konce by jinak vyšly jako

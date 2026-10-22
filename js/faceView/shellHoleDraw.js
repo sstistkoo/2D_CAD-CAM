@@ -23,6 +23,9 @@ export function ensureShellLayer() {
   }
   l = { id: state.nextLayerId++, name: SHELL_LAYER_NAME, color: '#94e2d5', visible: true, locked: false, isShell: true };
   state.layers.push(l);
+  // Díry bez vrstvy (↩ po smazání vrstvy) patří do ní.
+  const ids = new Set(state.layers.map(x => x.id));
+  state.objects.forEach(o => { if (o.shellHole && !ids.has(o.layer)) o.layer = l.id; });
   updateLayerList();
   return l;
 }

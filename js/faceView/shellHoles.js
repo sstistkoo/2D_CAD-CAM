@@ -16,7 +16,7 @@
 // úpravě kontury díra „sedí" sama. Víc děr podél osy = Lin.pole (kopie nesou
 // data díry). Modul je bez UI (čte ho vykreslování i CAM).
 import { state } from '../state.js';
-import { profileObjects, getShellLayer } from './faceLayer.js';
+import { profileObjects } from './faceLayer.js';
 import { materialAt } from './faceReference.js';
 import { throughOverrun, faceDrawingsForCam } from './faceDepth.js';
 
@@ -32,11 +32,12 @@ export function isShellHole(o) {
   return !!o && !!o.shellHole && o.type === 'line';
 }
 
-/** Díry v plášti ve výkresu (jen ve vrstvě děr v plášti). */
+/**
+ * Díry v plášti ve výkresu (podle dat `shellHole`, i bez vrstvy — po ↩
+ * smazání vrstvy; tu založí znovu další díra, shellHoleDraw.ensureShellLayer).
+ */
 export function shellHoles() {
-  const l = getShellLayer();
-  if (!l) return [];
-  return state.objects.filter(o => o.layer === l.id && isShellHole(o));
+  return state.objects.filter(isShellHole);
 }
 
 /** Z díry (poloha osy podél osy vřetena) z objektu osy. */
@@ -68,9 +69,16 @@ export function shellDepthLabel(dep) {
  *   R = poloměr pláště, inner = poloměr vývrtu pod stěnou (0 = plný materiál)
  */
 export function resolveShellHole(spec, z, objects = profileObjects(), machineType = state.machineType) {
-  const iv = materialAt(objects, machineType, z);
-  if (!iv.length) return { error: `v Z${fmt(z)} není materiál dílu` };
-  const [inner, R] = iv[iv.length - 1];
+  // V rovině osazení je průsečík s profilem dvojznačný (SNAP chytí roh) —
+  // plášť se bere těsně vedle; liší-li se po stranách, díra na osazení stojí.
+  const outer = zz => { const v = materialAt(objects, machineType, zz); return v.length ? v[v.length - 1] : null; };
+  const L = outer(z - 1e-3), Rt = outer(z + 1e-3);
+  if (!L && !Rt) return { error: `v Z${fmt(z)} není materiál dílu` };
+  if (!L || !Rt || Math.abs(L[1] - Rt[1]) > 1e-6 || Math.abs(L[0] - Rt[0]) > 1e-6) {
+    const ds = [L, Rt].filter(Boolean).map(v => `Ø${fmt(2 * v[1])}`).join(' / ');
+    return { error: `Z${fmt(z)} leží na osazení (${ds}) — posuňte díru na plášť` };
+  }
+  const [inner, R] = L;
   const d = +spec.d;
   if (!(d > 0)) return { error: 'zadejte Ø díry' };
   const dep = spec.depth || {};

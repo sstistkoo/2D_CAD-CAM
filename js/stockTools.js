@@ -91,7 +91,7 @@ function _contourObjects() {
   return state.objects.filter(o =>
     !o.isStock && !o.isDimension && !o.isCoordLabel &&
     o.type !== 'constr' && o.type !== 'text' && o.type !== 'point' &&
-    !isFeatureLayerId(o.layer)
+    !isFeatureLayerId(o.layer) && !o.shellHole
   );
 }
 

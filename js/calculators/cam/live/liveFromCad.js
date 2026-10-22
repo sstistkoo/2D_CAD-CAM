@@ -162,6 +162,9 @@ function radialOps(holes, geo, prev, nextN, carry) {
     const isRad = o => o.side === 'radial' && o.kind === 'drill' && Math.abs(o.holeD - g.d) < 1e-3;
     carry(op, prev.find(o => isRad(o) && Math.abs(o.xTop - g.xTop) < 1e-3) || prev.find(isRad));
     Object.assign(op, { kind: 'drill', side: 'radial', holeD: g.d, depth: g.depth, xTop: g.xTop, fromCad: true });
+    // Skrz stěnu do vývrtu zadané ve výkresu = záměr (kontrola to nehlásí).
+    if (g.tag === 'skrz') op.throughWall = true;
+    else delete op.throughWall;
     const oneZ = pts.every(p => Math.abs(p.z - pts[0].z) < 1e-6);
     const pcd = oneZ ? detectPcd(pts.map(p => ({ a: p.a, r: 1 }))) : null;
     if (oneZ && (pcd || pts.length === 1)) {

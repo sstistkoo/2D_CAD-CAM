@@ -98,8 +98,14 @@ export function placeRotate(visible, w2s = worldToScreen) {
   if (key === lastKey) return;
   lastKey = key;
   const H = Math.max(90, 2 * R);
-  Object.assign(el.style, { left: `${c[0] + R * 1.15 + 14}px`, top: `${c[1] - H / 2}px` });
   el.querySelector('.fr-track').style.height = `${H}px`;
+  // Vpravo od bokorysu, ale celý na plátně: na telefonu stojí bokorys u
+  // pravého okraje a posuvník by z plátna vypadl (pak se přisune k okraji).
+  const cv = document.getElementById('drawCanvas');
+  const cw = cv ? cv.clientWidth : Infinity;
+  const w = el.offsetWidth || 70;
+  const left = Math.max(4, Math.min(c[0] + R * 1.15 + 14, cw - w - 4));
+  Object.assign(el.style, { left: `${left}px`, top: `${c[1] - H / 2}px` });
 }
 
 export const FACE_ROT_CSS = `

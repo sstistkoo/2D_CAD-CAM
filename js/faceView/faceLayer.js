@@ -100,15 +100,21 @@ export function isFeatureLayerId(id) {
   return (state.layers || []).some(l => l && l.id === id && (l.isFace || l.isShell));
 }
 
-/** Objekt kresby pro poháněné nástroje (díra / drážka čela, díra v plášti). */
+/**
+ * Objekt kresby pro poháněné nástroje (díra / drážka čela, díra v plášti).
+ * Díra v plášti se pozná i podle dat `shellHole` — po ↩ smazání vrstvy Díry
+ * v plášti se vrátí díry, ale vrstva ne, a profilem být nesmí.
+ */
 export function isFeatureObject(o) {
-  return !!o && isFeatureLayerId(o.layer);
+  return !!o && (!!o.shellHole || isFeatureLayerId(o.layer));
 }
 
 /** Objekty profilu (vše kromě vrstev čel a děr v plášti). */
 export function profileObjects() {
   const ids = new Set((state.layers || []).filter(l => l && (l.isFace || l.isShell)).map(l => l.id));
-  return ids.size ? state.objects.filter(o => !ids.has(o.layer)) : state.objects;
+  // Bez čeho vyřazovat stejné pole (vykreslení / cache porovnávají identitou).
+  if (!ids.size && !state.objects.some(o => o.shellHole)) return state.objects;
+  return state.objects.filter(o => !ids.has(o.layer) && !o.shellHole);
 }
 
 /**

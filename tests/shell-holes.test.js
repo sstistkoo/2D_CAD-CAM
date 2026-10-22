@@ -55,6 +55,16 @@ describe('plášť a hloubka z profilu', () => {
     expect(resolveShellHole(spec({ depth: { mode: 'through', value: null } }), 150)).toMatchObject({ xTop: 60, depth: 18.4 });
     expect(resolveShellHole(spec({ depth: { mode: 'through', value: 1 } }), 150).depth).toBe(16);
   });
+  it('Z na osazení (SNAP na roh) se odmítne — plášť by byl dvojznačný', () => {
+    expect(resolveShellHole(spec(), 100).error).toMatch(/osazení \(Ø40 \/ Ø60\)/);
+    expect(resolveShellHole(spec(), 100.5).xTop).toBe(60);
+  });
+  it('díra bez vrstvy (↩ po smazání vrstvy) není profil a jde do CAM', () => {
+    const o = shellHoleObject(spec(), 50, 42);   // vrstva 42 neexistuje
+    state.objects.push(o);
+    expect(profileObjects()).not.toContain(o);
+    expect(shellHolesForCam()[0].holes).toHaveLength(1);
+  });
   it('chyby: plný materiál skrz, přes osu, mimo díl', () => {
     expect(resolveShellHole(spec({ depth: { mode: 'through', value: null } }), 50).error).toMatch(/plný materiál/);
     expect(resolveShellHole(spec({ depth: { mode: 'depth', value: 25 } }), 50).error).toMatch(/přes osu/);
@@ -132,6 +142,14 @@ describe('přenos do CAM', () => {
     const res = liveOpsFromCad(cadDrawingsForCam(), GEO, []);
     expect(res.holes).toBe(0);
     expect(res.skipped).toBe(1);
+  });
+  it('skrz stěnu do vývrtu z výkresu kontrola nehlásí (záměr), ruční ano', () => {
+    state.objects.push(shellHoleObject(spec({ depth: { mode: 'through', value: null } }), 150, SH));
+    const [op] = liveOpsFromCad(cadDrawingsForCam(), GEO, []).ops;
+    expect(op.throughWall).toBe(true);
+    const prof = { objects: profileObjects().map(o => ({ ...o })), cylStock: [] };
+    expect(checkLiveOp(prof, op).issues).toEqual([]);
+    expect(checkLiveOp(prof, { ...op, throughWall: false }).issues[0].text).toMatch(/skrz stěnu do vývrtu/);
   });
 });
 

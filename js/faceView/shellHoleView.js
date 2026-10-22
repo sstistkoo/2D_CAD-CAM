@@ -60,7 +60,7 @@ export function drawShellHoles(g, w2s) {
   const S = (z, r) => { const p = toWorldZR(z, r); return w2s(p.x, p.y); };
   const view = faceViewC();
   g.save();
-  if (layer && layer.visible) {
+  if (!layer || layer.visible) {   // bez vrstvy = díry vrácené ↩ po smazání vrstvy
     items.forEach(({ o, z, res }) => {
       if (res.error) {
         // Nejde určit (mimo díl, hloubka přes osu…) — přeškrtnout osu.

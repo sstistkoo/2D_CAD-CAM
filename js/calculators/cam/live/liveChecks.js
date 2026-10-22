@@ -200,7 +200,8 @@ function radialChecks(probe, op, found) {
     }
     // 3. Hloubka do vývrtu (přejetí osy hlídá liveOpProblems).
     const m = around(ivc, R0 - 0.01) || ivc[ivc.length - 1];
-    if (m[0] > 0.05 && R0 - op.depth < m[0] - TOL)
+    // Díra skrz stěnu z výkresu (op.throughWall) má do vývrtu vést.
+    if (m[0] > 0.05 && R0 - op.depth < m[0] - TOL && !op.throughWall)
       err(`skrz stěnu do vývrtu ${dia(m[0])} – stěna ${fmt(m[1] - m[0])} mm, hloubka ${fmt(op.depth)} mm.`, 'warn');
   });
 }
