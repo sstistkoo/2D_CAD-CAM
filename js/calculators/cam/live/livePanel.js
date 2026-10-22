@@ -34,7 +34,7 @@ import { cadSyncOps } from './liveCadSync.js';
 import { createLiveProgram } from './liveProgram.js';
 import { createDrillUi } from './liveDrillUi.js';
 import { settingsTitle } from './liveSettingsUi.js';
-import { cadDrawingsForCam } from '../../../faceView/shellHoles.js';
+import { cadDrawingsForCam } from '../../../faceView/cadForCam.js';
 import { liveProfile, liveCutAt, autoSide, drawCutMark } from './liveCut.js';
 import { createCutBar } from './liveCutBar.js';
 import { attachFaceNav, defaultNav, isDefaultNav } from './liveFaceNav.js';
@@ -471,7 +471,7 @@ export function initLiveTools(deps) {
   });
 
   const NUM_KEYS = new Set(['faceDir', 'pcd', 'count', 'startAngle', 'zTop', 'xTop', 'zPos', 'holeD', 'depth', 'peck',
-    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'chipBack', 'slot.x1', 'slot.y1', 'slot.x2', 'slot.y2']);
+    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'chipBack', 'slot.x1', 'slot.y1', 'slot.x2', 'slot.y2', 'kz1', 'kz2']);
   ed.addEventListener('change', e => {
     const el = e.target;
     const k = el.dataset.k;

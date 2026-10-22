@@ -16,6 +16,7 @@ import { state } from '../state.js';
 import { faceDiscGeom } from './faceReference.js';
 import { getShellLayer, getFaceLayer, faceViewOn, profileObjects, faceViewC, faceHoles } from './faceLayer.js';
 import { shellHoles, shellHoleZ, resolveShellHole, shellAngles, toWorldZR } from './shellHoles.js';
+import { shellSlots, shellSlotSpan, resolveShellSlot } from './shellSlots.js';
 
 const COL = '#94e2d5';
 const FILL = 'rgba(148,226,213,0.18)';
@@ -49,6 +50,7 @@ export function shellFrontProjections(z, spec, res, viewC) {
  * @param w2s worldToScreen → [sx, sy]
  */
 export function drawShellHoles(g, w2s) {
+  drawShellSlots(g, w2s);
   const list = shellHoles();
   if (!list.length) return;
   const layer = getShellLayer();
@@ -107,6 +109,80 @@ export function drawShellHoles(g, w2s) {
 }
 
 /**
+ * Průměty drážky pro pero do nárysu při natočení `viewC`: [{ rect: [z2, z1,
+ * h0, h1] }] pás od pláště do hloubky (drážka z boku), nebo { stadium: [z2,
+ * z1, c, w/2] } — drážka míří k nám / od nás (vidět shora, zaoblené konce).
+ */
+export function shellSlotProjections(z1, z2, spec, res, viewC) {
+  return shellAngles(spec).map(a => {
+    const k = Math.cos((a - viewC) * Math.PI / 180);
+    if (Math.abs(k) < 0.17) return { stadium: [z2, z1, res.R * k, spec.w / 2] };
+    const h0 = res.R * k, h1 = (res.R - res.depth) * k;
+    return { rect: [z2, z1, Math.min(h0, h1), Math.max(h0, h1)] };
+  });
+}
+
+function drawShellSlots(g, w2s) {
+  const list = shellSlots();
+  if (!list.length) return;
+  const layer = getShellLayer();
+  const prof = profileObjects();
+  const view = faceViewC();
+  const S = (z, r) => { const p = toWorldZR(z, r); return w2s(p.x, p.y); };
+  const items = list.map(o => {
+    const { z1, z2 } = shellSlotSpan(o);
+    return { o, z1, z2, res: resolveShellSlot(o.shellSlot, z1, z2, prof, state.machineType) };
+  });
+  g.save();
+  if (!layer || layer.visible) {
+    items.forEach(({ o, z1, z2, res }) => {
+      if (res.error) {
+        const a = w2s(o.x1, o.y1), b = w2s(o.x2, o.y2), mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+        g.strokeStyle = ERR; g.lineWidth = 2; g.setLineDash([]);
+        g.beginPath(); g.moveTo(mx - 6, my - 6); g.lineTo(mx + 6, my + 6); g.moveTo(mx + 6, my - 6); g.lineTo(mx - 6, my + 6); g.stroke();
+        return;
+      }
+      g.strokeStyle = COL; g.lineWidth = 1; g.setLineDash(HIDDEN_DASH);
+      shellSlotProjections(z1, z2, o.shellSlot, res, view).forEach(pr => {
+        g.beginPath();
+        if (pr.rect) {
+          const [za, zb, h0, h1] = pr.rect;
+          [[za, h0], [zb, h0], [zb, h1], [za, h1]].forEach(([z, h], i) => { const s = S(z, h); if (i) g.lineTo(s[0], s[1]); else g.moveTo(s[0], s[1]); });
+          g.closePath();
+        } else {
+          // Zaoblené konce (Ø frézy) — vzorkovaný obrys stadionu.
+          const [za, zb, c, r] = pr.stadium, pts = [];
+          for (let j = 0; j <= 8; j++) { const t = Math.PI / 2 + Math.PI * j / 8; pts.push([za + r + r * Math.cos(t), c + r * Math.sin(t)]); }
+          for (let j = 0; j <= 8; j++) { const t = -Math.PI / 2 + Math.PI * j / 8; pts.push([zb - r + r * Math.cos(t), c + r * Math.sin(t)]); }
+          pts.forEach(([z, h], i) => { const s = S(z, h); if (i) g.lineTo(s[0], s[1]); else g.moveTo(s[0], s[1]); });
+          g.closePath();
+        }
+        g.stroke();
+      });
+    });
+  }
+  // Bokorys: drážka na svém úhlu C jako obdélník od pláště do hloubky.
+  const face = faceViewOn() ? getFaceLayer() : null;
+  if (face && face.origin) {
+    const O = face.origin;
+    g.setLineDash([]); g.lineWidth = 1.2;
+    items.forEach(({ o, res }) => {
+      if (res.error) return;
+      const h = o.shellSlot.w / 2, rb = res.R - res.depth;
+      shellAngles(o.shellSlot).forEach(a => {
+        const t = a * Math.PI / 180, c = Math.cos(t), s = Math.sin(t);
+        const P = (r, w) => w2s(O.x + r * c - w * s, O.y + r * s + w * c);
+        const q = [P(res.R, -h), P(rb, -h), P(rb, h), P(res.R, h)];
+        g.beginPath(); q.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath();
+        g.fillStyle = 'rgba(203,166,247,0.22)'; g.fill();
+        g.strokeStyle = '#cba6f7'; g.stroke();
+      });
+    });
+  }
+  g.restore();
+}
+
+/**
  * Bokorys: čára natočení pohledu — průměr na úhlu C, který je v nárysu
  * nahoře (posuvník vpravo od bokorysu), s trojúhelníkem a popiskem na jeho
  * konci. Kreslí se jen při natočení jiném než výchozím (jinak by se
@@ -150,6 +226,7 @@ export function holeAnglesC() {
     out.add(+(((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360).toFixed(3));
   });
   shellHoles().forEach(o => shellAngles(o.shellHole).forEach(a => out.add(a)));
+  shellSlots().forEach(o => shellAngles(o.shellSlot).forEach(a => out.add(a)));
   return [...out];
 }
 

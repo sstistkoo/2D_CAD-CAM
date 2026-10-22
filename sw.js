@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v587';
+const CACHE_NAME = 'skica-v588';
 const ASSETS = [
   './',
   './index.html',
@@ -229,6 +229,7 @@ const ASSETS = [
   './js/calculators/revolveMath.js',
   './js/calculators/roughness.js',
   './js/calculators/shellHole.js',
+  './js/calculators/shellSlot.js',
   './js/calculators/shortcuts.js',
   './js/calculators/singleHole.js',
   './js/calculators/sinumerikAlarms.js',
@@ -289,6 +290,7 @@ const ASSETS = [
   './js/dxf.js',
   './js/errorReport.js',
   './js/events.js',
+  './js/faceView/cadForCam.js',
   './js/faceView/faceBar.js',
   './js/faceView/faceCutDrag.js',
   './js/faceView/faceDepth.js',
@@ -301,6 +303,7 @@ const ASSETS = [
   './js/faceView/shellHoleDraw.js',
   './js/faceView/shellHoles.js',
   './js/faceView/shellHoleView.js',
+  './js/faceView/shellSlots.js',
   './js/gcodeNormalize.js',
   './js/geom/geomCore.js',
   './js/geometry.js',

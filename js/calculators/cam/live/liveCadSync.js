@@ -6,12 +6,12 @@
 // nakreslené není, nic se nemění (smazání načtených operací je dál ruční).
 import { liveOpsFromCad } from './liveFromCad.js';
 import { getLiveOps } from './liveModel.js';
-import { cadDrawingsForCam } from '../../../faceView/shellHoles.js';
+import { cadDrawingsForCam } from '../../../faceView/cadForCam.js';
 
 // Co z operace pochází z výkresu — porovnává se jen to (nástroj, otáčky,
 // posuvy zůstávají z dřívější operace).
 const GEO = ['kind', 'millType', 'side', 'holeD', 'zTop', 'faceDir', 'pattern', 'pcd', 'count',
-  'startAngle', 'points', 'depth', 'slot', 'throughStock', 'xTop', 'zPos', 'throughWall'];
+  'startAngle', 'points', 'depth', 'slot', 'throughStock', 'xTop', 'zPos', 'throughWall', 'kz1', 'kz2'];
 
 /** Otisk operací načtených z CAD (jen geometrie z výkresu). */
 export function cadOpsSignature(ops) {

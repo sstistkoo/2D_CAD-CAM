@@ -14,7 +14,7 @@
 // k němu natáčí osou C. Stav proto nese `rot` = natočení kusu [°] tak, aby
 // bod pod nástrojem ležel na úhlu toolAt; přejezd mezi dírami je natočení C
 // (polární interpolace), ne přímka napříč čelem.
-import { livePositions, millMoves, depthLevels, faceOut, liveSettings, liveOpProblems } from './liveModel.js';
+import { livePositions, millMoves, depthLevels, faceOut, liveSettings, liveOpProblems, isKeyway, keywaySpan } from './liveModel.js';
 import { rapidFeedMmMin } from '../feedRates.js';
 
 const C_POS_SEC = 0.4;        // natočení osy C / přejezd mezi dírami (orientačně)
@@ -47,7 +47,24 @@ export function buildLiveTimeline(ops, prms) {
     // zadání NC blok vynechá (liveGcode.js) — simulace ho nesmí obrobit.
     if (op.enabled === false || liveOpProblems(op).length) { opEnd[oi] = t; return; }
     const feed = Math.max(1, op.feed || 100) / 60;
-    if (op.kind === 'drill') {
+    if (isKeyway(op)) {
+      // Drážka pro pero jako NC (liveGcode.emitKeyway): na úhlu C zanořit
+      // v X (0,3·F) a jet v Z mezi středy konců, vrstvy tam a zpět.
+      const R = op.xTop / 2, k = keywaySpan(op), levels = depthLevels(op.depth, op.stepDown);
+      livePositions(op).forEach((p, hole) => {
+        const rad = p.a * Math.PI / 180;
+        const P = (d, z) => ({ op: oi, hole, x: (R - d) * Math.cos(rad), y: (R - d) * Math.sin(rad), z, d });
+        at(P(-op.retract, k.za), rapid, true);
+        at(P(-op.safe, k.za), rapid);
+        let z = k.za;
+        levels.forEach(L => {
+          at(P(L, z), feed * 0.3);
+          z = z === k.za ? k.zb : k.za;
+          at(P(L, z), feed);
+        });
+        at(P(-op.retract, z), rapid);
+      });
+    } else if (op.kind === 'drill') {
       const radial = op.side === 'radial';
       const out = faceOut(op), R = op.xTop / 2;
       livePositions(op).forEach((p, hole) => {

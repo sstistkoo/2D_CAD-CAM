@@ -21,8 +21,9 @@ vi.stubGlobal('navigator', { vibrate: vi.fn() });
 import { state } from '../js/state.js';
 import { profileObjects, isFeatureLayerId } from '../js/faceView/faceLayer.js';
 import {
-  resolveShellHole, shellHoleObject, shellHolesForCam, shellAngles, shellHoleZ, cadDrawingsForCam,
+  resolveShellHole, shellHoleObject, shellHolesForCam, shellAngles, shellHoleZ,
 } from '../js/faceView/shellHoles.js';
+import { cadDrawingsForCam } from '../js/faceView/cadForCam.js';
 import { shellFrontOutline } from '../js/faceView/shellHoleView.js';
 import { faceHoleRefs } from '../js/calculators/shellHole.js';
 import { liveOpsFromCad } from '../js/calculators/cam/live/liveFromCad.js';

@@ -18,7 +18,7 @@
 // Nález: { sev: 'error' | 'warn', text } — 'warn' = může být záměr (díra
 // skrz, radiální díra do vývrtu, díra na přechodu průměrů).
 import { materialAt, objectPoints } from '../../../faceView/faceReference.js';
-import { livePositions, liveOpProblems, faceOut } from './liveModel.js';
+import { livePositions, liveOpProblems, faceOut, isKeyway, keywaySpan } from './liveModel.js';
 
 const LATHE = 'soustruh';
 const SECT = 0.3;      // [mm] řez za rovinou čela (jako sectionAt v pohledu)
@@ -167,7 +167,10 @@ function faceChecks(probe, prof, op, found) {
 /** Kontroly 3 a 4 pro radiální díry → found.push({ i, sev, text }). */
 function radialChecks(probe, op, found) {
   const h = op.holeD / 2, R0 = op.xTop / 2;
+  // Drážka pro pero: v Z celá délka drážky (zaoblené konce = Ø frézy).
+  const kw = isKeyway(op) ? keywaySpan(op) : null;
   livePositions(op).forEach((p, i) => {
+    const lo = kw ? kw.zMin : p.z - h, hi = kw ? kw.zMax : p.z + h;
     const err = (text, sev = 'error') => found.push({ i, sev, text });
     const ivc = probe.at(p.z);
     if (!ivc.length) { err(`mimo díl – v Z${fmt(p.z)} není materiál.`); return; }
@@ -179,16 +182,16 @@ function radialChecks(probe, op, found) {
     }
     // Povrch pod celou šířkou díry (Z ± Ø/2): konec dílu, osazení, kužel.
     let rMin = Infinity, rMax = 0, gone = false;
-    const zs = new Set([p.z - h + 0.01, p.z + h - 0.01]);
-    for (let k = 1; k < 10; k++) zs.add(p.z - h + 2 * h * k / 10);
-    probe.breaks.forEach(b => { if (b > p.z - h && b < p.z + h) { zs.add(b - 1e-3); zs.add(b + 1e-3); } });
+    const zs = new Set([lo + 0.01, hi - 0.01]);
+    for (let k = 1; k < 10; k++) zs.add(lo + (hi - lo) * k / 10);
+    probe.breaks.forEach(b => { if (b > lo && b < hi) { zs.add(b - 1e-3); zs.add(b + 1e-3); } });
     zs.forEach(z => {
       const iv = probe.at(z);
       if (!iv.length) { gone = true; return; }
       const r = iv[iv.length - 1][1];
       rMin = Math.min(rMin, r); rMax = Math.max(rMax, r);
     });
-    if (gone) err(`přesah za konec dílu – díra zabírá Z${fmt(p.z - h)} až Z${fmt(p.z + h)}.`);
+    if (gone) err(`přesah za konec dílu – ${kw ? "drážka" : "díra"} zabírá Z${fmt(lo)} až Z${fmt(hi)}.`);
     else if (rMax - R0 > op.safe + TOL) {
       // 4. Osazení u díry vyšší než bezpečná rovina / odjezd.
       const up = rMax - R0;
@@ -196,7 +199,10 @@ function radialChecks(probe, op, found) {
         ? `bezpečná vzdálenost i odjezd končí v materiálu – osazení ${dia(rMax)} u díry je ${fmt(up)} mm nad pláštěm.`
         : `bezpečná vzdálenost ${fmt(op.safe)} mm končí v materiálu – osazení ${dia(rMax)} u díry je ${fmt(up)} mm nad pláštěm.`);
     } else if (rMax - rMin > DIA_TOL / 2) {
-      err(`na přechodu průměrů – pod dírou ${dia(rMin)} až ${dia(rMax)}.`, 'warn');
+      // Drážka pro pero přes osazení má po délce jinou hloubku / vyjede ze
+      // stěny — chyba; díra na přechodu může být záměr.
+      if (kw) err(`drážka vede přes osazení – plášť ${dia(rMin)} až ${dia(rMax)}.`);
+      else err(`na přechodu průměrů – pod dírou ${dia(rMin)} až ${dia(rMax)}.`, 'warn');
     }
     // 3. Hloubka do vývrtu (přejetí osy hlídá liveOpProblems).
     const m = around(ivc, R0 - 0.01) || ivc[ivc.length - 1];
@@ -220,6 +226,7 @@ function idxList(ix) {
 
 function label(op, ix) {
   if (op.kind === 'mill' && op.millType === 'slot') return 'Drážka';
+  if (isKeyway(op)) return `${ix.length > 1 ? 'Drážky' : 'Drážka'} ${idxList(ix)}`;
   const [one, many] = op.kind === 'mill' ? ['Kapsa', 'Kapsy'] : ['Díra', 'Díry'];
   return `${ix.length > 1 ? many : one} ${idxList(ix)}`;
 }
@@ -235,7 +242,7 @@ export function checkLiveOp(prof, op, probe) {
   if (!prof || prof.empty || liveOpProblems(op).length) return res;
   const pr = probe || materialProbe(prof, !!op.throughStock);
   const found = [];
-  if (op.kind === 'drill' && op.side === 'radial') radialChecks(pr, op, found);
+  if (op.side === 'radial') radialChecks(pr, op, found);   // radiální díra i drážka pro pero
   else faceChecks(pr, prof, op, found);
   const groups = new Map();
   found.forEach(f => {

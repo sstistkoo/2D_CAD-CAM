@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAD → CAM: drážka pro pero do pláště.** Nástroj Drážka: klepnutí na díl
+  v nárysu otevře ⊐ Drážka pro pero (střed Z, délka, šířka = Ø frézy,
+  hloubka od pláště / do Ø, počet po obvodu, úhel C nebo natočení podle díry
+  v čele). Kreslí se do vrstvy Díry v plášti (úsečka na plášti, obrys podle
+  natočení pohledu, v bokorysu na úhlu C); drážka přes osazení se odmítne.
+  V CAM nové frézování `millType: keyway` (side radial): NC Sinumerik /
+  Fanuc / Heidenhain (natočení C, zanoření v X, vrstvy v Z tam a zpět),
+  simulace, řez, pohled na čelo, kontrola proti dílu, ruční formulář.
+  Moduly `faceView/shellSlots.js`, `faceView/cadForCam.js`,
+  `calculators/shellSlot.js`, test `tests/shell-slots.test.js`.
+
 - **CAD: posuvník natočení pohledu vpravo od bokorysu.** Úhel C nahoře
   v nárysu (výchozí soustruh 90°, karusel 0°), přichycení k dírám a po 45°,
   políčko a ⟲. Nárys ukazuje díry v čele i v plášti podle natočení, bokorys

@@ -18,7 +18,7 @@
 import { state } from '../state.js';
 import { profileObjects } from './faceLayer.js';
 import { materialAt } from './faceReference.js';
-import { throughOverrun, faceDrawingsForCam } from './faceDepth.js';
+import { throughOverrun } from './faceDepth.js';
 
 const r3 = v => +(+v).toFixed(3);
 const fmt = v => String(r3(v));
@@ -146,7 +146,13 @@ export function shellHolesForCam(objects = profileObjects(), machineType = state
   return [{ kind: 'shell', holes, errors }];
 }
 
-/** Kresby pro 📥 Z CAD: čela (faceDepth.faceDrawingsForCam) + díry v plášti. */
-export function cadDrawingsForCam() {
-  return [...faceDrawingsForCam(), ...shellHolesForCam()];
+const TOL_PX = 15;   // klepnutí kousek nad obrys se ještě počítá na plášť
+
+/** Klepnutí v nárysu na díl (do materiálu nebo těsně nad plášť)? → Z, jinak null. */
+export function shellZAt(wx, wy) {
+  const { z, r } = zrOfWorld(wx, wy);
+  const iv = materialAt(profileObjects(), state.machineType, z);
+  if (!iv.length) return null;
+  const R = iv[iv.length - 1][1];
+  return r <= R + TOL_PX / (state.zoom || 1) ? r3(z) : null;
 }

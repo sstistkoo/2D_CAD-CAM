@@ -6,25 +6,14 @@
 // klepnutí na existující díru v plášti ji otevře k úpravě.
 // Bez zapnutého bokorysu a mimo díl se otevře díra do čela s X0 Y0 —
 // „◎ Do čela" bokorys zapne.
-import { state, showToast } from '../state.js';
+import { showToast } from '../state.js';
 import { setHint } from '../ui.js';
-import { faceViewOn, getFaceLayer, profileObjects } from '../faceView/faceLayer.js';
-import { inFaceDisc, materialAt } from '../faceView/faceReference.js';
-import { zrOfWorld, shellHoleZ } from '../faceView/shellHoles.js';
+import { faceViewOn, getFaceLayer } from '../faceView/faceLayer.js';
+import { inFaceDisc } from '../faceView/faceReference.js';
+import { shellHoleZ, shellZAt } from '../faceView/shellHoles.js';
 import { shellHoleAt } from '../faceView/shellHoleDraw.js';
 import { openSingleHoleCalc } from '../calculators/singleHole.js';
 import { openShellHoleCalc } from '../calculators/shellHole.js';
-
-const TOL_PX = 15;   // klepnutí kousek nad obrys se ještě počítá na plášť
-
-/** Klepnutí v nárysu na díl (do materiálu nebo těsně nad plášť)? → Z, jinak null. */
-function shellZAt(wx, wy) {
-  const { z, r } = zrOfWorld(wx, wy);
-  const iv = materialAt(profileObjects(), state.machineType, z);
-  if (!iv.length) return null;
-  const R = iv[iv.length - 1][1];
-  return r <= R + TOL_PX / (state.zoom || 1) ? +z.toFixed(3) : null;
-}
 
 export function handleFaceHoleClick(wx, wy) {
   const face = faceViewOn() ? getFaceLayer() : null;

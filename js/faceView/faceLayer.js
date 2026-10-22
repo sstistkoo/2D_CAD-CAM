@@ -106,15 +106,15 @@ export function isFeatureLayerId(id) {
  * v plášti se vrátí díry, ale vrstva ne, a profilem být nesmí.
  */
 export function isFeatureObject(o) {
-  return !!o && (!!o.shellHole || isFeatureLayerId(o.layer));
+  return !!o && (!!o.shellHole || !!o.shellSlot || isFeatureLayerId(o.layer));
 }
 
 /** Objekty profilu (vše kromě vrstev čel a děr v plášti). */
 export function profileObjects() {
   const ids = new Set((state.layers || []).filter(l => l && (l.isFace || l.isShell)).map(l => l.id));
   // Bez čeho vyřazovat stejné pole (vykreslení / cache porovnávají identitou).
-  if (!ids.size && !state.objects.some(o => o.shellHole)) return state.objects;
-  return state.objects.filter(o => !ids.has(o.layer) && !o.shellHole);
+  if (!ids.size && !state.objects.some(o => o.shellHole || o.shellSlot)) return state.objects;
+  return state.objects.filter(o => !ids.has(o.layer) && !o.shellHole && !o.shellSlot);
 }
 
 /**

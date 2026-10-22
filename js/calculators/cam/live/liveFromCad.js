@@ -133,9 +133,47 @@ export function liveOpsFromCad(input, geo, prevOps) {
     const r = radialOps(sh.holes || [], geo, prev, () => ++n, carry);
     ops.push(...r.ops);
     holes += r.holes;
+    const k = keywayOps(sh.slots || [], geo, prev, () => ++n, carry);
+    ops.push(...k.ops);
+    slots += k.slots;
     skipped += (sh.errors || []).length;
   });
   return { ops, holes, slots, skipped };
+}
+
+/**
+ * Drážky pro pero v plášti → frézování „Drážka pro pero" (millType 'keyway',
+ * side 'radial'). Skupina = stejná šířka, hloubka, Ø pláště a konce v Z;
+ * úhly rovnoměrně → po obvodu (count, startAngle), jinak seznam úhlů. Fréza
+ * Ø = šířka drážky (toolD se nepřebírá, nástroj a otáčky ano).
+ */
+function keywayOps(list, geo, prev, nextN, carry) {
+  const byKey = new Map();
+  list.forEach(s => {
+    const key = `${s.w}|${s.depth}|${s.xTop}|${s.z1}|${s.z2}|${s.tag || ''}`;
+    if (!byKey.has(key)) byKey.set(key, { ...s, as: [] });
+    s.angles.forEach(a => byKey.get(key).as.push(r3(norm360(a))));
+  });
+  const ops = [];
+  let count = 0;
+  [...byKey.values()].sort((p, q) => q.z1 - p.z1 || p.w - q.w).forEach(g => {
+    const as = [...new Set(g.as)].sort((p, q) => p - q);
+    count += as.length;
+    const op = newLiveOp('mill', geo, nextN());
+    op.name = `Drážka pro pero ${g.w}×${r3(g.z1 - g.z2)}${g.tag ? ' ' + g.tag : ''} · Ø${g.xTop}`;
+    const isKw = o => o.kind === 'mill' && o.millType === 'keyway' && Math.abs(o.toolD - g.w) < 1e-3;
+    carry(op, prev.find(o => isKw(o) && Math.abs(o.kz1 - g.z1) < 1e-3 && Math.abs(o.kz2 - g.z2) < 1e-3) || prev.find(isKw));
+    if (op.toolName === 'FREZA_D10' && g.w !== 10) op.toolName = `FREZA_D${g.w}`;
+    Object.assign(op, {
+      kind: 'mill', millType: 'keyway', side: 'radial', toolD: g.w, holeD: g.w, depth: g.depth,
+      xTop: g.xTop, kz1: g.z1, kz2: g.z2, fromCad: true,
+    });
+    const pcd = detectPcd(as.map(a => ({ a, r: 1 })));
+    if (pcd || as.length === 1) Object.assign(op, { pattern: 'pcd', count: as.length, startAngle: pcd ? pcd.startAngle : as[0] });
+    else { op.pattern = 'points'; op.points = as.map(a => `${a}; ${r3((g.z1 + g.z2) / 2)}`).join('\n'); }
+    ops.push(normalizeLiveOp(op));
+  });
+  return { ops, slots: count };
 }
 
 /**

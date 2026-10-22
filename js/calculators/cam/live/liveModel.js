@@ -91,7 +91,11 @@ export function newLiveOp(kind, geo, n) {
     chipMode: 'clear', chipBack: 1,
     dwell: 0,
     safe: 2, retract: 5,
-    millType: 'pocket',       // 'pocket' (kruhová kapsa na pozicích) | 'slot'
+    millType: 'pocket',       // 'pocket' (kruhová kapsa na pozicích) | 'slot' | 'keyway'
+    // Drážka pro pero v plášti (millType 'keyway', side 'radial'): kus stojí
+    // na úhlu C, fréza (Ø = šířka) zanoří v X a jede v Z mezi konci drážky
+    // kz1…kz2 (vnější rozměr vč. zaoblení, uživatel 22. 10. 2026).
+    kz1: faceZ - 40, kz2: faceZ - 10,
     toolD: kind === 'mill' ? 10 : 8,
     stepDown: 2,
     slot: { x1: -pcd / 4, y1: 0, x2: pcd / 4, y2: 0 },
@@ -107,13 +111,16 @@ export function normalizeLiveOp(op) {
   const d = newLiveOp(op && op.kind === 'mill' ? 'mill' : 'drill');
   const o = { ...d, ...(op || {}) };
   for (const k of ['pcd', 'count', 'startAngle', 'zTop', 'xTop', 'zPos', 'holeD', 'depth', 'peck',
-    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'faceDir', 'chipBack']) o[k] = num(o[k], d[k]);
+    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'faceDir', 'chipBack', 'kz1', 'kz2']) o[k] = num(o[k], d[k]);
   o.faceDir = o.faceDir < 0 ? -1 : 1;
   o.chipMode = o.chipMode === 'break' ? 'break' : 'clear';
   o.count = Math.max(1, Math.min(360, Math.round(o.count)));
   o.slot = { ...d.slot, ...(o.slot || {}) };
   for (const k of ['x1', 'y1', 'x2', 'y2']) o.slot[k] = num(o.slot[k], 0);
-  if (o.kind === 'mill') o.side = 'face';   // frézování pláště (TRACYL) zatím není
+  if (o.kind === 'mill' && o.millType === 'keyway') {
+    o.side = 'radial';
+    o.holeD = o.toolD;   // šířka drážky = Ø frézy (kreslení řezu / pohledu jako radiální díra)
+  } else if (o.kind === 'mill') o.side = 'face';   // obecné frézování pláště (TRACYL) zatím není
   return o;
 }
 
@@ -153,9 +160,11 @@ export function parsePointList(text) {
 export function livePositions(op) {
   const norm = a => ((a % 360) + 360) % 360;
   if (op.side === 'radial') {
-    if (op.pattern === 'points') return parsePointList(op.points).map(p => ({ a: norm(p.a), z: p.v }));
+    // Drážka pro pero: poloha = úhel C, Z = střed drážky (dráhu dává keywaySpan).
+    const kw = isKeyway(op) ? (op.kz1 + op.kz2) / 2 : null;
+    if (op.pattern === 'points') return parsePointList(op.points).map(p => ({ a: norm(p.a), z: kw ?? p.v }));
     const step = 360 / op.count;
-    return Array.from({ length: op.count }, (_, i) => ({ a: norm(op.startAngle + i * step), z: op.zPos }));
+    return Array.from({ length: op.count }, (_, i) => ({ a: norm(op.startAngle + i * step), z: kw ?? op.zPos }));
   }
   const raw = op.pattern === 'points'
     ? parsePointList(op.points).map(p => ({ a: p.a, r: Math.abs(p.v) }))
@@ -231,6 +240,21 @@ export function millMoves(op) {
   return moves;
 }
 
+/** Je operace drážka pro pero v plášti? */
+export function isKeyway(op) {
+  return !!op && op.kind === 'mill' && op.millType === 'keyway';
+}
+
+/**
+ * Drážka pro pero podél osy Z: vnější rozsah zMin…zMax (vč. zaoblení konců
+ * frézou) a dráha středu frézy za…zb (= konce − poloměr frézy). za > zb =
+ * drážka kratší než fréza.
+ */
+export function keywaySpan(op) {
+  const zMin = Math.min(op.kz1, op.kz2), zMax = Math.max(op.kz1, op.kz2), r = op.toolD / 2;
+  return { zMin, zMax, za: zMax - r, zb: zMin + r };
+}
+
 /** Kontrola zadání — pole českých hlášek (prázdné = v pořádku). */
 export function liveOpProblems(op) {
   const out = [];
@@ -244,6 +268,11 @@ export function liveOpProblems(op) {
   }
   if (op.pattern === 'points' && op.millType !== 'slot' && parsePointList(op.points).length === 0)
     out.push('Seznam bodů je prázdný (řádek = „úhel; poloměr").');
+  if (isKeyway(op)) {
+    const k = keywaySpan(op);
+    if (k.za < k.zb - 1e-9) out.push('Drážka je kratší než Ø frézy (šířka).');
+    if (op.depth > op.xTop / 2) out.push('Drážka je hlubší než poloměr pláště.');
+  }
   if (!(op.rpm > 0) || !(op.feed > 0)) out.push('Zadejte otáčky a posuv.');
   // Rovina R (bezpečná vzdálenost) musí ležet mezi plochou a odjezdem.
   if (!(op.safe >= 0) || !(op.retract >= op.safe)) out.push('Odjezd musí být ≥ bezpečná vzdálenost ≥ 0.');
@@ -261,6 +290,10 @@ export function liveOpSummary(op) {
     : czCount(livePositions(op).length, 'bod', 'body', 'bodů');
   if (op.kind === 'mill') {
     if (op.millType === 'slot') return `Drážka š. ${op.toolD} hl. ${op.depth}`;
+    if (op.millType === 'keyway') {
+      const k = keywaySpan(op);
+      return `Pero š. ${op.toolD} hl. ${op.depth} · Z${+k.zMax.toFixed(3)}…${+k.zMin.toFixed(3)} – ${op.pattern === 'pcd' ? `${op.count}× po obvodu` : pos}`;
+    }
     return `Kapsa Ø${op.holeD} hl. ${op.depth} – ${pos}`;
   }
   const face = op.faceDir === -1 ? 'Čelo zleva' : 'Čelo';

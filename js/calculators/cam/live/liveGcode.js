@@ -13,7 +13,7 @@
 // M-kódy osy C a poháněného nástroje jsou strojní — bere se je z nastavení
 // (`liveSettings().m`), výchozí hodnoty jsou jen příklad (viz liveModel.js).
 import { LIVE_BEGIN, LIVE_END } from './liveMarkers.js';
-import { getLiveOps, liveOpOn, liveSettings, livePositions, depthLevels, millMoves, liveOpSummary, liveOpProblems, faceOut } from './liveModel.js';
+import { getLiveOps, liveOpOn, liveSettings, livePositions, depthLevels, millMoves, liveOpSummary, liveOpProblems, faceOut, isKeyway, keywaySpan } from './liveModel.js';
 
 const f3 = v => String(+(+v).toFixed(3));
 const pad2 = n => String(Math.max(0, Math.round(n))).padStart(2, '0');
@@ -77,7 +77,8 @@ export function buildLiveBlock(prms) {
     else if (ctrl === 'fanuc') add(`T${pad2(op.toolNo)}${pad2(op.toolNo)}${note(op.toolName)}`);
     else add(`T${op.toolNo} M6${note(op.toolName)}`);
     const ctx = { ctrl, set, m, op, add, cmt, note, xo, dia, sWord, prms };
-    if (op.kind === 'mill') emitMill(ctx);
+    if (isKeyway(op)) emitKeyway(ctx);
+    else if (op.kind === 'mill') emitMill(ctx);
     else if (op.side === 'radial') emitRadialDrill(ctx);
     else emitFaceDrill(ctx);
     safe();
@@ -263,6 +264,38 @@ function emitRadialDrill(ctx) {
     });
     if (ctrl === 'sinumerik') { if (ctx.dia) add('DIAMON'); add('G18'); }
   }
+  toolStop(c2);
+  cOff(c2);
+}
+
+// ── drážka pro pero v plášti (fréza radiálně, posuv v Z) ────────
+// Kus stojí na úhlu C (SPOS / C — jako radiální vrtání), fréza Ø = šířka
+// drážky zanoří v X (zmenšeným posuvem, musí řezat středem) a jede v Z mezi
+// středy zaoblených konců; vrstvy po stepDown střídavě tam a zpět. X ve
+// zápisu programu (Ø / poloměr), rovina ZX — žádná transformace není třeba.
+function emitKeyway(ctx) {
+  const { set, op, add, note, xo, cmt } = ctx;
+  const pos = livePositions(op);
+  const rX = op.xTop / 2, k = keywaySpan(op);
+  const c2 = { ...ctx, set: { ...set, mode: set.mode === 'transmit' ? 'caxis' : set.mode } };
+  add(cmt('Drážka pro pero: kus stojí na úhlu C, fréza zanořuje v X a jede v Z — fréza musí řezat středem'));
+  cOn(c2);
+  toolStart(c2);
+  const plungeF = f3(Math.max(1, op.feed * 0.3));
+  const levels = depthLevels(op.depth, op.stepDown);
+  pos.forEach((p, i) => {
+    rotate(c2, p.a);
+    add(`G0 Z${f3(k.za)}${note(`drážka ${i + 1}: úhel ${f3(angOf(set, p.a))}°`)}`);
+    add(`G0 X${xo(rX + op.retract)}`);
+    add(`G0 X${xo(rX + op.safe)}`);
+    let atA = true;
+    levels.forEach(d => {
+      add(`G1 X${xo(rX - d)} F${plungeF}`);
+      add(`G1 Z${f3(atA ? k.zb : k.za)} F${f3(op.feed)}`);
+      atA = !atA;
+    });
+    add(`G0 X${xo(rX + op.retract)}`);
+  });
   toolStop(c2);
   cOff(c2);
 }

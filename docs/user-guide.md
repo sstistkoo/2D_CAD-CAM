@@ -634,6 +634,23 @@ děr podél osy: **Lin.pole** (kopie nesou data díry). Smazání vrstvy Díry
 v plášti smaže i díry (↩ vrátí). V CAM se přenesou samy jako **vrtání do
 pláště (osa X)** — jedna výška po obvodu = rozteč, víc výšek = seznam bodů
 „úhel; Z"; jiný Ø pláště = samostatná operace.
+**Drážka pro pero do pláště:** nástrojem **Drážka** klepněte v **nárysu**
+na díl v místě drážky — otevře se **⊐ Drážka pro pero** se Z klepnutí jako
+středem: délka (vnější, vč. zaoblení), šířka (= Ø frézy), hloubka *od
+pláště* nebo *do Ø* dna, počet drážek po obvodu a úhel C (i **Natočit
+podle** díry v čele + odsazení). Okno ukáže Ø pláště, radiální hloubku a Z
+konců; plášť musí být po celé délce stejný (drážka přes osazení se
+odmítne). → **⊐ Do pláště** nakreslí do vrstvy Díry v plášti úsečku na
+plášti mezi konci drážky; obrys se v nárysu ukáže skrytou čarou podle
+natočení pohledu (k nám = zaoblený obrys shora), v bokorysu jako obdélník
+na úhlu C. Klepnutí nástrojem Drážka na ni otevře úpravu; tlačítko
+**Ovál (obecně)** nakreslí dřívější oválnou drážku (2D, do CAM nejde).
+V CAM se přenese sama jako frézování **Drážka pro pero** (🛠 Operace →
+Frézování → Drážka pro pero (plášť)): kus stojí na úhlu C, fréza Ø =
+šířka zanoří v X (0,3·F, musí řezat středem) a jede v Z mezi středy konců,
+vrstvy po kroku do hloubky tam a zpět; simulace, řez, pohled na čelo
+i kontrola proti dílu (drážka přes osazení = chyba).
+
 **Natočení pohledu (posuvník vpravo od bokorysu):** svislý posuvník vedle
 bokorysu nastavuje, který úhel C je v nárysu **nahoře** (výchozí soustruh
 C 90°, karusel C 0°; tažením nahoru úhel roste, přichytí se k úhlům děr

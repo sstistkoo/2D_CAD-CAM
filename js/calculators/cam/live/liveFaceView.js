@@ -17,7 +17,7 @@
 // úhlu liveSettings.toolAt (soustruh NAHOŘE = X+ jako v řezu) a při obrábění
 // se k němu natáčí KUS (mach.rot) — nástroj kus neobjíždí.
 import { resolvePointsToAbsolute } from '../contourBuild.js';
-import { livePositions, liveSettings } from './liveModel.js';
+import { livePositions, liveSettings, isKeyway } from './liveModel.js';
 import { faceRadius } from '../../../faceView/faceReference.js';
 
 const COL = {
@@ -144,7 +144,8 @@ export function drawFaceView(canvas, d) {
     if (op.enabled === false) ctx.globalAlpha = Math.min(ctx.globalAlpha, 0.2);
     if (op.kind !== 'mill' && op.side !== 'radial' && op.pattern === 'pcd') circle(op.pcd / 2, null, 'rgba(250,179,135,0.55)', 1, [3, 3]);
     if (mach) drawMachOp(ctx, op, oi, mach, P, sc, sel, rotRect);
-    else if (op.kind === 'mill') drawMill(ctx, op, P, sc, sel);
+    // Drážka pro pero (plášť) se kreslí jako radiální díra: obdélník od pláště.
+    else if (op.kind === 'mill' && !isKeyway(op)) drawMill(ctx, op, P, sc, sel);
     else if (op.side === 'radial') {
       livePositions(op).forEach((p, i) => {
         const r = op.xTop / 2;
@@ -273,7 +274,7 @@ function drawCheckMarks(ctx, ops, checks, cut, P, sc, rotRect) {
       const sev = c.marks.get(i);
       if (!sev) return;
       ctx.strokeStyle = CHK[sev];
-      if (op.side === 'radial' && op.kind !== 'mill') {
+      if (op.side === 'radial') {
         const r = op.xTop / 2;
         rotRect(p.a, r - op.depth - 2 / sc, r + 2 / sc, op.holeD / 2 + 2 / sc, null, null);
         ctx.stroke();
@@ -307,7 +308,7 @@ function drawMachOp(ctx, op, oi, m, P, sc, sel, rotRect) {
     ctx.setLineDash(planned ? [4, 3] : []);
     ctx.strokeStyle = sel ? '#fff' : (done ? COL.done : col); ctx.lineWidth = sel ? 1.6 : 1.2;
   };
-  if (op.kind === 'mill') {
+  if (op.kind === 'mill' && !isKeyway(op)) {
     const tr = op.toolD / 2, slot = op.millType === 'slot';
     (m.sweeps.get(oi) || []).forEach(line => {
       const span = Math.hypot(line[line.length - 1].x - line[0].x, line[line.length - 1].y - line[0].y);
@@ -355,7 +356,7 @@ function drawMachOp(ctx, op, oi, m, P, sc, sel, rotRect) {
 function drawTool(ctx, op, tl, P, sc, rotRect) {
   const dia = op.kind === 'mill' ? op.toolD : op.holeD;
   const inCut = tl.d > 1e-6;
-  if (op.kind === 'drill' && op.side === 'radial') {
+  if (op.side === 'radial') {
     const a = Math.atan2(tl.y, tl.x) * 180 / Math.PI, r = Math.hypot(tl.x, tl.y);
     rotRect(a, r, r + Math.max(14 / sc, dia * 3), dia / 2, 'rgba(249,226,175,0.45)', COL.tool);
     return;
@@ -377,7 +378,7 @@ function drawMachStatus(ctx, ops, m) {
     return;
   }
   const op = ops[m.tool.op], n = livePositions(op).length || 1;
-  const what = op.kind === 'mill' ? (op.millType === 'slot' ? 'drážka' : `kapsa ${m.tool.hole + 1}/${n}`) : `díra ${m.tool.hole + 1}/${n}`;
+  const what = isKeyway(op) ? `drážka ${m.tool.hole + 1}/${n}` : op.kind === 'mill' ? (op.millType === 'slot' ? 'drážka' : `kapsa ${m.tool.hole + 1}/${n}`) : `díra ${m.tool.hole + 1}/${n}`;
   const d = Math.max(0, m.tool.d);
   ctx.fillStyle = COL.tool;
   ctx.fillText(`${m.paused ? '⏸ ' : ''}${op.name} · ${what} · hloubka ${fmt(d)} / ${fmt(op.depth)} mm`, 8, 16);

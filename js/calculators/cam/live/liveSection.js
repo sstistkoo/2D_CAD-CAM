@@ -16,7 +16,7 @@
 // nárys CAD — faceFrontView bere u karuselu vodorovnou souřadnici bokorysu),
 // takže výška v řezu = r·cos C; nástroj vpravo (0°) je na poloměru díry.
 // Dřív r·sin C i u karuselu — vrták se kreslil na ose (21. 10. 2026).
-import { getLiveOps, livePositions, faceOut } from './liveModel.js';
+import { getLiveOps, livePositions, faceOut, isKeyway, keywaySpan } from './liveModel.js';
 
 const COLS = { drill: ['rgba(250,179,135,0.22)', '#fab387'], radial: ['rgba(148,226,213,0.22)', '#94e2d5'], mill: ['rgba(203,166,247,0.22)', '#cba6f7'] };
 const EPS = 1e-6;
@@ -99,9 +99,12 @@ export function drawLiveSectionLayer(f, mach = null) {
       const rX = op.xTop / 2, hd = op.holeD / 2;
       const items = livePositions(op).map((p, i) => ({ s: lowerAt(p.a + rot, base) ? -1 : 1, z: p.z, i }))
         .map(it => ({ ...it, key: `${it.s}|${it.z.toFixed(2)}` }));
+      // Drážka pro pero: v Z celá délka drážky, ne jen Ø nástroje.
+      const kw = isKeyway(op) ? keywaySpan(op) : null;
       merged(items, oi).forEach(({ s, z, d }) => {
-        plan(s * (rX - op.depth), s * rX, z - hd, z + hd, 'radial');
-        if (d > 0) cut(s * (rX - Math.min(d, op.depth)), s * rX, z - hd, z + hd, 'radial');
+        const z0 = kw ? kw.zMin : z - hd, z1 = kw ? kw.zMax : z + hd;
+        plan(s * (rX - op.depth), s * rX, z0, z1, kw ? 'mill' : 'radial');
+        if (d > 0) cut(s * (rX - Math.min(d, op.depth)), s * rX, z0, z1, kw ? 'mill' : 'radial');
       });
       return;
     }
