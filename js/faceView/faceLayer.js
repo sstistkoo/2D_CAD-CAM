@@ -63,7 +63,7 @@ export function faceViewOn() {
 }
 
 /**
- * NATOČENÍ POHLEDU (posuvník vpravo od bokorysu, faceRotate.js): úhel C,
+ * NATOČENÍ POHLEDU (posuvník vlevo od bokorysu, faceRotate.js): úhel C,
  * který je v nárysu NAHOŘE (soustruh; karusel vpravo). Výchozí jako dřív:
  * soustruh C 90° (svislá osa bokorysu), karusel C 0°. Nárys pak ukazuje díry
  * čel i děr v plášti tak, jak při tomto natočení dílu leží. Pamatuje se ve

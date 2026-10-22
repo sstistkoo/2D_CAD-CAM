@@ -1,4 +1,4 @@
-// Záložka ⚙ Parametry CAM simulátoru — události: nůž (tvar), dokončení, hlídání geometrie, zanoření, upichnutí, závit, vrtání, vyvrtávání, 🔄 Resetovat vše.
+// Záložka ⚙ Parametry CAM simulátoru — události: nůž (tvar), dokončení, hlídání geometrie, zanoření, upichnutí, závit, vrtání, vyvrtávání (zapíná ho přepínač ◎ Vnitřní, sim/machSurface.js), 🔄 Resetovat vše.
 // Vyňato z camSimulator.js (attachParamsEvents, docs/plan-rozdeleni-cam-
 // simulatoru.md) — stav simulátoru a jeho funkce se předávají parametrem
 // (ctx se sestaví při každém vykreslení záložky).
@@ -7,11 +7,12 @@ import { MAGAZINE_DEFAULTS_REV } from '../../magazineDefaults.js';
 import { _defaultCamParams } from '../camDefaults.js';
 import { getEffectivePlungeAngle } from '../camMath.js';
 import { getInsert } from '../inserts/index.js';
-import { threadProfileDepth } from '../threadHelpers.js';
 import { applyPreDrillPlan } from '../ops/borePreDrill.js';
 import { camConfirm } from '../camSimulatorDialogs.js';
+import { attachSurfaceEvents } from './machSurface.js';
 
-export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange, draw, saveState, fullUpdate, applyShapeChange, applyTipMirrorToggle, canvas, showMagazineDialog, showThreadPickerDialog, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, partsActive, _isoDefaultMagSlots, markGCodeGenerated }) {
+export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange, draw, saveState, fullUpdate, applyShapeChange, applyTipMirrorToggle, canvas, showMagazineDialog, showThreadPickerDialog, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, partsActive, _isoDefaultMagSlots, markGCodeGenerated, _applyMagSlot }) {
+  attachSurfaceEvents({ tabBody, S, applyChange, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, _applyMagSlot });
   tabBody.querySelectorAll('[data-tshape]').forEach(btn => {
     btn.addEventListener('click', () => applyShapeChange(btn.dataset.tshape));
   });
@@ -129,33 +130,8 @@ export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange
   });
   const drillPickToolBtn = tabBody.querySelector('[data-act="drill-pick-tool"]');
   if (drillPickToolBtn) drillPickToolBtn.addEventListener('click', () => showMagazineDialog());
-  // ── Vyvrtávání ──
-  const boreToggleBtn = tabBody.querySelector('[data-act="bore-toggle"]');
-  if (boreToggleBtn) boreToggleBtn.addEventListener('click', () => {
-    pushHistory();   // zapnutí může vyměnit nůž i převzít předvrtání — jeden krok ↩
-    S.params.boreActive = !S.params.boreActive;
-    let picked = '', off = '', pre = '';
-    if (S.params.boreActive) {
-      // Jeden cyklus na program (pořadí early-returnů v generateAutoGCode).
-      if (S.params.threadActive) { S.params.threadActive = false; off += ', závit vypnut'; }
-      if (S.params.drillActive) { S.params.drillActive = false; off += ', vrtání vypnuto'; }
-      if (S.params.partOffZ != null) { S.params.partOffZ = null; S.partOffPickMode = false; off += ', upich zrušen'; }
-      // Díra v polotovaru plná → nejdřív vrták, pak tyč (ops/borePreDrill.js).
-      pre = (S.params.borePreDrill || boreHoleSolid()) ? boreEnsurePreDrill() : boreTakePreHoleFromDrill();
-      picked = boreEnsureBar();
-    }
-    const regen = !S.gcodeDirty;
-    showToast(S.params.boreActive
-      ? `Vyvrtávání aktivní${pre}${picked}${off}${regen ? ' — dráhy přegenerovány' : ' — program má ruční úpravy, dráhy vygeneruj přes 🔄 Dráhy'}`
-      : `Vyvrtávání vypnuto — zpět na hrubování${regen ? '' : ' (dráhy vygeneruj přes 🔄 Dráhy)'}`);
-    applyChange({ cycle: true });
-  });
-  const boreOffBtn = tabBody.querySelector('[data-act="bore-deactivate"]');
-  if (boreOffBtn) boreOffBtn.addEventListener('click', () => {
-    S.params.boreActive = false;
-    showToast(`Vyvrtávání vypnuto — zpět na hrubování${S.gcodeDirty ? ' (dráhy vygeneruj přes 🔄 Dráhy)' : ''}`);
-    applyChange({ cycle: true });
-  });
+  // ── Vyvrtávání ── (zapnutí / vypnutí = přepínač ◎ Vnitřní / ◯ Vnější
+  // i „Vypnout vyvrtávání" z varování, machSurface.js)
   const borePickToolBtn = tabBody.querySelector('[data-act="bore-pick-tool"]');
   if (borePickToolBtn) borePickToolBtn.addEventListener('click', () => showMagazineDialog());
   const boreFinishCb = tabBody.querySelector('#cam-sim-bore-finish');
@@ -227,20 +203,6 @@ export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange
     btn.addEventListener('click', () => {
       if (S.params.threadInfeed === btn.dataset.thinfeed) return;
       S.params.threadInfeed = btn.dataset.thinfeed;
-      applyChange();
-    });
-  });
-  tabBody.querySelectorAll('[data-thext]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const ext = btn.dataset.thext === '1';
-      if ((S.params.threadExternal !== false) === ext) return;
-      // Při aktivním závitu se vymění i nůž (vnější ER / vnitřní IR destička) — jeden krok ↩.
-      if (S.params.threadActive) pushHistory();
-      S.params.threadExternal = ext;
-      // Vnější/vnitřní mění hloubku profilu (60°: 0,6134P vs 0,5413P).
-      S.params.threadDepth = Math.round(threadProfileDepth(S.params.threadType, parseFloat(S.params.threadPitch) || 0, ext) * 1000) / 1000;
-      const pick = S.params.threadActive ? autoPickToolFor('thread') : { msg: '' };
-      if (pick.msg) showToast(`Závit ${ext ? 'vnější' : 'vnitřní'}${pick.msg}`);
       applyChange();
     });
   });

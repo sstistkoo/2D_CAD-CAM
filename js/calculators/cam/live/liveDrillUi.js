@@ -15,11 +15,16 @@
 // • 🔩 Vyvrtat (i v hlavičce pohledu na čelo) = záložka Vrtání (přes hook
 //   S._machTabClick — cam/live nesmí importovat cam/sim) + přegenerovat +
 //   ▶ simulace.
+// • FRÉZOVÁNÍ je od 22. 10. 2026 samostatná záložka (uživatel: „máme to dané
+//   do kupy s operací na vrtání, tak to rozděl"): Vrtání ukazuje jen díry
+//   (vč. navrtání a závitů), Frézování (`.cam-livemill`) kapsy a drážky;
+//   ✣ Frézovat = záložka Frézování → vlastní část programu jen s frézami
+//   (liveKind 'mill', liveModel.liveRunOps).
 // • Výstup NC (polohování, osa C, M-kódy, kalibrace — liveSettingsUi.js) pod
-//   seznamem děr: jediné místo nastavení (dřív i pod pohledem na čelo,
-//   uživatel 21. 10. 2026).
+//   seznamem děr / frézování: jediné místo nastavení (dřív i pod pohledem
+//   na čelo, uživatel 21. 10. 2026).
 // Výběr = `op.enabled` (liveModel.liveOpOn); nevybrané se nevrtají.
-import { getLiveOps, liveOpOn, liveOpSummary, liveDrillFromCad, liveSettings } from './liveModel.js';
+import { getLiveOps, liveOpOn, liveKindOf, liveOpSummary, liveDrillFromCad, liveSettings } from './liveModel.js';
 import { drillToolText, toggleLiveGroup, autoDrillTools, pickDrill, magazineDrills, addCatalogDrills, catalogDrillD, syncDrillTabParams } from './liveDrillTools.js';
 import { settingsHtml, settingsTitle, applySettingChange } from './liveSettingsUi.js';
 import { pickMill, magazineMills, catalogMillD, addCatalogMills } from './liveMillTools.js';
@@ -32,30 +37,44 @@ const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 /**
  * @param d { S, root, toast, commit(mutate), saveState, isoMagSlot(rec, T),
  *            openView(), play() — ▶ simulace programu }
- * @returns {{ toggle(oi), refresh(), drillAll() }}
+ * @returns {{ toggle(oi), refresh(), drillAll(kind) }}
  */
 export function createDrillUi(d) {
   const { S, root } = d;
   const ops = () => getLiveOps(S.params);
+  /** Druh operací části programu (Vrtání / Frézování), null = část jiné operace. */
+  const partKind = () => (S.params.drillActive ? (S.params.liveKind === 'mill' ? 'mill' : 'drill') : null);
+  /** 🔩 v hlavičce pohledu na čelo: druh podle záložky / části / výběru. */
+  function defaultKind() {
+    if (S.machiningSubTab === 'frez' || partKind() === 'mill') return 'mill';
+    const on = k => ops().some(o => liveKindOf(o) === k && liveOpOn(o));
+    return !on('drill') && on('mill') ? 'mill' : 'drill';
+  }
 
-  /** 🔩 Vyvrtat: operace Vrtání s vrtákem (nová část, je-li třeba) → simulace. */
-  async function drillAll() {
-    if (!ops().length) {
-      d.toast('Žádné díry — nakreslete je v CAD do bokorysu (◎ Čelo, nástroj Díra / Kr.pole) nebo přidejte 🛠 Operace', 5000);
+  /** 🔩 Vyvrtat / ✣ Frézovat: operace Vrtání / Frézování (nová část, je-li třeba) → simulace. */
+  async function drillAll(kind) {
+    const k = kind || defaultKind(), mill = k === 'mill';
+    const mine = ops().filter(o => liveKindOf(o) === k);
+    if (!mine.length) {
+      d.toast(mill
+        ? 'Žádné frézování — kapsy a drážky nakreslete v CAD do bokorysu (◎ Čelo) nebo přidejte v ◎ 🛠 Operace → ➕ Frézování'
+        : 'Žádné díry — nakreslete je v CAD do bokorysu (◎ Čelo, nástroj Díra / Kr.pole) nebo přidejte 🛠 Operace', 5000);
       return;
     }
-    if (!ops().some(liveOpOn)) {
-      d.toast('Není vybraná žádná skupina děr — klepněte na díru v pohledu na čelo nebo ji zaškrtněte v ⚙ Parametry → Vrtání', 5000);
+    if (!mine.some(liveOpOn)) {
+      d.toast(mill
+        ? 'Není vybrané žádné frézování — zaškrtněte ho v ⚙ Parametry → Obrábění → Frézování'
+        : 'Není vybraná žádná skupina děr — klepněte na díru v pohledu na čelo nebo ji zaškrtněte v ⚙ Parametry → Vrtání', 5000);
       return;
     }
-    if (S.params.drillSource === 'axis') d.commit(p => { p.drillSource = 'cad'; });
+    if (!mill && S.params.drillSource === 'axis') d.commit(p => { p.drillSource = 'cad'; });
     // Hook vzniká s panelem ⚙ Parametry — otevřít ho, když ještě nebyl vidět.
     if (!S._machTabClick) {
       root.querySelector('[data-code="show-sidebar"]')?.click();
       root.querySelector('[data-tab="params"]')?.click();
     }
-    if (!S._machTabClick) { d.toast('Otevřete ⚙ Parametry → Obrábění → Vrtání'); return; }
-    const ok = await S._machTabClick('vrt');
+    if (!S._machTabClick) { d.toast(`Otevřete ⚙ Parametry → Obrábění → ${mill ? 'Frézování' : 'Vrtání'}`); return; }
+    const ok = await S._machTabClick(mill ? 'frez' : 'vrt');
     if (ok === false) return;
     refresh();
     d.play();
@@ -118,15 +137,37 @@ export function createDrillUi(d) {
   function toggle(oi, plain = false) {
     const cur = ops();
     if (!cur[oi]) return;
+    const k = liveKindOf(cur[oi]), mill = k === 'mill';
+    // V části Vrtání se klepnutím nevybírá frézování a naopak — operace
+    // druhého druhu jsou v pohledu na čelo ztlumené (liveRunOps).
+    if (!plain && partKind() && partKind() !== k) {
+      d.toast(`${cur[oi].name}: ${mill ? 'frézování se vybírá v ⚙ Parametry → Obrábění → Frézování' : 'díry se vybírají v ⚙ Parametry → Obrábění → Vrtání'} (tahle část programu je ${mill ? 'vrtání' : 'frézování'})`, 4500);
+      return;
+    }
     const next = autoDrillTools(toggleLiveGroup(cur, oi, plain), S.toolMagazine, S.params).ops;
     const op = next[oi], on = liveOpOn(op);
-    const nOn = next.filter(liveOpOn).length;
-    const tool = on && op.kind === 'drill' ? ` · ${drillToolText(op, S.toolMagazine)}` : '';
-    commitOps(next, `${on ? '✔ Vrtat' : '✕ Nevrtat'}: ${op.name}${tool}  (vybráno ${nOn} z ${next.length})`);
+    const same = next.filter(o => liveKindOf(o) === k);
+    const nOn = same.filter(liveOpOn).length;
+    const tool = on ? ` · ${drillToolText(op, S.toolMagazine)}` : '';
+    commitOps(next, `${on ? (mill ? '✔ Frézovat' : '✔ Vrtat') : (mill ? '✕ Nefrézovat' : '✕ Nevrtat')}: ${op.name}${tool}  (vybráno ${nOn} z ${same.length})`);
   }
-  function setAll() {
-    const next = autoDrillTools(ops().map(o => ({ ...o, enabled: true })), S.toolMagazine, S.params).ops;
-    commitOps(next, `✔ Vrtat vše (${next.length})`);
+  function setAll(k) {
+    const next = autoDrillTools(ops().map(o => (liveKindOf(o) === k ? { ...o, enabled: true } : o)), S.toolMagazine, S.params).ops;
+    commitOps(next, `${k === 'mill' ? '✔ Frézovat' : '✔ Vrtat'} vše (${next.filter(o => liveKindOf(o) === k).length})`);
+  }
+  /** Řádek skupiny (zaškrtávátko, nástroj, ➕ chybějící nástroj z 📚). */
+  function rowHtml(op, i) {
+    return `<label class="cam-livedrill-row${liveOpOn(op) ? '' : ' off'}">
+        <input type="checkbox" data-livedrill="toggle" data-oi="${i}"${liveOpOn(op) ? ' checked' : ''}>
+        <span><b>${esc(op.name)}</b> <small>${esc(liveOpSummary(op))}</small><br><small class="t">${esc(drillToolText(op, S.toolMagazine))}</small>${
+  op.kind === 'drill' && !op.role && !pickDrill(magazineDrills(S.toolMagazine), op.holeD).drill && d.isoMagSlot && catalogDrillD(op.holeD) != null
+    ? `<br><button data-livedrill="addmag" data-d="${op.holeD}" class="cam-sim-btn cam-sim-btn-gray">➕ Přidat vrták Ø${op.holeD} z 📚 do Zásobníku</button>` : ''}${millAddBtn(op)}${tapSpotAddBtn(op, i)}</span>
+      </label>`;
+  }
+  /** Výstup NC (osa C, M-kódy, kalibrace) — sdílí vrtání i frézování. */
+  function ncHtml() {
+    const ctrl = S.params.controlSystem || 'sinumerik';
+    return `<details class="cam-livedrill-nc"><summary>${settingsTitle(ctrl)} — osa C, M-kódy, kalibrace</summary>${settingsHtml(liveSettings(S.params), ctrl, false)}</details>`;
   }
 
   /** ➕ Přidat frézu z 📚, když ve zásobníku vhodná chybí a katalog ji má. */
@@ -137,9 +178,9 @@ export function createDrillUi(d) {
     return D ? `<br><button data-livedrill="addmill" data-d="${D}" class="cam-sim-btn cam-sim-btn-gray">➕ Přidat frézu Ø${D} z 📚 do Zásobníku</button>` : '';
   }
 
-  // ── sekce v záložce Vrtání ──
+  // ── sekce v záložce Vrtání (jen díry; frézování má svou záložku) ──
   function sectionHtml() {
-    const list = ops();
+    const list = ops().map((op, i) => ({ op, i })).filter(({ op }) => liveKindOf(op) === 'drill');
     const axis = S.params.drillSource === 'axis';
     let h = '<div class="cam-livedrill-h">Co vrtat</div>';
     h += `<div class="cam-livedrill-src">
@@ -147,19 +188,12 @@ export function createDrillUi(d) {
         <button data-livedrill="src" data-v="axis" class="${axis || !list.length ? 'on' : ''}" title="Středová díra v ose soustruhu — revolverový vrták, vřeteno se točí">Středová díra v ose</button>
       </div>`;
     if (!list.length) {
-      return h + '<small class="cam-livedrill-note">Žádné díry z výkresu. V CAD je nakreslete do bokorysu (◎ Čelo → Díra / Kr.pole) — přenesou se samy.</small><div class="cam-livedrill-h axial">Vrtání v ose — středová díra</div>';
+      return h + '<small class="cam-livedrill-note">Žádné díry z výkresu. V CAD je nakreslete do bokorysu (◎ Čelo → Díra / Kr.pole) — přenesou se samy. Kapsy a drážky jsou v záložce Frézování.</small><div class="cam-livedrill-h axial">Vrtání v ose — středová díra</div>';
     }
     if (axis) return h + '<div class="cam-livedrill-h axial">Vrtání v ose — středová díra</div>';
-    list.forEach((op, i) => {
-      h += `<label class="cam-livedrill-row${liveOpOn(op) ? '' : ' off'}">
-        <input type="checkbox" data-livedrill="toggle" data-oi="${i}"${liveOpOn(op) ? ' checked' : ''}>
-        <span><b>${esc(op.name)}</b> <small>${esc(liveOpSummary(op))}</small><br><small class="t">${esc(drillToolText(op, S.toolMagazine))}</small>${
-  op.kind === 'drill' && !op.role && !pickDrill(magazineDrills(S.toolMagazine), op.holeD).drill && d.isoMagSlot && catalogDrillD(op.holeD) != null
-    ? `<br><button data-livedrill="addmag" data-d="${op.holeD}" class="cam-sim-btn cam-sim-btn-gray">➕ Přidat vrták Ø${op.holeD} z 📚 do Zásobníku</button>` : ''}${millAddBtn(op)}${tapSpotAddBtn(op, i)}</span>
-      </label>`;
-    });
-    const nOn = list.filter(liveOpOn).length;
-    const active = S.params.drillActive && liveDrillFromCad(S.params);
+    list.forEach(({ op, i }) => { h += rowHtml(op, i); });
+    const nOn = list.filter(({ op }) => liveOpOn(op)).length;
+    const active = partKind() === 'drill' && liveDrillFromCad(S.params);
     // Zápis vrtání: cyklus × rozepsaný ISO kód (= „Vrtací cykly" ve Výstupu NC,
     // tady na očích — uživatel 21. 10. 2026). Heidenhain jen rozepsaně.
     const ctrl0 = S.params.controlSystem || 'sinumerik', heid = ctrl0 === 'heidenhain';
@@ -177,34 +211,53 @@ export function createDrillUi(d) {
         <button data-livedrill="spot" data-v="0" class="${spot ? '' : 'on'}">Bez navrtání</button>
       </div>`;
     h += `<div class="cam-livedrill-btns">
-        <button data-livedrill="go" class="cam-sim-btn cam-sim-btn-green"${nOn ? '' : ' disabled'}>🔩 ${active ? 'Přehrát vrtání' : 'Vyvrtat vybrané'} (${nOn})</button>
-        <button data-livedrill="all" class="cam-sim-btn cam-sim-btn-gray"${nOn === list.length ? ' disabled' : ''}>Vybrat vše</button>
+        <button data-livedrill="go" data-kind="drill" class="cam-sim-btn cam-sim-btn-green"${nOn ? '' : ' disabled'}>🔩 ${active ? 'Přehrát vrtání' : 'Vyvrtat vybrané'} (${nOn})</button>
+        <button data-livedrill="all" data-kind="drill" class="cam-sim-btn cam-sim-btn-gray"${nOn === list.length ? ' disabled' : ''}>Vybrat vše</button>
       </div>
       <small class="cam-livedrill-note">${active
         ? 'Program této části = vrtání vybraných děr (kus se natáčí osou C k poháněnému nástroji). Po změně výběru se přegeneruje sám, jinak 🔄 Dráhy.'
-        : 'Skupinu vyberete i klepnutím na díru v pohledu na čelo. 🔩 přepne nástroj na vrták (podle Ø ze 🔧 Zásobníku, otáčky a posuv z jeho Vc a f; Q, prodleva a bezp. vzdálenost z polí níž) — je-li v části soustružení, přidá vrtání jako novou operaci.'}</small>`;
-    const ctrl = S.params.controlSystem || 'sinumerik';
-    h += `<details class="cam-livedrill-nc"><summary>${settingsTitle(ctrl)} — osa C, M-kódy, kalibrace</summary>${settingsHtml(liveSettings(S.params), ctrl, false)}</details>`;
-    return h;
+        : 'Skupinu vyberete i klepnutím na díru v pohledu na čelo. 🔩 přepne nástroj na vrták (podle Ø ze 🔧 Zásobníku, otáčky a posuv z jeho Vc a f; Q, prodleva a bezp. vzdálenost z polí níž) — je-li v části soustružení nebo frézování, přidá vrtání jako novou operaci.'}</small>`;
+    return h + ncHtml();
+  }
+  // ── sekce v záložce Frézování (kapsy, drážky, drážky pro pero) ──
+  function millSectionHtml() {
+    const list = ops().map((op, i) => ({ op, i })).filter(({ op }) => liveKindOf(op) === 'mill');
+    let h = '<div class="cam-livedrill-h">Co frézovat <small>— poháněná fréza, kus se natáčí osou C</small></div>';
+    if (!list.length) {
+      return h + '<small class="cam-livedrill-note">Žádné frézování z výkresu. Kapsy a drážky nakreslete v CAD do bokorysu (◎ Čelo: úsečka = drážka) nebo drážku pro pero do pláště — přenesou se samy; jinak je přidejte v ◎ pohledu na čelo → 🛠 Operace → ➕ Frézování. Díry jsou v záložce Vrtání.</small>' + ncHtml();
+    }
+    list.forEach(({ op, i }) => { h += rowHtml(op, i); });
+    const nOn = list.filter(({ op }) => liveOpOn(op)).length;
+    const active = partKind() === 'mill';
+    h += `<div class="cam-livedrill-btns">
+        <button data-livedrill="go" data-kind="mill" class="cam-sim-btn cam-sim-btn-green"${nOn ? '' : ' disabled'}>✣ ${active ? 'Přehrát frézování' : 'Frézovat vybrané'} (${nOn})</button>
+        <button data-livedrill="all" data-kind="mill" class="cam-sim-btn cam-sim-btn-gray"${nOn === list.length ? ' disabled' : ''}>Vybrat vše</button>
+      </div>
+      <small class="cam-livedrill-note">${active
+        ? 'Program této části = frézování vybraných kapes a drážek (kus se natáčí osou C k poháněné fréze). Po změně výběru se přegeneruje sám, jinak 🔄 Dráhy.'
+        : 'Frézu vybere CAM sám podle šířky kapsy / drážky ze 🔧 Zásobníku (chybějící nabídne ➕ z 📚). ✣ udělá z frézování samostatnou operaci — je-li v části soustružení nebo vrtání, přidá ho jako novou část programu.'}</small>`;
+    return h + ncHtml();
   }
   let present = false;
+  function fillBox(box, html) {
+    if (box.innerHTML === html) return;
+    // Rozbalené části (Výstup NC, kalibrace…) zůstanou rozbalené.
+    const open = [...box.querySelectorAll('details')].map(x => x.open);
+    box.innerHTML = html;
+    box.querySelectorAll('details').forEach((x, i) => { if (open[i]) x.open = true; });
+  }
   function fillSection() {
-    const box = root.querySelector('.cam-livedrill');
-    if (!box) { present = false; return; }
-    const html = sectionHtml();
-    if (box.innerHTML !== html) {
-      // Rozbalené části (Výstup NC, kalibrace…) zůstanou rozbalené.
-      const open = [...box.querySelectorAll('details')].map(x => x.open);
-      box.innerHTML = html;
-      box.querySelectorAll('details').forEach((x, i) => { if (open[i]) x.open = true; });
-    }
-    if (!present) { present = true; d.openView(); }   // přepnuto na záložku Vrtání
+    const dBox = root.querySelector('.cam-livedrill'), mBox = root.querySelector('.cam-livemill');
+    if (!dBox && !mBox) { present = false; return; }
+    if (dBox) fillBox(dBox, sectionHtml());
+    if (mBox) fillBox(mBox, millSectionHtml());
+    if (!present) { present = true; d.openView(); }   // přepnuto na záložku Vrtání / Frézování
   }
   // Panel parametrů se překresluje celý — sekci doplnit, kdykoli se objeví.
   const side = root.querySelector('.cam-sim-sidebar');
   if (side) {
     new MutationObserver(() => {
-      const box = root.querySelector('.cam-livedrill');
+      const box = root.querySelector('.cam-livedrill, .cam-livemill');
       if (!box) { present = false; return; }
       if (!box.firstChild || !present) fillSection();
     }).observe(side, { childList: true, subtree: true });
@@ -214,8 +267,8 @@ export function createDrillUi(d) {
       const act = b.dataset.livedrill;
       if (act === 'toggle') return;
       e.preventDefault();
-      if (act === 'go') drillAll();
-      else if (act === 'all') setAll();
+      if (act === 'go') drillAll(b.dataset.kind || 'drill');
+      else if (act === 'all') setAll(b.dataset.kind || 'drill');
       else if (act === 'addmag') addMissing([parseFloat(b.dataset.d)]);
       else if (act === 'addmill') addMissingMill(parseFloat(b.dataset.d));
       else if (act === 'addtap') addMissingTapSpot(+b.dataset.oi);
@@ -253,7 +306,7 @@ export function createDrillUi(d) {
     });
   }
 
-  function refresh() { if (root.querySelector('.cam-livedrill')) fillSection(); }
+  function refresh() { if (root.querySelector('.cam-livedrill, .cam-livemill')) fillSection(); }
   refresh();
   return { toggle, refresh, drillAll };
 }

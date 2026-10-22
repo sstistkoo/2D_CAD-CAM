@@ -49,11 +49,15 @@ export function createLiveProgram(d) {
   function blockState() {
     const ls = lines();
     const b = findLiveBlock(ls);
+    if (S.params.drillActive && S.params.liveKind === 'mill') {
+      return b ? { cls: 'ok', text: '✔ Operace Frézování: program této části je frézování z výkresu (generuje 🔄 Dráhy, úpravy operací ho přegenerují).' }
+        : { cls: 'warn', text: '⚠ Operace Frézování nemá v programu nic z výkresu — zkontrolujte výběr (⚙ Parametry → Frézování) a 🔄 Dráhy.' };
+    }
     if (S.params.drillActive) {
       return b ? { cls: 'ok', text: '✔ Operace Vrtání: program této části je vrtání děr z výkresu (generuje 🔄 Dráhy, úpravy operací ho přegenerují).' }
         : { cls: 'warn', text: '⚠ Operace Vrtání nemá v programu díry z výkresu — zkontrolujte výběr děr (⚙ Parametry → Vrtání) a 🔄 Dráhy.' };
     }
-    if (!b) return { cls: '', text: 'Vrtání je samostatná operace: ⚙ Parametry → Obrábění → Vrtání (nebo 🔩 Vyvrtat). Do programu soustružení ho lze vložit i ručně 📝.' };
+    if (!b) return { cls: '', text: 'Vrtání a frézování jsou samostatné operace: ⚙ Parametry → Obrábění → Vrtání / Frézování (nebo 🔩 Vyvrtat). Do programu soustružení je lze vložit i ručně 📝.' };
     const tag = liveBlockTag(ls);
     const same = buildLiveBlock(S.params).join('\n') === ls.slice(b.start, b.end + 1).join('\n');
     if (same) return { cls: 'ok', text: '✔ Blok je v programu a odpovídá operacím (úpravy se do něj zapisují samy).' };

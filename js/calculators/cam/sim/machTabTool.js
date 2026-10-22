@@ -7,24 +7,32 @@
 //   Vrtání → vrták (díry z výkresu: vrták na Ø první vybrané skupiny,
 //            chybějící Ø se doplní z 📚 katalogu, operace dostanou vrtáky
 //            a řezné podmínky — cam/live/liveDrillTools.js),
+//   Frézování → blok poháněných nástrojů JEN s frézami (`liveKind: 'mill'`,
+//            liveModel.liveRunOps; uživatel 22. 10. 2026: oddělit od vrtání).
+//            Nosič části je vrták jako u vrtání (fréza aktivním nožem být
+//            nemůže — knifeSlots), frézy volí blok sám podle kapsy / drážky,
 //   Závit  → závitový nůž + závitování zapnuto,
 //   Upich  → upichovák (kulatý nůž zůstane jen bez upichováku v zásobníku),
 //   Hrub./Hot. z cizí operace → v programu po částech PŘEPNOUT na část se
 //            soustružením (část s vrtáním zůstane); jinak soustružnický nůž.
 // Jedna část programu = jedna operace: má-li část už program jiné operace,
 // vrtání / závit / upich se přidá jako NOVÁ část za ni (➕ Operace) — jinak
-// by přepnutí nástroje její program přegenerovalo na jinou operaci. Vyvrt.
-// (vnitřní hrubování) si nástroj volí sám tlačítkem v záložce.
+// by přepnutí nástroje její program přegenerovalo na jinou operaci.
+// Vyvrtávání = Hrub. + ◎ Vnitřní (sim/machSurface.js) — tyč si volí přepínač.
 // Vyňato do modulu — camSimulator.js (obří soubor) jen předá funkce v ctx.
 import { showToast } from '../../../state.js';
 import { camConfirm } from '../camSimulatorDialogs.js';
-import { getLiveOps, liveOpOn, liveDrillFromCad } from '../live/liveModel.js';
+import { getLiveOps, liveOpOn, liveKindOf, liveDrillFromCad } from '../live/liveModel.js';
 import { autoDrillTools, addCatalogDrills } from '../live/liveDrillTools.js';
 import { addCatalogTapsSpots } from '../live/liveTapTools.js';
 import { addCatalogMills } from '../live/liveMillTools.js';
 
-const OWN = { vrt: 'drill', zavit: 'threading', upich: 'parting' };
-const NAME = { vrt: 'Vrtání', zavit: 'Závitování', upich: 'Upichnutí' };
+const OWN = { vrt: 'drill', frez: 'drill', zavit: 'threading', upich: 'parting' };
+const NAME = { vrt: 'Vrtání', frez: 'Frézování', zavit: 'Závitování', upich: 'Upichnutí' };
+// Vrtání a Frézování mají týž nosič (vrták) — liší je druh operací části.
+const LIVE = { vrt: 'drill', frez: 'mill' };
+/** Druh poháněných operací části s vrtákem (bez `liveKind` = starší část Vrtání). */
+const partLive = p => (p.liveKind === 'mill' ? 'mill' : 'drill');
 const SPECIAL = new Set(['drill', 'threading', 'parting', 'mill', 'tap']);   // mill = fréza (poháněný nástroj), soustružit s ní nejde
 
 /**
@@ -38,7 +46,7 @@ export function machTabPlan(tab, S) {
   const shape = S.params.toolShape;
   const own = OWN[tab];
   if (!own) return (tab === 'hrub' || tab === 'hot') && SPECIAL.has(shape) ? 'tool' : 'keep';
-  if (shape === own) return 'keep';
+  if (shape === own && (!LIVE[tab] || partLive(S.params) === LIVE[tab])) return 'keep';
   return String(S.manualGCode || '').trim() ? 'part' : 'tool';
 }
 
@@ -51,6 +59,12 @@ export function machTabPlan(tab, S) {
 export async function machTabClick(tab, ctx) {
   const { S } = ctx;
   const rootEl = ctx.tabBody && ctx.tabBody.closest('.cam-sim-root');
+  // Frézování bez vybraného frézování z výkresu: jen ukázat záložku (návod,
+  // jak kapsy / drážky přidat) — nezakládat prázdnou část ani neměnit nástroj.
+  if (tab === 'frez' && machTabPlan(tab, S) !== 'keep' && !getLiveOps(S.params).some(o => liveOpOn(o) && liveKindOf(o) === 'mill')) {
+    if (ctx.setMachiningSubTab(tab)) ctx.applyChange();
+    return true;
+  }
   // V náhledu „Celý program" patří panel celku — nástroj se mění v části.
   if (S.opView === 'all' && ctx.partsActive() && machTabPlan(tab, S) !== 'keep') {
     const partBtn = rootEl && rootEl.querySelector('.cam-sim-parts-bar [data-op-view="part"]');
@@ -69,6 +83,7 @@ export async function machTabClick(tab, ctx) {
   // Vrták už je, ale díry z výkresu mají jiný Ø (např. přidaný Ø10 vs aktivní
   // Ø20 — uživatel 21. 10. 2026) → vybrat vrták jejich operace.
   if (plan === 'keep' && tab === 'vrt' && S.params.drillSource !== 'axis' && getLiveOps(S.params).some(liveOpOn)) return pickDrill(ctx);
+  if (plan === 'keep' && tab === 'frez') return pickDrill(ctx, 'mill');
   if (plan === 'keep') { if (ctx.setMachiningSubTab(tab)) ctx.applyChange(); return true; }
   const goPart = i => {
     const chip = i >= 0 && rootEl && rootEl.querySelector(`.cam-sim-parts-bar [data-op="${i}"]`);
@@ -104,6 +119,7 @@ export async function machTabClick(tab, ctx) {
   // Soustružnický nůž si zapamatovat — Hrub./Hot. ho pak vrátí.
   if (!SPECIAL.has(S.params.toolShape) && Number.isInteger(S.activeMagazineSlot)) S._turnSlot = S.activeMagazineSlot;
   if (tab === 'vrt') return pickDrill(ctx);
+  if (tab === 'frez') return pickDrill(ctx, 'mill');
   if (tab === 'zavit') {
     ctx.pushHistory();
     S.params.threadActive = true; S.params.drillActive = false; S.params.boreActive = false;
@@ -143,7 +159,7 @@ export async function machTabClick(tab, ctx) {
 /** Název operace aktivní části pro hlášky. */
 function partOpName(S) {
   const p = S.params;
-  if (p.toolShape === 'drill') return 'vrtání';
+  if (p.toolShape === 'drill') return partLive(p) === 'mill' ? 'frézování' : 'vrtání';
   if (p.threadActive || p.toolShape === 'threading') return 'závitování';
   if (p.partOffZ != null || p.toolShape === 'parting') return 'upichnutí';
   return 'soustružení';
@@ -155,7 +171,8 @@ export function opPartIndex(S, tab) {
   const parts = S.opParts || [];
   for (let i = parts.length - 1; i >= 0; i--) {
     const pp = parts[i].params || {};
-    if (i !== S.activePart && own && (pp.toolShape === own || (tab === 'zavit' && pp.threadActive))) return i;
+    if (i === S.activePart || !own) continue;
+    if (LIVE[tab] ? pp.toolShape === own && partLive(pp) === LIVE[tab] : (pp.toolShape === own || (tab === 'zavit' && pp.threadActive))) return i;
   }
   return -1;
 }
@@ -179,7 +196,7 @@ export function turningPartIndex(S) {
  */
 export function syncLiveDrillTool(ctx) {
   const { S } = ctx;
-  if (!S.params.drillActive || !liveDrillFromCad(S.params)) return false;
+  if (!S.params.drillActive || partLive(S.params) === 'mill' || !liveDrillFromCad(S.params)) return false;
   const first = getLiveOps(S.params).find(o => liveOpOn(o) && o.kind === 'drill' && !o.role);
   const idx = first ? S.toolMagazine.findIndex(s => s.shape === 'drill' && s.slot === first.toolNo) : -1;
   if (idx < 0 || idx === S.activeMagazineSlot) return false;
@@ -187,52 +204,69 @@ export function syncLiveDrillTool(ctx) {
   return true;
 }
 
-/** Vrtání: vrták podle děr z výkresu (nebo první v zásobníku) a přegenerovat. */
-function pickDrill(ctx) {
+/**
+ * Vrtání: vrták podle děr z výkresu (nebo první v zásobníku) a přegenerovat.
+ * Frézování (`kind` 'mill'): týž blok poháněných nástrojů, jen s frézami —
+ * chybějící frézy z 📚, nosič části = vrták (aktivní, jinak první v zásobníku).
+ */
+function pickDrill(ctx, kind = 'drill') {
   const { S } = ctx;
+  const mill = kind === 'mill', tab = mill ? 'frez' : 'vrt';
   let idx = -1, note = '';
-  const wasOn = !!S.params.drillActive;
+  const wasOn = !!S.params.drillActive && partLive(S.params) === kind;
   const before = JSON.stringify([S.params.liveOps, S.toolMagazine.length]);
   ctx.pushHistory();   // před změnou operací i zásobníku — ↩ vrátí obojí
   // „Středová díra v ose" (drillSource 'axis'): vrták děr z výkresu nevnucovat.
-  if (S.params.drillSource !== 'axis' && getLiveOps(S.params).some(liveOpOn)) {
+  if ((mill || S.params.drillSource !== 'axis') && getLiveOps(S.params).some(o => liveOpOn(o) && liveKindOf(o) === kind)) {
     const pre = autoDrillTools(getLiveOps(S.params), S.toolMagazine, S.params);
-    if (pre.missing.length && ctx._isoMagSlot) {
-      const added = [
-        ...addCatalogDrills(S.toolMagazine, pre.missing.filter(m => !m.kind).map(m => m.D), ctx._isoMagSlot),
-        // Navrtávák a závitník k dírám z výkresu (navrtání / závit).
-        ...addCatalogTapsSpots(S.toolMagazine, pre.missing, ctx._isoMagSlot),
+    const miss = pre.missing.filter(m => (m.kind === 'mill') === mill);
+    if (miss.length && ctx._isoMagSlot) {
+      const added = mill
         // Chybějící frézy (kapsa, drážka, pero) z 📚 katalogu fréz.
-        ...addCatalogMills(S.toolMagazine, pre.missing.filter(m => m.kind === 'mill' && m.D).map(m => m.D), ctx._isoMagSlot),
-      ];
+        ? addCatalogMills(S.toolMagazine, miss.filter(m => m.D).map(m => m.D), ctx._isoMagSlot)
+        : [
+          ...addCatalogDrills(S.toolMagazine, miss.filter(m => !m.kind).map(m => m.D), ctx._isoMagSlot),
+          // Navrtávák a závitník k dírám z výkresu (navrtání / závit).
+          ...addCatalogTapsSpots(S.toolMagazine, miss, ctx._isoMagSlot),
+        ];
       if (added.length) note = ` · do 🔧 Zásobníku přidán ${added.map(s => `T${s.slot} ${s.name}`).join(', ')}`;
     }
     const auto = autoDrillTools(getLiveOps(S.params), S.toolMagazine, S.params);
     S.params.liveOps = auto.ops;
-    const first = auto.ops.find(o => liveOpOn(o) && o.kind === 'drill' && !o.role) || auto.ops.find(o => liveOpOn(o) && o.kind === 'drill');
+    const first = mill ? null : (auto.ops.find(o => liveOpOn(o) && o.kind === 'drill' && !o.role) || auto.ops.find(o => liveOpOn(o) && o.kind === 'drill'));
     if (first) idx = S.toolMagazine.findIndex(s => s.shape === 'drill' && s.slot === first.toolNo);
+  } else if (mill) {
+    showToast('Žádné vybrané frézování z výkresu — kapsy a drážky nakreslete v CAD (◎ Čelo) nebo je přidejte v ◎ pohledu na čelo → 🛠 Operace', 5000);
   }
+  // Frézování: nosič části = vrták, který už je aktivní, jinak první v zásobníku.
+  if (idx < 0 && mill && S.params.toolShape === 'drill' && (S.toolMagazine[S.activeMagazineSlot] || {}).shape === 'drill') idx = S.activeMagazineSlot;
   if (idx < 0) idx = S.toolMagazine.findIndex(s => s.shape === 'drill');
   if (idx < 0) {
-    showToast('⚠ V 🔧 Zásobníku není vrták — přidej ho z 🧰 Knihovna → 📚 ISO katalog → Vrtáky', 5000);
-    if (ctx.setMachiningSubTab('vrt')) ctx.applyChange();
+    showToast(mill
+      ? '⚠ Frézování z výkresu je blok poháněných nástrojů a jeho část nese vrták — v 🔧 Zásobníku žádný není, přidej ho z 🧰 Knihovna → 📚 ISO katalog → Vrtáky'
+      : '⚠ V 🔧 Zásobníku není vrták — přidej ho z 🧰 Knihovna → 📚 ISO katalog → Vrtáky', 5000);
+    if (ctx.setMachiningSubTab(tab)) ctx.applyChange();
     return false;
   }
   S.params.threadActive = false; S.params.boreActive = false;
   if (S.params.partOffZ != null) S.params.partOffZ = null;
   S.params.drillActive = true;
-  const tabChanged = ctx.setMachiningSubTab('vrt');
+  const kindChanged = S.params.liveKind !== kind;
+  S.params.liveKind = kind;
+  const tabChanged = ctx.setMachiningSubTab(tab);
   if (wasOn && idx === S.activeMagazineSlot) {
     // Vrták už sedí — přegenerovat jen po změně operací / zásobníku. Jinak
     // aspoň překreslit panel: setMachiningSubTab jen přepne stav, a bez
     // applyChange zůstala vidět stará záložka (Hrub.) a „Co vrtat" se
     // ukázalo až po kliku na nástroj (uživatel z mobilu 22. 10. 2026).
-    if (JSON.stringify([S.params.liveOps, S.toolMagazine.length]) !== before) ctx.applyChange({ cycle: true });
+    if (kindChanged || JSON.stringify([S.params.liveOps, S.toolMagazine.length]) !== before) ctx.applyChange({ cycle: true });
     else if (tabChanged) ctx.applyChange();
     return true;
   }
-  ctx._applyMagSlot(idx);   // vrták ↔ nůž = jiná operace → přegeneruje (afterToolChange)
+  // Týž vrták, jen jiný druh operací (část Vrtání ↔ Frézování) — přegenerovat.
+  if (idx === S.activeMagazineSlot && S.params.toolShape === 'drill') ctx.applyChange({ cycle: true });
+  else ctx._applyMagSlot(idx);   // vrták ↔ nůž = jiná operace → přegeneruje (afterToolChange)
   const slot = S.toolMagazine[idx];
-  showToast(`Vrtání — vrták T${slot.slot} ${slot.name}${note}`, 4500);
+  showToast(mill ? `Frézování z výkresu${note}` : `Vrtání — vrták T${slot.slot} ${slot.name}${note}`, 4500);
   return true;
 }

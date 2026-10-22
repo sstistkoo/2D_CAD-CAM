@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM: Obrábění ◯ Vnější / ◎ Vnitřní a samostatná záložka Frézování.**
+  Pod Zleva / Zprava přepínač Vnější / Vnitřní místo záložky „Vyvrt.":
+  Hrub. + ◎ Vnitřní = vyvrtávání tyčí (tyč a předvrtání se vyberou samy,
+  ◯ Vnější vrátí naposledy použitý vnější nůž), Závit + ◎ Vnitřní =
+  vnitřní závit (přepínač ze záložky Závit se přesunul sem). Přepínač čte
+  parametr operace, nemá vlastní stav; u Hot. a Upich se neukazuje
+  (vnitřní dokončení a zapichování generátor zatím neumí). Frézování
+  z výkresu (kapsy, drážky, pera) má vlastní záložku za Vrtáním a vlastní
+  část programu jen s frézami (`liveKind: 'mill'`, `liveModel.liveRunOps`);
+  část Vrtání má v bloku jen díry. Moduly `cam/sim/machSurface.js`,
+  `cam/sim/paramsBoreHtml.js`, test `tests/mach-surface-mill-tab.test.js`.
+
 - **CAD/CAM: závity do děr závitníkem a navrtání před vrtáním.** Pole Závit
   (M3–M24) v oknech děr do čela i do pláště — Ø díry = předvrtání, díra nese
   závit; v CAM po vrtání operace závitníku (hloubka skrz +2P / slepá −2P,
@@ -339,6 +351,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nemá minus). `js/calculators/tolerance.js`.
 
 ### Fixed
+
+- **CAD: posuvník natočení napevno u bokorysu, lišta čela na dva řádky.**
+  Svislý posuvník úhlu C se přisouval k pravému okraji plátna — při posunu
+  plátna ujížděl po bokorysu a ležel přes něj. Teď stojí napevno vlevo od
+  bokorysu (mezi nárysem a bokorysem) a posouvá se s ním; když se tam při
+  oddálení nevejde a ležel by přes nárys, přeskočí vpravo. Políčko C s ✔ ⟲
+  je pod bokorysem a vyhne se nárysu i liště Z; mělo omylem šířku políčka Z
+  (64 px místo 38 px). Řádek pod posuvníkem Z je na dva řádky (výběr čela,
+  ➕, 🗑 / Z, ✔, strana) — na mobilu byl moc dlouhý. Test
+  `tests/face-rotate-layout.test.js`.
 
 - **CAD: políčka Z čela a úhlu C s výpočtem a tlačítkem ✔.** Do políčka Z
   (lišta čela) i C (natočení pohledu) jde psát výpočet (`90+60`, `76-5,5`);

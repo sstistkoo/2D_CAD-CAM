@@ -148,7 +148,8 @@ export function emitDrill(ctx) {
     // Díry z výkresu: blok poháněných nástrojů (vlastní T, otáčky, polohování
     // osy C) a konec programu. Blok nese své značky — panel ◎ ho v programu
     // najde a simulace ho přehraje v pohledu na čelo i v řezu.
-    addCmt('--- VRTANI DER Z VYKRESU (pohaneny nastroj) ---');
+    // Část Frézování (liveKind 'mill') má v bloku jen frézy (liveModel.liveRunOps).
+    addCmt(prms.liveKind === 'mill' ? '--- FREZOVANI Z VYKRESU (pohaneny nastroj) ---' : '--- VRTANI DER Z VYKRESU (pohaneny nastroj) ---');
     buildLiveBlock(prms).forEach(text => lines.push({ text, simIdx: null }));
     buildControlTailLines(prms.controlSystem).forEach(line => addN(line));
     return lines;

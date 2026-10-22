@@ -75,10 +75,6 @@ describe('záložka obrábění → nástroj', () => {
     expect(machTabPlan('vrt', S('parting', 'N10'))).toBe('part');
     expect(machTabPlan('zavit', S('drill', ''))).toBe('tool');    // prázdná část → jen nástroj
   });
-  it('Vyvrt. si nástroj volí sám — jen záložka', () => {
-    expect(machTabPlan('vyvrt', S('drill', 'N10'))).toBe('keep');
-    expect(machTabPlan('vyvrt', S('polygon', 'N10'))).toBe('keep');
-  });
 });
 
 describe('klik na Vrtání při aktivním vrtáku překreslí panel', () => {
@@ -109,7 +105,7 @@ describe('tlačítka generování', () => {
     expect(genButtonsHidden({ ...b, op: 'hrub', tool: 'polygon' }).section).toBe(false);
     expect(genButtonsHidden({ ...b, op: 'vrt', tool: 'drill' })).toMatchObject({ section: true, refresh: false });
     expect(genButtonsHidden({ ...b, op: 'hrub', tool: 'threading' }).section).toBe(true);
-    expect(genButtonsHidden({ ...b, op: 'vyvrt', tool: 'round' }).section).toBe(false);   // vnitřní hrubování úseky má
+    expect(genButtonsHidden({ ...b, op: 'hrub', tool: 'round' }).section).toBe(false);   // i Hrub. + ◎ Vnitřní (vyvrtávání) úseky má
   });
 });
 

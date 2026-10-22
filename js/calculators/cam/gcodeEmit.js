@@ -51,7 +51,8 @@ export function generateAutoGCode(S, calc) {
   // ── VYVRTÁVÁNÍ Z PLNÉHO ── vrtání vrtákem + vyvrtávání tyčí v jednom
   // programu (ops/borePreDrill.js); hlavičky a výměnu nástroje dělá slučování
   // částí programu, proto hned na začátku.
-  if (prms.boreActive && prms.borePreDrill) {
+  // Jen dokončení v díře (Hot. + ◎ Vnitřní) předvrtání nevrtá — díra je vyhrubovaná.
+  if (prms.boreActive && prms.borePreDrill && !prms.finishOnly) {
     const merged = emitBorePreDrilled({ S, calc, generateAutoGCode });
     if (merged) return merged;
   }

@@ -7,7 +7,7 @@
 // posuv F [mm/min] = f · n. Ze záložky Vrtání se převezme záběr Q, prodleva
 // a bezpečná vzdálenost. Předvyplňuje se jen operace, které uživatel nástroj
 // ani řezné podmínky ručně nezměnil (`autoTool !== false`).
-import { liveOpOn } from './liveModel.js';
+import { liveOpOn, liveKindOf } from './liveModel.js';
 import { buildIsoDrill, isoDrillDiameters } from '../../isoDrills.js';
 import { autoMillTools, millToolText } from './liveMillTools.js';
 import { autoTapSpotTools, tapSpotToolText, isSpotSlot } from './liveTapTools.js';
@@ -98,14 +98,18 @@ export function drillToolText(op, magazine) {
  * Klepnutí na skupinu děr (operaci) `oi` v pohledu na čelo: když se vrtá
  * všechno, vybere se JEN tahle skupina („kliknu na díry, které chci"); jinak
  * se přepne. `plain` = obyčejné přepnutí (zaškrtávátko v záložce Vrtání).
+ * Vrtání a frézování jsou oddělené záložky — „jen tahle skupina" se týká
+ * jen operací téhož druhu (liveKindOf), druhý druh zůstane, jak je.
  */
 export function toggleLiveGroup(ops, oi, plain = false) {
   // Navrtání / závit se vybírá s hlavní dírou (liveHoleExtras.js).
   oi = mainIndexOf(ops, oi);
+  const kind = liveKindOf(ops[oi]);
+  const same = o => liveKindOf(o) === kind;
   const on = ops.map(liveOpOn);
-  const mains = ops.filter(o => !o.role).length;
-  const only = !plain && mains > 1 && ops.every(o => o.role || liveOpOn(o));
-  return syncDerivedEnabled(ops.map((op, i) => (op.role ? op : { ...op, enabled: only ? i === oi : (i === oi ? !on[i] : on[i]) })));
+  const mains = ops.filter(o => !o.role && same(o)).length;
+  const only = !plain && mains > 1 && ops.every(o => o.role || !same(o) || liveOpOn(o));
+  return syncDerivedEnabled(ops.map((op, i) => (op.role || !same(op) ? op : { ...op, enabled: only ? i === oi : (i === oi ? !on[i] : on[i]) })));
 }
 
 /**

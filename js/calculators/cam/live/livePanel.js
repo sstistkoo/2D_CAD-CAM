@@ -24,7 +24,7 @@
 import { showToast } from '../../../state.js';
 import { safeEvalMath } from '../../../utils.js';
 import {
-  liveSettings, newLiveOp, normalizeLiveOp, getLiveOps, liveOpOn,
+  liveSettings, newLiveOp, normalizeLiveOp, getLiveOps, liveRunOps, liveOpOn,
 } from './liveModel.js';
 import { drawFaceView, livePartGeometry, faceViewHit } from './liveFaceView.js';
 import { drawLiveSectionLayer } from './liveSection.js';
@@ -250,7 +250,7 @@ export function initLiveTools(deps) {
   // ── kreslení ──
   function viewKey() {
     const p = S.params;
-    return JSON.stringify([p.liveOps, p.stockMode, p.stockDiameter, p.mode, p.machineStructure,
+    return JSON.stringify([p.liveOps, p.drillActive && p.liveKind, p.stockMode, p.stockDiameter, p.mode, p.machineStructure,
       S.contourPoints, S.stockPoints, cv.width, cv.height, st.selected, machMemo.k,
       st.cutZ, st.cutSide, st.nav]);
   }
@@ -261,7 +261,7 @@ export function initLiveTools(deps) {
     const k = viewKey();
     if (!force && k === st.key) { syncEditor(); return; }
     st.key = k;
-    const ops = getLiveOps(S.params);
+    const ops = liveRunOps(S.params);   // v části Vrtání / Frézování jen její druh (liveModel.liveRunOps)
     const c = cutState();
     st.view = drawFaceView(cv, {
       prms: S.params, geo: livePartGeometry(S), ops,
@@ -289,7 +289,7 @@ export function initLiveTools(deps) {
 
   // ── obrábění poháněnými nástroji (liveMachining.js) ──
   const player = createLivePlayer({
-    getOps: () => getLiveOps(S.params), getPrms: () => S.params,
+    getOps: () => liveRunOps(S.params), getPrms: () => S.params,
     getSpeed: () => S.simSpeed || 1,   // stejná rychlost jako přehrávač soustružení
     onFrame: () => {
       if (!document.body.contains(pane)) { player.stop(); return; }
@@ -315,9 +315,9 @@ export function initLiveTools(deps) {
     if (player.active) {
       k = `p${player.serial}:${player.t}:${player.running}`;
       make = () => ({ ...player.state(), paused: !player.running && !player.finished });
-    } else if (st.turnDone && getLiveOps(S.params).some(liveOpOn) && prog.has()) {
-      k = `d${JSON.stringify(S.params.liveOps)}:${S.params.rapidFeed}`;
-      make = () => { const tl = buildLiveTimeline(getLiveOps(S.params), S.params); return liveStateAt(tl, tl.total); };
+    } else if (st.turnDone && liveRunOps(S.params).some(liveOpOn) && prog.has()) {
+      k = `d${JSON.stringify(S.params.liveOps)}:${S.params.liveKind}:${S.params.rapidFeed}`;
+      make = () => { const tl = buildLiveTimeline(liveRunOps(S.params), S.params); return liveStateAt(tl, tl.total); };
     } else { machMemo = { k: 'plan', v: null }; return null; }
     if (machMemo.k !== k) machMemo = { k, v: make() };
     return machMemo.v;
@@ -332,7 +332,7 @@ export function initLiveTools(deps) {
     if (done !== st.turnDone) {
       st.turnDone = done;
       if (!done) { if (player.active) stopAnim(); }
-      else if ((st.wasRunning || st.playArmed) && prog.has() && getLiveOps(S.params).some(liveOpOn)) requestAnimationFrame(autoStart);
+      else if ((st.wasRunning || st.playArmed) && prog.has() && liveRunOps(S.params).some(liveOpOn)) requestAnimationFrame(autoStart);
       if (done) st.playArmed = false;
     }
     st.wasRunning = !!S.simRunning;
@@ -397,6 +397,8 @@ export function initLiveTools(deps) {
     deps.draw();
     renderEditor();
     redraw(true);
+    // Seznam v záložce Vrtání / Frézování (v části soustružení se panel nepřekreslí).
+    drillUi.refresh();
   }
   function opsCopy() { return getLiveOps(S.params).map(o => JSON.parse(JSON.stringify(o))); }
   // Výběr děr k vrtání a sekce v záložce Vrtání (liveDrillUi.js).
@@ -499,8 +501,8 @@ export function initLiveTools(deps) {
     const set = liveSettings(S.params);
     const ctrl = S.params.controlSystem || 'sinumerik';
     const bs = prog.blockState();
-    // Výstup NC se nastavuje jen v pravém panelu (⚙ Parametry → Vrtání, liveDrillUi.js).
-    let h = `<div class="cam-live-note">${settingsTitle(ctrl)} · ${({ spos: 'SPOS', caxis: 'osa C', transmit: 'TRANSMIT' })[set.mode]}${set.cycles ? ', cykly' : ''} — nastavení v pravém panelu <button data-live="nc-settings" class="cam-sim-btn cam-sim-btn-gray">⚙ Parametry → Vrtání</button></div>` + `
+    // Výstup NC se nastavuje jen v pravém panelu (⚙ Parametry → Vrtání / Frézování, liveDrillUi.js).
+    let h = `<div class="cam-live-note">${settingsTitle(ctrl)} · ${({ spos: 'SPOS', caxis: 'osa C', transmit: 'TRANSMIT' })[set.mode]}${set.cycles ? ', cykly' : ''} — nastavení v pravém panelu <button data-live="nc-settings" class="cam-sim-btn cam-sim-btn-gray">⚙ Parametry → ${S.params.drillActive && S.params.liveKind === 'mill' ? 'Frézování' : 'Vrtání'}</button></div>` + `
       <div class="cam-live-btns">
         <button data-live="add-drill">➕ Vrtání</button>
         <button data-live="add-mill">➕ Frézování</button>
@@ -539,7 +541,7 @@ export function initLiveTools(deps) {
     // časem (liveNcSync.js) — soustružení blok přeskakuje.
     nc: (f, mach) => {
       if (!prog.has()) return;
-      const ops = getLiveOps(S.params);
+      const ops = liveRunOps(S.params);
       drawLivePaths(f.ctx, f.toScreen, livePathSegments(ops, S.params), S.showSimPath || 'all');
       if (!player.active || !mach || !mach.active) return;
       const m = liveMotionText(ops, mach);

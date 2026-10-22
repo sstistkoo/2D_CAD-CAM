@@ -570,7 +570,8 @@ kříže; střed bokorysu leží na celých desítkách, takže i mřížka mě�
 **Čela.** Díry mohou být na kterémkoli osazení, zprava i zleva. Lišta čela
 leží přímo na plátně pod nárysem — posouvá se s výkresem a mění velikost se
 zoomem, a když do nárysu něco dokreslíte níž, sama se posune pod to; na soustruhu je posuvník stejně dlouhý jako profil a jezdec stojí
-přesně pod značkou řezu. Obsahuje výběr čela (položka = pořadí, Z se stranou
+přesně pod značkou řezu. Pod posuvníkem jsou dva řádky: výběr čela, ➕, 🗑
+a pod nimi Z s ✔ a stranou. Obsahuje výběr čela (položka = pořadí, Z se stranou
 a obsah kresby, např. „2: Z76 ◀ · 3 díry" — víc čel ve stejném Z jde rozlišit),
 **➕** nové čelo (vlastní kresba), **🗑** smazat
 čelo i s kresbou (po potvrzení, nejde vrátit; stejně tak smazání vrstvy čela
@@ -676,11 +677,11 @@ zub, krok do hloubky) nebo z 🧰 Knihovna → 📚 → **Frézy (poháněné)**
 (tvrdokov 3 / 4 zuby, HSS-Co 2 zuby řežou středem, HSS-Co 4 zuby neřeže;
 Ø2–25) tlačítkem **🔧 Do zásobníku**. Soustružit s frézou nejde — jako
 aktivní nůž ji vybrat nelze. CAM ji pro frézování z výkresu vybere sám
-(záložka Vrtání, jako vrtáky): kapsa = největší fréza, která se vejde;
+(záložka **Frézování**, jako vrtáky v záložce Vrtání): kapsa = největší fréza, která se vejde;
 drážka na čele se šířkou = největší Ø ≤ šířka (užší jede víc průjezdů);
 drážka šířky frézy a drážka pro pero = fréza přesně na šířku. Otáčky
 n = Vc·1000/(π·Ø), posuv F = fz·z·n, krok do hloubky ze slotu, číslo T ze
-zásobníku. Chybí-li vhodná fréza, při přepnutí na záložku Vrtání se doplní
+zásobníku. Chybí-li vhodná fréza, při přepnutí na záložku Frézování se doplní
 VHM z 📚 (jako vrták), u operace je i **➕ Přidat frézu z 📚**. Bez frézy
 v zásobníku dostane operace volné T (dřív výchozí T6 = upichovák). Fréza,
 která **neřeže středem**, se nezanořuje kolmo: drážka na čele **rampou** cik-cak
@@ -712,12 +713,14 @@ tan(σ/2) podle vrcholu navrtáváku, na jeden zátah s prodlevou 0,3 s.
 Pořadí programu: všechna navrtání → vrtání → závity. Navrtání i závit se
 vybírají spolu se svou dírou (klepnutí v pohledu na čelo / zaškrtávátko).
 
-**Natočení pohledu (posuvník vpravo od bokorysu):** svislý posuvník vedle
+**Natočení pohledu (posuvník u bokorysu):** svislý posuvník vedle
 bokorysu nastavuje, který úhel C je v nárysu **nahoře** (výchozí soustruh
 C 90°, karusel C 0°; tažením nahoru úhel roste, přichytí se k úhlům děr
-v čele i v plášti a po 45°; pod ním políčko pro přesný úhel — i výpočet,
+v čele i v plášti a po 45°; pod bokorysem políčko pro přesný úhel — i výpočet,
 např. `90+60`, potvrdí ho **✔** nebo Enter — a ⟲ zpět; natočení platí pro
-všechna čela, nové čelo ho převezme).
+všechna čela, nové čelo ho převezme). Posuvník stojí napevno **vlevo**
+od bokorysu (mezi nárysem a bokorysem) a posouvá se s ním; když se tam
+při oddálení nevejde a ležel by přes nárys, přeskočí **vpravo**.
 Nárys pak ukáže díry v čele i v plášti tak, jak při tomto natočení dílu
 leží — díra v plášti mířící k nám / od nás jako kružnice na ose; v bokorysu
 je natočení vidět jako průměr s trojúhelníkem „C… nahoře". Značka díry
@@ -890,10 +893,23 @@ začátku řetězu nezanoří kolmo. Začátek se posune po kontuře tam, kde z�
 jen přídavek, a najede se odtud rampou; oblouk se objede celý, nebo vůbec.
 Vynechaný kus hlásí panel ⚠ větou **„Dokončování: … řetěz(ů) začíná dál"**.
 
+**Vnější / vnitřní obrábění.** Pod **Zleva / Zprava** je přepínač
+**◯ Vnější / ◎ Vnitřní** — říká, kde se obrábí, a patří k záložce operace:
+**Hrub. + ◎ Vnitřní** = vyvrtávání díry vyvrtávací tyčí (dřív samostatná
+záložka Vyvrt.; tyč a předvrtání se vyberou samy, viz *Vyvrtávání* níž),
+**Závit + ◎ Vnitřní** = vnitřní závit (destička IR v tyči). Přepínač čte
+přímo nastavení operace, takže ukazuje vždy to, co program opravdu dělá
+(i závit načtený z výkresu jako vnitřní). **◯ Vnější** vyvrtávání vypne
+a vrátí naposledy použitý vnější nůž. U **Hot.** a **Upich** se přepínač
+neukazuje — dokončení a zapichování uvnitř díry generátor zatím neumí
+(dokončení stěny díry je zaškrtávátko v Hrub. + ◎ Vnitřní); u **Vrtání**
+a **Frézování** nemá smysl.
+
 **Proč se negenerují hrubovací dráhy?** Pět nastavení hrubování přebíjí, a
 každé sedí v jiné záložce: **Závit** (aktivní závitování), **Upich**
-(naklikané upichnutí), **Vrtání** (aktivní nástroj je vrták), **Vyvrt.**
-(aktivní vyvrtávání) a **Hot.** („jen dokončovací operace"). Když je některé
+(naklikané upichnutí), **Vrtání / Frézování** (aktivní nástroj je vrták),
+**Hrub. + ◎ Vnitřní** (aktivní vyvrtávání) a **Hot.** („jen dokončovací
+operace"). Když je některé
 z nich zapnuté, ukáže se v ostatních záložkách oranžové varování s tlačítkem
 na jeho rychlé vypnutí (u vrtání **🔧 Jiný nůž** — vrták umí jen vrtat). Ukazuje se vždy jen ten režim, který program opravdu řídí —
 mají mezi sebou pořadí: závit přebíjí upichnutí, upichnutí vrtání, vrtání
@@ -902,16 +918,17 @@ vyvrtávání ostatní cykly vypne (program je vždy jen jeden cyklus) — vrtá
 a vyvrtávání patří do dvou operací za sebou (➕ Operace).
 
 **Záložka obrábění vybere nástroj své operace.** Klik na **Vrtání** přepne
-nástroj na vrták, **Závit** na závitový nůž (a závitování zapne), **Upich** na
+nástroj na vrták, **Frézování** udělá z části frézování z výkresu (viz níž),
+**Závit** na závitový nůž (a závitování zapne), **Upich** na
 upichovák (kulatý nůž zůstane jen, když upichovák v zásobníku není) a **Hrub. / Hot.** z vrtání,
 závitu či upichu zpět na soustružnický nůž (naposled použitý). Jedna část
 programu = jedna operace: má-li část už program jiné operace (soustružení,
-závit, upich…), Vrtání / Závit / Upich se po potvrzení přidá jako **nová
+závit, upich…), Vrtání / Frézování / Závit / Upich se po potvrzení přidá jako **nová
 část** na konec programu (➕ Operace, jmenuje se podle operace) — dosavadní
 program se nepřepíše. Má-li operace už svou část, klik na záložku se na ni
 jen přepne; Hrub./Hot. v části s vrtáním přepne na část se soustružením.
-V náhledu *Celý program* se nejdřív přepne na část. **Vyvrt.** jen přepne
-záložku (vyvrtávací tyč vybere *Zapnout* v záložce). Dráhy každé části generuje jediné
+V náhledu *Celý program* se nejdřív přepne na část. Vyvrtávací tyč vybere
+přepínač **◎ Vnitřní** (Hrub.). Dráhy každé části generuje jediné
 **🔄 Dráhy** — „✂ Po úsecích" je vidět jen u soustružení.
 
 **Díry z výkresu (záložka Vrtání nahoře).** Díry nakreslené v CAD do
@@ -954,6 +971,28 @@ SPOS / osa C) — žádné dráhy hrubování ani díra v ose:
 - **Skrz materiálem:** díra „skrz" v CAD má výchozí *Hotová kontura* — vrtá
   jen přes hotový díl (vrtá se po soustružení). Má-li jít i přes polotovar,
   zvolte u díry v CAD *I polotovar* (operace pak má v názvu „vč. polotovaru").
+
+**Frézování z výkresu (záložka Frézování).** Kapsy, drážky na čele
+a drážky pro pero (CAD: ◎ bokorys, úsečka = drážka; drážka pro pero do
+pláště v nárysu, nebo ◎ 🛠 Operace → ➕ Frézování) mají **vlastní záložku**
+za Vrtáním — dřív byly v seznamu záložky Vrtání spolu s dírami. Nahoře je
+**Co frézovat**: seznam frézovacích operací se zaškrtávátkem, frézou ze
+🔧 Zásobníku (vybere se sama podle kapsy / drážky; chybějící nabídne
+**➕ Přidat frézu z 📚**), tlačítka **✣ Frézovat vybrané** a **Vybrat vše**
+a Výstup NC (osa C, M-kódy, kalibrace — sdílí ho s vrtáním).
+- **Samostatná operace:** ✣ Frézovat (nebo klik na záložku, když je co
+  frézovat) udělá z frézování **vlastní část programu** jen s frézami — díry
+  v ní nejsou (vrtají se v části Vrtání) a část Vrtání zase nemá frézování.
+  Je-li v části soustružení nebo vrtání, přidá se po potvrzení jako nová část;
+  má-li frézování už svou část, klik na záložku se na ni přepne. Bez
+  frézování z výkresu záložka jen ukáže, jak ho přidat (část nezaloží).
+- **Pohled na čelo** v části Frézování ukazuje díry ztlumeně (nejsou v jejím
+  programu) a klepnutí na díru jen poradí, že se vybírá v záložce Vrtání —
+  a naopak. První klepnutí „jen tahle skupina" se týká jen operací téhož
+  druhu (díry × frézování).
+- Část nese vrták jako u vrtání (fréza aktivním nožem být nemůže); v
+  🔧 Zásobníku proto musí být aspoň jeden vrták. Starší projekty, kde byla
+  část Vrtání i s frézováním, zůstanou, dokud se v nich neklikne na Vrtání.
 
 **Vrtání v ose (záložka Vrtání, pod sekcí děr).** Vrtací cyklus v ose (X0) vrtákem — nástroj
 tvaru **⌀ vrták** (v Nástroj → Tvar destičky i ve 🔧 Zásobníku vedle ⬤ ◼ ▮ ▽).
@@ -1008,7 +1047,7 @@ když kontura dílu díru nemá, ukáže vrtání červeně jako zajetí do hoto
 kontury. Když je díra pod čelem polotovaru hlubší než vyložení, panel ⚠ hlásí,
 že do čela narazí pouzdro (a ⛔ ukáže kolizi držáku).
 
-**Vyvrtávání (záložka Vyvrt.).** Podélné hrubování díry vyvrtávací tyčí
+**Vyvrtávání (Hrub. + ◎ Vnitřní).** Podélné hrubování díry vyvrtávací tyčí
 (🧰 Knihovna → 📚 ISO katalog → **Vnitřní (do díry)**). Podle **pravidla 13**
 (docs/cam-pravidla.md) je vnitřní obrábění zrcadlo vnějšího v ose X: díra se
 překlopí na hřídel, předvrtání na válcový polotovar, spočítá se obyčejné
@@ -1016,7 +1055,7 @@ vnější hrubování zprava (úseky, vrstvy po ap, hlídání držáku, vjezdy 
 pravidla 1–12) a řádky se překlopí zpátky. „Nahoru" je tu „k ose": odskok
 a rychloposuvy jdou do volného předvrtání, ne do stěny.
 
-1. Záložka **Vyvrt.** → **✅ Aktivní**. Předvrtání se převezme z **Vrtání**
+1. Záložka **Hrub.** → **◎ Vnitřní** (pod Zleva / Zprava). Předvrtání se převezme z **Vrtání**
    (⌀ vrtáku ze 🔧 Zásobníku, hloubka na plný ⌀ bez špičky, Z čela) a ze
    zásobníku se vybere **nejtlustší vyvrtávací tyč, která se do předvrtání
    vejde** (Dmin). Tlačítko **↺ z Vrtání** předvrtání převezme znovu.
@@ -1382,12 +1421,12 @@ hláška řekne, kterou destičku z katalogu přidat (např. „22ER 4.0TR (dř�
 25×25, 32×32, 40×40)"), nebo že ji katalog nemá. U **vnitřního** závitu se bere
 vnitřní destička (IR v tyči SNR) a tyč se musí vejít do předvrtané díry
 ⌀(D − 2H) — rada pak nabídne jen tyče, které do díry vlezou, nebo řekne,
-že nejmenší tyč potřebuje větší díru. Přepnutí Vnější / Vnitřní při
-aktivním závitu nůž vymění taky. Vlastní ▽ nůž bez kódu z katalogu
+že nejmenší tyč potřebuje větší díru. Přepnutí ◯ Vnější / ◎ Vnitřní (pod
+Zleva / Zprava) při aktivním závitu nůž vymění taky. Vlastní ▽ nůž bez kódu z katalogu
 se bere jako dřív jen podle úhlu. Když se zadá **upichnutí** (Upich → ✂️ Ukázat bod a klik do
 výkresu), vybere se **upichovák** (▮); kulatý nůž, který upichnutí umí, se
 nechá. Když se zapne **vrtání** (Vrtání → ✅ Aktivní), vybere se první
-**vrták** (⌀). Když se zapne **vyvrtávání** (Vyvrt. → ✅ Aktivní), vybere se
+**vrták** (⌀). Když se zapne **vyvrtávání** (Hrub. → ◎ Vnitřní), vybere se
 nejtlustší **vyvrtávací tyč** z 📚 katalogu (S20S-…), která se vejde do
 předvrtání. Nůž, který už sedí, se nemění. Když vhodný nůž v zásobníku není,
 nástroj zůstane a hláška poradí přidat ho z 🧰 Knihovna → 📚 ISO katalog.
@@ -1515,9 +1554,9 @@ s rozumným vyložením ocelové tyče (4×⌀). Ruka R/L nahoře platí.
 Negativní destička (upnutí páčkou) se do hlavy vejde až od tyče ⌀20;
 destička nesmí vyčnívat nad tyč víc než 1,5 mm (proto V16 až od ⌀25).
 Náhled kreslí tyč tak, jak jde v díře podél osy (destička u stěny díry,
-tyč vede ven z díry). **CAM zatím soustruží jen vnější obrys** — vnitřní
-nože jdou do zásobníku a použijí se na vnitřní závit; operace Vyvrtávání
-přijde zvlášť. Rozměry jsou **orientační** — data
+tyč vede ven z díry). Vnitřní nože jdou do zásobníku a použije je
+**Hrub. + ◎ Vnitřní** (vyvrtávání) a **Závit + ◎ Vnitřní** (vnitřní závit).
+Rozměry jsou **orientační** — data
 v `js/calculators/isoInternalTools.js`.
 
 Tlačítka:

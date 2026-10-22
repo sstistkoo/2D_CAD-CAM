@@ -13,7 +13,7 @@ const CONTOUR = [
   { id: 3, type: 'G1', x: 40, z: -62.4, r: 0, mode: 'ABS' },
 ];
 const PROGRAM = ['N10 G0 X100 Z10', 'N20 G1 X40 Z5 F0.2', 'N30 G1 X40 Z-60', 'N40 G0 X100 Z10'].join('\n');
-const SUBTABS = ['hrub', 'hot', 'upich', 'zavit', 'vrt', 'vyvrt'];
+const SUBTABS = ['hrub', 'hot', 'upich', 'zavit', 'vrt', 'frez'];
 const SECTIONS = ['machineConfigOpen', 'safetyConfigOpen', 'materialConfigOpen', 'toolConfigOpen', 'machiningConfigOpen'];
 
 let sim;
@@ -38,7 +38,7 @@ const change = async (sel, value) => { const el = $(sel); expect(el, sel).not.to
 /** Ovládací prvky záložky jako „klíč=hodnota" (data-*) nebo „#id". */
 function controls() {
   const sel = '[data-p],[data-act],[data-struct],[data-ctrl],[data-pmode],[data-rough],[data-side],[data-machtab],[data-tshape],'
-    + '[data-mat],[data-drillmode],[data-boresrc],[data-thext],[data-thinfeed],[data-zlim],[data-xlim],input[id],select[id]';
+    + '[data-mat],[data-drillmode],[data-boresrc],[data-surface],[data-thinfeed],[data-zlim],[data-xlim],input[id],select[id]';
   return [...tab().querySelectorAll(sel)].map(el => {
     const k = Object.keys(el.dataset)[0];
     return k ? `${k}=${el.dataset[k]}` : `#${el.id}`;
@@ -55,6 +55,18 @@ describe('simulátor — záložka Parametry', () => {
       await showParams();
       out[t] = controls();
     }
+    // Hrub. + ◎ Vnitřní = vyvrtávání (dřív záložka Vyvrt.).
+    S.machiningSubTab = 'hrub';
+    S.params.boreActive = true;
+    await showParams();
+    out['hrub-vnitrni'] = controls();
+    // Hot. + ◎ Vnitřní = jen dokončení v díře (pravidlo 13, doplnění 22. 10. 2026).
+    S.machiningSubTab = 'hot';
+    S.params.finishOnly = true;
+    await showParams();
+    out['hot-vnitrni'] = controls();
+    S.params.boreActive = false;
+    S.params.finishOnly = false;
     expect(out).toMatchSnapshot();
   });
 
@@ -150,8 +162,25 @@ describe('simulátor — záložka Parametry', () => {
     expect([S.params.threadActive, S.params.drillActive, S.params.boreActive]).toEqual([true, false, false]);
     await click('[data-thinfeed="flank"]');
     expect($('[data-thinfeed="flank"]').classList.contains('cam-sim-active')).toBe(true);
+    // ◯ Vnější / ◎ Vnitřní pod Zleva/Zprava přepíná u Závitu vnitřní závit.
+    S.machiningConfigOpen = true;
+    await showParams();
+    await click('[data-surface="inner"]');
+    expect(S.params.threadExternal).toBe(false);
+    expect($('[data-surface="inner"]').classList.contains('cam-sim-active')).toBe(true);
+    await click('[data-surface="outer"]');
+    expect(S.params.threadExternal).toBe(true);
     await click('[data-act="thread-toggle"]');
     expect(S.params.threadActive).toBe(false);
+
+    // Hot. + ◎ Vnitřní = jen dokončení v díře; ◯ Vnější vyvrtávání vypne.
+    S.machiningSubTab = 'hot';
+    await showParams();
+    await click('[data-surface="inner"]');
+    expect([S.params.boreActive, S.params.finishOnly]).toEqual([true, true]);
+    await click('[data-surface="outer"]');
+    expect(S.params.boreActive).toBe(false);
+    S.params.finishOnly = false;
 
     S.machiningSubTab = 'vrt';
     await showParams();

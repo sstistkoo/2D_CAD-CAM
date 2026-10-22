@@ -233,6 +233,13 @@ protější stěny díry. Kde se nevejde, dráha se nevydá a nahlásí se.**
   se obyčejné vnější hrubování zprava a hotové řádky se překlopí zpátky
   (X, G2↔G3) — `cam/ops/bore.js`, stejně jako „zleva" = zrcadlo v Z.
 - Polotovar díry = předvrtání (⌀ a hloubka z operace Vrtání, nebo zadané).
+- **Jen dokončení v díře (Hot. + ◎ Vnitřní)** ✅ schválil uživatel 22. 10. 2026
+  = vnější Hot. v zrcadle: jeden dokončovací průchod po stěně díry (sražení,
+  schody, dno k předvrtání), bez hrubování. Předpokládá díru vyhrubovanou
+  předchozí operací: polotovar díry = hotový obrys zmenšený o přídavky
+  (stěna Ph + Přídavek X, dno Ph + Přídavek Z). Tyč se musí vejít do
+  vyhrubované díry — protější stěna = nejužší místo vyhrubované díry od
+  ústí po špičku. Kde se nevejde, dráha se nevydá a nahlásí se.
 - **Dno díry čelně** (návrh 9. 10. 2026, ke schválení uživatelem): u vyvrtávání
   z plného s kuželem špičky se po podélné fázi dno (prstenec + kužel) dobere
   čelním hrubováním v témže zrcadle, od osy ven, tenkými vrstvami (tloušťka ≤

@@ -24,12 +24,12 @@
  * @param o.fromSections  části vznikly z „✂ Po úsecích" (první má `baseLimits`)
  * @param o.face          v panelu je čelní hrubování
  * @param o.sectionsOk    `sectionSteps(calc)` nehlásí chybu
- * @param [o.op]          záložka obrábění (hrub, hot, upich, zavit, vrt, vyvrt)
+ * @param [o.op]          záložka obrábění (hrub, hot, upich, zavit, vrt, frez)
  * @param [o.tool]        tvar nástroje (drill, threading, parting, …)
  * @returns {{ refresh: boolean, section: boolean, reset: boolean }}
  */
 export function genButtonsHidden({ hasParts, allView, fromSections, face, sectionsOk, op, tool }) {
-  const other = ['upich', 'zavit', 'vrt'].includes(op) || ['drill', 'threading', 'parting'].includes(tool);
+  const other = ['upich', 'zavit', 'vrt', 'frez'].includes(op) || ['drill', 'threading', 'parting'].includes(tool);
   const section = face || other || !(fromSections || sectionsOk);
   const refresh = hasParts && allView && !(fromSections && section);
   return { refresh, section, reset: !hasParts };

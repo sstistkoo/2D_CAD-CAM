@@ -33,6 +33,10 @@
 // — změřeno: zrcadlo s kuželem jako polotovarem plánovalo průchody přes osu.
 // V zrcadle proto díra končí falešným dnem v L0 (+ přídavek Z, `Lcut`) a dno
 // díry (prstenec + kužel) se nahlásí — dobere ho až „dno díry čelně".
+// 22. 10. 2026: JEN DOKONČENÍ v díře (Hot. + ◎ Vnitřní, `finishOnly`) — vnější
+// Hot. v zrcadle nad VYHRUBOVANOU dírou (polotovar = hotový obrys zmenšený
+// o přídavky, ops/boreFinish.js); díra celá (bez falešného dna), tyč se musí
+// vejít do vyhrubované díry, ne do předvrtání.
 
 import { buildControlTailLines } from '../controlDialect.js';
 import { stockClearances } from '../camMath.js';
@@ -42,6 +46,7 @@ import { getInsert } from '../inserts/index.js';
 import { boreChainFromState } from '../boreContour.js';
 import { mirrorZLimits } from '../zMirror.js';
 import { polyDifference, polyUnion } from '../../../geom/geomCore.js';
+import { roughedMaterial, roughedProfile, finishStockPoints, wallMinFrom } from './boreFinish.js';
 
 const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
 /** O kolik je R_ref nad stěnou díry — v zrcadle „osa" leží v dílu, mimo obrábění. */
@@ -88,14 +93,16 @@ export function boreGeom(prms, chain = null) {
   }
   const r = D / 2;
   // Předvrtání se špičkou: podélně jen do hloubky plného ⌀ (viz hlavička).
-  const Lcut = tipL > 0 && L0 + allowZ < L - 1e-6 ? L0 + allowZ : L;
+  // Jen dokončení: díra je už vyhrubovaná celá — falešné dno neplatí.
+  const finish = !!prms.finishOnly;
+  const Lcut = !finish && tipL > 0 && L0 + allowZ < L - 1e-6 ? L0 + allowZ : L;
   const reach = boreToolReach(prms);
   // Rychloposuvy v díře: o vůli X od stěny předvrtání — tatáž vůle, o kterou
   // je venku plánovací obrys nad polotovarem (v zrcadle je to přesně on).
   const clr = stockClearances(prms);
   const clrX = Math.max(0.1, clr.x), clrZ = Math.max(0, clr.z);
   const rIn = r0 - clrX;
-  const g = { ok: true, k, s, zF, D, L, Lcut, d0, L0, tipL, r, r0, rRef: r + R_REF_MARGIN, rIn, clrX, clrZ, reach, chain: cad };
+  const g = { ok: true, k, s, zF, D, L, Lcut, d0, L0, tipL, r, r0, rRef: r + R_REF_MARGIN, rIn, clrX, clrZ, reach, chain: cad, finish };
   const fail = (reason) => ({ ...g, ok: false, reason });
   if (!getInsert(prms).canBore) return fail('Nástroj není vyvrtávací tyč (destička polygon nebo kulatá) — vyber ji ve 🔧 Zásobníku.');
   if (fromCad && !cad) return fail('Ve výkresu není díra — nakresli stěnu díry (samostatně, nebo napojenou na čelo dílu), nebo přepni na Válec ⌀ × délka.');
@@ -104,9 +111,17 @@ export function boreGeom(prms, chain = null) {
   if (!(D > d0 + 0.01)) return fail(`Díra ⌀${D} není větší než předvrtání ⌀${d0} — není co vyvrtat.`);
   // S kuželem špičky stačí, když špička dojede na dno + přídavek Z.
   if (L > L0 + (tipL > 0 ? tipL + allowZ : 0) + 1e-6) return fail(`Díra (${L} mm) je hlubší než předvrtání (${L0} mm) — vyvrtávací tyč nevrtá do plného.`);
+  if (finish) {
+    // Vyhrubovaná díra (pravidlo 13, doplnění 22. 10. 2026): polotovar zrcadla
+    // a protější stěna pro kontrolu, zda se tyč vejde.
+    const allowF = Math.max(0, num(prms.finishAllowance, 0));
+    const o = { s, zF, r0, rRef: g.rRef, depth: boreStockDepth(g),
+      aRad: allowF + Math.max(0, num(prms.allowanceX, 0)), aAx: allowF + allowZ };
+    g.roughed = roughedProfile(roughedMaterial(boreHoleLoop(g), o), o);
+  }
   // Pravidlo 13: tyč se musí vejít do díry už na vjezdu (nejblíž k ose).
-  if (!boreFits(rIn, reach, r0)) {
-    return fail(`Tyč se do díry nevejde (pravidlo 13): sahá ${reach.toFixed(1)} mm od špičky k ose, předvrtání ⌀${d0} — je potřeba větší předvrtání nebo tenčí tyč.`);
+  if (!boreFits(rIn, reach, wallRadius(g, zF))) {
+    return fail(`Tyč se do díry nevejde (pravidlo 13): sahá ${reach.toFixed(1)} mm od špičky k ose, ${finish ? `vyhrubovaná díra ⌀${(2 * wallRadius(g, zF)).toFixed(2)}` : `předvrtání ⌀${d0}`} — je potřeba ${finish ? 'tenčí tyč' : 'větší předvrtání nebo tenčí tyč'}.`);
   }
   return g;
 }
@@ -127,6 +142,14 @@ export function boreFits(rTip, reach, r0) {
   return rTip - reach > -r0 + WALL_GAP;
 }
 
+/**
+ * Poloměr protější stěny pro kontrolu pravidla 13 se špičkou ve skutečném Z:
+ * předvrtání; u jen dokončení nejužší místo vyhrubované díry od ústí po špičku.
+ */
+export function wallRadius(g, z) {
+  return g.finish && g.roughed ? wallMinFrom(g.roughed, g.s * z) : g.r0;
+}
+
 /** Za dnem díry vede kontura o vůli X + tolik UVNITŘ předvrtání [mm]. */
 const BEYOND_BOTTOM_IN = 0.5;
 
@@ -136,6 +159,8 @@ const BEYOND_BOTTOM_IN = 0.5;
  * L0 je skutečný materiál (dno díry), rychloposuvy tam nesmí.
  */
 export function boreStockDepth(g) {
+  // Jen dokončení: díra může sahat za plný ⌀ předvrtání (vrtaná se špičkou).
+  if (g.finish) return Math.max(g.L0, g.L + 1);
   return g.Lcut < g.L ? Math.max(g.L0, g.Lcut + 1) : g.L0;
 }
 /** O kolik před pásmem vůle před čelem díry leží bezpečné Z tyče [mm]. */
@@ -234,9 +259,12 @@ export function boreMirrorParams(prms, g) {
   return {
     ...prms,
     boreActive: false, borePreDrill: false, drillActive: false, threadActive: false, partOffZ: null,
-    roughingStrategy: 'longitudinal', roughingSide: 'right', doFinishing: !!prms.boreFinish, finishOnly: false,
+    roughingStrategy: 'longitudinal', roughingSide: 'right',
+    // Jen dokončení (Hot. + ◎ Vnitřní): vnější Hot. v zrcadle nad vyhrubovanou
+    // dírou — polotovar jako odlitek (boreMirrorState → stockPoints).
+    doFinishing: !!prms.boreFinish || !!g.finish, finishOnly: !!g.finish,
     finishingSlot: null,
-    stockMode: 'cylinder', stockDiameter: 2 * (g.rRef - g.r0), stockFace: g.s * g.zF,
+    stockMode: g.finish ? 'casting' : 'cylinder', stockDiameter: 2 * (g.rRef - g.r0), stockFace: g.s * g.zF,
     stockLength: boreStockDepth(g) - g.s * g.zF,
     safeX: +(g.k * (g.rRef - g.rIn)).toFixed(6),
     // Bezpečné Z uvnitř vnitřního světa = PŘED čelem díry (Bezpečná poloha
@@ -344,7 +372,8 @@ export function boreMirrorState(S) {
   // Polotovar (předvrtání) leží pod ním — hrubování to nemění (změřeno).
   const xMax = g.rRef - g.r0 + Math.max(0, num(S.params.toolRadius, 0));
   const S2 = {
-    params: boreMirrorParams(S.params, g), contourPoints: boreMirrorContour(g), stockPoints: [],
+    params: boreMirrorParams(S.params, g), contourPoints: boreMirrorContour(g),
+    stockPoints: g.finish && g.roughed ? finishStockPoints(g.roughed, g) : [],
     zLimits: { ...(g.s > 0 ? S.zLimits : mirrorZLimits(S.zLimits || {})), rangeActive: false },
     xLimits: { rangeXMin: null, rangeXMax: xMax, active: false, minActive: false, maxActive: true },
     guideLines: [], flipX: S.flipX, flipZ: S.flipZ, manualGCode: '', errors: [], genNotes: [],
@@ -416,7 +445,9 @@ export function emitBore(ctx) {
   const { S, prms, lines, addCmt, addN, note, computeCalculation, generateAutoGCode, boreFloorBody } = ctx;
   const { g, S2 } = boreMirrorState(S);
   const warn = (msg) => { if (S.genNotes) S.genNotes.push({ type: 'warning', msg }); };
-  addCmt(`--- VYVRTAVANI ⌀${g.D} x ${g.L} z predvrtani ⌀${g.d0} x ${g.L0} (pravidlo 13: zrcadlo vnejsiho hrubovani) ---`);
+  addCmt(g.finish
+    ? `--- VYVRTAVANI - JEN DOKONCENI ⌀${g.D} x ${g.L} (pravidlo 13: zrcadlo vnejsiho Hot., dira vyhrubovana s pridavky) ---`
+    : `--- VYVRTAVANI ⌀${g.D} x ${g.L} z predvrtani ⌀${g.d0} x ${g.L0} (pravidlo 13: zrcadlo vnejsiho hrubovani) ---`);
   let body = null;
   if (!g.ok) {
     addCmt(`! ${g.reason}`);
@@ -448,10 +479,11 @@ export function emitBore(ctx) {
       const mx = code.match(/X=?\+?(-?\d*\.?\d+)/), mz = code.match(/Z=?\+?(-?\d*\.?\d+)/);
       if (mx) x = parseFloat(mx[1]);
       if (mz) z = parseFloat(mz[1]);
-      if (x !== null && z !== null && inHole(g, z) && !boreFits(x / g.k, g.reach, g.r0)) { bad = { x, z }; break; }
+      if (x !== null && z !== null && inHole(g, z) && !boreFits(x / g.k, g.reach, wallRadius(g, z))) { bad = { x, z }; break; }
     }
     if (bad) {
-      const msg = `Tyč se do díry nevejde (pravidlo 13): u Z ${bad.z.toFixed(3)} by zadní strana tyče sáhla na protější stěnu předvrtání ⌀${g.d0}.`;
+      const wall = g.finish ? `vyhrubované díry ⌀${(2 * wallRadius(g, bad.z)).toFixed(2)}` : `předvrtání ⌀${g.d0}`;
+      const msg = `Tyč se do díry nevejde (pravidlo 13): u Z ${bad.z.toFixed(3)} by zadní strana tyče sáhla na protější stěnu ${wall}.`;
       addCmt(`! ${msg}`);
       warn(`Vyvrtávání: ${msg}`);
       body = null;

@@ -168,8 +168,9 @@ export function createParamChanges({ S, applyChange, renderTab, withBusy, _remem
   const TOOL_MACH_TAB = { drill: 'vrt', threading: 'zavit', parting: 'upich' };
   function syncMachTabToTool() {
     const cur = S.machiningSubTab || 'hrub';
-    const own = TOOL_MACH_TAB[S.params.toolShape];
-    setMachiningSubTab(own || (Object.values(TOOL_MACH_TAB).includes(cur) ? 'hrub' : cur));
+    // Vrták nese i část Frézování (blok poháněných nástrojů jen s frézami, machTabTool.js).
+    const own = S.params.toolShape === 'drill' && S.params.liveKind === 'mill' ? 'frez' : TOOL_MACH_TAB[S.params.toolShape];
+    setMachiningSubTab(own || ([...Object.values(TOOL_MACH_TAB), 'frez'].includes(cur) ? 'hrub' : cur));
   }
 
   // Po výměně NÁSTROJE (tvar v panelu, slot zásobníku, 🧰 knihovna): vrták ↔
@@ -179,6 +180,8 @@ export function createParamChanges({ S, applyChange, renderTab, withBusy, _remem
   function afterToolChange(wasDrill) {
     const drillSwitch = wasDrill !== !!getInsert(S.params).canDrill;
     if (drillSwitch) enforceInsertOperation(S.params);
+    // Druh poháněných operací (Vrtání / Frézování) patří jen části s vrtákem.
+    if (S.params.toolShape !== 'drill' && S.params.liveKind) S.params.liveKind = null;
     syncMachTabToTool();
     return drillSwitch ? { cycle: true } : undefined;
   }

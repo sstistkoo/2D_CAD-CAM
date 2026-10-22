@@ -8,9 +8,10 @@
 // Karusel (Z je svisle) a „jen bokorys" (nárys skrytý): posuvník pod kresbou
 // bez lícování.
 //
-// Posuvník Z (značky osazení) a pod ním řádek: výběr čela, ➕ nové, 🗑 smazat,
-// Z roviny čela (políčko, i výpočet, ✔ = potvrdit — exprField.js), ◀ zprava /
-// ▶ zleva (šipka = směr pohledu).
+// Posuvník Z (značky osazení) a pod ním dva řádky (na jednom byl na mobilu
+// moc dlouhý, uživatel 22. 10. 2026): výběr čela, ➕ nové, 🗑 smazat; Z roviny
+// čela (políčko, i výpočet, ✔ = potvrdit — exprField.js), ◀ zprava / ▶ zleva
+// (šipka = směr pohledu).
 // Lišta je v #canvasWrap pod lištou nástrojů (z-index), okraj plátna ji
 // ořízne; poloha se přepočítá po každém vykreslení (onFaceDrawn).
 import { state, showToast } from '../state.js';
@@ -52,12 +53,16 @@ function buildBar() {
     <input data-fb="range" type="range" list="faceBarTicks" title="Posun roviny čela po profilu — přichytí se k osazením">
     <datalist id="faceBarTicks"></datalist>
     <div class="fb-row">
-      <select data-fb="sel" title="Čelo, do kterého se kreslí (každé má vlastní kresbu děr)"></select>
-      <button data-fb="add" title="Nové čelo — vlastní kresba děr, poloha Z a strana">➕</button>
-      <button data-fb="del" title="Smazat aktuální čelo i s jeho kresbou">🗑</button>
-      <label title="Z roviny čela v nárysu — lze zadat i výpočet (např. 76-5,5); potvrdit ✔ nebo Enter">Z <input data-fb="z" type="text" inputmode="decimal" autocomplete="off"></label>
-      <button data-fb="zok" class="fb-ok" title="Potvrdit Z (Enter) — výpočet se spočítá">✔</button>
-      <button data-fb="side" title="Odkud se na čelo dívá a vrtá: ◀ zprava (díváme se doleva, k −Z) / ▶ zleva (doprava). Šipka = směr pohledu"></button>
+      <div class="fb-line">
+        <select data-fb="sel" title="Čelo, do kterého se kreslí (každé má vlastní kresbu děr)"></select>
+        <button data-fb="add" title="Nové čelo — vlastní kresba děr, poloha Z a strana">➕</button>
+        <button data-fb="del" title="Smazat aktuální čelo i s jeho kresbou">🗑</button>
+      </div>
+      <div class="fb-line">
+        <label title="Z roviny čela v nárysu — lze zadat i výpočet (např. 76-5,5); potvrdit ✔ nebo Enter">Z <input data-fb="z" type="text" inputmode="decimal" autocomplete="off"></label>
+        <button data-fb="zok" class="fb-ok" title="Potvrdit Z (Enter) — výpočet se spočítá">✔</button>
+        <button data-fb="side" title="Odkud se na čelo dívá a vrtá: ◀ zprava (díváme se doleva, k −Z) / ▶ zleva (doprava). Šipka = směr pohledu"></button>
+      </div>
     </div>`;
   (document.getElementById('canvasWrap') || document.body).appendChild(bar);
   const sel = bar.querySelector('[data-fb="sel"]');
@@ -274,8 +279,12 @@ export function rangeValueAt(rect, layoutW, min, max, rtl, x) {
 const isCoarse = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 function placeBar() {
-  // Posuvník natočení (vpravo od bokorysu) se umísťuje se lištou.
+  placeZBar();
+  // Posuvník natočení u bokorysu se umísťuje se lištou — až po ní, vyhýbá se jí.
   placeRotate(!!bar && bar.style.display !== 'none');
+}
+
+function placeZBar() {
   if (!bar || bar.style.display === 'none') return;
   const cur = getFaceLayer();
   const cv = document.getElementById('drawCanvas');
@@ -315,10 +324,12 @@ export const FACE_BAR_CSS = `
   accent-color: var(--ctp-peach); background: transparent; cursor: pointer; touch-action: none;
 }
 #faceBar .fb-row {
-  position: absolute; transform-origin: 0 0; display: flex; align-items: center; gap: 5px; white-space: nowrap;
+  position: absolute; transform-origin: 0 0; display: flex; flex-direction: column; align-items: flex-start;
+  gap: 4px; white-space: nowrap;
   padding: 4px 6px; border-radius: 8px; background: var(--ctp-mantle); color: var(--ctp-text);
   border: 1px solid var(--ctp-surface1); box-shadow: 0 2px 10px rgba(0,0,0,0.35); font-size: 12px;
 }
+#faceBar .fb-line { display: flex; align-items: center; gap: 5px; }
 #faceBar select, #faceBar input[type=text], #faceBar button {
   background: var(--ctp-surface0); color: var(--ctp-text); border: 1px solid var(--ctp-surface1);
   border-radius: 5px; padding: 3px 6px; font-size: 12px; min-width: 0;

@@ -150,7 +150,27 @@ export const liveOpOn = op => !!op && op.enabled !== false;
  * nástrojů a uživatel nepřepnul na „V ose" (`drillSource: 'axis'`).
  */
 export function liveDrillFromCad(prms) {
-  return !!prms && prms.drillSource !== 'axis' && getLiveOps(prms).some(liveOpOn);
+  if (!prms) return false;
+  // Část Frézování v ose nevrtá nikdy — ani bez vybrané frézovací operace.
+  if (prms.drillActive && prms.liveKind === 'mill') return true;
+  return prms.drillSource !== 'axis' && liveRunOps(prms).some(liveOpOn);
+}
+
+/** Druh operace pro záložky Vrtání × Frézování (navrtání a závit patří k vrtání). */
+export const liveKindOf = op => (op && op.kind === 'mill' ? 'mill' : 'drill');
+
+/**
+ * Operace, jak je vidí PROGRAM části (NC blok, simulace, pohled na čelo):
+ * část Vrtání (`liveKind: 'drill'`) jen vrtá, část Frézování (`'mill'`) jen
+ * frézuje — operace druhého druhu se vrátí jako nevybrané (`enabled: false`),
+ * indexy zůstávají (uživatel 22. 10. 2026: frézování rozdělit od vrtání).
+ * Bez `liveKind` (starší projekty, 📝 blok v soustružení) všechny vybrané.
+ * Výběr skupin (zápis `liveOps`) dál přes getLiveOps — tohle je jen pohled.
+ */
+export function liveRunOps(prms) {
+  const ops = getLiveOps(prms);
+  const kind = prms.drillActive && (prms.liveKind === 'mill' || prms.liveKind === 'drill') ? prms.liveKind : null;
+  return kind ? ops.map(op => (liveKindOf(op) === kind || !liveOpOn(op) ? op : { ...op, enabled: false })) : ops;
 }
 
 export function getLiveOps(prms) {

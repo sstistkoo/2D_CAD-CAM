@@ -13,7 +13,7 @@
 // M-kódy osy C a poháněného nástroje jsou strojní — bere se je z nastavení
 // (`liveSettings().m`), výchozí hodnoty jsou jen příklad (viz liveModel.js).
 import { LIVE_BEGIN, LIVE_END } from './liveMarkers.js';
-import { getLiveOps, liveOpOn, liveSettings, livePositions, depthLevels, millMoves, liveOpSummary, liveOpProblems, faceOut, isKeyway, keywayPath, rampPossible, RAMP_DEG } from './liveModel.js';
+import { liveRunOps, liveOpOn, liveSettings, livePositions, depthLevels, millMoves, liveOpSummary, liveOpProblems, faceOut, isKeyway, keywayPath, rampPossible, RAMP_DEG } from './liveModel.js';
 
 const f3 = v => String(+(+v).toFixed(3));
 const pad2 = n => String(Math.max(0, Math.round(n))).padStart(2, '0');
@@ -40,7 +40,8 @@ function xyOf(set, x, y) {
  * @returns {string[]} řádky bloku včetně značek; prázdné pole, když nejsou operace
  */
 export function buildLiveBlock(prms) {
-  const ops = getLiveOps(prms).filter(liveOpOn);   // nevybrané skupiny děr se nevrtají
+  // Nevybrané skupiny děr se nevrtají; část Vrtání jen vrtá, Frézování jen frézuje (liveRunOps).
+  const ops = liveRunOps(prms).filter(liveOpOn);
   if (!ops.length) return [];
   const ctrl = ['fanuc', 'heidenhain'].includes(prms.controlSystem) ? prms.controlSystem : 'sinumerik';
   const set = liveSettings(prms);
