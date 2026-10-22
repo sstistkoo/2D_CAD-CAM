@@ -47,6 +47,7 @@ import { boreChainFromState } from '../boreContour.js';
 import { mirrorZLimits } from '../zMirror.js';
 import { polyDifference, polyUnion } from '../../../geom/geomCore.js';
 import { roughedMaterial, roughedProfile, finishStockPoints, wallMinFrom } from './boreFinish.js';
+import { barOverhangNote } from './barOverhang.js';
 
 const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
 /** O kolik je R_ref nad stěnou díry — v zrcadle „osa" leží v dílu, mimo obrábění. */
@@ -489,6 +490,9 @@ export function emitBore(ctx) {
       body = null;
     }
   }
+  // Vyložení tyče (pravidlo 13, jen hlášení): nejhlubší místo díry od ústí.
+  const ovh = g.ok && body ? barOverhangNote(prms, g.L) : null;
+  if (ovh) { addCmt(`! ${ovh}`); warn(`Vyvrtávání: ${ovh}`); }
   // Dno díry po předvrtání se špičkou: čelně od osy ven (ops/boreFloor.js —
   // vlastní fáze, týž nůž). Když se nevydá, hlásí se, co zůstává.
   const left = g.ok && body ? boreBottomLeft(g) : null;

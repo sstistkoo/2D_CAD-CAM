@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM: hlášení vyložení tyče** (pravidlo 13, schváleno 22. 10. 2026):
+  vyvrtávání, zápich v díře i vnitřní závit upozorní ⚠, leží-li špička
+  hlouběji od ústí než 4 × ⌀ ocelové tyče (`cam/ops/barOverhang.js`).
+
+### Fixed
+
+- **CAM: vnitřní závit — nájezd a výjezd ústím díry** (pravidlo 13,
+  schváleno 22. 10. 2026). Dřív šikmý rychloposuv z bezpečné polohy na
+  start a z konce závitu zpátky — u závitu v díře projel stěnou. Teď před
+  ústí a čelo polotovaru (i o přesah tyče za špičku) → k ose → na Z, ven
+  stejně. Simulace kreslí a počítá vnitřní závit s tyčí obrácenou
+  radiálně a polotovarem s dírou ⌀(D − 2H) (`toolRadialFlip.js`,
+  `sim/grooveSim.js`); vnější obrys se u něj nehrubuje ani nedokončuje.
+  Výjezd zápichu v díře taky počítá s přesahem tyče. Test
+  `tests/cam-thread-inner.test.js`.
+
 - **CAM: zápich v díře (Upich + ◎ Vnitřní).** Zápich ven od stěny díry
   vnitřní zapichovací tyčí, libovolná šířka: zápichy vedle sebe s krokem
   ≤ 0,8 × šířka destičky, boky a dno s přídavky, dokončení bok → dno →

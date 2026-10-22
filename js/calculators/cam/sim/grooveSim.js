@@ -1,4 +1,5 @@
-// Simulace zápichu v díře (Upich + ◎ Vnitřní, ops/grooveInner.js).
+// Simulace zápichu v díře (Upich + ◎ Vnitřní, ops/grooveInner.js)
+// a vnitřního závitu (Závit + ◎ Vnitřní, ops/thread.js).
 //
 // Emise jede ve skutečných souřadnicích a nástroj je v modelech světa
 // obrácený radiálně (cam/toolRadialFlip.js). Zbývá polotovar: v programu
@@ -6,17 +7,39 @@
 // část ji ale nemá — tyč by v simulaci „vrtala" plný materiál a validátor by
 // hlásil rychloposuvy v materiálu. Proto se díra (z vyvrtávání / předvrtání /
 // ručního ⌀) z polotovaru odečte; když už v něm je, odečtení nic nezmění.
-import { radialFlip } from '../toolRadialFlip.js';
-import { buildStockLoopRaw } from '../materialRemoval.js';
+import { radialFlip, threadInnerActive, toolReachAlongZ } from '../toolRadialFlip.js';
+import { buildStockLoopRaw, toolFootprint } from '../materialRemoval.js';
+import { holderWorldLoop } from '../collisionValidator.js';
 import { boreGeom, boreHoleLoop } from '../ops/bore.js';
 import { boreChainFromState } from '../boreContour.js';
 import { polyDifference, polyArea } from '../../../geom/geomCore.js';
 
 const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
 
-/** Obrys díry pro zápich (skutečné souřadnice, od osy), nebo null. */
+/** Díra vnitřního závitu: předvrtání ⌀(D − 2H) od ústí za konec závitu
+ *  (i s výběhem) + kam nástroj sahá za špičku (destička IR je široká) + 2 mm,
+ *  nebo hlouběji, sahá-li tam předvrtání/vyvrtávání. Hloubku skutečné díry
+ *  závit nezná — u slepé díry ji hlídá uživatel. */
+function threadHoleLoop(p) {
+  const H = num(p.threadDepth);
+  const r = num(p.threadDiameter) / 2 - H;
+  if (!(r > 0)) return null;
+  const zS = num(p.threadZStart);
+  const zE = Number.isFinite(parseFloat(p.threadZEnd)) ? parseFloat(p.threadZEnd) : zS - 10;
+  const dir = zE < zS ? -1 : 1;                       // směr řezu = do díry
+  const reach = toolReachAlongZ([holderWorldLoop(p, p.roughingSide === 'left'), toolFootprint(p)], dir);
+  const zIn = zE + dir * (Math.max(0, num(p.threadRunOut)) + reach + 2);
+  const g = boreGeom(p, null);
+  const zDeep = g.s === -dir && (g.L0 > 0 || g.L > 0) ? g.zF - g.s * Math.max(g.L0 || 0, g.L || 0) : zIn;
+  const zEnd = dir < 0 ? Math.min(zIn, zDeep) : Math.max(zIn, zDeep);
+  const zOut = zS - dir * 50;
+  return [{ x: -1, z: zOut }, { x: r, z: zOut }, { x: r, z: zEnd }, { x: -1, z: zEnd }];
+}
+
+/** Obrys díry pro zápich / vnitřní závit (skutečné souřadnice, od osy), nebo null. */
 export function grooveHoleLoop(S) {
   const p = S.params;
+  if (threadInnerActive(p)) return threadHoleLoop(p);
   const src = p.boreSource === 'cad' ? boreChainFromState(S) : null;
   const g = boreGeom(p, src ? src.segs : null);
   if (g.chain) return boreHoleLoop(g);

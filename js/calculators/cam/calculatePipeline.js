@@ -22,6 +22,7 @@ import { planSections } from './ops/sections/sectionPlan.js';
 import { sectionGuides } from './ops/sections/sectionGuides.js';
 import { partOffGeom } from './threadHelpers.js';
 import { partOffReachWarning } from './partOffReach.js';
+import { radialFlip } from './toolRadialFlip.js';
 import { getInsert } from './inserts/index.js';
 import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
 import { buildFinishPath, clipFinishBand, finishPartingEnvelope } from './ops/finish.js';
@@ -504,10 +505,10 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     }
   }
 
-  // Dokončovací dráha — celá operace v ops/finish.js. Zápich v díře
-  // (Upich + ◎ Vnitřní, ops/grooveInner.js) vnější obrys nedokončuje — tyč
-  // by se na něm jen falešně hlásila jako kolize držáku.
-  const grooveInnerOp = !!prms.partOffInner && prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
+  // Dokončovací dráha — celá operace v ops/finish.js. Zápich v díře a vnitřní
+  // závit (nástroj obrácený radiálně, toolRadialFlip.js) vnější obrys
+  // nedokončují — tyč by se na něm jen falešně hlásila jako kolize držáku.
+  const grooveInnerOp = radialFlip(prms);
   if ((prms.doFinishing || prms.finishOnly) && !grooveInnerOp) {
     finishOffsetPath = buildFinishPath({
       prms, clearance, contourSegments, preBridgeContour, machinableContour,
@@ -682,7 +683,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // `skipRoughing` dělá totéž dočasně: geometrie (kontura, offsety, mezní
   // čáry) stojí 51 ms, samé hrubování 740 (měřeno na part-11), takže dokud
   // uživatel dráhy nepřepočítá, počítá panel jen tu levnou část.
-  // Zápich v díře (grooveInnerOp výš) vnější obrys nehrubuje — program je jen zápich.
+  // Zápich v díře / vnitřní závit (grooveInnerOp výš) vnější obrys nehrubuje.
   if (!prms.finishOnly && !skipRoughing && !xMaxNothing && !grooveInnerOp) {
     const operations = getRoughingOperations(S);
     const runOps = () => {

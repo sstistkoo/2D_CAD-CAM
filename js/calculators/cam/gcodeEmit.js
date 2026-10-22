@@ -93,7 +93,7 @@ export function generateAutoGCode(S, calc) {
 
   // ── ZÁVITOVÁNÍ (záložka Závit) ── samostatná operace, viz ops/thread.js.
   if (prms.threadActive)
-    return emitThread({ S, prms, lines, addCmt, addN, note, arcR, flipArc });
+    return emitThread({ S, calc, prms, lines, addCmt, addN, note, arcR, flipArc });
 
   // ── UPICHNUTÍ (part-off) ── samostatná operace, viz ops/partOff.js.
   const partOffActive = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));

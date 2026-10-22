@@ -8,14 +8,18 @@
 import { stockClearances } from '../camMath.js';
 import { computeThreadPassCuts, threadProfileDepth } from '../threadHelpers.js';
 import { buildControlTailLines } from '../controlDialect.js';
+import { buildStockLoopRaw, toolFootprint } from '../materialRemoval.js';
+import { holderWorldLoop } from '../collisionValidator.js';
+import { toolReachAlongZ } from '../toolRadialFlip.js';
+import { barOverhangNote } from './barOverhang.js';
 
 /**
- * @param ctx  { S, prms, lines, addCmt, addN, note, arcR, flipArc }
+ * @param ctx  { S, calc, prms, lines, addCmt, addN, note, arcR, flipArc }
  *             — sdílené emisní prostředí z `generateAutoGCode()`
  * @returns    hotové řádky programu
  */
 export function emitThread(ctx) {
-  const { S, prms, lines, addCmt, addN, note, arcR, flipArc } = ctx;
+  const { S, calc, prms, lines, addCmt, addN, note, arcR, flipArc } = ctx;
   let simCounter = 0;
 // ── ZÁVITOVÁNÍ (záložka Závit) ── průchody G33 (Sinumerik/Heidenhain)
 // / G32 (Fanuc) s degresivním radiálním přísuvem (√(i/n) — konstantní
@@ -80,7 +84,28 @@ export function emitThread(ctx) {
     addCmt(`! Vnitrni zavit: prumer diry ⌀${(rMinor * 2).toFixed(3)} <= 0 — zkontroluj ⌀D a hloubku H. Drahy nevygenerovany.`);
   } else {
     addN(`G97 S${rpm}${note('', 'Konstantní otáčky pro závit')}`);
-    simCounter += 1; addN(`G0 X${xd(rClear)} Z${z0.toFixed(3)}${note('', 'Nájezd před závit (náběh)')}`, simCounter);
+    // Vnitřní (pravidlo 13, 22. 10. 2026): do díry jen přes ústí — před ústí
+    // i čelo polotovaru, k ose na odskok, teprve pak na Z startu; ven stejně.
+    let zOut = null;
+    if (!ext) {
+      let stock = null;
+      try { stock = buildStockLoopRaw(prms, calc && calc.stockPathSegments); } catch { stock = null; }
+      const zs = (stock || []).map(q => q.z);
+      const zFront = dirZ < 0 ? Math.max(z0, ...zs) : Math.min(z0, ...zs);   // ústí = proti směru řezu
+      // Vyložení tyče (jen hlášení): konec závitu od čela polotovaru (ústí).
+      const zMouth = zs.length ? (dirZ < 0 ? Math.max(...zs) : Math.min(...zs)) : zStart;
+      const ovh = barOverhangNote(prms, Math.abs(zCut - zMouth));
+      if (ovh) { addCmt(`! ${ovh}`); if (S.genNotes) S.genNotes.push({ type: 'warning', msg: `Vnitřní závit: ${ovh}` }); }
+      // + kam nástroj sahá za špičku do díry (tyč SNR přečnívá destičku).
+      const back = prms.roughingSide === 'left';
+      const ext2 = toolReachAlongZ([holderWorldLoop(prms, back), toolFootprint(prms)], dirZ);
+      zOut = zFront - dirZ * (clr + 1 + ext2);
+      simCounter += 1; addN(`G0 Z${zOut.toFixed(3)}${note('', 'Před ústí díry')}`, simCounter);
+      simCounter += 1; addN(`G0 X${xd(rClear)}${note('', 'K ose')}`, simCounter);
+      simCounter += 1; addN(`G0 Z${z0.toFixed(3)}${note('', 'Nájezd před závit (náběh)')}`, simCounter);
+    } else {
+      simCounter += 1; addN(`G0 X${xd(rClear)} Z${z0.toFixed(3)}${note('', 'Nájezd před závit (náběh)')}`, simCounter);
+    }
     let prevCum = 0;
     // Jeden průchod: přejezd na start (Z s bočním posunem), přísuv v X
     // (na kuželu dle povrchu v místě startu), G33 na konec, odskok.
@@ -101,6 +126,7 @@ export function emitThread(ctx) {
     // řezný průchod, ať jedou ve stejné stopě.
     const springShift = zShiftOf(H, cuts.length - 1);
     for (let s = 0; s < spring; s++) onePass(H, springShift, `Jiskřící průchod ${s + 1}`);
+    if (zOut !== null) { simCounter += 1; addN(`G0 Z${zOut.toFixed(3)}${note('', 'Ven z díry')}`, simCounter); }
     addN(`G0 X${prms.safeX} Z${prms.safeZ}${note('', 'Bezpečná poloha')}`);
     addN(`G96 S${prms.speed}${note('', 'Zpět konst. řezná rychlost')}`);
     buildControlTailLines(prms.controlSystem).forEach(line => addN(line));

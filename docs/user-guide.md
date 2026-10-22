@@ -937,6 +937,25 @@ u upichu (výjezdy jen ke stěně díry). Do díry i ven jede tyč osou díry
 nevejde nebo zápich přesáhne dosah, dráha se nevydá a pod poli i v ⚠ je
 důvod.
 
+**Vnitřní závit (Závit + ◎ Vnitřní)** jede do díry stejně: rychloposuvem
+před ústí a čelo polotovaru (o vůli X + 1 mm a ještě o to, kam tyč SNR
+sahá za špičku — destička IR je široká), k ose na odskok průchodů, teprve
+pak na Z startu; po posledním průchodu zpět před ústí a teprve odtud do
+bezpečné polohy. Dřív jel šikmo z bezpečné polohy na start a zpátky —
+z konce závitu by tyč projela stěnou díry. Uložený program s vnitřním
+závitem se přepočítá při další změně parametrů nebo přes 🔄 Dráhy.
+
+**Simulace v díře.** U zápichu v díře a vnitřního závitu kreslí i počítá
+simulace (úběr, ⛔ kolize, zajetí držáku) tyč tak, jak v díře leží —
+ostřím ven, tyčí k ose — a polotovar s dírou (⌀ z vyvrtávání / předvrtání,
+u závitu ⌀(D − 2H)), i když samostatná část programu díru ještě nemá.
+Zajetí do kontury se u zápichu nehlídá (zápich na výkrese být nemusí).
+
+**Vyložení tyče.** Leží-li špička hlouběji od ústí než 4 × ⌀ ocelové
+tyče (vyvrtávání, zápich v díře, vnitřní závit), program se vydá, ale ⚠
+upozorní na chvění — zvol tlustší nebo tvrdokovovou tyč, případně zmenši
+posuv a záběr.
+
 **Proč se negenerují hrubovací dráhy?** Pět nastavení hrubování přebíjí, a
 každé sedí v jiné záložce: **Závit** (aktivní závitování), **Upich**
 (naklikané upichnutí), **Vrtání / Frézování** (aktivní nástroj je vrták),

@@ -6,6 +6,7 @@
 import { arcSteps } from '../camMath.js';
 import { partOffGeom } from '../threadHelpers.js';
 import { elapsedAtProgress } from '../feedRates.js';
+import { radialFlip } from '../toolRadialFlip.js';
 import { drawHolderProfileLocal, drawThreadingInsert, drawPolygonInsert, partingBodyMinH, drawDrillTool } from '../insertPreview.js';
 
 /** @param f snímek kreslení z drawCanvas(): { S, ctx, calc, prms, C, toScreen, getGNodes, _draggingPartOff, motionOverlay, preDrillPhase, showMotionInfo, simTimeProfile, toolMirrored, getHolderGouge, getContourGouge } */
@@ -186,8 +187,8 @@ export function drawToolpathLayer(f) {
     const preTool = preDrillPhase(calc);
     const drillNow = !!preTool && floatIndex < preTool.iSplit;
     const tp = drillNow ? preTool.params : prms;
-    // Vyvrtávání i zápich v díře (Upich + ◎ Vnitřní): tyč leží v díře, nůž k ose.
-    const boreView = !drillNow && (!!S.params.boreActive || (!!S.params.partOffInner && S.params.partOffZ != null));
+    // Vyvrtávání, zápich v díře a vnitřní závit: tyč leží v díře, nůž k ose.
+    const boreView = !drillNow && (!!S.params.boreActive || radialFlip(S.params));
     const pCurrent = calc.simPath[idx];
     if (pCurrent) {
       const pNext = calc.simPath[Math.min(idx + 1, totalPoints - 1)] || pCurrent;

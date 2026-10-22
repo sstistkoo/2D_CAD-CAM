@@ -255,6 +255,15 @@ protější stěny díry. Kde se nevejde, dráha se nevydá a nahlásí se.**
   dosah destičky v tyči. Pohyb: rychloposuvem do díry k ose → na Z → ke
   stěně → zápich → zpět k ose → ven z díry. Kde se nevejde, dráha se
   nevydá a nahlásí se.
+- **Vnitřní závit (Závit + ◎ Vnitřní) — nájezd a výjezd** ✅ schválil
+  uživatel 22. 10. 2026: stejně jako zápich v díře — rychloposuvem před
+  ústí i před čelo polotovaru (o vůli X + 1 mm), pak k ose na odskok
+  průchodů, teprve potom na Z startu; po posledním průchodu z odskoku
+  zpět před ústí a teprve odtud do bezpečné polohy. Nikdy šikmo z/do
+  bezpečné polohy přes stěnu díry.
+- **Vyložení tyče** (schválil uživatel 22. 10. 2026, jen hlášení): leží-li
+  špička v díře hlouběji od ústí než 4 × ⌀ ocelové tyče, dráha se vydá
+  a ⚠ upozorní na chvění (vyvrtávání, zápich v díře, vnitřní závit).
 - **Dno díry čelně** (návrh 9. 10. 2026, ke schválení uživatelem): u vyvrtávání
   z plného s kuželem špičky se po podélné fázi dno (prstenec + kužel) dobere
   čelním hrubováním v témže zrcadle, od osy ven, tenkými vrstvami (tloušťka ≤

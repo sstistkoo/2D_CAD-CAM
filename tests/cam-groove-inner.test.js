@@ -124,9 +124,10 @@ describe('program zápichu v díře', () => {
     expect(errorsSim.map(e => e.msg)).toEqual([]);
     expect(gcode).toContain('ZAPICH V DIRE');
     expect(gcode).not.toContain('UPICHNUTI');
-    // Nájezd: před ústí i před čelo polotovaru (Z2 + vůle 1 + 1 = Z4), pak
-    // k ose (X 16,3), teprve potom na Z zápichu.
-    expect(mv[0]).toMatchObject({ g: 'G0', z: 4 });
+    // Nájezd: před ústí i před čelo polotovaru (Z2 + vůle 1 + 1 = Z4) a ještě
+    // o 0,6 mm, kam tyč sahá za špičku do díry (Z4,6); pak k ose (X 16,3),
+    // teprve potom na Z zápichu.
+    expect(mv[0]).toMatchObject({ g: 'G0', z: 4.6 });
     expect(mv[1].x).toBeCloseTo(16.3, 3);
     // Žádný pohyb v díře nesmí stěnou díry (r 20) mimo pás zápichu Z −10 … −18.
     for (const m of mv) {
@@ -143,7 +144,7 @@ describe('program zápichu v díře', () => {
     // Ven: osou díry před ústí, pak bezpečná poloha.
     const iOut = mv.findIndex(m => m.text.includes('Ven z díry'));
     expect(mv[iOut - 1].x).toBeCloseTo(16.3, 3);
-    expect(mv[iOut].z).toBe(4);
+    expect(mv[iOut].z).toBe(4.6);
   });
   it('průměrové X (DIAMON) = dvojnásobek', async () => {
     const { gcode } = await runCamProg(prog(params(bar(25, 3), { mode: 'DIAMON' })));
@@ -218,5 +219,25 @@ describe('simulace zápichu v díře (skutečný svět)', async () => {
     expect(removedIn(box(20, 30, -40, -18.05))).toBeLessThan(0.01);            // nic za druhým bokem
     const issues = validateToolpath(calcSim.simPath, sp, segs, { planStock: true });
     expect(issues).toEqual([]);
+  });
+});
+
+describe('vyložení tyče (pravidlo 13, jen hlášení)', async () => {
+  const { barOverhangNote } = await import('../js/calculators/cam/ops/barOverhang.js');
+  it('nad 4 × ⌀ ocelové tyče hlásí, do 4 × ⌀ ne; vnější nůž se nehlídá', () => {
+    const t = bar(16, 2).tool;
+    expect(barOverhangNote(t, 64)).toBe(null);
+    expect(barOverhangNote(t, 64.5)).toMatch(/⌀16 snese asi 64 mm/);
+    expect(barOverhangNote({ ...t, toolInternal: false }, 200)).toBe(null);
+  });
+  it('hluboký zápich tenkou tyčí: program se vydá s ⚠ v komentáři', async () => {
+    const p = params(bar(16, 2), { boreDiameter: 0, borePreDiameter: 20, borePreDepth: 80, partOffZ: -60, grooveBottomX: 11.5 });
+    const { gcode } = await runCamProg(prog(p));
+    expect(gcode).toMatch(/! Vyložení tyče: špička jde 68 mm/);
+    expect(gcode).toMatch(/G1 X11\.\d+ F/);                      // zápich se vydal
+  });
+  it('mělký zápich bez hlášení', async () => {
+    const { gcode } = await runCamProg(prog(params(bar(25, 3))));
+    expect(gcode).not.toContain('Vyložení');
   });
 });

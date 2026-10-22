@@ -25,11 +25,13 @@
 
 import { stockClearances } from '../camMath.js';
 import { buildControlTailLines } from '../controlDialect.js';
-import { holderProfileLoop } from '../collisionValidator.js';
+import { holderProfileLoop, holderWorldLoop } from '../collisionValidator.js';
 import { getInsert } from '../inserts/index.js';
 import { boreGeom, boreToolReach, boreFits } from './bore.js';
 import { boreChainFromState } from '../boreContour.js';
-import { buildStockLoopRaw } from '../materialRemoval.js';
+import { buildStockLoopRaw, toolFootprint } from '../materialRemoval.js';
+import { toolReachAlongZ } from '../toolRadialFlip.js';
+import { barOverhangNote } from './barOverhang.js';
 
 const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
 /** Mezera mezi tyčí a stěnou díry [mm] (jako WALL_GAP vyvrtávání). */
@@ -155,7 +157,9 @@ export function grooveInnerGeom(prms, chain = null, stockLoop = null) {
   // Před ústí: za čelo díry i za polotovar (může čelo přečnívat) o vůli + 1 mm
   // — odtud jede tyč radiálně k ose a zpátky ven, nad polotovarem.
   const zStock = stockLoop && stockLoop.length ? (g.s > 0 ? Math.max(...stockLoop.map(q => q.z)) : Math.min(...stockLoop.map(q => q.z))) : g.zF;
-  const zOut = g.zF + g.s * (Math.max(0, g.s * (zStock - g.zF)) + clr + 1);
+  // + kam nástroj sahá za špičku do díry (směr −s).
+  const ext2 = toolReachAlongZ([holderWorldLoop(prms, prms.roughingSide === 'left'), toolFootprint(prms)], -g.s);
+  const zOut = g.zF + g.s * (Math.max(0, g.s * (zStock - g.zF)) + clr + 1 + ext2);
   return { ...out, ok: true, rHole, rWall, reach, zNear, rcStart, rcIn, rcBotFinal, rcBotRough,
     plunges: plunges.map(zOfU), zFinA: zOfU(fa > 0 ? allowZ : 0), zFinB: zOfU(fa > 0 ? W - allowZ - w : 0), zOut, depth };
 }
@@ -179,6 +183,9 @@ export function emitGrooveInner(ctx) {
     addCmt(`! ${g.reason}`);
     if (S.genNotes) S.genNotes.push({ type: 'warning', msg: `Zápich v díře: ${g.reason}` });
   } else {
+    // Vyložení tyče (jen hlášení): druhý bok zápichu od ústí díry.
+    const ovh = barOverhangNote(prms, g.s * (g.zF - g.zB));
+    if (ovh) { addCmt(`! ${ovh}`); if (S.genNotes) S.genNotes.push({ type: 'warning', msg: `Zápich v díře: ${ovh}` }); }
     const peck = Math.max(0.1, num(prms.retractDistance, 2));
     const af = Math.max(0, num(prms.partingApproachFeed, 0));
     const F = prms.feed;
