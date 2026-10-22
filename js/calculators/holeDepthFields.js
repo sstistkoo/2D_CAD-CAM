@@ -46,11 +46,11 @@ const VAL = {
 };
 
 /** HTML: výběr druhu + jedno číselné pole (popisek podle druhu) + u Skrz materiál. */
-export function depthFieldsHtml(p) {
+export function depthFieldsHtml(p, { thread = true } = {}) {
   return selectField(p + 'depthMode', 'Hloubka díry', MODES) +
     numField(p + 'depthVal', VAL.through[0], 'mm', VAL.through[1]) +
     '<span data-depth-mat>' + selectField(p + 'depthMat', 'Skrz materiálem', MATS) + '</span>' +
-    threadFieldHtml(p);
+    (thread ? threadFieldHtml(p) : '');   // drážka do čela závit nemá
 }
 
 const els = (root, p) => ({

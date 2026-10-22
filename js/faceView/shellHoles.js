@@ -89,7 +89,8 @@ export function resolveShellHole(spec, z, objects = profileObjects(), machineTyp
     const over = dep.value != null && dep.value >= 0 ? +dep.value : throughOverrun(d);
     depth = R - inner + over;
   } else if (dep.mode === 'dia') {
-    if (!(dep.value >= 0)) return { error: 'zadejte Ø, do kterého se vrtá' };
+    // null >= 0 je v JS true — prázdné pole by vrtalo až do osy.
+    if (dep.value == null || !(dep.value >= 0)) return { error: 'zadejte Ø, do kterého se vrtá' };
     depth = R - dep.value / 2;
   } else {
     depth = +dep.value;

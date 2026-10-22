@@ -84,7 +84,7 @@ export function openShellSlotCalc(opts = {}, onOval = null) {
     if (Number.isNaN(v)) return { error: 'Neplatná hodnota u hloubky' };
     const mode = inp.mode.value;
     if (mode === 'depth' && !(v > 0)) return { error: 'Zadej hloubku drážky (> 0)' };
-    if (mode === 'dia' && !(v >= 0)) return { error: 'Zadej Ø dna drážky' };
+    if (mode === 'dia' && (v === null || !(v >= 0))) return { error: 'Zadej Ø dna drážky' };
     if (!(n >= 1) || Math.round(n) !== n) return { error: 'Počet po obvodu = celé číslo ≥ 1' };
     if (a === null || Number.isNaN(a)) return { error: 'Zadej úhel C' };
     const r = inp.ref && refs.find(x => x.key === inp.ref.value);

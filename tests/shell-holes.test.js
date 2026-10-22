@@ -56,6 +56,9 @@ describe('plášť a hloubka z profilu', () => {
     expect(resolveShellHole(spec({ depth: { mode: 'through', value: null } }), 150)).toMatchObject({ xTop: 60, depth: 18.4 });
     expect(resolveShellHole(spec({ depth: { mode: 'through', value: 1 } }), 150).depth).toBe(16);
   });
+  it('do Ø bez zadaného Ø → chyba, ne díra do osy (null >= 0 je true)', () => {
+    expect(resolveShellHole(spec({ depth: { mode: 'dia', value: null } }), 50).error).toMatch(/zadejte Ø/);
+  });
   it('Z na osazení (SNAP na roh) se odmítne — plášť by byl dvojznačný', () => {
     expect(resolveShellHole(spec(), 100).error).toMatch(/osazení \(Ø40 \/ Ø60\)/);
     expect(resolveShellHole(spec(), 100.5).xTop).toBe(60);

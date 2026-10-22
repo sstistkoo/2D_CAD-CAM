@@ -104,7 +104,7 @@ export function openShellHoleCalc(opts = {}) {
     if (Number.isNaN(v)) return { error: 'Neplatná hodnota u hloubky' };
     const mode = inp.mode.value;
     if (mode === 'depth' && !(v > 0)) return { error: 'Zadej hloubku díry (> 0)' };
-    if (mode === 'dia' && !(v >= 0)) return { error: 'Zadej Ø, do kterého se vrtá' };
+    if (mode === 'dia' && (v === null || !(v >= 0))) return { error: 'Zadej Ø, do kterého se vrtá' };
     if (mode === 'through' && v !== null && v < 0) return { error: 'Přesah musí být ≥ 0' };
     if (!(n >= 1) || Math.round(n) !== n) return { error: 'Počet po obvodu = celé číslo ≥ 1' };
     if (a === null || Number.isNaN(a)) return { error: 'Zadej úhel C' };

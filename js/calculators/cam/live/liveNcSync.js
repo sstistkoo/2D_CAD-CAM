@@ -160,7 +160,9 @@ export function livePathSegments(ops, prms) {
 function radiiOf(op) {
   if (op.kind === 'mill' && op.millType === 'slot') {
     const { x1, y1, x2, y2 } = op.slot, ext = Math.max(0, slotWidth(op) / 2 - op.toolD / 2);
-    return [[Math.max(0, Math.hypot(x1, y1) - ext), Math.hypot(x2, y2) + ext]];
+    // Širší drážka přesahuje oba konce ven — i když je nakreslená zvenku dovnitř.
+    const ra = Math.hypot(x1, y1), rb = Math.hypot(x2, y2), s = ra <= rb ? 1 : -1;
+    return [[Math.max(0, ra - s * ext), Math.max(0, rb + s * ext)]];
   }
   const ext = op.kind === 'mill' ? Math.max(0, op.holeD / 2 - op.toolD / 2) : 0;
   const rs = [...new Set(livePositions(op).map(p => +p.r.toFixed(4)))];

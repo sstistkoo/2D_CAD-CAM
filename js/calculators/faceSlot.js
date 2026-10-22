@@ -51,7 +51,7 @@ export function openFaceSlotCalc(opts = {}) {
       numField('len', 'Délka (vnější)', 'mm', 'L', ' value="' + fmt(e ? e.len : _last ? _last.len : 30) + '"') +
       numField('w', 'Šířka', 'mm', 'b', e ? ' value="' + fmt(e.w) + '"' : _last ? ' value="' + fmt(_last.w) + '"' : '') +
       numField('a', 'Úhel osy', '°', '0', ' value="' + fmt(a0) + '"') +
-      depthFieldsHtml(P) +
+      depthFieldsHtml(P, { thread: false }) +
     '</div>' +
     '<div class="cnc-actions"><button class="cnc-btn" data-fs="rad" title="Osa drážky míří ke středu čela">↻ Radiálně</button>' +
       '<button class="cnc-btn" data-fs="tan" title="Osa drážky kolmo k paprsku (po obvodu)">⟂ Tečně</button></div>' +

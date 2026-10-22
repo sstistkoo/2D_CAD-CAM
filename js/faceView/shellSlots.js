@@ -66,6 +66,8 @@ export function resolveShellSlot(spec, z1, z2, objects = profileObjects(), machi
     else if (Math.abs(r - R) > 1e-6) return { error: `drážka vede přes osazení / kužel (Ø${fmt(2 * Math.min(r, R))} až Ø${fmt(2 * Math.max(r, R))}) — plášť musí být po celé délce stejný` };
   }
   const dep = spec.depth || {};
+  // null >= 0 je v JS true — prázdné „Ø dna" by frézovalo až do osy.
+  if (dep.mode === 'dia' && (dep.value == null || !(dep.value >= 0))) return { R, xTop: r3(2 * R), error: 'zadejte Ø dna drážky' };
   const depth = dep.mode === 'dia' ? R - dep.value / 2 : +dep.value;
   if (!(depth > 0)) return { R, xTop: r3(2 * R), error: `hloubka vychází ${fmt(depth || 0)} mm` };
   if (depth > R + 1e-6) return { R, xTop: r3(2 * R), error: `hloubka ${fmt(depth)} mm vede přes osu` };

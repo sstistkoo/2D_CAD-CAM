@@ -167,6 +167,13 @@ export function parsePointList(text) {
   return out;
 }
 
+/** Úhly ze seznamu (první číslo na řádku) — drážka pro pero „úhel" na řádek. */
+function pointAngles(text) {
+  return String(text || '').split(/\n/)
+    .map(line => parseFloat((line.trim().split(/\s*[;\t]\s*|\s+/)[0] || '').replace(',', '.')))
+    .filter(Number.isFinite);
+}
+
 /**
  * Pozice operace. Čelo: [{ a, r, x, y }], plášť: [{ a, z }].
  * Úhly normalizované do <0, 360).
@@ -176,7 +183,11 @@ export function livePositions(op) {
   if (op.side === 'radial') {
     // Drážka pro pero: poloha = úhel C, Z = střed drážky (dráhu dává keywaySpan).
     const kw = isKeyway(op) ? (op.kz1 + op.kz2) / 2 : null;
-    if (op.pattern === 'points') return parsePointList(op.points).map(p => ({ a: norm(p.a), z: kw ?? p.v }));
+    if (op.pattern === 'points') {
+      // Drážka pro pero: řádek = „úhel" (formulář), případné „; Z" se ignoruje.
+      if (kw !== null) return pointAngles(op.points).map(a => ({ a: norm(a), z: kw }));
+      return parsePointList(op.points).map(p => ({ a: norm(p.a), z: p.v }));
+    }
     const step = 360 / op.count;
     return Array.from({ length: op.count }, (_, i) => ({ a: norm(op.startAngle + i * step), z: kw ?? op.zPos }));
   }
@@ -419,8 +430,8 @@ export function liveOpProblems(op) {
     if (op.millType === 'slot' && slotWidth(op) < op.toolD - 1e-9) out.push('Fréza je širší než drážka.');
     if (!(op.stepDown > 0)) out.push('Zadejte krok do hloubky.');
   }
-  if (op.pattern === 'points' && op.millType !== 'slot' && parsePointList(op.points).length === 0)
-    out.push('Seznam bodů je prázdný (řádek = „úhel; poloměr").');
+  if (op.pattern === 'points' && op.millType !== 'slot' && livePositions(op).length === 0)
+    out.push(isKeyway(op) ? 'Seznam úhlů je prázdný (řádek = „úhel").' : 'Seznam bodů je prázdný (řádek = „úhel; poloměr").');
   if (isKeyway(op)) {
     const k = keywaySpan(op);
     if (k.za < k.zb - 1e-9) out.push('Drážka je kratší než Ø frézy (šířka).');

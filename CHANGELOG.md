@@ -340,6 +340,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAD/CAM: opravy po kontrole děr a drážek v plášti a na čele.** Prázdné
+  „Do Ø" u díry / drážky v plášti už nevrtá tiše až do osy (`null >= 0` je
+  v JS true), hlásí chybu. Drážka pro pero se seznamem bodů bere řádek
+  „úhel", jak říká formulář (dřív parser chtěl dvě čísla a seznam vyšel
+  prázdný). Okno Drážka do čela už neukazuje výběr Závit, který nic nedělal.
+  Dráha širší drážky na čele v řezu přesahuje oba konce ven i u drážky
+  nakreslené zvenku dovnitř.
+
 - **CAM: frézovací operace volala T6 = upichovák.** Výchozí číslo nástroje
   frézy bylo T6, ve výchozím zásobníku upichovák — Fanuc `T0606`,
   Heidenhain `T6` by vzaly upichovák. Teď T frézy ze zásobníku, bez ní

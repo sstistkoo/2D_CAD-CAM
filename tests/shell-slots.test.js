@@ -25,7 +25,7 @@ import { cadDrawingsForCam } from '../js/faceView/cadForCam.js';
 import { shellSlotProjections } from '../js/faceView/shellHoleView.js';
 import { liveOpsFromCad } from '../js/calculators/cam/live/liveFromCad.js';
 import { cadSyncOps } from '../js/calculators/cam/live/liveCadSync.js';
-import { keywaySpan, liveOpProblems, liveOpSummary, normalizeLiveOp } from '../js/calculators/cam/live/liveModel.js';
+import { keywaySpan, liveOpProblems, liveOpSummary, normalizeLiveOp, livePositions } from '../js/calculators/cam/live/liveModel.js';
 import { buildLiveBlock } from '../js/calculators/cam/live/liveGcode.js';
 import { buildLiveTimeline } from '../js/calculators/cam/live/liveMachining.js';
 import { checkLiveOp } from '../js/calculators/cam/live/liveChecks.js';
@@ -50,6 +50,8 @@ describe('plášť a hloubka drážky', () => {
     expect(resolveShellSlot(spec(), -20, -60)).toMatchObject({ xTop: 60, depth: 4 });
     expect(resolveShellSlot(spec({ depth: { mode: 'dia', value: 52 } }), -20, -60).depth).toBe(4);
     expect(resolveShellSlot(spec(), -120, -160).xTop).toBe(40);
+    // Prázdné „Ø dna" → chyba, ne drážka do osy (null >= 0 je true).
+    expect(resolveShellSlot(spec({ depth: { mode: 'dia', value: null } }), -20, -60).error).toMatch(/Ø dna/);
   });
   it('přes osazení, kratší než šířka, mimo díl → chyba', () => {
     expect(resolveShellSlot(spec(), -80, -120).error).toMatch(/osazení/);
@@ -94,6 +96,14 @@ describe('přenos do CAM a NC', () => {
     const n = normalizeLiveOp({ kind: 'mill', millType: 'keyway', side: 'face', toolD: 10, holeD: 3, kz1: '-5', kz2: -30 });
     expect(n).toMatchObject({ side: 'radial', holeD: 10, kz1: -5 });
     expect(normalizeLiveOp({ kind: 'mill', millType: 'pocket', side: 'radial' }).side).toBe('face');
+  });
+  it('seznam bodů: řádek = jen úhel (jak říká formulář), „úhel; Z" z přenosu taky', () => {
+    const base = { kind: 'mill', millType: 'keyway', toolD: 8, depth: 4, xTop: 60, kz1: -20, kz2: -60, pattern: 'points' };
+    const n = normalizeLiveOp({ ...base, points: '0\n90,5' });
+    expect(livePositions(n)).toEqual([{ a: 0, z: -40 }, { a: 90.5, z: -40 }]);
+    expect(liveOpProblems(n)).toEqual([]);
+    expect(livePositions(normalizeLiveOp({ ...base, points: '45; -40' }))).toEqual([{ a: 45, z: -40 }]);
+    expect(liveOpProblems(normalizeLiveOp({ ...base, points: '' }))).toContain('Seznam úhlů je prázdný (řádek = „úhel").');
   });
   it('změna délky ve výkresu → přenos se obnoví, nástroj zůstane', () => {
     const first = [op()];
