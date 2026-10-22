@@ -8,6 +8,7 @@ import { closeOnBackdropClick } from '../../../dialogFactory.js';
 import { validateToolpath } from '../collisionValidator.js';
 import { startInMaterial } from '../startCheck.js';
 import { HolderGouge } from '../holderGouge.js';
+import { simStockArgs } from './grooveSim.js';
 
 /**
  * Validace kolizí držáku/destičky (Fáze 2 migrace na Clipper2).
@@ -106,7 +107,8 @@ export function createCollisionValidation({ S, showSidebar, renderTab, sidebar, 
         _lastIssues = bs
           ? drillIssues.concat(tr(boreRealIssues(bs, calc)).map(it => ({ kind: it.kind, lineIdx: it.lineIdx, x: it.x, z: it.z, area: it.area })), borePhases(bs).flatMap(b => tr(validateToolpath(b.calcM.simPath, b.params, b.calcM.stockPathSegments, { backside: false, planStock: true }))
             .map(it => ({ ...it, x: b.g.rRef - it.x }))))
-          : tr(validateToolpath(calc.simPath, p, calc.stockPathSegments, {
+          // Zápich v díře: polotovar bez díry (grooveSim.js), nástroj obrácený radiálně.
+          : tr(validateToolpath(calc.simPath, ...simStockArgs(S, calc), {
             backside: toolMirrored(),
             // POLOTOVAR KONČÍ AŽ NA OFFSETOVÉ ČÁŘE — dráhy se proti ní plánují
             // a náhled ji vybarvuje; ⛔ panel byl poslední, kdo měřil jen
@@ -198,7 +200,7 @@ export function createHolderGougeView({ S, boreSimFor, inPreDrill, borePhases, b
       return (hardB.length || bandB.length) ? { hard: hardB.length ? hardB : null, band: bandB.length ? bandB : null } : null;
     }
     if (!_holderGouge || _holderGougeCalcRef !== calc) {
-      _holderGouge = new HolderGouge(S.params, calc.stockPathSegments, toolMirrored(), { band: true });
+      _holderGouge = new HolderGouge(...simStockArgs(S, calc), toolMirrored(), { band: true });
       _holderGougeCalcRef = calc;
     }
     if (!_holderGouge.valid) return null;

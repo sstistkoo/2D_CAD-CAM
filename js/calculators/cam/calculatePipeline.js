@@ -682,7 +682,8 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // `skipRoughing` dělá totéž dočasně: geometrie (kontura, offsety, mezní
   // čáry) stojí 51 ms, samé hrubování 740 (měřeno na part-11), takže dokud
   // uživatel dráhy nepřepočítá, počítá panel jen tu levnou část.
-  if (!prms.finishOnly && !skipRoughing && !xMaxNothing) {
+  // Zápich v díře (grooveInnerOp výš) vnější obrys nehrubuje — program je jen zápich.
+  if (!prms.finishOnly && !skipRoughing && !xMaxNothing && !grooveInnerOp) {
     const operations = getRoughingOperations(S);
     const runOps = () => {
       for (const op of operations) {

@@ -16,6 +16,7 @@ import { StockModel, toolSweep, polySimplify, polyOffset } from '../../geom/geom
 import { stockClearances, stockClearanceIsZero } from './camMath.js';
 import { buildInsertProfileSegments } from './insertPreview.js';
 import { getInsert } from './inserts/index.js';
+import { radialFlip, flipLoopX } from './toolRadialFlip.js';
 
 /**
  * Zásah těla destičky v ose Z (od programovaného bodu k UŽ OBROBENÉ
@@ -62,6 +63,11 @@ export function insertBodyZ(prms, r = Math.max(parseFloat(prms.toolRadius) || 0.
  * destičky (šířka b). Null, když tvar nedává obrys (threading / degenerace).
  */
 export function insertWorldLoop(prms, backside = false) {
+  const loop = insertWorldLoopBase(prms, backside);
+  // Zápich v díře: destička ostřím ven, tělem k ose (toolRadialFlip.js).
+  return loop && radialFlip(prms) ? flipLoopX(loop) : loop;
+}
+function insertWorldLoopBase(prms, backside) {
   const segs = buildInsertProfileSegments(prms);
   if (!segs || segs.length === 0) return null;
   const dir = backside ? -1 : 1;
@@ -141,6 +147,10 @@ export function insertExtent(prms) {
  * (`toolFootprintVisual`) podle klíče plátku `footprintChordTol`.
  */
 export function toolFootprint(prms, chordTol = 0) {
+  const loop = toolFootprintBase(prms, chordTol);
+  return loop && radialFlip(prms) ? flipLoopX(loop) : loop;
+}
+function toolFootprintBase(prms, chordTol) {
   // Nástroj, jehož stopa je přesně jeho obrys (vrták v ose) — stadion kolem
   // „nosu" ⌀/2 by sahal o poloměr PŘED špičku a test dotyku by hlásil
   // rychloposuv do dna díry, kam vrták vůbec nejede.
@@ -219,7 +229,8 @@ export function toolFootprintVisual(prms) {
   // Vrták odebírá jen svým obrysem — zametení v X by díru rozšířilo o ≥3 mm.
   if (ins.footprintIsOutline) return body;
   const H = Math.max((parseFloat(prms.depthOfCut) || 0) * 2, 3);
-  const merged = toolSweep(body, [{ x: 0, z: 0 }, { x: H, z: 0 }]);
+  // Tělo se zametá k držáku: ven od osy, u zápichu v díře k ose.
+  const merged = toolSweep(body, [{ x: 0, z: 0 }, { x: radialFlip(prms) ? -H : H, z: 0 }]);
   return (merged.length === 1 && merged[0].length >= 3) ? merged[0] : body;
 }
 

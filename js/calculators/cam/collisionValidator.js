@@ -23,6 +23,7 @@
 import { StockModel, toolSweep, polyOffset, polyArea, polyDifference } from '../../geom/geomCore.js';
 import { buildStockLoopRaw, stockPlanLoop, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
 import { getInsert } from './inserts/index.js';
+import { radialFlip, flipLoopX } from './toolRadialFlip.js';
 
 /**
  * Virtuální zvětšení držáku [mm na každou stranu] — o kolik se nafoukne
@@ -105,6 +106,7 @@ export function holderWorldLoop(prms, backside = false) {
       ? inflateHolderLoop(world, d)
       : shiftHolderLoopToCutSide(world, d)) || world;
   }
+  if (radialFlip(prms)) world = flipLoopX(world);   // zápich v díře: tyč k ose
   return backside ? world.map(p => ({ x: p.x, z: -p.z })) : world;
 }
 

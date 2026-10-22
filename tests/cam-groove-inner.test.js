@@ -124,8 +124,9 @@ describe('program zápichu v díře', () => {
     expect(errorsSim.map(e => e.msg)).toEqual([]);
     expect(gcode).toContain('ZAPICH V DIRE');
     expect(gcode).not.toContain('UPICHNUTI');
-    // Nájezd: před ústí (Z > 0), pak k ose (X 16,3), teprve potom na Z zápichu.
-    expect(mv[0]).toMatchObject({ g: 'G0', z: 2 });
+    // Nájezd: před ústí i před čelo polotovaru (Z2 + vůle 1 + 1 = Z4), pak
+    // k ose (X 16,3), teprve potom na Z zápichu.
+    expect(mv[0]).toMatchObject({ g: 'G0', z: 4 });
     expect(mv[1].x).toBeCloseTo(16.3, 3);
     // Žádný pohyb v díře nesmí stěnou díry (r 20) mimo pás zápichu Z −10 … −18.
     for (const m of mv) {
@@ -142,7 +143,7 @@ describe('program zápichu v díře', () => {
     // Ven: osou díry před ústí, pak bezpečná poloha.
     const iOut = mv.findIndex(m => m.text.includes('Ven z díry'));
     expect(mv[iOut - 1].x).toBeCloseTo(16.3, 3);
-    expect(mv[iOut].z).toBe(2);
+    expect(mv[iOut].z).toBe(4);
   });
   it('průměrové X (DIAMON) = dvojnásobek', async () => {
     const { gcode } = await runCamProg(prog(params(bar(25, 3), { mode: 'DIAMON' })));
@@ -181,5 +182,41 @@ describe('UI: pole Upich + ◎ Vnitřní', async () => {
   });
   it('nevydaná dráha → důvod červeně', () => {
     expect(grooveInnerFieldsHtml(params(bar(25, 3), { grooveBottomX: 26 }))).toMatch(/⚠ Zápich je hlubší/);
+  });
+});
+
+describe('simulace zápichu v díře (skutečný svět)', async () => {
+  const { MaterialRemoval, insertWorldLoop } = await import('../js/calculators/cam/materialRemoval.js');
+  const { holderWorldLoop, validateToolpath } = await import('../js/calculators/cam/collisionValidator.js');
+  const { simStockArgs } = await import('../js/calculators/cam/sim/grooveSim.js');
+  const { polyIntersect, polyArea } = await import('../js/geom/geomCore.js');
+  const box = (x0, x1, z0, z1) => [{ x: x0, z: z0 }, { x: x1, z: z0 }, { x: x1, z: z1 }, { x: x0, z: z1 }];
+  const area = (loops, b) => Math.abs(polyArea(polyIntersect(loops, [b])));
+
+  it('destička ostřím ven, tělo i tyč k ose (obrácená radiálně jen při zápichu v díře)', () => {
+    const p = params(bar(25, 3));
+    const ins = insertWorldLoop(p), hol = holderWorldLoop(p);
+    expect(Math.max(...ins.map(q => q.x))).toBeCloseTo(0.2, 6);      // ostří = rádius ven od středu
+    expect(Math.min(...hol.map(q => q.x))).toBeLessThan(-25);         // tyč ⌀25 k ose
+    const pOff = { ...p, partOffZ: null };                           // jiná operace: beze změny
+    expect(Math.min(...insertWorldLoop(pOff).map(q => q.x))).toBeCloseTo(-0.2, 6);
+  });
+
+  it('úběr = jen zápich (dno r 23, boky Z −10 … −18), validátor bez kolizí', async () => {
+    const { calcSim, S } = await runCamProg(prog(params(bar(25, 3))));
+    const [sp, segs] = simStockArgs(S, calcSim);
+    expect(sp.stockMode).toBe('casting');                            // polotovar mínus díra ⌀40
+    const rm = new MaterialRemoval(sp, segs);
+    expect(rm.valid).toBe(true);
+    const before = rm.model.loops.map(l => l.map(q => ({ ...q })));
+    rm.advanceTo(calcSim.simPath, calcSim.simPath.length - 1);
+    const after = rm.model.loops;
+    const removedIn = (b) => area(before, b) - area(after, b);
+    expect(removedIn(box(20, 23, -18, -10))).toBeGreaterThan(0.95 * 3 * 8);   // celý zápich
+    expect(removedIn(box(23.05, 30, -40, 2))).toBeLessThan(0.01);              // nic za dnem
+    expect(removedIn(box(20, 30, -9.95, 2))).toBeLessThan(0.01);               // nic před bokem u ústí
+    expect(removedIn(box(20, 30, -40, -18.05))).toBeLessThan(0.01);            // nic za druhým bokem
+    const issues = validateToolpath(calcSim.simPath, sp, segs, { planStock: true });
+    expect(issues).toEqual([]);
   });
 });

@@ -99,7 +99,7 @@ export function generateAutoGCode(S, calc) {
   const partOffActive = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
   // Upich + ◎ Vnitřní = zápich v díře (pravidlo 13, ops/grooveInner.js).
   if (partOffActive && prms.partOffInner)
-    return emitGrooveInner({ S, prms, lines, addCmt, addN, note });
+    return emitGrooveInner({ S, calc, prms, lines, addCmt, addN, note });
   if (partOffActive)
     return emitPartOff({ S, calc, prms, lines, addCmt, addN, note, arcR, flipArc });
 

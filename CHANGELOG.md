@@ -16,7 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a hloubka ≤ dosah destičky; nájezd i výjezd osou díry. Nový typ
   📚 katalogu **vnitřní zapichovací tyč** (GIR/GIL ⌀16–80, š 1,5–5 mm,
   dosah 2,5–6 mm); přepnutím na ◎ se tyč vybere sama. Doplnění pravidla 13
-  schválené 22. 10. 2026. Moduly `cam/ops/grooveInner.js`,
+  schválené 22. 10. 2026. Simulace: úběr, ⛔ validátor i hlídání držáku
+  vidí tyč obrácenou radiálně (ostří ven, tyč k ose — `cam/toolRadialFlip.js`)
+  a polotovar bez díry (`cam/sim/grooveSim.js`); výjezd z díry jde až za
+  čelo polotovaru. Moduly `cam/ops/grooveInner.js`,
   `cam/sim/paramsGrooveHtml.js`, test `tests/cam-groove-inner.test.js`.
 
 - **CAM: jen dokončení v díře (Hot. + ◎ Vnitřní).** Jeden dokončovací

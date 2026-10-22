@@ -29,6 +29,7 @@ import { holderProfileLoop } from '../collisionValidator.js';
 import { getInsert } from '../inserts/index.js';
 import { boreGeom, boreToolReach, boreFits } from './bore.js';
 import { boreChainFromState } from '../boreContour.js';
+import { buildStockLoopRaw } from '../materialRemoval.js';
 
 const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
 /** Mezera mezi tyčí a stěnou díry [mm] (jako WALL_GAP vyvrtávání). */
@@ -87,7 +88,7 @@ function barNearSide(prms) {
  * Geometrie zápichu v díře (sdílí emise, UI i testy).
  * @param chain  tvar díry z výkresu (boreChainFromState), jen při boreSource 'cad'
  */
-export function grooveInnerGeom(prms, chain = null) {
+export function grooveInnerGeom(prms, chain = null, stockLoop = null) {
   const bg = boreGeom(prms, chain);
   const g = { s: bg.s, zF: bg.zF, D: bg.D, L: bg.L, d0: bg.d0, L0: bg.L0, chain: bg.chain };
   const k = prms.mode === 'DIAMON' ? 2 : 1;
@@ -151,19 +152,24 @@ export function grooveInnerGeom(prms, chain = null) {
     const zmin = Math.min(za, zb), zmax = Math.max(za, zb);
     return dir > 0 ? zmin + rIns : zmax - rIns;
   };
-  const zOut = g.zF + g.s * (clr + 1);
+  // Před ústí: za čelo díry i za polotovar (může čelo přečnívat) o vůli + 1 mm
+  // — odtud jede tyč radiálně k ose a zpátky ven, nad polotovarem.
+  const zStock = stockLoop && stockLoop.length ? (g.s > 0 ? Math.max(...stockLoop.map(q => q.z)) : Math.min(...stockLoop.map(q => q.z))) : g.zF;
+  const zOut = g.zF + g.s * (Math.max(0, g.s * (zStock - g.zF)) + clr + 1);
   return { ...out, ok: true, rHole, rWall, reach, zNear, rcStart, rcIn, rcBotFinal, rcBotRough,
     plunges: plunges.map(zOfU), zFinA: zOfU(fa > 0 ? allowZ : 0), zFinB: zOfU(fa > 0 ? W - allowZ - w : 0), zOut, depth };
 }
 
 /**
- * @param ctx { S, prms, lines, addCmt, addN, note }
+ * @param ctx { S, calc, prms, lines, addCmt, addN, note }
  * @returns hotové řádky programu
  */
 export function emitGrooveInner(ctx) {
-  const { S, prms, lines, addCmt, addN, note } = ctx;
+  const { S, calc, prms, lines, addCmt, addN, note } = ctx;
   const chain = prms.boreSource === 'cad' ? boreChainFromState(S) : null;
-  const g = grooveInnerGeom(prms, chain);
+  let stock = null;
+  try { stock = buildStockLoopRaw(prms, calc && calc.stockPathSegments); } catch { stock = null; }
+  const g = grooveInnerGeom(prms, chain, stock);
   const xd = (v) => (v * g.k).toFixed(3);
   const zs = (v) => v.toFixed(3);
   let sim = 0;

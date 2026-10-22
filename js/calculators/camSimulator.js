@@ -66,8 +66,8 @@ import { createGuideLines } from './cam/sim/guideLines.js';
 import { drawCanvas } from './cam/sim/drawCanvas.js';
 import { renderCodeMini } from './cam/sim/codeMini.js';
 import { initLiveTools } from './cam/live/livePanel.js';
-
-
+import { simStockArgs } from './cam/sim/grooveSim.js';
+import { radialFlip } from './cam/toolRadialFlip.js';
 // Verze logiky generování drah. ZVYŠ při každé změně, která mění vygenerovaný
 // G-kód (hrubování/dokončování/hlídání/…). Uložený manualGCode s jinou verzí se
 // při otevření CAM zahodí a dráhy se přegenerují automaticky — jinak by uživatel
@@ -1535,7 +1535,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const bs = boreSimFor(calc);
     if (bs) return inPreDrill(calc) ? preDrillRemoval(calc) : boreRemovalView(bs, calc);
     if (!_removal || _removalCalcRef !== calc) {
-      _removal = new MaterialRemoval(S.params, S.params.drillActive ? bodyStockSegments(calc) : calc.stockPathSegments);
+      _removal = new MaterialRemoval(...simStockArgs(S, calc, S.params.drillActive ? bodyStockSegments(calc) : calc.stockPathSegments));
       _removalCalcRef = calc;
       _removalOuter = null;
     }
@@ -1582,7 +1582,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // jen proto, že si uživatel vypnul ⛏ — v tom případě si ContourGouge vede
   // vlastní, jinak identický model.
   function getContourGouge(calc) {
-    if (S.simProgress <= 0 || !calc || !calc.simPath || calc.simPath.length < 2) {
+    if (S.simProgress <= 0 || !calc || !calc.simPath || calc.simPath.length < 2 || radialFlip(S.params)) {   // zápich v díře: zápich na výkrese být nemusí
       return null;
     }
     const bs = boreSimFor(calc);
@@ -1607,7 +1607,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     let rm = (_removal && _removalCalcRef === calc && _removal.valid) ? _removal : null;
     if (!rm) {
       if (!_gougeRemoval || _gougeRemovalRef !== calc) {
-        _gougeRemoval = new MaterialRemoval(S.params, calc.stockPathSegments);
+        _gougeRemoval = new MaterialRemoval(...simStockArgs(S, calc));
         _gougeRemovalRef = calc;
       }
       if (!_gougeRemoval.valid) return null;
