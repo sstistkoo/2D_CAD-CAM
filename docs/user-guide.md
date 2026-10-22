@@ -678,7 +678,11 @@ n = Vc·1000/(π·Ø), posuv F = fz·z·n, krok do hloubky ze slotu, číslo T z
 zásobníku. Chybí-li vhodná fréza, při přepnutí na záložku Vrtání se doplní
 VHM z 📚 (jako vrták), u operace je i **➕ Přidat frézu z 📚**. Bez frézy
 v zásobníku dostane operace volné T (dřív výchozí T6 = upichovák). Fréza,
-která neřeže středem, se zanořuje kolmo — kontrola proti dílu to hlásí.
+která **neřeže středem**, se nezanořuje kolmo: drážka na čele **rampou** cik-cak
+po ose drážky, kapsa **šroubovicí** (poloměr ≤ ¼ Ø frézy, 24 kroků na otáčku),
+drážka pro pero cik-cak v Z — vše se sklonem 3°; po rampě se na plné hloubce
+projede celá délka. Kde na rampu není místo (kapsa ≈ Ø frézy), zanoří kolmo
+a kontrola proti dílu to hlásí.
 
 **Natočení pohledu (posuvník vpravo od bokorysu):** svislý posuvník vedle
 bokorysu nastavuje, který úhel C je v nárysu **nahoře** (výchozí soustruh

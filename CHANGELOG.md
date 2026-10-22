@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM: zanoření frézy, která neřeže středem, rampou 3°.** Drážka na čele
+  cik-cak po ose, kapsa šroubovicí, drážka pro pero cik-cak v Z (společná
+  dráha `liveModel.keywayPath` pro NC, simulaci i řez); po rampě celá délka
+  na plné hloubce. Polární rozklad (C + X) teď vede Z po úseku spojitě.
+  Kontrola hlásí jen případ, kdy na rampu není místo.
+
 - **CAM: frézy v zásobníku a jejich výběr pro frézování z výkresu.** Tvar
   ✣ fréza ve 🔧 Zásobníku (Ø, z, Vc, fz, krok, řeže středem) a 📚 katalog
   fréz (VHM z3 / z4, HSS z2 / z4, Ø2–25). Kapsa, drážka na čele i drážka

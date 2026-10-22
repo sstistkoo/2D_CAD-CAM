@@ -18,7 +18,7 @@
 // Nález: { sev: 'error' | 'warn', text } — 'warn' = může být záměr (díra
 // skrz, radiální díra do vývrtu, díra na přechodu průměrů).
 import { materialAt, objectPoints } from '../../../faceView/faceReference.js';
-import { livePositions, liveOpProblems, faceOut, isKeyway, keywaySpan, slotWidth } from './liveModel.js';
+import { livePositions, liveOpProblems, faceOut, isKeyway, keywaySpan, slotWidth, rampPossible } from './liveModel.js';
 
 const LATHE = 'soustruh';
 const SECT = 0.3;      // [mm] řez za rovinou čela (jako sectionAt v pohledu)
@@ -245,9 +245,10 @@ export function checkLiveOp(prof, op, probe) {
   if (op.side === 'radial') radialChecks(pr, op, found);   // radiální díra i drážka pro pero
   else faceChecks(pr, prof, op, found);
   // Fréza ze zásobníku, která NEŘEŽE středem (op.toolCenterCut, liveMillTools),
-  // zanořuje se kolmo jako ostatní — varovat (rampa zatím není).
-  if (op.kind === 'mill' && op.toolCenterCut === false)
-    found.push({ i: 0, sev: 'warn', text: 'fréza neřeže středem, ale zanořuje se kolmo — zvolte frézu řezající středem nebo místo zanoření předvrtejte.' });
+  // se zanoří rampou / šroubovicí (millMoves, keywayPath) — kde to nejde
+  // (kapsa ≈ Ø frézy), zanořuje se kolmo → varovat.
+  if (op.kind === 'mill' && op.toolCenterCut === false && !rampPossible(op))
+    found.push({ i: 0, sev: 'warn', text: 'fréza neřeže středem a rampou se zanořit nedá (málo místa) — zanoří kolmo; zvolte frézu řezající středem nebo předvrtejte.' });
   const groups = new Map();
   found.forEach(f => {
     const k = f.sev + '|' + f.text;

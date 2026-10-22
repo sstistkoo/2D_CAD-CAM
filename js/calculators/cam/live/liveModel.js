@@ -206,19 +206,43 @@ export function millMoves(op) {
   const zTop = op.zTop, rtp = zTop + out * op.retract, sdis = zTop + out * op.safe;
   const levels = depthLevels(op.depth, op.stepDown);
   const tr = op.toolD / 2;
+  const ramp = op.toolCenterCut === false;   // fréza neřeže středem → zanořit rampou / šroubovicí
+  const tanR = Math.tan(RAMP_DEG * Math.PI / 180);
+  const zAt = d => zTop - out * d;
+  // Zanoření z hloubky d0 na d1: kolmo, nebo (ramp) cik-cak po úsečce a↔b
+  // se sklonem RAMP_DEG; vrací bod, kde fréza skončila.
+  const enter = (a, b, d0, d1) => {
+    const L = Math.hypot(b.x - a.x, b.y - a.y);
+    if (!ramp || L < 1e-3) { moves.push({ k: 'lin', x: a.x, y: a.y, z: zAt(d1), plunge: true }); return a; }
+    if (d0 < 0) { moves.push({ k: 'lin', x: a.x, y: a.y, z: zTop, plunge: true }); d0 = 0; }   // vzduchem k ploše
+    let p = a, q = b, d = d0;
+    const drop = L * tanR;
+    while (d < d1 - 1e-9) {
+      const f = Math.min(1, (d1 - d) / drop);
+      const e = { x: p.x + (q.x - p.x) * f, y: p.y + (q.y - p.y) * f };
+      d = Math.min(d1, d + drop * f);
+      moves.push({ k: 'lin', x: e.x, y: e.y, z: zAt(d), ramp: true });
+      if (f < 1) return e;
+      [p, q] = [q, p];
+    }
+    return p;
+  };
   if (op.millType === 'slot') {
     const { x1, y1, x2, y2 } = op.slot;
+    const A = { x: x1, y: y1 }, B = { x: x2, y: y2 };
     const ext = Math.max(0, slotWidth(op) / 2 - tr);   // o kolik je drážka širší než fréza (na stranu)
     moves.push({ k: 'rapid', x: x1, y: y1, z: rtp }, { k: 'rapid', x: x1, y: y1, z: sdis });
+    let prevD = -op.safe;
     if (ext <= 1e-6) {
-      // Šířka = Ø frézy: jeden průjezd po ose, vrstvy tam a zpět.
+      // Šířka = Ø frézy: jeden průjezd po ose, vrstvy tam a zpět. Rampou:
+      // po rampě znovu celá osa (oba konce na plnou hloubku).
       let atStart = true;
       levels.forEach(d => {
-        const p = atStart ? { x: x1, y: y1 } : { x: x2, y: y2 };
-        const q = atStart ? { x: x2, y: y2 } : { x: x1, y: y1 };
-        moves.push({ k: 'lin', x: p.x, y: p.y, z: zTop - out * d, plunge: true });
-        moves.push({ k: 'lin', x: q.x, y: q.y, z: zTop - out * d });
-        atStart = !atStart;
+        const p = atStart ? A : B, q = atStart ? B : A;
+        const e = enter(p, q, prevD, d);
+        if (e !== p) moves.push({ k: 'lin', x: p.x, y: p.y, z: zAt(d) });
+        moves.push({ k: 'lin', x: q.x, y: q.y, z: zAt(d) });
+        atStart = !atStart; prevD = d;
       });
     } else {
       // Širší drážka: v každé vrstvě zanořit na ose u začátku, projet osu
@@ -232,8 +256,9 @@ export function millMoves(op) {
       for (let o = step; o < ext - 1e-6; o += step) offs.push(o);
       offs.push(ext);
       levels.forEach(d => {
-        const z = zTop - out * d;
-        moves.push({ k: 'lin', x: x1, y: y1, z, plunge: true });
+        const z = zAt(d);
+        const e = enter(A, B, prevD, d);
+        if (e !== A) moves.push({ k: 'lin', x: x1, y: y1, z });
         moves.push({ k: 'lin', x: x2, y: y2, z });
         offs.forEach(o => {
           moves.push({ k: 'lin', x: x2 + rx * o, y: y2 + ry * o, z });
@@ -243,6 +268,7 @@ export function millMoves(op) {
           moves.push({ k: 'lin', x: x2 + rx * o, y: y2 + ry * o, z });
         });
         moves.push({ k: 'lin', x: x1, y: y1, z });   // zpět na osu k dalšímu zanoření (uvnitř drážky)
+        prevD = d;
       });
     }
     const last = moves[moves.length - 1];
@@ -251,11 +277,30 @@ export function millMoves(op) {
   }
   const rMax = op.holeD / 2 - tr;
   const step = Math.max(0.1, op.toolD * 0.5);
+  // Šroubovice pro frézu, která neřeže středem: poloměr ≤ ½ poloměru frézy
+  // a v kapse (rMax); menší než HELIX_MIN = nejde (zanoří kolmo, hlásí kontrola).
+  const rh = Math.min(rMax, tr * 0.5);
+  const helix = ramp && rh >= HELIX_MIN;
   livePositions(op).forEach(c => {
     moves.push({ k: 'rapid', x: c.x, y: c.y, z: rtp }, { k: 'rapid', x: c.x, y: c.y, z: sdis });
+    let prevD = -op.safe;
     levels.forEach(d => {
-      const z = zTop - out * d;
-      moves.push({ k: 'lin', x: c.x, y: c.y, z, plunge: true });
+      const z = zAt(d);
+      if (helix) {
+        // Vzduchem k ploše (jen první vrstva), pak na poloměr šroubovice
+        // a po krocích (24 na otáčku) dolů se sklonem RAMP_DEG.
+        let d0 = prevD;
+        if (d0 < 0) { moves.push({ k: 'lin', x: c.x, y: c.y, z: zTop, plunge: true }); d0 = 0; }
+        moves.push({ k: 'lin', x: c.x + rh, y: c.y, z: zAt(d0) });
+        const perSeg = 2 * rh * Math.sin(Math.PI / 24) * tanR;   // sklon po tětivě (úsečky v NC)
+        let a = 0, dd = d0;
+        while (dd < d - 1e-9) {
+          dd = Math.min(d, dd + perSeg); a += 2 * Math.PI / 24;
+          moves.push({ k: 'lin', x: c.x + rh * Math.cos(a), y: c.y + rh * Math.sin(a), z: zAt(dd), ramp: true });
+        }
+        moves.push({ k: 'lin', x: c.x, y: c.y, z });
+      } else moves.push({ k: 'lin', x: c.x, y: c.y, z, plunge: true });
+      prevD = d;
       if (rMax <= 1e-6) return;
       const rings = [];
       for (let r = Math.min(step, rMax); r < rMax - 1e-6; r += step) rings.push(r);
@@ -270,6 +315,65 @@ export function millMoves(op) {
     moves.push({ k: 'rapid', x: c.x, y: c.y, z: rtp });
   });
   return moves;
+}
+
+/** Sklon rampy / šroubovice zanoření frézy, která neřeže středem [°]. */
+export const RAMP_DEG = 3;
+/** Nejmenší poloměr šroubovice [mm] — menší kapsa (fréza ≈ Ø kapsy) rampou nejde. */
+const HELIX_MIN = 0.2;
+
+/**
+ * Jde frézu zanořit rampou (op.toolCenterCut === false)? Drážka: osa delší
+ * než ~0 (cik-cak po ose), kapsa: místo na šroubovici, pero: drážka delší
+ * než Ø frézy (cik-cak v Z).
+ */
+export function rampPossible(op) {
+  if (op.kind !== 'mill') return true;
+  if (isKeyway(op)) { const k = keywaySpan(op); return k.zb - k.za > 1e-3 || k.za - k.zb > 1e-3; }
+  if (op.millType === 'slot') return Math.hypot(op.slot.x2 - op.slot.x1, op.slot.y2 - op.slot.y1) >= 1e-3;
+  return Math.min(op.holeD / 2 - op.toolD / 2, op.toolD / 4) >= HELIX_MIN;
+}
+
+/**
+ * Dráha drážky pro pero v rovině (hloubka d pod pláštěm, Z) — společná pro
+ * NC (liveGcode.emitKeyway), simulaci a dráhu v řezu: [{ d, z, f }] od
+ * bezpečné vzdálenosti (f: 'rapid' | 'plunge' | 'ramp' | 'cut'). Fréza,
+ * která neřeže středem (op.toolCenterCut === false), zanoří cik-cak v Z se
+ * sklonem RAMP_DEG místo kolmého zanoření.
+ */
+export function keywayPath(op) {
+  const k = keywaySpan(op), levels = depthLevels(op.depth, op.stepDown);
+  const L = Math.abs(k.zb - k.za), drop = L * Math.tan(RAMP_DEG * Math.PI / 180);
+  const ramp = op.toolCenterCut === false && L > 1e-3;
+  const path = [{ d: -op.retract, z: k.za, f: 'rapid' }, { d: -op.safe, z: k.za, f: 'rapid' }];
+  let z = k.za, d = -op.safe;
+  const other = zz => (Math.abs(zz - k.za) < 1e-9 ? k.zb : k.za);
+  levels.forEach(L1 => {
+    if (ramp) {
+      if (d < 0) { path.push({ d: 0, z, f: 'plunge' }); d = 0; }
+      let from = z;
+      while (d < L1 - 1e-9) {
+        const to = other(from), f = Math.min(1, (L1 - d) / drop);
+        const ze = from + (to - from) * f;
+        d = Math.min(L1, d + drop * f);
+        path.push({ d, z: ze, f: 'ramp' });
+        if (f < 1) { z = ze; break; }
+        from = to; z = to;
+      }
+      // Po rampě projet celou délku na plné hloubce: ke konci, kde nejsme blíž, a zpět.
+      const near = Math.abs(z - k.za) <= Math.abs(z - k.zb) ? k.za : k.zb;
+      path.push({ d: L1, z: near, f: 'cut' });
+      z = other(near);
+      path.push({ d: L1, z, f: 'cut' });
+    } else {
+      path.push({ d: L1, z, f: 'plunge' });
+      z = other(z);
+      path.push({ d: L1, z, f: 'cut' });
+      d = L1;
+    }
+  });
+  path.push({ d: -op.retract, z, f: 'rapid' });
+  return path;
 }
 
 /** Šířka drážky na čele (chybí = Ø frézy). */

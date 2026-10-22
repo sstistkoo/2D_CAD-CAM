@@ -12,7 +12,7 @@
 // Poháněný nástroj stojí nahoře (X+, liveSettings.toolAt) a díry se k němu
 // natáčejí osou C — dráha v řezu proto leží na poloměru díry nad osou.
 import { findLiveBlock } from './liveMarkers.js';
-import { livePositions, faceOut, liveOpProblems, liveOpOn, liveSettings, isKeyway, keywaySpan, depthLevels, slotWidth } from './liveModel.js';
+import { livePositions, faceOut, liveOpProblems, liveOpOn, liveSettings, isKeyway, keywaySpan, keywayPath, slotWidth } from './liveModel.js';
 import { sectBase, sectHeight } from './liveSection.js';
 
 const HEAD = /^[;(]\s*\[(\d+)\] /;   // „; [2] Díry Ø8: …" / „( [2] … )"
@@ -131,16 +131,8 @@ export function livePathSegments(ops, prms) {
       // Drážka pro pero (liveGcode.emitKeyway): na úhlu C k plášti, vrstvy v Z tam a zpět.
       const rX = op.xTop / 2, k = keywaySpan(op);
       go(safeR, cur.z, true); go(safeR, k.za, true);
-      livePositions(op).forEach(() => {
-        go(sg * (rX + op.retract), k.za, true); go(sg * (rX + op.safe), k.za, true);
-        let z = k.za;
-        depthLevels(op.depth, op.stepDown).forEach(d => {
-          go(sg * (rX - d), z, false);
-          z = z === k.za ? k.zb : k.za;
-          go(sg * (rX - d), z, false);
-        });
-        go(sg * (rX + op.retract), z, true);
-      });
+      const path = keywayPath(op);
+      livePositions(op).forEach(() => path.forEach(q => go(sg * (rX - q.d), q.z, q.f === 'rapid')));
     } else if (op.side === 'radial') {
       const rX = op.xTop / 2;
       let zPrev = null;

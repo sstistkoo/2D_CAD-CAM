@@ -13,7 +13,7 @@
 // M-kódy osy C a poháněného nástroje jsou strojní — bere se je z nastavení
 // (`liveSettings().m`), výchozí hodnoty jsou jen příklad (viz liveModel.js).
 import { LIVE_BEGIN, LIVE_END } from './liveMarkers.js';
-import { getLiveOps, liveOpOn, liveSettings, livePositions, depthLevels, millMoves, liveOpSummary, liveOpProblems, faceOut, isKeyway, keywaySpan } from './liveModel.js';
+import { getLiveOps, liveOpOn, liveSettings, livePositions, depthLevels, millMoves, liveOpSummary, liveOpProblems, faceOut, isKeyway, keywayPath, rampPossible, RAMP_DEG } from './liveModel.js';
 
 const f3 = v => String(+(+v).toFixed(3));
 const pad2 = n => String(Math.max(0, Math.round(n))).padStart(2, '0');
@@ -276,25 +276,24 @@ function emitRadialDrill(ctx) {
 function emitKeyway(ctx) {
   const { set, op, add, note, xo, cmt } = ctx;
   const pos = livePositions(op);
-  const rX = op.xTop / 2, k = keywaySpan(op);
+  const rX = op.xTop / 2;
   const c2 = { ...ctx, set: { ...set, mode: set.mode === 'transmit' ? 'caxis' : set.mode } };
-  add(cmt('Drážka pro pero: kus stojí na úhlu C, fréza zanořuje v X a jede v Z — fréza musí řezat středem'));
+  add(cmt(op.toolCenterCut === false
+    ? 'Drážka pro pero: kus stojí na úhlu C, fréza (neřeže středem) zanořuje rampou v Z a X'
+    : 'Drážka pro pero: kus stojí na úhlu C, fréza zanořuje v X a jede v Z — fréza musí řezat středem'));
   cOn(c2);
   toolStart(c2);
   const plungeF = f3(Math.max(1, op.feed * 0.3));
-  const levels = depthLevels(op.depth, op.stepDown);
+  const path = keywayPath(op);   // společná dráha s simulací (liveModel)
   pos.forEach((p, i) => {
     rotate(c2, p.a);
-    add(`G0 Z${f3(k.za)}${note(`drážka ${i + 1}: úhel ${f3(angOf(set, p.a))}°`)}`);
-    add(`G0 X${xo(rX + op.retract)}`);
-    add(`G0 X${xo(rX + op.safe)}`);
-    let atA = true;
-    levels.forEach(d => {
-      add(`G1 X${xo(rX - d)} F${plungeF}`);
-      add(`G1 Z${f3(atA ? k.zb : k.za)} F${f3(op.feed)}`);
-      atA = !atA;
+    path.forEach((q, j) => {
+      if (j === 0) { add(`G0 Z${f3(q.z)}${note(`drážka ${i + 1}: úhel ${f3(angOf(set, p.a))}°`)}`); add(`G0 X${xo(rX - q.d)}`); return; }
+      if (q.f === 'rapid') add(`G0 X${xo(rX - q.d)}${Math.abs(q.z - path[j - 1].z) > 1e-9 ? ` Z${f3(q.z)}` : ''}`);
+      else if (q.f === 'plunge') add(`G1 X${xo(rX - q.d)} F${plungeF}`);
+      else if (q.f === 'ramp') add(`G1 X${xo(rX - q.d)} Z${f3(q.z)} F${f3(op.feed)}`);
+      else add(`G1 Z${f3(q.z)} F${f3(op.feed)}`);
     });
-    add(`G0 X${xo(rX + op.retract)}`);
   });
   toolStop(c2);
   cOff(c2);
@@ -307,7 +306,9 @@ function emitMill(ctx) {
   const transmit = set.mode === 'transmit' && ctrl !== 'heidenhain';
   const c2 = { ...ctx, set: { ...set, mode: transmit ? 'transmit' : 'caxis' } };
   if (!transmit) add(ctx.cmt('Frézování mimo osu: rozloženo na krátké G1 v X + C (interpolace osy C)'));
-  if (ctrl === 'sinumerik' && !transmit) add(ctx.cmt('Nástroj musí umět zanořit středem (kapsa se zanořuje kolmo)'));
+  if (ctrl === 'sinumerik' && !transmit) add(ctx.cmt(op.toolCenterCut === false && rampPossible(op)
+    ? `Fréza neřeže středem: zanoření rampou / šroubovicí ${RAMP_DEG}°`
+    : 'Nástroj musí umět zanořit středem (kapsa se zanořuje kolmo)'));
   cOn(c2);
   toolStart(c2);
   const plungeF = f3(Math.max(1, op.feed * 0.3));
@@ -382,7 +383,8 @@ function emitMill(ctx) {
         const n = Math.max(1, Math.ceil(Math.hypot(mv.x - from.x, mv.y - from.y) / 1));
         for (let j = 1; j <= n; j++) {
           const t = j / n;
-          emitPt('G1', from.x + (mv.x - from.x) * t, from.y + (mv.y - from.y) * t, mv.z, mv.plunge ? plungeN : op.feed);
+          // Z po úseku spojitě (rampa zanoření frézy, která neřeže středem).
+          emitPt('G1', from.x + (mv.x - from.x) * t, from.y + (mv.y - from.y) * t, from.z + (mv.z - from.z) * t, mv.plunge ? plungeN : op.feed);
         }
       } else {
         const r = Math.hypot(cur.x - mv.cx, cur.y - mv.cy);
