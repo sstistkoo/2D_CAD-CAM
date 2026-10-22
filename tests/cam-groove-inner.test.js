@@ -251,18 +251,18 @@ describe('díra z výkresu (✏ tvar)', async () => {
   const cad = (over) => params(bar(16, 2), { boreSource: 'cad', boreDiameter: 40, borePreDiameter: 20, borePreDepth: 45, ...over });
 
   it('generátor bere díru z výkresu, ne ⌀ z polí', async () => {
-    const { gcode } = await runCamProg({ ...prog(cad({ partOffZ: -5, grooveWidth: 4, grooveBottomX: 17 })), borePoints });
+    const { gcode } = await runCamProg({ ...prog(cad({ partOffZ: -5, grooveWidth: 4, grooveBottomX: 16.5 })), borePoints });
     expect(gcode).not.toMatch(/^; ! /m);
     // Start zápichu o vůli 1 + rádius 0,2 před stěnou ⌀30: X 13,8.
     expect(gcode).toMatch(/G0 X13\.800/);
-    expect(gcode).toMatch(/G1 X16\.\d+ F/);
+    expect(gcode).toMatch(/G1 X16\.\d+ F/);          // dno 16,5 (tyč ⌀16 s Vůlí X 1 dosáhne 1,5 mm)
   });
   it('zápich v užší části díry (⌀24) počítá se stěnou ⌀24', async () => {
-    const { gcode } = await runCamProg({ ...prog(cad({ partOffZ: -25, grooveWidth: 4, grooveBottomX: 14 })), borePoints });
+    const { gcode } = await runCamProg({ ...prog(cad({ partOffZ: -25, grooveWidth: 4, grooveBottomX: 13.5 })), borePoints });
     expect(gcode).toMatch(/G0 X10\.800/);
   });
   it('panel ukazuje totéž co program', () => {
-    const S = { params: cad({ partOffZ: -5, grooveWidth: 4, grooveBottomX: 17 }), contourPoints, borePoints };
+    const S = { params: cad({ partOffZ: -5, grooveWidth: 4, grooveBottomX: 16.5 }), contourPoints, borePoints };
     const html = grooveInnerFieldsHtml(S.params, S);
     expect(html).toContain('Díra ⌀30');
     expect(html).toContain('tvar díry z výkresu');
@@ -328,9 +328,50 @@ describe('díra z polotovaru části (ne z výchozích parametrů vyvrtávání)
   const P = (pts) => pts.map(([x, z], i) => ({ id: 400 + i, type: i ? 'G1' : 'G0', x, z, r: 0, mode: 'ABS' }));
   const stockPoints = P([[0, -40], [12, -40], [12, 0], [40, 0], [40, -60], [0, -60]]);
   it('stěna díry z polotovaru: start zápichu o vůli před r 12', async () => {
-    const p = params(bar(16, 2), { stockMode: 'casting', boreDiameter: 30, boreDepth: 20, borePreDiameter: 20, borePreDepth: 30, grooveBottomX: 14, grooveWidth: 4 });
+    const p = params(bar(16, 2), { stockMode: 'casting', boreDiameter: 30, boreDepth: 20, borePreDiameter: 20, borePreDepth: 30, grooveBottomX: 13.5, grooveWidth: 4 });
     const { gcode } = await runCamProg({ ...prog(p), stockPoints });
     expect(gcode).toMatch(/G0 X10\.800/);         // 12 − vůle 1 − rádius 0,2
     expect(gcode).not.toMatch(/G0 X13\.800/);     // rychloposuv ke stěně ne podle výchozího ⌀30
+  });
+});
+
+describe('vybrání po vyvrtávání dočistí zápich v díře (✏ Z výkresu)', async () => {
+  const { groovesFromDrawing } = await import('../js/calculators/cam/sim/grooveCad.js');
+  const { simStockArgs } = await import('../js/calculators/cam/sim/grooveSim.js');
+  const { validateToolpath } = await import('../js/calculators/cam/collisionValidator.js');
+  const { MaterialRemoval } = await import('../js/calculators/cam/materialRemoval.js');
+  const { polyIntersect, polyArea } = await import('../js/geom/geomCore.js');
+  const P = (pts) => pts.map(([z, x], i) => ({ id: 500 + i, type: i ? 'G1' : 'G0', x, z, r: 0, mode: 'ABS' }));
+  // Díra ⌀30 s vybráním ⌀35 mezi Z −10 a −16 (jako cam-floor-past-groove, jen
+  // mělčí — do díry ⌀30 se vejde nejvýš tyč ⌀20 s dosahem 3 mm).
+  const borePoints = P([[0, 15], [-10, 15], [-10, 17.5], [-16, 17.5], [-16, 15], [-30, 15], [-30, 11]]);
+  // Polotovar části 2 = díl po vyvrtávání: díra ⌀30, vybrání jen naznačené
+  // (z části 1 v něm zbyly rohy) — tady nejhorší případ, vybrání nevyvrtané.
+  const stockPoints = P([[-35, 0], [-35, 11], [-30, 11], [-30, 15], [1, 15], [1, 31], [-40, 31], [-40, 0]]);
+  it('vybrání se nabídne jako zápich a vyřeže se celé, rohy včetně; bez kolizí', async () => {
+    const S0 = { params: params(bar(20, 3), { boreSource: 'cad', stockMode: 'casting' }), contourPoints: P([[0, 30], [-40, 30]]), borePoints };
+    const [g] = groovesFromDrawing(S0);
+    expect(g).toEqual({ zA: -10, W: 6, rBot: 17.5, rWall: 15 });
+    // Obrobená díra: Vůle X 0,3 — s výchozí 1 mm dosáhne tyč ⌀20 (dosah 3) jen 2 mm.
+    const p = { ...S0.params, partOffZ: g.zA, grooveWidth: g.W, grooveBottomX: g.rBot, allowanceZ: 0, finishAllowance: 0.1, stockClearX: 0.3 };
+    const r = await runCamProg({ params: p, contourPoints: S0.contourPoints, borePoints, stockPoints, flipX: false, flipZ: false });
+    expect(r.gcode).not.toMatch(/^; ! /m);
+    const [sp, segs] = simStockArgs(r.S, r.calcSim);
+    expect(validateToolpath(r.calcSim.simPath, sp, segs, { planStock: true })).toEqual([]);
+    const rm = new MaterialRemoval(sp, segs);
+    rm.advanceTo(r.calcSim.simPath, r.calcSim.simPath.length - 1);
+    // Ve vybrání (r 15…17,5, Z −16…−10) nezůstal materiál — jen rádiusy rohů
+    // destičky r 0,2 ve dvou rozích dna: 2 × r²(1 − π/4) ≈ 0,017 mm².
+    const box = [{ x: 15.02, z: -15.98 }, { x: 17.48, z: -15.98 }, { x: 17.48, z: -10.02 }, { x: 15.02, z: -10.02 }];
+    expect(Math.abs(polyArea(polyIntersect(rm.model.loops, [box])))).toBeLessThan(2 * 0.04 * (1 - Math.PI / 4));
+  });
+});
+
+describe('hloubka zápichu i s Vůlí X (polotovar končí na offsetové čáře)', () => {
+  it('tyč ⌀16 (dosah 2,5): s Vůlí X 1 nejvýš 1,5 mm, s Vůlí X 0,3 až 2,2 mm', () => {
+    const p = (over) => params(bar(16, 2), { boreDiameter: 30, borePreDiameter: 20, ...over });
+    expect(grooveInnerGeom(p({ grooveBottomX: 16.5 })).ok).toBe(true);
+    expect(grooveInnerGeom(p({ grooveBottomX: 16.6 })).reason).toMatch(/dosáhne \(1\.50 mm i s Vůlí X 1\.00/);
+    expect(grooveInnerGeom(p({ grooveBottomX: 17.2, stockClearX: 0.3 })).ok).toBe(true);
   });
 });

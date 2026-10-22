@@ -252,7 +252,8 @@ protější stěny díry. Kde se nevejde, dráha se nevydá a nahlásí se.**
   u upichu.
   Díra = hotový ⌀ díry z Hrub./Hot. + ◎ Vnitřní, jinak předvrtání. Tyč se
   musí vejít: Dmin tyče ≤ ⌀ díry a hloubka zápichu (Dojezd − ⌀ díry)/2 ≤
-  dosah destičky v tyči. Pohyb: rychloposuvem do díry k ose → na Z → ke
+  dosah destičky v tyči — měřeno od offsetové čáry (Vůle X od stěny díry):
+  polotovar končí až na ní (rozhodnutí 20. 8. 2026, hlídá ji i validátor). Pohyb: rychloposuvem do díry k ose → na Z → ke
   stěně → zápich → zpět k ose → ven z díry. Kde se nevejde, dráha se
   nevydá a nahlásí se.
 - **Vnitřní závit (Závit + ◎ Vnitřní) — nájezd a výjezd** ✅ schválil

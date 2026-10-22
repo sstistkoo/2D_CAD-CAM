@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM: zápich v díře — hloubka i s Vůlí X** — tyč smí ke stěně díry jen
+  po offsetovou čáru polotovaru (jako validátor); dřív jen 0,2 mm od stěny,
+  takže ⛔ hlásil kolizi tyče u hlubších zápichů. Test dočištění vybrání po
+  vyvrtávání zápichem z výkresu (`tests/cam-groove-inner.test.js`).
 - **CAM: zápich v díře bral díru z výchozích parametrů vyvrtávání**
   (⌀30 × 20 i v části, kde se nevyvrtává) — teď nejdřív z polotovaru
   části (díl obrobený předchozími částmi, `cam/stockHole.js`); kontrola

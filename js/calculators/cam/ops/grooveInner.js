@@ -144,8 +144,12 @@ export function grooveInnerGeom(prms, chain = null, stockLoop = null) {
   if (rcIn > rcStart + 1e-6) return fail('Tyč nemá v díře kde stát — díra je na ni moc úzká.');
   // Bližší strana tyče musí zůstat v díře i se špičkou na dně zápichu.
   const depth = rBot - rHole;
-  if (zNear > 0 && rcBotFinal - zNear > rHole - GAP + 1e-6) {
-    return fail(`Zápich je hlubší (${depth.toFixed(2)} mm), než destička v tyči dosáhne (${Math.max(0, zNear + rIns - GAP).toFixed(2)} mm) — vyber tyč s větším dosahem.`);
+  // Stěna díry je polotovar — ten končí až na offsetové čáře (Vůle X,
+  // rozhodnutí 20. 8. 2026, validátor ji hlídá taky): tyč nesmí přes ni.
+  const wallBand = Math.max(GAP, stockClearances(prms).x);
+  if (zNear > 0 && rcBotFinal - zNear > rHole - wallBand + 1e-6) {
+    const can = Math.max(0, zNear + rIns - wallBand);
+    return fail(`Zápich je hlubší (${depth.toFixed(2)} mm), než destička v tyči dosáhne (${can.toFixed(2)} mm i s Vůlí X ${wallBand.toFixed(2)} od stěny díry) — vyber tyč s větším dosahem, nebo zmenši Vůli X.`);
   }
 
   // Hrubovací zápichy: interval destičky v „hloubce" u (0 = bok u ústí, W = druhý bok).

@@ -926,10 +926,20 @@ Upich v zrcadle.
    (jeden zápich). Širší zápich = víc zápichů vedle sebe s krokem nejvýš
    0,8 × šířka destičky.
 3. **Dno X** = poloměr vnější hrany destičky na dně (za stěnou díry).
-   Hloubka zápichu smí být nejvýš **dosah** destičky v tyči (čip na kartě).
+   Hloubka zápichu smí být nejvýš **dosah** destičky v tyči (čip na kartě)
+   **minus Vůle X** — polotovar (i stěna díry) končí až na offsetové čáře,
+   tyč přes ni nesmí. Tyč ⌀16 s dosahem 2,5 tak s Vůlí X 1 zvládne 1,5 mm;
+   u už obrobené díry stačí menší Vůle X (např. 0,3 → 2,2 mm).
 4. **⌀ díry** 0 = automaticky: díra v polotovaru části (v programu po
    částech díl obrobený předchozími částmi — skutečná díra i vybrání),
    u díry z výkresu ✏ její tvar, jinak ⌀ z vyvrtávání / předvrtání.
+
+**Dočištění vybrání po vyvrtávání.** Vybrání ve stěně díry (schod ven →
+rovné dno → schod zpět) vyvrtávání hrubuje jen tam, kam destička po mezní
+čáře dosáhne — v rozích u svislých stěn zůstane materiál. Dočistí ho další
+část programu: Upich + ◎ Vnitřní → **✏ Z výkresu** nabídne vybrání jako
+zápich a zapichovací tyč ho vyřeže celé (zůstanou jen rádiusy rohů
+destičky).
 
 **Zápich z výkresu.** Je-li zápich nakreslený ve stěně díry (samostatný
 řetěz díry i díra napojená na čelo — schod ven, rovné dno, schod zpět),
