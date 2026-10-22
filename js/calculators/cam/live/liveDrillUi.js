@@ -23,6 +23,8 @@ import { getLiveOps, liveOpOn, liveOpSummary, liveDrillFromCad, liveSettings } f
 import { drillToolText, toggleLiveGroup, autoDrillTools, pickDrill, magazineDrills, addCatalogDrills, catalogDrillD, syncDrillTabParams } from './liveDrillTools.js';
 import { settingsHtml, settingsTitle, applySettingChange } from './liveSettingsUi.js';
 import { pickMill, magazineMills, catalogMillD, addCatalogMills } from './liveMillTools.js';
+import { autoTapSpotTools, addCatalogTapsSpots } from './liveTapTools.js';
+import { withHoleExtras } from './liveHoleExtras.js';
 import { safeEvalMath } from '../../../utils.js';
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -81,6 +83,35 @@ export function createDrillUi(d) {
     d.commit(p => { p.liveOps = r.ops; });
     refresh();
   }
+  /** ➕ Závitník / navrtávák operace `oi` z 📚 do zásobníku. */
+  function addMissingTapSpot(oi) {
+    if (!d.isoMagSlot) return;
+    const miss = autoTapSpotTools(ops(), S.toolMagazine).missing.filter(m => m.op === oi);
+    const added = addCatalogTapsSpots(S.toolMagazine, miss, d.isoMagSlot);
+    if (!added.length) return;
+    d.saveState();
+    d.toast(`Do 🔧 Zásobníku přidán ${added.map(s => `T${s.slot} ${s.name}`).join(', ')}`, 4000);
+    const r = autoDrillTools(ops(), S.toolMagazine, S.params);
+    d.commit(p => { p.liveOps = r.ops; });
+    refresh();
+  }
+  /** Navrtání před vrtáním zap / vyp → přidat / odebrat operace navrtání. */
+  function setSpot(on) {
+    const live = { ...(S.params.live || {}), spot: on };
+    const set = liveSettings({ ...S.params, live });
+    const next = autoDrillTools(withHoleExtras(ops(), set), S.toolMagazine, S.params).ops;
+    d.commit(p => { p.live = live; p.liveOps = next; });
+    refresh();
+    d.toast(on ? `✔ Navrtání před vrtáním (sražení ${set.spotChamfer} mm)` : '✕ Bez navrtání', 3000);
+  }
+  /** ➕ u odvozené operace bez nástroje (navrtání, závit). */
+  function tapSpotAddBtn(op, i) {
+    if (!op.role || !d.isoMagSlot) return '';
+    const m = autoTapSpotTools([op], S.toolMagazine).missing[0];
+    if (!m || (m.kind === 'spot' && !m.D)) return '';
+    const what = m.kind === 'tap' ? `závitník ${m.thread || ''}` : `navrtávák Ø${m.D}`;
+    return `<br><button data-livedrill="addtap" data-oi="${i}" class="cam-sim-btn cam-sim-btn-gray">➕ Přidat ${what} z 📚 do Zásobníku</button>`;
+  }
   function commitOps(next, msg) { d.commit(p => { p.liveOps = next; }); refresh(); d.toast(msg, 3500); }
 
   /** Klepnutí na skupinu v pohledu na čelo; `plain` = zaškrtávátko (jen přepnout). */
@@ -123,8 +154,8 @@ export function createDrillUi(d) {
       h += `<label class="cam-livedrill-row${liveOpOn(op) ? '' : ' off'}">
         <input type="checkbox" data-livedrill="toggle" data-oi="${i}"${liveOpOn(op) ? ' checked' : ''}>
         <span><b>${esc(op.name)}</b> <small>${esc(liveOpSummary(op))}</small><br><small class="t">${esc(drillToolText(op, S.toolMagazine))}</small>${
-  op.kind === 'drill' && !pickDrill(magazineDrills(S.toolMagazine), op.holeD).drill && d.isoMagSlot && catalogDrillD(op.holeD) != null
-    ? `<br><button data-livedrill="addmag" data-d="${op.holeD}" class="cam-sim-btn cam-sim-btn-gray">➕ Přidat vrták Ø${op.holeD} z 📚 do Zásobníku</button>` : ''}${millAddBtn(op)}</span>
+  op.kind === 'drill' && !op.role && !pickDrill(magazineDrills(S.toolMagazine), op.holeD).drill && d.isoMagSlot && catalogDrillD(op.holeD) != null
+    ? `<br><button data-livedrill="addmag" data-d="${op.holeD}" class="cam-sim-btn cam-sim-btn-gray">➕ Přidat vrták Ø${op.holeD} z 📚 do Zásobníku</button>` : ''}${millAddBtn(op)}${tapSpotAddBtn(op, i)}</span>
       </label>`;
     });
     const nOn = list.filter(liveOpOn).length;
@@ -137,6 +168,13 @@ export function createDrillUi(d) {
       <div class="cam-livedrill-src">
         <button data-livedrill="cyc" data-v="1" class="${cyc ? 'on' : ''}"${heid ? ' disabled title="Heidenhain: vždy rozepsané pohyby"' : ' title="Celé vrtání díry jedním řádkem cyklu"'}>Cyklus ${ctrl0 === 'fanuc' ? 'G83 / G87' : 'CYCLE82 / 83'}</button>
         <button data-livedrill="cyc" data-v="0" class="${cyc ? '' : 'on'}" title="Každý pohyb zvlášť: G0 na R rovinu, G1 záběr, G0 vyjetí pro odvod třísky…">Rozepsaně G0 / G1 (ISO)</button>
+      </div>`;
+    // Navrtání před vrtáním (liveHoleExtras.js): ke každé díře z výkresu navrtávák.
+    const spot = liveSettings(S.params).spot;
+    h += `<div class="cam-livedrill-h">Navrtání</div>
+      <div class="cam-livedrill-src">
+        <button data-livedrill="spot" data-v="1" class="${spot ? 'on' : ''}" title="Před vrtáním navrtávákem 90° navrtat střed a srazit hranu díry (Ø díry / závitu + 2 × sražení)">Navrtat před vrtáním</button>
+        <button data-livedrill="spot" data-v="0" class="${spot ? '' : 'on'}">Bez navrtání</button>
       </div>`;
     h += `<div class="cam-livedrill-btns">
         <button data-livedrill="go" class="cam-sim-btn cam-sim-btn-green"${nOn ? '' : ' disabled'}>🔩 ${active ? 'Přehrát vrtání' : 'Vyvrtat vybrané'} (${nOn})</button>
@@ -180,6 +218,8 @@ export function createDrillUi(d) {
       else if (act === 'all') setAll();
       else if (act === 'addmag') addMissing([parseFloat(b.dataset.d)]);
       else if (act === 'addmill') addMissingMill(parseFloat(b.dataset.d));
+      else if (act === 'addtap') addMissingTapSpot(+b.dataset.oi);
+      else if (act === 'spot') { const on = b.dataset.v === '1'; if (liveSettings(S.params).spot !== on) setSpot(on); }
       else if (act === 'src') { d.commit(p => { p.drillSource = b.dataset.v; }); refresh(); }
       else if (act === 'cyc') {
         const on = b.dataset.v === '1';
@@ -205,7 +245,10 @@ export function createDrillUi(d) {
       const ctrl = S.params.controlSystem || 'sinumerik';
       const live = JSON.parse(JSON.stringify(S.params.live || {}));
       if (!applySettingChange(live, el.dataset.g, el, ctrl, safeEvalMath)) { d.toast('Neplatné číslo'); refresh(); return; }
-      d.commit(p => { p.live = live; });
+      // Jiné sražení → přepočítat operace navrtání.
+      const next = el.dataset.g === 'spotChamfer'
+        ? autoDrillTools(withHoleExtras(ops(), liveSettings({ ...S.params, live })), S.toolMagazine, S.params).ops : null;
+      d.commit(p => { p.live = live; if (next) p.liveOps = next; });
       refresh();
     });
   }

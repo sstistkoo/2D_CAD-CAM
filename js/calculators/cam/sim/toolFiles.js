@@ -112,6 +112,7 @@ export function createToolFiles({ S, toolUi, pushHistory, saveState, fullUpdate,
         if (rec.ap) slot.ap = rec.ap;
         if (rec.teeth) slot.teeth = rec.teeth;                    // fréza: počet zubů
         if (rec.centerCut !== undefined) slot.centerCut = rec.centerCut !== false;
+        if (rec.pitch) { slot.pitch = rec.pitch; slot.thread = rec.thread || ''; }   // závitník
         mag.push(slot);
         saveState();
         if (toolUi.magazineDialogRefresh) toolUi.magazineDialogRefresh();

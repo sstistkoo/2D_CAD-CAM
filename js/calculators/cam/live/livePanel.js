@@ -438,7 +438,7 @@ export function initLiveTools(deps) {
       st.selected = ops.length - 1;
       commit(p => { p.liveOps = ops; });
     } else if (act === 'from-cad') {
-      const res = liveOpsFromCad(cadDrawingsForCam(), livePartGeometry(S), getLiveOps(S.params));
+      const res = liveOpsFromCad(cadDrawingsForCam(), livePartGeometry(S), getLiveOps(S.params), liveSettings(S.params));
       if (!res.holes && !res.slots) {
         showToast('V CAD nejsou díry — do čela: ◎ (bokorys), kružnice = díra, úsečka = drážka; do pláště: nástroj Díra, klepnout v nárysu na díl', 5000);
         return;

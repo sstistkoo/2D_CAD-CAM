@@ -31,7 +31,7 @@ const fmtC = v => String(r3(v)).replace('.', ',');
  *               depth?: { mode: 'through'|'depth'|'z', value } hloubka děr }
  * @returns objekty pro addObject (roztečná kružnice první)
  */
-export function holePatternObjects(face, { holes, d, pcd = null, cx = 0, cy = 0, depth = null }) {
+export function holePatternObjects(face, { holes, d, pcd = null, cx = 0, cy = 0, depth = null, thread = null }) {
   const O = face.origin;
   const out = [];
   if (pcd > 0) {
@@ -47,8 +47,10 @@ export function holePatternObjects(face, { holes, d, pcd = null, cx = 0, cy = 0,
   const tag = holeDepthLabel(depth);
   holes.forEach((h, i) => out.push({
     type: 'circle', layer: face.id, cx: O.x + h.x, cy: O.y + h.y, r: d / 2,
-    dashed: false, name: `Díra Ø${fmt(d)}${tag ? ' ' + tag : ''} #${i + 1}`,
+    dashed: false, name: `Díra Ø${fmt(d)}${thread ? ' ' + thread.name : ''}${tag ? ' ' + tag : ''} #${i + 1}`,
     ...(depth ? { holeDepth: { mode: depth.mode, value: depth.value ?? null, ...(depth.stock ? { stock: true } : {}) } } : {}),
+    // Závit do díry (Ø = předvrtání) — CAM po vrtání závitník (cam/live role 'tap').
+    ...(thread ? { holeThread: { name: thread.name, pitch: thread.pitch } } : {}),
   }));
   return out;
 }
@@ -77,7 +79,7 @@ export function drawHolesToFace(spec) {
   updateProperties();
   renderAll();
   const n = spec.holes.length;
-  showToast(`Čelo ${faceLabel(face)}: ${n} ${n === 1 ? 'díra' : n < 5 ? 'díry' : 'děr'} Ø${fmt(spec.d)}`
+  showToast(`Čelo ${faceLabel(face)}: ${n} ${n === 1 ? 'díra' : n < 5 ? 'díry' : 'děr'} Ø${fmt(spec.d)}${spec.thread ? ` se závitem ${spec.thread.name}` : ''}`
     + info.text
     + (spec.pcd > 0 ? ` na roztečné kružnici Ø${fmt(spec.pcd)} (čerchovaná = pomocná, do CAM nejde)` : '')
     + (mirrorOn ? '. Nárys zrcadlen pod osu (Nastavení → ⇋ Zrcadlit kolem osy)' : ''), 6000);

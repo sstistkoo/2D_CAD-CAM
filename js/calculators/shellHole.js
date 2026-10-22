@@ -13,8 +13,9 @@ import { showToast } from '../state.js';
 import { bridge } from '../bridge.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { faceHoles, faceLabel } from '../faceView/faceLayer.js';
-import { resolveShellHole, shellAngles } from '../faceView/shellHoles.js';
+import { resolveShellHole, shellAngles, shellTapDepth } from '../faceView/shellHoles.js';
 import { fmt, numVal as val, numField, selectField, outRow, outWarn } from './calcKit.js';
+import { threadFieldHtml, wireThreadField, readThread } from './holeDepthFields.js';
 
 const MODES = [['depth', 'Do hloubky (od pláště)'], ['dia', 'Do Ø'], ['through', 'Skrz stěnu (do vývrtu)']];
 const VAL = {
@@ -55,6 +56,7 @@ export function openShellHoleCalc(opts = {}) {
       numField('d', 'Ø díry', 'mm', 'Ø', s ? ' value="' + fmt(s.d) + '"' : _last ? ' value="' + fmt(_last.d) + '"' : '') +
       selectField('mode', 'Hloubka díry', MODES) +
       numField('val', VAL.depth[0], 'mm', VAL.depth[1]) +
+      threadFieldHtml('sh') +
       numField('n', 'Počet po obvodu', 'ks', '1', ' value="' + (s ? s.count : _last ? _last.count : 1) + '"') +
       (refs.length ? selectField('ref', 'Natočit podle', [['', 'Ručně (úhel C)'], ...refs.map(r => [r.key, r.label])]) : '') +
       numField('a', 'Úhel C první díry', '°', '0', ' value="' + fmt(s ? s.angle : 90) + '"') +
@@ -70,7 +72,9 @@ export function openShellHoleCalc(opts = {}) {
   const overlay = makeOverlay('shellHole', edit ? '⊥ Upravit díru v plášti' : '⊥ Díra do pláště', body);
   if (!overlay) return null;
   const q = id => overlay.querySelector('[data-id="' + id + '"]');
-  const inp = { z: q('z'), d: q('d'), mode: q('mode'), val: q('val'), n: q('n'), a: q('a'), ref: q('ref'), off: q('off') };
+  const inp = { z: q('z'), d: q('d'), mode: q('mode'), val: q('val'), n: q('n'), a: q('a'), ref: q('ref'), off: q('off'), thread: q('shthread') };
+  if (s && s.thread && inp.thread) inp.thread.value = s.thread.name;
+  wireThreadField(overlay, 'sh', inp.d);
   const out = overlay.querySelector('[data-shell="out"]');
 
   const dep0 = s ? s.depth : _last ? { mode: _last.mode, value: _last.value } : { mode: 'depth', value: null };
@@ -105,9 +109,11 @@ export function openShellHoleCalc(opts = {}) {
     if (!(n >= 1) || Math.round(n) !== n) return { error: 'Počet po obvodu = celé číslo ≥ 1' };
     if (a === null || Number.isNaN(a)) return { error: 'Zadej úhel C' };
     const r = inp.ref && refs.find(x => x.key === inp.ref.value);
+    const thread = readThread(overlay, 'sh');
     return {
       z, spec: {
         d, depth: { mode, value: v }, count: n, angle: a,
+        ...(thread ? { thread } : {}),
         ...(r ? { ref: `${r.label}${val(inp.off) ? ` ${val(inp.off) > 0 ? '+' : ''}${fmt(val(inp.off))}°` : ''}` } : {}),
       },
     };
@@ -121,6 +127,10 @@ export function openShellHoleCalc(opts = {}) {
     const angs = shellAngles(r.spec).map(x => fmt(x) + '°').join(' · ');
     out.innerHTML = (res.xTop ? outRow('Ø pláště v Z díry', 'Ø' + fmt(res.xTop) + (res.inner > 1e-6 ? ` (vývrt Ø${fmt(2 * res.inner)})` : '')) : '')
       + (res.error ? outWarn('⚠ ' + res.error) : outRow('Hloubka radiálně', fmt(res.depth) + ' mm (dno na Ø' + fmt(res.xTop - 2 * res.depth) + ')'))
+      + (r.spec.thread && !res.error ? (() => {
+        const t = shellTapDepth(r.spec, res);
+        return t ? outRow('Závit ' + r.spec.thread.name, 'hloubka ' + fmt(t) + ' mm') : outWarn('⚠ díra je na závit ' + r.spec.thread.name + ' příliš mělká');
+      })() : '')
       + outRow('Úhly C', angs);
   };
 
@@ -131,6 +141,7 @@ export function openShellHoleCalc(opts = {}) {
     inp.ref.addEventListener('change', update);
   }
   inp.mode.addEventListener('change', () => { syncMode(); update(); });
+  if (inp.thread) inp.thread.addEventListener('change', update);
   Object.values(inp).forEach(i => i && i.tagName === 'INPUT' && i.addEventListener('input', update));
   update();
 

@@ -77,7 +77,8 @@ export function buildLiveBlock(prms) {
     else if (ctrl === 'fanuc') add(`T${pad2(op.toolNo)}${pad2(op.toolNo)}${note(op.toolName)}`);
     else add(`T${op.toolNo} M6${note(op.toolName)}`);
     const ctx = { ctrl, set, m, op, add, cmt, note, xo, dia, sWord, prms };
-    if (isKeyway(op)) emitKeyway(ctx);
+    if (op.role === 'tap') emitTap(ctx);
+    else if (isKeyway(op)) emitKeyway(ctx);
     else if (op.kind === 'mill') emitMill(ctx);
     else if (op.side === 'radial') emitRadialDrill(ctx);
     else emitFaceDrill(ctx);
@@ -263,6 +264,100 @@ function emitRadialDrill(ctx) {
       if (cyc) add(sinCycle(op, rX, xw)); else explicitDrill(c2, 'X', xw, rX, op);
     });
     if (ctrl === 'sinumerik') { if (ctx.dia) add('DIAMON'); add('G18'); }
+  }
+  toolStop(c2);
+  cOff(c2);
+}
+
+// ── závitování závitníkem (čelo osa Z / plášť osa X) ──────────────
+// Cykly zap: Sinumerik CYCLE84 (synchronní závitování; SETMS přepne master
+// vřeteno na poháněný nástroj), Fanuc M29 S + G84 (čelo) / G88 (plášť),
+// F = P · n v G98. Cykly vyp a Heidenhain: rozepsaně do PLOVOUCÍHO POUZDRA —
+// G1 na hloubku F = P · n, reverz nástroje (m.toolRev), G1 ven, zpět chod.
+function tapCycleSin(op, rfp, w, out) {
+  // CYCLE84(RTP, RFP, SDIS, DP, DPR, DTB, SDAC, MPIT, PIT, POSS, SST, SST1)
+  // SDAC 3 = po cyklu chod M3, PIT = stoupání, SST / SST1 = otáčky závitování / výjezdu.
+  return `CYCLE84(${w(rfp + out * op.retract)}, ${w(rfp)}, ${f3(op.safe)}, ${w(rfp - out * op.depth)}, , 0, 3, , ${f3(op.pitch)}, 0, ${op.rpm}, ${op.rpm})`;
+}
+/** Sinumerik: cyklus závitu řídí master vřeteno → SETMS(n) na poháněný nástroj, po dírách zpět. */
+function setMs({ ctrl, set, add, note }, on) {
+  if (ctrl !== 'sinumerik' || !set.cycles) return;
+  add(on ? `SETMS(${set.spindle})${note('master vřeteno = poháněný nástroj (CYCLE84)')}` : `SETMS${note('master zpět na hlavní vřeteno')}`);
+}
+function explicitTap(ctx, ax, w, rfp, out = 1) {
+  const { add, op, m, note, sWord } = ctx;
+  add(`G0 ${ax}${w(rfp + out * op.safe)}`);
+  add(`G1 ${ax}${w(rfp - out * op.depth)} F${f3(op.feed)}${note('závit F = P · n (plovoucí pouzdro)')}`);
+  add(`${sWord(op.rpm)} ${m.toolRev}${note('reverz nástroje – výjezd ze závitu')}`);
+  add(`G1 ${ax}${w(rfp + out * op.safe)} F${f3(op.feed)}`);
+  add(`${sWord(op.rpm)} ${m.toolOn}`);
+  add(`G0 ${ax}${w(rfp + out * op.retract)}`);
+}
+function emitTap(ctx) {
+  const { ctrl, set, op, add, note, xo, cmt } = ctx;
+  const pos = livePositions(op);
+  const cyc = set.cycles && ctrl !== 'heidenhain';
+  const radial = op.side === 'radial';
+  // Polohování C / SPOS (TRANSMIT se pro závit nepoužije — díra se natočí).
+  const c2 = { ...ctx, set: { ...set, mode: set.mode === 'transmit' ? 'caxis' : set.mode } };
+  add(cmt(cyc ? `Závit ${op.thread ? op.thread.name : ''} P${f3(op.pitch)} synchronně (pevné upnutí závitníku)` : `Závit P${f3(op.pitch)} rozepsaně — závitník v plovoucím pouzdře`));
+  cOn(c2);
+  toolStart(c2);
+  if (!radial) {
+    const out = faceOut(op), rtp = op.zTop + out * op.retract, zw = v => f3(v);
+    if (ctrl === 'fanuc' && cyc) {
+      add(`M29 S${op.rpm}${note('synchronní závitování')}`);
+      pos.forEach((h, k) => {
+        if (k === 0) {
+          add(`G0 Z${zw(rtp)}`);
+          add(`G0 X${xo(h.r)} ${set.cName}${f3(angOf(set, h.a))}`);
+          add(`G84 X${xo(h.r)} ${set.cName}${f3(angOf(set, h.a))} Z${zw(op.zTop - out * op.depth)} R${f3(out * (op.safe - op.retract))} F${f3(op.feed)}${note('díra 1')}`);
+        } else add(`X${xo(h.r)} ${set.cName}${f3(angOf(set, h.a))}${note(`díra ${k + 1}`)}`);
+      });
+      add('G80');
+    } else {
+      if (ctrl === 'sinumerik') add(`G17${note('závit v ose Z')}`);
+      setMs(c2, true);
+      pos.forEach((h, k) => {
+        if (k === 0) add(`G0 Z${zw(rtp)}`);
+        rotate(c2, h.a);
+        add(`G0 X${xo(h.r)}${note(`díra ${k + 1}: úhel ${f3(angOf(set, h.a))}°`)}`);
+        if (cyc) add(tapCycleSin(op, op.zTop, zw, out));
+        else explicitTap(c2, 'Z', zw, op.zTop, out);
+      });
+      setMs(c2, false);
+      if (ctrl === 'sinumerik') add('G18');
+    }
+  } else {
+    const rX = op.xTop / 2;
+    if (ctrl === 'fanuc' && cyc) {
+      add(`M29 S${op.rpm}${note('synchronní závitování')}`);
+      pos.forEach((h, k) => {
+        const zMove = k > 0 && Math.abs(h.z - pos[k - 1].z) > 1e-6;
+        if (k === 0 || zMove) {
+          if (zMove) { add('G80'); add(`G0 X${ctx.prms.safeX}`); add(`M29 S${op.rpm}`); }
+          add(`G0 Z${f3(h.z)} ${set.cName}${f3(angOf(set, h.a))}`);
+          add(`G0 X${xo(rX + op.retract)}`);
+          add(`G88 Z${f3(h.z)} ${set.cName}${f3(angOf(set, h.a))} X${xo(rX - op.depth)} R${f3(op.safe - op.retract)} F${f3(op.feed)}${note(`díra ${k + 1}`)}`);
+        } else add(`Z${f3(h.z)} ${set.cName}${f3(angOf(set, h.a))}${note(`díra ${k + 1}`)}`);
+      });
+      add('G80');
+    } else {
+      if (ctrl === 'sinumerik') { add(`G19${note('závit v ose X')}`); add(`DIAMOF${note('X v poloměru')}`); }
+      const xw = ctrl === 'sinumerik' ? (v => f3(v)) : xo;
+      setMs(c2, true);
+      pos.forEach((h, k) => {
+        const zMove = k > 0 && Math.abs(h.z - pos[k - 1].z) > 1e-6;
+        if (zMove) add(`G0 X${ctx.prms.safeX}`);
+        rotate(c2, h.a);
+        add(`G0 Z${f3(h.z)}${note(`díra ${k + 1}: úhel ${f3(angOf(set, h.a))}°`)}`);
+        if (k === 0 || zMove) add(`G0 X${xw(rX + op.retract)}`);
+        if (cyc) add(tapCycleSin(op, rX, xw, 1));
+        else explicitTap(c2, 'X', xw, rX, 1);
+      });
+      setMs(c2, false);
+      if (ctrl === 'sinumerik') { if (ctx.dia) add('DIAMON'); add('G18'); }
+    }
   }
   toolStop(c2);
   cOff(c2);

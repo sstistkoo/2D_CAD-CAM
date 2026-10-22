@@ -19,6 +19,7 @@ import { state } from '../state.js';
 import { profileObjects } from './faceLayer.js';
 import { materialAt } from './faceReference.js';
 import { throughOverrun } from './faceDepth.js';
+import { tapDepth } from '../calculators/isoTaps.js';
 
 const r3 = v => +(+v).toFixed(3);
 const fmt = v => String(r3(v));
@@ -98,13 +99,20 @@ export function resolveShellHole(spec, z, objects = profileObjects(), machineTyp
   return { R, xTop: r3(2 * R), depth: r3(depth), inner };
 }
 
+/** Hloubka závitu díry v plášti: skrz stěnu = stěna + 2·P, jinak hloubka − 2·P (null = mělká). */
+export function shellTapDepth(spec, res) {
+  if (!spec.thread || !(res.depth > 0)) return null;
+  const through = spec.depth && spec.depth.mode === 'through';
+  return tapDepth(spec.thread.pitch, through ? { through, thick: res.R - res.inner } : { depth: res.depth });
+}
+
 /**
  * Název objektu díry: „Díra v plášti Ø8 hl. 10 · 4× od C0°". Bez Z — kopie
  * z Lin.pole název převezmou a Z by v nich nesedělo.
  */
 export function shellHoleName(spec) {
   const n = Math.max(1, Math.round(spec.count) || 1);
-  return `Díra v plášti Ø${fmt(spec.d)} ${shellDepthLabel(spec.depth)} · ${n > 1 ? `${n}× od ` : ''}C${fmt(spec.angle || 0)}°`;
+  return `Díra v plášti Ø${fmt(spec.d)}${spec.thread ? ' ' + spec.thread.name : ''} ${shellDepthLabel(spec.depth)} · ${n > 1 ? `${n}× od ` : ''}C${fmt(spec.angle || 0)}°`;
 }
 
 /**
@@ -124,6 +132,7 @@ export function shellHoleObject(spec, z, layerId) {
       d: r3(spec.d), depth: { mode: spec.depth.mode, value: spec.depth.value ?? null },
       count: Math.max(1, Math.round(spec.count) || 1), angle: r3(norm360(+spec.angle || 0)),
       ...(spec.ref ? { ref: String(spec.ref) } : {}),
+      ...(spec.thread ? { thread: { name: spec.thread.name, pitch: spec.thread.pitch } } : {}),
     },
   };
 }
@@ -141,7 +150,14 @@ export function shellHolesForCam(objects = profileObjects(), machineType = state
     const spec = o.shellHole, z = shellHoleZ(o);
     const res = resolveShellHole(spec, z, objects, machineType);
     if (res.error) { errors.push(`${o.name || 'Díra v plášti'}: ${res.error}`); return; }
-    holes.push({ d: r3(spec.d), z, xTop: res.xTop, depth: res.depth, tag: shellDepthLabel(spec.depth), angles: shellAngles(spec) });
+    const h = { d: r3(spec.d), z, xTop: res.xTop, depth: res.depth, tag: shellDepthLabel(spec.depth), angles: shellAngles(spec) };
+    // Závit (Ø díry = předvrtání): hloubka závitu skrz stěnu = stěna + 2·P, jinak hloubka − 2·P.
+    if (spec.thread) {
+      const td = shellTapDepth(spec, res);
+      if (td) h.thread = { name: spec.thread.name, pitch: spec.thread.pitch, depth: td };
+      else errors.push(`${o.name || 'Díra v plášti'}: na závit ${spec.thread.name} je díra příliš mělká`);
+    }
+    holes.push(h);
   });
   return [{ kind: 'shell', holes, errors }];
 }

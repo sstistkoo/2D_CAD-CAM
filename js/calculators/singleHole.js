@@ -73,7 +73,7 @@ export function openSingleHoleCalc(opts) {
     if (Number.isNaN(x) || Number.isNaN(y)) { showToast('Neplatná poloha díry'); return; }
     const dep = readDepth(overlay, P);
     if (dep.error) { showToast(dep.error); return; }
-    const n = bridge.drawHolesToFace && bridge.drawHolesToFace({ holes: [{ x, y }], d, depth: dep.spec });
+    const n = bridge.drawHolesToFace && bridge.drawHolesToFace({ holes: [{ x, y }], d, depth: dep.spec, thread: dep.thread });
     if (!n) return;
     _last = { d, mode: dep.spec.mode, value: dep.spec.value ?? null, mat: dep.spec.stock ? 'stock' : 'part' };
     overlay.remove();

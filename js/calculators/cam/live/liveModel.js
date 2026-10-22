@@ -26,9 +26,9 @@ export const LIVE_MODES = {
 //   Heidenhain: poháněný nástroj M3 / M5 (standard TNC); přepnutí na osu C
 //     řeší stroj (FUNCTION MODE) — M45 / M46 je jen zástupný příklad.
 export const LIVE_MCODE_DEFAULTS = {
-  sinumerik: { cOn: 'M70', cOff: 'SPCOF', toolOn: 'M2=3', toolOff: 'M2=5', toolS: 'S2' },
-  fanuc: { cOn: 'M45', cOff: 'M46', toolOn: 'M13', toolOff: 'M15', toolS: 'S' },
-  heidenhain: { cOn: 'M45', cOff: 'M46', toolOn: 'M3', toolOff: 'M5', toolS: 'S' },
+  sinumerik: { cOn: 'M70', cOff: 'SPCOF', toolOn: 'M2=3', toolOff: 'M2=5', toolS: 'S2', toolRev: 'M2=4' },
+  fanuc: { cOn: 'M45', cOff: 'M46', toolOn: 'M13', toolOff: 'M15', toolS: 'S', toolRev: 'M14' },
+  heidenhain: { cOn: 'M45', cOff: 'M46', toolOn: 'M3', toolOff: 'M5', toolS: 'S', toolRev: 'M4' },
 };
 
 /**
@@ -39,14 +39,17 @@ export const LIVE_MCODE_DEFAULTS = {
  *   (úhel z výkresu − toolAt); toolAt [°] = kde v pohledu na čelo stojí
  *   poháněný nástroj (k němu se díra natáčí): soustruh NAHOŘE (90°, X+ jako
  *   v nárysu / řezu — revolver nad osou, uživatel 20. 10. 2026), karusel
- *   vpravo (0°); m = přepsané M-kódy podle řídicího systému.
+ *   vpravo (0°); m = přepsané M-kódy podle řídicího systému (toolRev =
+ *   reverz poháněného nástroje — výjezd závitníku bez cyklu);
+ *   spot = navrtat díry z výkresu před vrtáním, spotChamfer [mm] = sražení
+ *   hrany díry navrtávákem (liveHoleExtras.js).
  */
 export function liveSettings(prms) {
   const ctrl = prms.controlSystem || 'sinumerik';
   const s = prms.live || {};
   const spindle = Math.min(9, Math.max(1, Math.round(num(s.spindle, 2))));
   const base = { ...(LIVE_MCODE_DEFAULTS[ctrl] || LIVE_MCODE_DEFAULTS.sinumerik) };
-  if (ctrl === 'sinumerik') Object.assign(base, { toolOn: `M${spindle}=3`, toolOff: `M${spindle}=5`, toolS: `S${spindle}` });
+  if (ctrl === 'sinumerik') Object.assign(base, { toolOn: `M${spindle}=3`, toolOff: `M${spindle}=5`, toolS: `S${spindle}`, toolRev: `M${spindle}=4` });
   // Prázdné pole = výchozí hodnota (jinak by se do programu vydal prázdný řádek).
   const over = {};
   Object.entries((s.m && s.m[ctrl]) || {}).forEach(([k, v]) => { if (String(v).trim()) over[k] = String(v).trim(); });
@@ -59,6 +62,8 @@ export function liveSettings(prms) {
     angleOffset: num(s.angleOffset, 0),
     toolAt: TOOL_AT.includes(Number(s.toolAt)) ? Number(s.toolAt) : (prms.machineStructure === 'carousel' ? 0 : 90),
     m: { ...base, ...over },
+    spot: s.spot === true,
+    spotChamfer: Math.max(0, Math.min(5, num(s.spotChamfer, 0.5))),
   };
 }
 
@@ -116,6 +121,11 @@ export function normalizeLiveOp(op) {
   for (const k of ['pcd', 'count', 'startAngle', 'zTop', 'xTop', 'zPos', 'holeD', 'depth', 'peck',
     'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'faceDir', 'chipBack', 'kz1', 'kz2']) o[k] = num(o[k], d[k]);
   o.faceDir = o.faceDir < 0 ? -1 : 1;
+  // Odvozené operace děr z výkresu (liveHoleExtras.js): 'spot' navrtání, 'tap' závit.
+  if (o.kind === 'drill' && (o.role === 'spot' || o.role === 'tap')) {
+    if (o.role === 'tap') o.pitch = num(o.pitch, 1);
+    else { o.spotD = num(o.spotD, o.holeD); o.spotAngle = num(o.spotAngle, 90); }
+  } else delete o.role;
   o.chipMode = o.chipMode === 'break' ? 'break' : 'clear';
   o.count = Math.max(1, Math.min(360, Math.round(o.count)));
   o.slot = { ...d.slot, ...(o.slot || {}) };
@@ -401,6 +411,7 @@ export function liveOpProblems(op) {
   const out = [];
   if (!(op.depth > 0)) out.push('Hloubka musí být větší než 0.');
   if (op.kind === 'drill' && !(op.holeD > 0)) out.push('Zadejte Ø díry.');
+  if (op.role === 'tap' && !(op.pitch > 0)) out.push('Zadejte stoupání závitu.');
   if (op.kind === 'drill' && op.chipMode === 'break' && op.peck > 0 && !(op.chipBack > 0)) out.push('Odskok pro lámání třísky musí být větší než 0.');
   if (op.kind === 'mill') {
     if (!(op.toolD > 0)) out.push('Zadejte Ø frézy.');
@@ -439,6 +450,9 @@ export function liveOpSummary(op) {
     return `Kapsa Ø${op.holeD} hl. ${op.depth} – ${pos}`;
   }
   const face = op.faceDir === -1 ? 'Čelo zleva' : 'Čelo';
+  const where = op.side === 'radial' ? 'radiálně' : (op.faceDir === -1 ? 'čelo zleva' : 'čelo');
+  if (op.role === 'tap') return `Závit ${op.thread ? op.thread.name : 'Ø' + op.holeD}×${op.pitch} hl. ${op.depth} (${where}) – ${pos}`;
+  if (op.role === 'spot') return `Navrtání Ø${op.spotD} ${op.spotAngle}° hl. ${op.depth} (${where}) – ${pos}`;
   const chip = op.peck > 0 && op.peck < op.depth && op.chipMode === 'break' ? ', lámání třísky' : '';
   return `${op.side === 'radial' ? 'Radiálně' : face} Ø${op.holeD} hl. ${op.depth}${chip} – ${pos}`;
 }

@@ -14,6 +14,7 @@
 import { state } from '../state.js';
 import { faceDrawingsLocal, profileObjects } from './faceLayer.js';
 import { materialAt, shoulderZs } from './faceReference.js';
+import { tapDepth } from '../calculators/isoTaps.js';
 
 const TOL = 1e-3;
 const SECT = 0.3;   // [mm] první vzorek za rovinou čela (jako řez v bokorysu)
@@ -180,14 +181,22 @@ export function holeForCam(o, faceZ, side) {
   // `throughStock`: CAM kontroluje díru proti dílu I polotovaru (liveChecks).
   const top = { ...(Math.abs(start) > TOL ? { zTop: r3(faceZ + dir * start) } : {}), ...(withStock ? { throughStock: true } : {}) };
   if (!spec) return { ...o, ...top };
-  let depth = null;
+  let depth = null, tap = null;
+  const th = o.holeThread && o.holeThread.pitch > 0 ? o.holeThread : null;
   if (spec.mode === 'through') {
-    if (span) depth = r3(span.end - start + (spec.value != null && spec.value >= 0 ? spec.value : throughOverrun(p.d)));
+    if (span) {
+      depth = r3(span.end - start + (spec.value != null && spec.value >= 0 ? spec.value : throughOverrun(p.d)));
+      if (th) tap = tapDepth(th.pitch, { through: true, thick: span.end - start });
+    }
   } else {
     const res = resolveHoleDepth(spec, p);
     if (res.depth > start) depth = r3(res.depth - Math.max(0, start));
+    if (th && depth > 0) tap = tapDepth(th.pitch, { depth });
   }
-  return depth > 0 ? { ...o, ...top, depth, depthTag: holeDepthLabel(spec) } : { ...o, ...top };
+  // Závit: hloubka závitu (skrz = materiál + 2·P, slepá = hloubka − 2·P) pro
+  // operaci závitníku (cam/live role 'tap'); mělká díra → bez tapDepth.
+  const thread = th ? { holeThread: { ...th, ...(tap ? { depth: tap } : {}) } } : {};
+  return depth > 0 ? { ...o, ...top, ...thread, depth, depthTag: holeDepthLabel(spec) } : { ...o, ...top };
 }
 
 /**

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAD/CAM: závity do děr závitníkem a navrtání před vrtáním.** Pole Závit
+  (M3–M24) v oknech děr do čela i do pláště — Ø díry = předvrtání, díra nese
+  závit; v CAM po vrtání operace závitníku (hloubka skrz +2P / slepá −2P,
+  F = P·n): Sinumerik SETMS + CYCLE84, Fanuc M29 + G84 / G88, bez cyklů
+  plovoucí pouzdro s reverzem nástroje. Závitník ve 🔧 Zásobníku (tvar Ⓜ)
+  i v 📚 katalogu; nejde zvolit jako soustružnický nůž. Volitelné navrtání
+  navrtávákem (sražení Ø + 2 × 0,5 mm) před všemi vrtáními; navrtávák se
+  už nevybírá jako obyčejný vrták. Moduly `isoTaps.js`,
+  `cam/live/liveHoleExtras.js`, `cam/live/liveTapTools.js`, test
+  `tests/taps-spot.test.js`.
+
 - **CAM: zanoření frézy, která neřeže středem, rampou 3°.** Drážka na čele
   cik-cak po ose, kapsa šroubovicí, drážka pro pero cik-cak v Z (společná
   dráha `liveModel.keywayPath` pro NC, simulaci i řez); po rampě celá délka

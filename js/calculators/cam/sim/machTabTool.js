@@ -20,11 +20,12 @@ import { showToast } from '../../../state.js';
 import { camConfirm } from '../camSimulatorDialogs.js';
 import { getLiveOps, liveOpOn, liveDrillFromCad } from '../live/liveModel.js';
 import { autoDrillTools, addCatalogDrills } from '../live/liveDrillTools.js';
+import { addCatalogTapsSpots } from '../live/liveTapTools.js';
 import { addCatalogMills } from '../live/liveMillTools.js';
 
 const OWN = { vrt: 'drill', zavit: 'threading', upich: 'parting' };
 const NAME = { vrt: 'Vrtání', zavit: 'Závitování', upich: 'Upichnutí' };
-const SPECIAL = new Set(['drill', 'threading', 'parting', 'mill']);   // mill = fréza (poháněný nástroj), soustružit s ní nejde
+const SPECIAL = new Set(['drill', 'threading', 'parting', 'mill', 'tap']);   // mill = fréza (poháněný nástroj), soustružit s ní nejde
 
 /**
  * Co klik na záložku udělá s nástrojem (čistá funkce, test machtab-tool):
@@ -179,7 +180,7 @@ export function turningPartIndex(S) {
 export function syncLiveDrillTool(ctx) {
   const { S } = ctx;
   if (!S.params.drillActive || !liveDrillFromCad(S.params)) return false;
-  const first = getLiveOps(S.params).find(o => liveOpOn(o) && o.kind === 'drill');
+  const first = getLiveOps(S.params).find(o => liveOpOn(o) && o.kind === 'drill' && !o.role);
   const idx = first ? S.toolMagazine.findIndex(s => s.shape === 'drill' && s.slot === first.toolNo) : -1;
   if (idx < 0 || idx === S.activeMagazineSlot) return false;
   ctx._applyMagSlot(idx);
@@ -198,7 +199,9 @@ function pickDrill(ctx) {
     const pre = autoDrillTools(getLiveOps(S.params), S.toolMagazine, S.params);
     if (pre.missing.length && ctx._isoMagSlot) {
       const added = [
-        ...addCatalogDrills(S.toolMagazine, pre.missing.filter(m => m.kind !== 'mill').map(m => m.D), ctx._isoMagSlot),
+        ...addCatalogDrills(S.toolMagazine, pre.missing.filter(m => !m.kind).map(m => m.D), ctx._isoMagSlot),
+        // Navrtávák a závitník k dírám z výkresu (navrtání / závit).
+        ...addCatalogTapsSpots(S.toolMagazine, pre.missing, ctx._isoMagSlot),
         // Chybějící frézy (kapsa, drážka, pero) z 📚 katalogu fréz.
         ...addCatalogMills(S.toolMagazine, pre.missing.filter(m => m.kind === 'mill' && m.D).map(m => m.D), ctx._isoMagSlot),
       ];
@@ -206,7 +209,7 @@ function pickDrill(ctx) {
     }
     const auto = autoDrillTools(getLiveOps(S.params), S.toolMagazine, S.params);
     S.params.liveOps = auto.ops;
-    const first = auto.ops.find(o => liveOpOn(o) && o.kind === 'drill');
+    const first = auto.ops.find(o => liveOpOn(o) && o.kind === 'drill' && !o.role) || auto.ops.find(o => liveOpOn(o) && o.kind === 'drill');
     if (first) idx = S.toolMagazine.findIndex(s => s.shape === 'drill' && s.slot === first.toolNo);
   }
   if (idx < 0) idx = S.toolMagazine.findIndex(s => s.shape === 'drill');

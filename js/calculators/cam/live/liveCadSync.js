@@ -5,13 +5,14 @@
 // zůstanou a převezme se jim nástroj, otáčky i hloubka. Když v CAD nic
 // nakreslené není, nic se nemění (smazání načtených operací je dál ruční).
 import { liveOpsFromCad } from './liveFromCad.js';
-import { getLiveOps } from './liveModel.js';
+import { getLiveOps, liveSettings } from './liveModel.js';
 import { cadDrawingsForCam } from '../../../faceView/cadForCam.js';
 
 // Co z operace pochází z výkresu — porovnává se jen to (nástroj, otáčky,
 // posuvy zůstávají z dřívější operace).
 const GEO = ['kind', 'millType', 'side', 'holeD', 'zTop', 'faceDir', 'pattern', 'pcd', 'count',
-  'startAngle', 'points', 'depth', 'slot', 'throughStock', 'xTop', 'zPos', 'throughWall', 'kz1', 'kz2', 'slotW'];
+  'startAngle', 'points', 'depth', 'slot', 'throughStock', 'xTop', 'zPos', 'throughWall', 'kz1', 'kz2', 'slotW',
+  'role', 'pitch', 'spotD', 'thread'];
 
 /** Otisk operací načtených z CAD (jen geometrie z výkresu). */
 export function cadOpsSignature(ops) {
@@ -27,7 +28,7 @@ export function cadOpsSignature(ops) {
  */
 export function cadSyncOps(params, geo, drawings = cadDrawingsForCam()) {
   const cur = getLiveOps(params);
-  const res = liveOpsFromCad(drawings, geo, cur);
+  const res = liveOpsFromCad(drawings, geo, cur, liveSettings(params));
   if (!res.holes && !res.slots) return null;
   return cadOpsSignature(res.ops) === cadOpsSignature(cur) ? null : res;
 }

@@ -684,6 +684,29 @@ drážka pro pero cik-cak v Z — vše se sklonem 3°; po rampě se na plné hlo
 projede celá délka. Kde na rampu není místo (kapsa ≈ Ø frézy), zanoří kolmo
 a kontrola proti dílu to hlásí.
 
+**Závit do díry (závitník).** V oknech děr do čela (Jedna díra, Kružnice,
+Řada, Mřížka) i v okně ⊥ Díra do pláště je pole **Závit** (M3–M24 hrubé).
+Volba závitu přepne Ø díry na **Ø předvrtání** (M8 → ⌀6,8); díra nese závit
+a v CAM po vrtání přibude operace **Závit M8 → …** se stejnými pozicemi.
+Hloubka závitu: skrz = tloušťka materiálu + 2·P (náběh vyjde ven), slepá
+díra = hloubka díry − 2·P (závitník nesmí do špičky). Závitník patří do
+🔧 Zásobníku jako tvar **Ⓜ** (závit, stoupání P, Vc) nebo z 📚 →
+**Závitníky (poháněné)** (HSS-E B průchozí, HSS-E C slepé); CAM ho vybere
+podle Ø a stoupání, chybějící doplní z 📚. Otáčky n = Vc·1000/(π·Ø), posuv
+**F = P · n** (mm/min). NC: Sinumerik `SETMS(n)` + `CYCLE84` (synchronně,
+čelo G17 / plášť G19), Fanuc `M29 S…` + `G84` (čelo) / `G88` (plášť);
+s vypnutými cykly a na Heidenhainu rozepsaně do plovoucího pouzdra — G1 na
+hloubku, **reverz nástroje** (M-kód „Nástroj reverz" ve Výstupu NC), G1 ven.
+
+**Navrtání před vrtáním.** V záložce Vrtání → **Navrtání** → *Navrtat před
+vrtáním*: ke každé díře z výkresu přibude operace **Navrtání** navrtávákem
+(nejmenší s Ø ≥ Ø sražení; navrtávák = vrták s „navrt" v názvu nebo vrcholem
+≤ 100°, obyčejné vrtání ho nevybere). Ø sražení = Ø díry (u závitu Ø závitu)
++ 2 × **Sražení navrtáním** (Výstup NC, výchozí 0,5 mm), hloubka = Ø/2 ÷
+tan(σ/2) podle vrcholu navrtáváku, na jeden zátah s prodlevou 0,3 s.
+Pořadí programu: všechna navrtání → vrtání → závity. Navrtání i závit se
+vybírají spolu se svou dírou (klepnutí v pohledu na čelo / zaškrtávátko).
+
 **Natočení pohledu (posuvník vpravo od bokorysu):** svislý posuvník vedle
 bokorysu nastavuje, který úhel C je v nárysu **nahoře** (výchozí soustruh
 C 90°, karusel C 0°; tažením nahoru úhel roste, přichytí se k úhlům děr

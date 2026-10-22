@@ -69,7 +69,7 @@ function setup(root, compute, prefix) {
     if (lastHoles.d === null) { showToast('Zadej Ø díry — kružnice v čele je díra'); return; }
     const dep = readDepth(root, prefix);
     if (dep.error) { showToast(dep.error); return; }
-    const n = bridge.drawHolesToFace && bridge.drawHolesToFace({ ...lastHoles, depth: dep.spec });
+    const n = bridge.drawHolesToFace && bridge.drawHolesToFace({ ...lastHoles, depth: dep.spec, thread: dep.thread });
     const ov = n ? root.closest('.calc-overlay') : null;
     if (ov) ov.remove();
   });

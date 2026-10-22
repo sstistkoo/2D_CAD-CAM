@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v590';
+const CACHE_NAME = 'skica-v592';
 const ASSETS = [
   './',
   './index.html',
@@ -60,6 +60,7 @@ const ASSETS = [
   './js/calculators/cam/live/liveFaceView.js',
   './js/calculators/cam/live/liveFromCad.js',
   './js/calculators/cam/live/liveGcode.js',
+  './js/calculators/cam/live/liveHoleExtras.js',
   './js/calculators/cam/live/liveMachining.js',
   './js/calculators/cam/live/liveMarkers.js',
   './js/calculators/cam/live/liveMillTools.js',
@@ -71,6 +72,7 @@ const ASSETS = [
   './js/calculators/cam/live/liveSection.js',
   './js/calculators/cam/live/liveSettingsUi.js',
   './js/calculators/cam/live/liveStyles.js',
+  './js/calculators/cam/live/liveTapTools.js',
   './js/calculators/cam/materialRemoval.js',
   './js/calculators/cam/opParts.js',
   './js/calculators/cam/ops/bore.js',
@@ -222,6 +224,7 @@ const ASSETS = [
   './js/calculators/isoDrills.js',
   './js/calculators/isoInternalTools.js',
   './js/calculators/isoMills.js',
+  './js/calculators/isoTaps.js',
   './js/calculators/isoThreadInserts.js',
   './js/calculators/isoToolCatalog.js',
   './js/calculators/knifeThumb.js',

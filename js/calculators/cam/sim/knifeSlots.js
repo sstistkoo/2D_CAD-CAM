@@ -99,6 +99,7 @@ export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpd
     // Fréza je poháněný nástroj (frézování z výkresu, cam/live) — soustružit
     // s ní nejde, aktivní nůž z ní nebude.
     if (slot.shape === 'mill') { showToast('✣ Fréza je poháněný nástroj — CAM ji použije sám pro frézování z výkresu, jako soustružnický nůž ji vybrat nejde.', 5000); return false; }
+    if (slot.shape === 'tap') { showToast('Ⓜ Závitník je poháněný nástroj — CAM ho použije sám pro závity do děr z výkresu, jako soustružnický nůž ho vybrat nejde.', 5000); return false; }
     _rememberShapeKnife();
     S.activeMagazineSlot = idx;
     _slotToParams(slot);

@@ -17,6 +17,14 @@
 // ručně přidané zůstanou. Hloubka, nástroj, otáčky… se převezmou z dřívější
 // načtené operace se stejným Ø a čelem (vrtání) / pořadím na čele (drážka).
 import { newLiveOp, normalizeLiveOp } from './liveModel.js';
+import { withHoleExtras } from './liveHoleExtras.js';
+import { threadByName } from '../../isoTaps.js';
+
+// Závit díry z výkresu → { name, pitch, d, depth } (hloubka závitu z CAD).
+const threadOf = t => {
+  const m = t && threadByName(t.name);
+  return m && t.depth > 0 ? { name: m.name, pitch: +t.pitch || m.pitch, d: m.d, depth: r3(t.depth) } : null;
+};
 
 const KEEP = ['name', 'depth', 'peck', 'dwell', 'safe', 'retract', 'toolD', 'stepDown',
   'toolName', 'toolNo', 'rpm', 'feed', 'kind', 'millType', 'enabled', 'autoTool', 'chipMode', 'chipBack'];
@@ -39,9 +47,10 @@ export function detectPcd(pts) {
  *   tvar: rovnou pole objektů jednoho čela (Z = geo.faceZ, zprava)
  * @param geo { faceZ, outerD } z livePartGeometry (výchozí Z čela)
  * @param prevOps dosavadní operace (S.params.liveOps, normalizované)
+ * @param [opts] { spot, spotChamfer } = liveSettings — navrtání před vrtáním
  * @returns {{ ops, holes, slots, skipped }}
  */
-export function liveOpsFromCad(input, geo, prevOps) {
+export function liveOpsFromCad(input, geo, prevOps, opts = {}) {
   // Díry v plášti (faceView/shellHoles.shellHolesForCam) jdou v poli jako
   // položka { kind: 'shell', holes } vedle čel.
   const isEntry = f => f && (Array.isArray(f.objects) || f.kind === 'shell');
@@ -50,7 +59,8 @@ export function liveOpsFromCad(input, geo, prevOps) {
     : [{ z: geo ? geo.faceZ : 0, side: 'right', objects: input || [] }];
   const faces = list.filter(f => f.kind !== 'shell');
   const shells = list.filter(f => f.kind === 'shell');
-  const prev = (prevOps || []).filter(o => o.fromCad);
+  // Odvozené operace (navrtání, závit) vznikají znovu na konci (withHoleExtras).
+  const prev = (prevOps || []).filter(o => o.fromCad && !o.role);
   const manual = (prevOps || []).filter(o => !o.fromCad);
   const ops = [...manual];
   let n = ops.length, holes = 0, slots = 0, skipped = 0;
@@ -81,8 +91,10 @@ export function liveOpsFromCad(input, geo, prevOps) {
         const a = r < 1e-6 ? 0 : norm360(Math.atan2(o.cy, o.cx) * 180 / Math.PI);
         const depth = o.depth > 0 ? r3(o.depth) : null;
         const zt = Number.isFinite(o.zTop) ? r3(o.zTop) : zTop;
-        const key = (depth == null ? `${d}` : `${d}|${depth}|${o.depthTag || ''}`) + (zt === zTop ? '' : `|z${zt}`) + (o.throughStock ? '|s' : '');
-        if (!byD.has(key)) byD.set(key, { d, depth, tag: depth == null ? '' : (o.depthTag || ''), zTop: zt, stock: !!o.throughStock, pts: [] });
+        const th = depth == null ? null : threadOf(o.holeThread);
+        const key = (depth == null ? `${d}` : `${d}|${depth}|${o.depthTag || ''}`) + (zt === zTop ? '' : `|z${zt}`) + (o.throughStock ? '|s' : '')
+          + (th ? `|${th.name}|${th.depth}` : '');
+        if (!byD.has(key)) byD.set(key, { d, depth, tag: depth == null ? '' : (o.depthTag || ''), zTop: zt, stock: !!o.throughStock, thread: th, pts: [] });
         byD.get(key).pts.push({ a: r3(a), r: r3(r) });
       } else if (o.type === 'line') lines.push(o);
       else if (o.type !== 'point' && o.type !== 'constr') skipped++;
@@ -95,7 +107,7 @@ export function liveOpsFromCad(input, geo, prevOps) {
       const pts = g.pts.sort((p, q) => p.r - q.r || p.a - q.a);
       holes += pts.length;
       const op = newLiveOp('drill', geo, ++n);
-      op.name = `Díry Ø${d}${g.tag ? ' ' + g.tag : ''}${gTag}`;
+      op.name = `Díry Ø${d}${g.thread ? ' ' + g.thread.name : ''}${g.tag ? ' ' + g.tag : ''}${gTag}`;
       const isHole = o => o.side !== 'radial' && !(o.kind === 'mill' && o.millType === 'slot')
         && Math.abs(o.holeD - d) < 1e-3 && sameZ(o);
       // Se zadanou hloubkou přednost dřívější operaci se stejnou hloubkou.
@@ -103,6 +115,7 @@ export function liveOpsFromCad(input, geo, prevOps) {
       // throughStock: díra skrz vč. polotovaru — kontrola i proti polotovaru (liveChecks).
       Object.assign(op, { holeD: d, side: 'face', zTop: g.zTop, faceDir, fromCad: true, ...(g.stock ? { throughStock: true } : {}) });
       if (g.depth != null) op.depth = g.depth;
+      if (g.thread) op.thread = g.thread; else delete op.thread;
       const pcd = detectPcd(pts);
       if (pcd) Object.assign(op, { pattern: 'pcd' }, pcd);
       else { op.pattern = 'points'; op.points = pts.map(p => `${p.a}; ${p.r}`).join('\n'); }
@@ -144,7 +157,7 @@ export function liveOpsFromCad(input, geo, prevOps) {
     slots += k.slots;
     skipped += (sh.errors || []).length;
   });
-  return { ops, holes, slots, skipped };
+  return { ops: withHoleExtras(ops, opts, prevOps || []), holes, slots, skipped };
 }
 
 /**
@@ -192,8 +205,9 @@ function keywayOps(list, geo, prev, nextN, carry) {
 function radialOps(holes, geo, prev, nextN, carry) {
   const byKey = new Map();
   holes.forEach(h => {
-    const key = `${h.d}|${h.depth}|${h.xTop}|${h.tag || ''}`;
-    if (!byKey.has(key)) byKey.set(key, { d: h.d, depth: h.depth, xTop: h.xTop, tag: h.tag || '', pts: [] });
+    const th = threadOf(h.thread);
+    const key = `${h.d}|${h.depth}|${h.xTop}|${h.tag || ''}${th ? `|${th.name}|${th.depth}` : ''}`;
+    if (!byKey.has(key)) byKey.set(key, { d: h.d, depth: h.depth, xTop: h.xTop, tag: h.tag || '', thread: th, pts: [] });
     h.angles.forEach(a => byKey.get(key).pts.push({ a: r3(norm360(a)), z: r3(h.z) }));
   });
   const ops = [];
@@ -202,10 +216,11 @@ function radialOps(holes, geo, prev, nextN, carry) {
     const pts = g.pts.sort((p, q) => q.z - p.z || p.a - q.a);
     count += pts.length;
     const op = newLiveOp('drill', geo, nextN());
-    op.name = `Díry Ø${g.d} do pláště${g.tag ? ' ' + g.tag : ''} · Ø${g.xTop}`;
+    op.name = `Díry Ø${g.d}${g.thread ? ' ' + g.thread.name : ''} do pláště${g.tag ? ' ' + g.tag : ''} · Ø${g.xTop}`;
     const isRad = o => o.side === 'radial' && o.kind === 'drill' && Math.abs(o.holeD - g.d) < 1e-3;
     carry(op, prev.find(o => isRad(o) && Math.abs(o.xTop - g.xTop) < 1e-3) || prev.find(isRad));
     Object.assign(op, { kind: 'drill', side: 'radial', holeD: g.d, depth: g.depth, xTop: g.xTop, fromCad: true });
+    if (g.thread) op.thread = g.thread; else delete op.thread;
     // Skrz stěnu do vývrtu zadané ve výkresu = záměr (kontrola to nehlásí).
     if (g.tag === 'skrz') op.throughWall = true;
     else delete op.throughWall;

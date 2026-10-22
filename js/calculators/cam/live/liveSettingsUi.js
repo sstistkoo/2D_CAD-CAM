@@ -32,6 +32,7 @@ export function settingsHtml(set, ctrl, heading = true) {
         <label class="cam-live-f" title="Vrtací cykly (CYCLE82/83, G83/G87). Vypnuto = rozepsané G0/G1 pohyby. Heidenhain vždy rozepsané."><span>Vrtací cykly</span><input data-g="cycles" type="checkbox"${set.cycles ? ' checked' : ''}></label>
         ${sin ? nf('spindle', 'Vřeteno nástroje č.', set.spindle, 'Číslo vřetena poháněného nástroje: M<n>=3, M<n>=5, S<n>=… (u dvou suportů ověřte, které vřeteno je u kterého suportu)') : ''}
         ${nf('cName', 'Jméno osy C', set.cName, 'Jak se osa C jmenuje v programu stroje: C, C1, C2… (strojní údaj osy)')}
+        ${nf('spotChamfer', 'Sražení navrtáním [mm]', set.spotChamfer, 'Navrtávák srazí hranu díry: Ø sražení = Ø díry (u závitu Ø závitu) + 2 × tato hodnota')}
       </div>
       <details class="cam-live-note"><summary>Kalibrace úhlu (nula a směr osy C) – ověřte na stroji</summary>
         <div class="cam-live-grid">
@@ -43,7 +44,7 @@ export function settingsHtml(set, ctrl, heading = true) {
         </div>
       </details>
       <details class="cam-live-note"><summary>M-kódy stroje (osa C, poháněný nástroj) – ověřte v příručce stroje</summary>
-        <div class="cam-live-grid">${mf('cOn', 'Osa C zap')}${mf('cOff', ctrl === 'sinumerik' ? 'Osa C vyp (zpět do otáčkového režimu)' : 'Osa C vyp')}${mf('toolOn', 'Nástroj start')}${mf('toolOff', 'Nástroj stop')}${mf('toolS', 'Adresa otáček')}</div>
+        <div class="cam-live-grid">${mf('cOn', 'Osa C zap')}${mf('cOff', ctrl === 'sinumerik' ? 'Osa C vyp (zpět do otáčkového režimu)' : 'Osa C vyp')}${mf('toolOn', 'Nástroj start')}${mf('toolOff', 'Nástroj stop')}${mf('toolS', 'Adresa otáček')}${mf('toolRev', 'Nástroj reverz (výjezd závitníku bez cyklu)')}</div>
         <div class="cam-live-note">${ctrl === 'sinumerik'
     ? 'Sinumerik: M70 (vřeteno do osy) je standardní M-funkce Siemens, ale číslo si volí výrobce stroje. Poháněný nástroj se řídí číslem vřetena výše. Prázdné pole = výchozí hodnota.'
     : 'Fanuc / Heidenhain nemají společné M-kódy osy C ani poháněného nástroje — doplňte je z příručky stroje. Prázdné pole = výchozí (ukázkové) hodnota.'}</div>
@@ -75,9 +76,9 @@ export function applySettingChange(live, g, el, ctrl, evalNum) {
   else if (g === 'cName') live.cName = el.value.trim();
   else if (g === 'angleDir') live.angleDir = Number(el.value) < 0 ? -1 : 1;
   else if (g === 'toolAt') live.toolAt = Number(el.value);
-  else if (g === 'spindle' || g === 'angleOffset') {
+  else if (g === 'spindle' || g === 'angleOffset' || g === 'spotChamfer') {
     const v = evalNum(el.value);
-    if (!Number.isFinite(v)) return false;
+    if (!Number.isFinite(v) || (g === 'spotChamfer' && v < 0)) return false;
     live[g] = g === 'spindle' ? Math.round(v) : v;
   } else if (g.startsWith('m.')) {
     live.m = live.m || {};

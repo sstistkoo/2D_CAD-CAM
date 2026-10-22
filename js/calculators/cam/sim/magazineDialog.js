@@ -8,6 +8,7 @@ import { showToolLibraryDialog } from '../../../toolLibrary.js';
 import { openInsertCalc } from '../../insert.js';
 import { knifeThumbSvg } from '../../knifeThumb.js';
 import { isoMillSvg } from '../../isoMills.js';
+import { isoTapSvg, METRIC_THREADS, threadByName } from '../../isoTaps.js';
 import { camConfirm } from '../camSimulatorDialogs.js';
 import { insertOfSlot, holderForResizedInsert } from '../holderFollowsInsert.js';
 import { showToolSlotPreviewDialog, paramsFromMagSlot } from '../toolSlotPreview.js';
@@ -74,14 +75,16 @@ export function createMagazineDialog({ S, toolUi, escHTML, escAttr, saveState, p
       mag.forEach((slot, i) => {
         const isActive = i === activeIdx;
         const isEditing = i === editIdx;
-        const shapeIcon = slot.shape === 'round' ? '⬤' : slot.shape === 'parting' ? '▮' : slot.shape === 'threading' ? '▽' : slot.shape === 'drill' ? '⌀' : slot.shape === 'mill' ? '✣' : '◼';
+        const shapeIcon = slot.shape === 'round' ? '⬤' : slot.shape === 'parting' ? '▮' : slot.shape === 'threading' ? '▽' : slot.shape === 'drill' ? '⌀' : slot.shape === 'mill' ? '✣' : slot.shape === 'tap' ? 'Ⓜ' : '◼';
         const isMill = slot.shape === 'mill';   // fréza = poháněný nástroj (frézování z výkresu), ne aktivní nůž
+        const isTap = slot.shape === 'tap';     // závitník = poháněný nástroj (závity do děr z výkresu)
+        const isLive = isMill || isTap;
         const border = isActive ? 'border:1.5px solid #a6e3a1;' : 'border:1.5px solid #313244;';
 
         // Malý náhled nože přímo v řádku (uživatel 6. 10. 2026) — ať je nůž
         // poznat bez rozbalení a 👁 Ukázat; klik na něj Ukázat otevře.
         let thumb = '';
-        try { thumb = isMill ? isoMillSvg({ tool: { toolRadius: parseFloat(slot.radius) || 5 }, centerCut: slot.centerCut !== false }, 36) : knifeThumbSvg(paramsFromMagSlot(slot), 36); } catch (_) { /* nečitelný obrys — bez náhledu */ }
+        try { thumb = isTap ? isoTapSvg({ tool: { toolRadius: parseFloat(slot.radius) || 4 } }, 36) : isMill ? isoMillSvg({ tool: { toolRadius: parseFloat(slot.radius) || 5 }, centerCut: slot.centerCut !== false }, 36) : knifeThumbSvg(paramsFromMagSlot(slot), 36); } catch (_) { /* nečitelný obrys — bez náhledu */ }
         html += `<div class="cam-sim-mag-slot" data-magidx="${i}" style="background:#1e1e2e;border-radius:8px;margin-bottom:8px;${border}overflow:hidden">`;
         html += `<div style="display:flex;align-items:center;gap:6px;padding:7px 8px 7px 4px;cursor:pointer" data-act="mag-toggle" data-magidx="${i}">
           <span class="cam-mag-move">
@@ -92,7 +95,7 @@ export function createMagazineDialog({ S, toolUi, escHTML, escAttr, saveState, p
           ${thumb ? `<button class="cam-mag-thumb" data-act="mag-thumb" data-magidx="${i}" title="Náhled nože — klik = 👁 Ukázat (destička i držák)">${thumb}</button>` : ''}
           <span style="flex:1;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHTML(slot.name)}</span>
           ${slot.vbdCode ? `<span class="cam-mag-vbd" style="font-family:monospace;font-size:10px;color:#89dceb;padding:1px 5px;border-radius:4px;border:1px solid #313244">${escHTML(slot.vbdCode.substring(0,12))}</span>` : ''}
-          <span class="cam-sim-machine-chip">${isMill ? `✣ ⌀${Math.round((parseFloat(slot.radius) || 0) * 2000) / 1000}` : slot.shape === 'drill' ? `⌀${Math.round((parseFloat(slot.radius) || 0) * 2000) / 1000}` : `${shapeIcon} R${slot.radius}`}</span>
+          <span class="cam-sim-machine-chip">${isTap ? `Ⓜ ${escHTML(slot.thread || `⌀${Math.round((parseFloat(slot.radius) || 0) * 2000) / 1000}`)} P${slot.pitch || '?'}` : isMill ? `✣ ⌀${Math.round((parseFloat(slot.radius) || 0) * 2000) / 1000}` : slot.shape === 'drill' ? `⌀${Math.round((parseFloat(slot.radius) || 0) * 2000) / 1000}` : `${shapeIcon} R${slot.radius}`}</span>
           ${slot.shape === 'polygon' ? `<span class="cam-sim-machine-chip cam-mag-ang">${slot.toolAngle}° ε${slot.tipAngle}°${slot.clearanceAngle ? ` α${slot.clearanceAngle}°` : ''}</span>` : ''}
           ${slot.shape === 'threading' ? `<span class="cam-sim-machine-chip cam-mag-ang">ε${slot.tipAngle}°</span>` : ''}
           ${slot.shape === 'drill' ? `<span class="cam-sim-machine-chip cam-mag-ang">σ${slot.tipAngle}°</span>` : ''}
@@ -108,7 +111,9 @@ export function createMagazineDialog({ S, toolUi, escHTML, escAttr, saveState, p
             </div>
             <div class="cam-sim-row">
               <div class="cam-sim-field" style="flex:2"><label>VBD kód</label><input type="text" data-mf="vbdCode" data-magidx="${i}" value="${escAttr(slot.vbdCode ?? '')}" placeholder="CNMG120408-PM" style="font-family:monospace;text-transform:uppercase" spellcheck="false"></div>
-              ${slot.shape === 'drill' || isMill
+              ${isTap
+                ? `<div class="cam-sim-field"><label title="Metrický závit — nastaví Ø a stoupání">Závit</label><select data-mf="thread" data-magidx="${i}">${METRIC_THREADS.map(t => `<option value="${t.name}"${t.name === slot.thread ? ' selected' : ''}>${t.name} × ${t.pitch}</option>`).join('')}</select></div>`
+                : slot.shape === 'drill' || isMill
                 ? `<div class="cam-sim-field"><label>⌀ ${isMill ? 'frézy' : 'vrtáku'}</label><input type="number" data-mf="drillD" data-magidx="${i}" step="0.1" min="0.1" value="${Math.round((parseFloat(slot.radius) || 0) * 2000) / 1000}"></div>`
                 : `<div class="cam-sim-field"><label>Rádius (R)</label><input type="number" data-mf="radius" data-magidx="${i}" step="0.1" value="${slot.radius}"></div>`}
             </div>
@@ -123,6 +128,7 @@ export function createMagazineDialog({ S, toolUi, escHTML, escAttr, saveState, p
               <button data-mshape="parting" data-magidx="${i}" class="${slot.shape === 'parting' ? 'cam-sim-active' : ''}" title="Upichovací / zapichovací plátek">▮</button>
               <button data-mshape="threading" data-magidx="${i}" class="${slot.shape === 'threading' ? 'cam-sim-active' : ''}" title="Závitový plátek">▽</button>
               <button data-mshape="drill" data-magidx="${i}" class="${slot.shape === 'drill' ? 'cam-sim-active' : ''}" title="Vrták (vrtání v ose, záložka Vrtání)">⌀</button>
+              <button data-mshape="tap" data-magidx="${i}" class="${isTap ? 'cam-sim-active' : ''}" title="Závitník — poháněný nástroj pro závity do děr z výkresu (M3–M24)">Ⓜ</button>
               <button data-mshape="mill" data-magidx="${i}" class="${isMill ? 'cam-sim-active' : ''}" title="Fréza — poháněný nástroj pro frézování z výkresu (kapsa, drážka, pero); CAM ji vybere podle Ø">✣</button>
             </div>
             ${isMill ? `
@@ -157,10 +163,13 @@ export function createMagazineDialog({ S, toolUi, escHTML, escAttr, saveState, p
             <div class="cam-sim-section-title" style="margin-top:8px">Řezné podmínky</div>
             <div class="cam-sim-row">
               <div class="cam-sim-field"><label>Vc (m/min)</label><input type="number" data-mf="vc" data-magidx="${i}" step="10" value="${slot.vc}"></div>
+              ${isTap ? `<div class="cam-sim-field"><label title="Stoupání závitu P — posuv F = P · n">Stoupání P (mm)</label><input type="number" data-mf="pitch" data-magidx="${i}" step="0.05" value="${slot.pitch || 1}"></div>` : `
               <div class="cam-sim-field"><label>${isMill ? 'fz (mm/zub)' : 'f (mm/ot)'}</label><input type="number" data-mf="f" data-magidx="${i}" step="${isMill ? 0.005 : 0.05}" value="${slot.f}"></div>
-              <div class="cam-sim-field"><label>${isMill ? 'Krok do hl. (mm)' : 'ap (mm)'}</label><input type="number" data-mf="ap" data-magidx="${i}" step="0.5" value="${slot.ap}"></div>
+              <div class="cam-sim-field"><label>${isMill ? 'Krok do hl. (mm)' : 'ap (mm)'}</label><input type="number" data-mf="ap" data-magidx="${i}" step="0.5" value="${slot.ap}"></div>`}
             </div>
-            ${isMill ? `<div class="cam-sim-info-box" style="margin-top:8px;font-size:11px">✣ Fréza je poháněný nástroj — soustružit s ní nejde. CAM ji vybere sám pro frézování z výkresu (kapsa, drážka, pero) podle Ø; otáčky n = Vc·1000/(π·Ø), posuv F = fz·z·n.</div>
+            ${isLive ? `<div class="cam-sim-info-box" style="margin-top:8px;font-size:11px">${isTap
+              ? 'Ⓜ Závitník je poháněný nástroj — soustružit s ním nejde. CAM ho vybere sám pro díry se závitem z výkresu (podle závitu); otáčky n = Vc·1000/(π·Ø), posuv F = P·n.'
+              : '✣ Fréza je poháněný nástroj — soustružit s ní nejde. CAM ji vybere sám pro frézování z výkresu (kapsa, drážka, pero) podle Ø; otáčky n = Vc·1000/(π·Ø), posuv F = fz·z·n.'}</div>
             <div style="display:flex;gap:6px;margin-top:6px">${mag.length > 1 ? `<button data-act="mag-delete" data-magidx="${i}" class="cam-sim-btn cam-sim-btn-red" style="flex:1;font-size:12px">🗑 Smazat</button>` : ''}</div>` : `
             <div style="display:flex;gap:6px;margin-top:8px">
               <button data-act="mag-show" data-magidx="${i}" class="cam-sim-btn cam-sim-btn-gray" style="flex:1;font-size:12px" title="Ukáže nůž (destičku i držák) tak, jak vypadá v simulaci — jen náhled, nic se nepřepíše">👁 Ukázat</button>
@@ -203,15 +212,20 @@ export function createMagazineDialog({ S, toolUi, escHTML, escAttr, saveState, p
           const field = inp.dataset.mf;
           const slot = mag[idx];
           if (!slot) return;
-          const numFields = ['slot','radius','tipAngle','toolAngle','clearanceAngle','toolLength','tipFlat','vc','f','ap','teeth'];
+          const numFields = ['slot','radius','tipAngle','toolAngle','clearanceAngle','toolLength','tipFlat','vc','f','ap','teeth','pitch'];
           pushHistory();
           const _slotWas = insertOfSlot(slot);
           // ⌀ vrtáku se ukládá jako rádius (⌀/2), stejně jako v panelu.
           if (field === 'drillD') slot.radius = Math.max(0.05, (parseFloat(inp.value) || 0) / 2);
           else if (field === 'centerCut') slot.centerCut = inp.value === '1';
           else if (field === 'teeth') slot.teeth = Math.max(1, Math.round(parseFloat(inp.value) || 1));
+          else if (field === 'thread') {
+            // Závit závitníku: jmenovitý Ø a stoupání z tabulky.
+            const t = threadByName(inp.value);
+            if (t) { slot.thread = t.name; slot.radius = t.d / 2; slot.pitch = t.pitch; slot.f = t.pitch; if (/^Zavitnik/.test(slot.name || '')) slot.name = slot.name.replace(/M\d+$/, t.name); }
+          }
           else slot[field] =numFields.includes(field) ? (parseFloat(inp.value) || 0) : inp.value;
-          const _slotHp = slot.shape === 'mill' ? null : holderForResizedInsert(_slotWas, insertOfSlot(slot));
+          const _slotHp = slot.shape === 'mill' || slot.shape === 'tap' ? null : holderForResizedInsert(_slotWas, insertOfSlot(slot));
           if (_slotHp) slot.holderProfile = _slotHp;
           if (idx === S.activeMagazineSlot) { _applyMagSlot(idx); renderBody(); } else { saveState(); renderBody(); }
         });
@@ -221,8 +235,8 @@ export function createMagazineDialog({ S, toolUi, escHTML, escAttr, saveState, p
         btn.addEventListener('click', () => {
           const idx = parseInt(btn.dataset.magidx);
           if (!mag[idx] || mag[idx].shape === btn.dataset.mshape) return;
-          if (btn.dataset.mshape === 'mill' && idx === S.activeMagazineSlot) {
-            showToast('Aktivní nůž nejde změnit na frézu — fréza je poháněný nástroj. Přidejte ji jako nové T (＋) nebo z 📚 katalogu.', 5000);
+          if ((btn.dataset.mshape === 'mill' || btn.dataset.mshape === 'tap') && idx === S.activeMagazineSlot) {
+            showToast(`Aktivní nůž nejde změnit na ${btn.dataset.mshape === 'tap' ? 'závitník' : 'frézu'} — je to poháněný nástroj. Přidejte ho jako nové T (＋) nebo z 📚 katalogu.`, 5000);
             return;
           }
           pushHistory();

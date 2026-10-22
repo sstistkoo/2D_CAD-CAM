@@ -10,13 +10,15 @@
 import { liveOpOn } from './liveModel.js';
 import { buildIsoDrill, isoDrillDiameters } from '../../isoDrills.js';
 import { autoMillTools, millToolText } from './liveMillTools.js';
+import { autoTapSpotTools, tapSpotToolText, isSpotSlot } from './liveTapTools.js';
+import { syncDerivedEnabled, mainIndexOf } from './liveHoleExtras.js';
 
 const D_TOL = 0.01;   // vrták „na Ø díry" [mm]
 
-/** Vrtáky v zásobníku: [{ slot, name, D, vc, f }] seřazené podle T. */
+/** Vrtáky v zásobníku: [{ slot, name, D, vc, f }] seřazené podle T (bez navrtáváků). */
 export function magazineDrills(magazine) {
   return (magazine || [])
-    .filter(s => s && s.shape === 'drill' && parseFloat(s.radius) > 0)
+    .filter(s => s && s.shape === 'drill' && parseFloat(s.radius) > 0 && !isSpotSlot(s))
     .map(s => ({ slot: s.slot, name: s.name, D: +(2 * parseFloat(s.radius)).toFixed(3), vc: parseFloat(s.vc) || 25, f: parseFloat(s.f) || 0.1 }))
     .sort((a, b) => a.slot - b.slot);
 }
@@ -44,7 +46,7 @@ export function autoDrillTools(ops, magazine, prms = {}) {
   const drills = magazineDrills(magazine);
   const filled = [], missing = [];
   const out = ops.map((op, i) => {
-    if (op.kind !== 'drill' || !liveOpOn(op) || op.autoTool === false) return op;
+    if (op.kind !== 'drill' || op.role || !liveOpOn(op) || op.autoTool === false) return op;
     const { drill, near } = pickDrill(drills, op.holeD);
     if (!drill) { missing.push({ op: i, D: op.holeD, near }); return op; }
     filled.push({ op: i, drill });
@@ -52,7 +54,9 @@ export function autoDrillTools(ops, magazine, prms = {}) {
   });
   // Frézovací operace: fréza ze zásobníku (liveMillTools.js, missing s kind 'mill').
   const m = autoMillTools(out, magazine);
-  return { ops: m.ops, filled: [...filled, ...m.filled], missing: [...missing, ...m.missing] };
+  // Navrtání a závity (role 'spot' / 'tap'): navrtávák a závitník (liveTapTools.js).
+  const t = autoTapSpotTools(m.ops, magazine);
+  return { ops: t.ops, filled: [...filled, ...m.filled, ...t.filled], missing: [...missing, ...m.missing, ...t.missing] };
 }
 
 /**
@@ -76,12 +80,13 @@ export function drillTabParams(op, prms = {}) {
  * dřív jen při kliknutí na záložku / výběru děr (21. 10. 2026).
  */
 export function syncDrillTabParams(ops, prms) {
-  return ops.map(op => (op.kind === 'drill' && liveOpOn(op) && op.autoTool !== false ? drillTabParams(op, prms) : op));
+  return ops.map(op => (op.kind === 'drill' && !op.role && liveOpOn(op) && op.autoTool !== false ? drillTabParams(op, prms) : op));
 }
 
 /** Text o vrtáku operace pro záložku Vrtání. */
 export function drillToolText(op, magazine) {
   if (op.kind !== 'drill') return millToolText(op, magazine);
+  if (op.role) return tapSpotToolText(op, magazine);
   const { drill, near } = pickDrill(magazineDrills(magazine), op.holeD);
   const cut = `${op.rpm} ot/min · F${op.feed} mm/min`;
   if (drill && drill.slot === op.toolNo) return `T${drill.slot} ${drill.name} · ${cut}`;
@@ -95,9 +100,12 @@ export function drillToolText(op, magazine) {
  * se přepne. `plain` = obyčejné přepnutí (zaškrtávátko v záložce Vrtání).
  */
 export function toggleLiveGroup(ops, oi, plain = false) {
+  // Navrtání / závit se vybírá s hlavní dírou (liveHoleExtras.js).
+  oi = mainIndexOf(ops, oi);
   const on = ops.map(liveOpOn);
-  const only = !plain && ops.length > 1 && on.every(Boolean);
-  return ops.map((op, i) => ({ ...op, enabled: only ? i === oi : (i === oi ? !on[i] : on[i]) }));
+  const mains = ops.filter(o => !o.role).length;
+  const only = !plain && mains > 1 && ops.every(o => o.role || liveOpOn(o));
+  return syncDerivedEnabled(ops.map((op, i) => (op.role ? op : { ...op, enabled: only ? i === oi : (i === oi ? !on[i] : on[i]) })));
 }
 
 /**

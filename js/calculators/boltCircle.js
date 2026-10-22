@@ -149,7 +149,7 @@ export function openBoltCircleCalc(opts) {
     if (last.d === null) { showToast('Zadej Ø díry — kružnice v čele je díra'); inp.d.focus(); return; }
     const dep = readDepth(overlay, 'bc_');
     if (dep.error) { showToast(dep.error); return; }
-    const n = bridge.drawHolesToFace && bridge.drawHolesToFace({ holes: last.r.holes, d: last.d, pcd: last.pcd, cx: last.cx, cy: last.cy, depth: dep.spec });
+    const n = bridge.drawHolesToFace && bridge.drawHolesToFace({ holes: last.r.holes, d: last.d, pcd: last.pcd, cx: last.cx, cy: last.cy, depth: dep.spec, thread: dep.thread });
     if (n) overlay.remove();
   });
 
