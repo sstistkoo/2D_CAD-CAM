@@ -927,7 +927,17 @@ Upich v zrcadle.
    0,8 × šířka destičky.
 3. **Dno X** = poloměr vnější hrany destičky na dně (za stěnou díry).
    Hloubka zápichu smí být nejvýš **dosah** destičky v tyči (čip na kartě).
-4. **⌀ díry** 0 = automaticky: hotový ⌀ z vyvrtávání, jinak předvrtání.
+4. **⌀ díry** 0 = automaticky: hotový ⌀ z vyvrtávání (u díry z výkresu ✏
+   její skutečný tvar), jinak předvrtání.
+
+**Zápich z výkresu.** Je-li zápich nakreslený ve stěně díry (samostatný
+řetěz díry i díra napojená na čelo — schod ven, rovné dno, schod zpět),
+ukáže se nad poli řádek **✏ Z výkresu** s tlačítkem pro každý zápich
+(Z boku u ústí · šířka · ⌀ dna). Klik vyplní Z, šířku i dno a vybere
+zapichovací tyč; tlačítko vyplněného zápichu svítí zeleně. Na polotovaru
+se zápich ukáže čárkovaně (obrys zápichu a stěna díry k němu), stejně
+jako díra u vrtání a vyvrtávání; simulace bere polotovar ještě bez
+nakresleného zápichu.
 
 Boky nechají Přídavek Z + Přídavek na hotovo, dno Přídavek na hotovo.
 S **Dokončovací operací** jede tyč po prvním boku na dno, po dně ke

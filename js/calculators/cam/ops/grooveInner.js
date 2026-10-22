@@ -170,7 +170,9 @@ export function grooveInnerGeom(prms, chain = null, stockLoop = null) {
  */
 export function emitGrooveInner(ctx) {
   const { S, calc, prms, lines, addCmt, addN, note } = ctx;
-  const chain = prms.boreSource === 'cad' ? boreChainFromState(S) : null;
+  // Díra z výkresu: boreGeom chce SEZNAM úseků (`.segs`), ne celý výsledek.
+  const src = prms.boreSource === 'cad' ? boreChainFromState(S) : null;
+  const chain = src ? src.segs : null;
   let stock = null;
   try { stock = buildStockLoopRaw(prms, calc && calc.stockPathSegments); } catch { stock = null; }
   const g = grooveInnerGeom(prms, chain, stock);

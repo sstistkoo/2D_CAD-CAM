@@ -241,3 +241,83 @@ describe('vyložení tyče (pravidlo 13, jen hlášení)', async () => {
     expect(gcode).not.toContain('Vyložení');
   });
 });
+
+describe('díra z výkresu (✏ tvar)', async () => {
+  const { grooveInnerFieldsHtml } = await import('../js/calculators/cam/sim/paramsGrooveHtml.js');
+  // Samostatný řetěz díry: ⌀30 do Z −20, schod, ⌀24 do Z −40 (poloměry, RADIUS).
+  const P = (pts) => pts.map(([x, z], i) => ({ id: 100 + i, type: i ? 'G1' : 'G0', x, z, r: 0, mode: 'ABS' }));
+  const borePoints = P([[15, 0], [15, -20], [12, -20], [12, -40]]);
+  // V polích zůstal starý válec ⌀40 — nesmí se použít.
+  const cad = (over) => params(bar(16, 2), { boreSource: 'cad', boreDiameter: 40, borePreDiameter: 20, borePreDepth: 45, ...over });
+
+  it('generátor bere díru z výkresu, ne ⌀ z polí', async () => {
+    const { gcode } = await runCamProg({ ...prog(cad({ partOffZ: -5, grooveWidth: 4, grooveBottomX: 17 })), borePoints });
+    expect(gcode).not.toMatch(/^; ! /m);
+    // Start zápichu o vůli 1 + rádius 0,2 před stěnou ⌀30: X 13,8.
+    expect(gcode).toMatch(/G0 X13\.800/);
+    expect(gcode).toMatch(/G1 X16\.\d+ F/);
+  });
+  it('zápich v užší části díry (⌀24) počítá se stěnou ⌀24', async () => {
+    const { gcode } = await runCamProg({ ...prog(cad({ partOffZ: -25, grooveWidth: 4, grooveBottomX: 14 })), borePoints });
+    expect(gcode).toMatch(/G0 X10\.800/);
+  });
+  it('panel ukazuje totéž co program', () => {
+    const S = { params: cad({ partOffZ: -5, grooveWidth: 4, grooveBottomX: 17 }), contourPoints, borePoints };
+    const html = grooveInnerFieldsHtml(S.params, S);
+    expect(html).toContain('Díra ⌀30');
+    expect(html).toContain('tvar díry z výkresu');
+  });
+});
+
+describe('náhled zápichu na polotovaru', async () => {
+  const { grooveOutline } = await import('../js/calculators/cam/sim/grooveSim.js');
+  it('obrys zápichu (boky Z −10 / −18, dno r 23) a stěna díry od ústí', () => {
+    const go = grooveOutline({ params: params(bar(25, 3)), contourPoints });
+    expect(go.groove).toEqual([[20, -10], [23, -10], [23, -18], [20, -18]]);
+    expect(go.wall).toEqual([[20, 0], [20, -10]]);
+  });
+  it('nevydaná dráha: aspoň kde zápich je; bez Z nic', () => {
+    const go = grooveOutline({ params: params(bar(40, 3)), contourPoints });   // tyč se nevejde
+    expect(go.groove[1]).toEqual([23, -10]);
+    expect(grooveOutline({ params: params(bar(25, 3), { partOffZ: null }), contourPoints })).toBe(null);
+  });
+});
+
+describe('zápich z výkresu (bod 3)', async () => {
+  const { groovesInChain, groovesFromDrawing, chainWithoutGrooves } = await import('../js/calculators/cam/sim/grooveCad.js');
+  const { grooveCadRowHtml } = await import('../js/calculators/cam/sim/paramsGrooveHtml.js');
+  const { grooveHoleLoop } = await import('../js/calculators/cam/sim/grooveSim.js');
+  const P = (pts) => pts.map(([x, z], i) => ({ id: 200 + i, type: i ? 'G1' : 'G0', x, z, r: 0, mode: 'ABS' }));
+  // Díra ⌀40 do Z −30 se zápichem ⌀46 mezi Z −10 a −18 (samostatný řetěz).
+  const borePoints = P([[20, 0], [20, -10], [23, -10], [23, -18], [20, -18], [20, -30]]);
+  const S = (over) => ({ params: params(bar(25, 3), { boreSource: 'cad', ...over }), contourPoints, borePoints });
+
+  it('najde obdélníkový zápich: bok u ústí, šířka, dno, stěna', () => {
+    expect(groovesFromDrawing(S())).toEqual([{ zA: -10, W: 8, rBot: 23, rWall: 20 }]);
+  });
+  it('bez zápichu nic; šikmý schod není zápich', () => {
+    expect(groovesInChain([{ type: 'line', p1: { x: 20, z: 0 }, p2: { x: 20, z: -30 } }])).toEqual([]);
+    const tilted = [{ p1: { x: 20, z: 0 }, p2: { x: 20, z: -10 } }, { p1: { x: 20, z: -10 }, p2: { x: 23, z: -11 } },
+      { p1: { x: 23, z: -11 }, p2: { x: 23, z: -18 } }, { p1: { x: 23, z: -18 }, p2: { x: 20, z: -18 } }].map(s => ({ type: 'line', ...s }));
+    expect(groovesInChain(tilted)).toEqual([]);
+  });
+  it('panel nabídne tlačítko; vyplněný zápich svítí zeleně', () => {
+    const html = grooveCadRowHtml(S({ partOffZ: -5 }));   // jiný zápich než nakreslený
+    expect(html).toContain('data-act="groove-from-cad" data-i="0" class="cam-sim-btn cam-sim-btn-gray"');
+    expect(html).toContain('Z -10 · š 8 · ⌀46');
+    expect(grooveCadRowHtml(S({ partOffZ: -10, grooveWidth: 8, grooveBottomX: 23 }))).toContain('cam-sim-btn-green');
+  });
+  it('převzatý zápich: program stejný jako ručně zadaný, stěna z výkresu', async () => {
+    const { gcode } = await runCamProg({ ...prog(S().params), borePoints });
+    expect(gcode).toMatch(/G0 X18\.800/);              // stěna ⌀40 z výkresu, ne dno zápichu
+    expect(gcode).toMatch(/G1 X22\.800 F/);
+  });
+  it('polotovar simulace zápich ještě nemá (stěna místo něj)', () => {
+    const filled = chainWithoutGrooves(groovesFromDrawing(S()).length ? [
+      { type: 'line', p1: { x: 20, z: 0 }, p2: { x: 20, z: -10 } }, { type: 'line', p1: { x: 20, z: -10 }, p2: { x: 23, z: -10 } },
+      { type: 'line', p1: { x: 23, z: -10 }, p2: { x: 23, z: -18 } }, { type: 'line', p1: { x: 23, z: -18 }, p2: { x: 20, z: -18 } },
+      { type: 'line', p1: { x: 20, z: -18 }, p2: { x: 20, z: -30 } }] : []);
+    expect(Math.max(...filled.flatMap(s => [s.p1.x, s.p2.x]))).toBe(20);
+    expect(Math.max(...grooveHoleLoop(S()).map(q => q.x))).toBe(20);
+  });
+});

@@ -9,6 +9,7 @@ import { arcSteps } from '../camMath.js';
 import { drillGeom, drillAutoFaceZ, drillHoleLoop } from '../ops/drill.js';
 import { boreChainFromState } from '../boreContour.js';
 import { boreGeom } from '../ops/bore.js';
+import { grooveOutline } from './grooveSim.js';
 
 /** @param f snímek kreslení z drawCanvas(): { S, ctx, calc, prms, w, h, C, vS, hS, toScreen, getRemovalModel, getRemovalOuterModel, partsActive, _sampleStockOutlineWorld, _clipOutlineOutsideContour, getStockPlanOutline } */
 export function drawStockLayer(f) {
@@ -278,6 +279,24 @@ export function drawStockLayer(f) {
         line([[bg.r, bg.zF], [bg.r, bg.zF - bg.s * bg.L], [Math.min(bg.r0, bg.r), bg.zF - bg.s * bg.L]]);
       }
       if (bg.r0 > 0 && bg.L0 > 0) { ctx.strokeStyle = '#f9e2af'; line([[bg.r0, bg.zF], [bg.r0, bg.zF - bg.s * bg.L0], [0, bg.zF - bg.s * bg.L0]]); }
+      ctx.restore();
+    }
+  }
+
+  // ── Zápich v díře: obrys zápichu a stěna díry k němu (čárkovaně, grooveSim.js) ──
+  {
+    let go = null;
+    try { go = grooveOutline(S); } catch { go = null; }
+    if (go) {
+      const line = (pts) => {
+        if (pts.length < 2) return;
+        ctx.beginPath();
+        pts.forEach(([x, z], i) => { const q = toScreen(x, z); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); });
+        ctx.stroke();
+      };
+      ctx.save(); ctx.setLineDash([6, 4]); ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#f9e2af'; line(go.wall);
+      ctx.strokeStyle = '#fab387'; line(go.groove);
       ctx.restore();
     }
   }

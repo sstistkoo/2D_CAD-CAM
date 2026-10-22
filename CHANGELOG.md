@@ -13,8 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vyvrtávání, zápich v díře i vnitřní závit upozorní ⚠, leží-li špička
   hlouběji od ústí než 4 × ⌀ ocelové tyče (`cam/ops/barOverhang.js`).
 
+- **CAM: zápich v díře z výkresu** — nakreslené obdélníkové zápichy ve
+  stěně díry nabídne panel Upich + ◎ Vnitřní (✏ Z výkresu); klik vyplní
+  Z, šířku a dno. Čárkovaný náhled zápichu na polotovaru
+  (`cam/sim/grooveCad.js`, `grooveOutline` v `cam/sim/grooveSim.js`).
+
 ### Fixed
 
+- **CAM: zápich v díře s dírou z výkresu (✏)** — generátor dostával celý
+  výsledek `boreChainFromState` místo seznamu úseků, takže tvar díry tiše
+  ignoroval a počítal se starým ⌀ z polí; panel ukazoval totéž. Teď oba
+  berou nakreslenou díru.
 - **CAM: vnitřní závit — nájezd a výjezd ústím díry** (pravidlo 13,
   schváleno 22. 10. 2026). Dřív šikmý rychloposuv z bezpečné polohy na
   start a z konce závitu zpátky — u závitu v díře projel stěnou. Teď před

@@ -7,7 +7,9 @@
 // část ji ale nemá — tyč by v simulaci „vrtala" plný materiál a validátor by
 // hlásil rychloposuvy v materiálu. Proto se díra (z vyvrtávání / předvrtání /
 // ručního ⌀) z polotovaru odečte; když už v něm je, odečtení nic nezmění.
-import { radialFlip, threadInnerActive, toolReachAlongZ } from '../toolRadialFlip.js';
+import { radialFlip, threadInnerActive, grooveInnerActive, toolReachAlongZ } from '../toolRadialFlip.js';
+import { grooveInnerGeom } from '../ops/grooveInner.js';
+import { chainWithoutGrooves } from './grooveCad.js';
 import { buildStockLoopRaw, toolFootprint } from '../materialRemoval.js';
 import { holderWorldLoop } from '../collisionValidator.js';
 import { boreGeom, boreHoleLoop } from '../ops/bore.js';
@@ -42,7 +44,8 @@ export function grooveHoleLoop(S) {
   if (threadInnerActive(p)) return threadHoleLoop(p);
   const src = p.boreSource === 'cad' ? boreChainFromState(S) : null;
   const g = boreGeom(p, src ? src.segs : null);
-  if (g.chain) return boreHoleLoop(g);
+  // Nakreslený zápich v polotovaru ještě není — stěna díry místo něj.
+  if (g.chain) return boreHoleLoop({ ...g, chain: chainWithoutGrooves(g.chain) });
   const manual = num(p.grooveHoleD) / 2;
   const r = manual > 0 ? manual : g.D > 0 ? g.D / 2 : g.d0 / 2;
   if (!(r > 0)) return null;
@@ -82,4 +85,28 @@ export function simStockArgs(S, calc, segs = calc && calc.stockPathSegments) {
   } catch {
     return [S.params, segs];
   }
+}
+
+/**
+ * Čárkovaný náhled zápichu v díře na polotovaru (jako díra u vrtání a
+ * vyvrtávání, drawStock.js): obrys zápichu (boky + dno) a stěna díry
+ * od ústí k zápichu. Skutečné souřadnice {x poloměr, z}; null = nic.
+ * @returns {{groove: number[][], wall: number[][]}|null}
+ */
+export function grooveOutline(S) {
+  const p = S.params;
+  if (!grooveInnerActive(p) || threadInnerActive(p)) return null;
+  const src = p.boreSource === 'cad' ? boreChainFromState(S) : null;
+  const g = grooveInnerGeom(p, src ? src.segs : null);
+  if (!(g.rHole > 0) || !(g.rBot > 0) || !Number.isFinite(g.zA)) {
+    // Nevydaná dráha: aspoň kde zápich je (bok u ústí, šířka, dno), když jde.
+    const rB = num(p.grooveBottomX), zA = num(p.partOffZ, NaN), W = num(p.grooveWidth) || g.w;
+    if (!(rB > 0) || !Number.isFinite(zA) || !(W > 0)) return null;
+    const zB = zA - g.s * W, r0 = rB - 1;
+    return { groove: [[r0, zA], [rB, zA], [rB, zB], [r0, zB]], wall: [] };
+  }
+  return {
+    groove: [[g.rHole, g.zA], [g.rBot, g.zA], [g.rBot, g.zB], [g.rHole, g.zB]],
+    wall: [[g.rHole, g.zF], [g.rHole, g.zA]],
+  };
 }

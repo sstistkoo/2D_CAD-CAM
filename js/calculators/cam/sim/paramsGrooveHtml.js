@@ -3,20 +3,27 @@
 // šířka hlouběji do díry, dno = poloměr vnější hrany destičky na dně,
 // ⌀ díry 0 = z vyvrtávání / předvrtání.
 import { grooveInnerGeom } from '../ops/grooveInner.js';
+import { boreChainFromState } from '../boreContour.js';
+import { groovesFromDrawing } from './grooveCad.js';
 
 const cz = (v) => String(Math.round(v * 1000) / 1000).replace('.', ',');
 
 /** Odkud se bere ⌀ díry (pro nápovědu u pole ⌀ díry). */
-function holeSource(prms) {
+function holeSource(prms, fromCad) {
   if (parseFloat(prms.grooveHoleD) > 0) return null;
+  if (fromCad) return 'tvar díry z výkresu';
   if (parseFloat(prms.boreDiameter) > 0) return `⌀${cz(parseFloat(prms.boreDiameter))} z vyvrtávání`;
   if (parseFloat(prms.borePreDiameter) > 0) return `⌀${cz(parseFloat(prms.borePreDiameter))} z předvrtání`;
   return 'není zadaná';
 }
 
-export function grooveInnerFieldsHtml(prms) {
-  const g = grooveInnerGeom(prms);
-  const src = holeSource(prms);
+/** @param S  stav simulátoru (díra z výkresu), jinak jen parametry */
+export function grooveInnerFieldsHtml(prms, S = null) {
+  // Stejná díra jako v generátoru: z výkresu (✏), jinak z polí.
+  let chain = null;
+  try { const c = S && prms.boreSource === 'cad' ? boreChainFromState(S) : null; chain = c ? c.segs : null; } catch { chain = null; }
+  const g = grooveInnerGeom(prms, chain);
+  const src = holeSource(prms, !!chain);
   const w = parseFloat(prms.toolLength) || 0;
   const info = g.ok
     ? `Díra ⌀${cz(2 * g.rHole)}, zápich ${cz(g.W)} × ${cz(g.depth)} mm: ${g.plunges.length} ${g.plunges.length === 1 ? 'zápich' : g.plunges.length < 5 ? 'zápichy' : 'zápichů'} destičkou š ${cz(w)}${g.doFinish ? ' + dokončení bok → dno → bok' : ''}.`
@@ -44,4 +51,20 @@ export function grooveInnerFieldsHtml(prms) {
       <div class="cam-sim-field"><label title="Peck: rychloposuvem zpět až na tuto vzdálenost před dno předchozího řezu, poslední úsek posuvem F.">Posuv posl. (mm)</label><input type="number" step="0.5" min="0" data-p="partingApproachFeed" value="${prms.partingApproachFeed}"></div>
       <div class="cam-sim-field"><label title="Vyjezd (peck): po jaké hloubce zápichu nástroj vyjede ke stěně díry pro uvolnění třísek.">Vyjezd/peck</label><input type="number" step="0.5" min="0.1" data-p="retractDistance" value="${prms.retractDistance}"></div>
     </div>`}`;
+}
+
+/**
+ * Zápichy v díře nakreslené ve výkresu (grooveCad.js) — tlačítka, která
+ * vyplní Z boku u ústí, šířku a dno. Bez nakresleného zápichu nic.
+ */
+export function grooveCadRowHtml(S) {
+  const list = groovesFromDrawing(S);
+  if (!list.length) return '';
+  const p = S.params;
+  const same = (g) => Math.abs(parseFloat(p.partOffZ) - g.zA) < 1e-3 && Math.abs((parseFloat(p.grooveWidth) || 0) - g.W) < 1e-3
+    && Math.abs((parseFloat(p.grooveBottomX) || 0) - g.rBot) < 1e-3;
+  const btns = list.map((g, i) => `<button data-act="groove-from-cad" data-i="${i}" class="cam-sim-btn ${same(g) ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="font-size:11px;padding:4px 6px" title="Převzít zápich z výkresu: bok u ústí Z ${cz(g.zA)}, šířka ${cz(g.W)} mm, dno ⌀${cz(2 * g.rBot)} (stěna ⌀${cz(2 * g.rWall)})">Z ${cz(g.zA)} · š ${cz(g.W)} · ⌀${cz(2 * g.rBot)}</button>`).join('');
+  return `<div class="cam-sim-row" style="align-items:center;flex-wrap:wrap;gap:4px">
+      <span style="color:#a6adc8;font-size:11px">✏ Z výkresu:</span>${btns}
+    </div>`;
 }

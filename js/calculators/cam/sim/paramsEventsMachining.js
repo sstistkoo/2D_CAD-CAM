@@ -10,9 +10,11 @@ import { getInsert } from '../inserts/index.js';
 import { applyPreDrillPlan } from '../ops/borePreDrill.js';
 import { camConfirm } from '../camSimulatorDialogs.js';
 import { attachSurfaceEvents } from './machSurface.js';
+import { attachGrooveCadEvents } from './grooveCad.js';
 
 export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange, draw, saveState, fullUpdate, applyShapeChange, applyTipMirrorToggle, canvas, showMagazineDialog, showThreadPickerDialog, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, grooveEnsureBar, partsActive, _isoDefaultMagSlots, markGCodeGenerated, _applyMagSlot }) {
   attachSurfaceEvents({ tabBody, S, applyChange, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, grooveEnsureBar, _applyMagSlot });
+  attachGrooveCadEvents({ tabBody, S, applyChange, pushHistory, autoPickToolFor });   // Upich + ◎ Vnitřní: zápich z výkresu
   tabBody.querySelectorAll('[data-tshape]').forEach(btn => {
     btn.addEventListener('click', () => applyShapeChange(btn.dataset.tshape));
   });
