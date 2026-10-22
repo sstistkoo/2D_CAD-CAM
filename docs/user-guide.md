@@ -634,6 +634,20 @@ děr podél osy: **Lin.pole** (kopie nesou data díry). Smazání vrstvy Díry
 v plášti smaže i díry (↩ vrátí). V CAM se přenesou samy jako **vrtání do
 pláště (osa X)** — jedna výška po obvodu = rozteč, víc výšek = seznam bodů
 „úhel; Z"; jiný Ø pláště = samostatná operace.
+**Drážka do čela (ovál):** nástrojem **Drážka** klepněte do **bokorysu** —
+otevře se **◎ Drážka do čela** se středem v místě klepnutí (X, Y vůči ose
+vřetena): délka (vnější), šířka, úhel osy (**↻ Radiálně** ke středu /
+**⟂ Tečně**, výchozí radiálně) a hloubka jako u děr (*Skrz* / *Do
+hloubky* / *Do Z*, u skrz i polotovar). → **◎ Do čela** nakreslí obrys
+drážky do aktuálního čela; osa a šířka se čtou z obrysu, takže drážku jde
+přesunout, otočit i rozkopírovat Kr.pole. Klepnutí nástrojem Drážka na
+drážku v bokorysu ji otevře k úpravě. V CAM se přenese sama jako
+frézování **Drážka** s šířkou drážky: fréza užší než drážka jede po ose
+a pak kolem ní odsazením po ½ Ø frézy až na okraj (víc průjezdů); fréza
+širší než drážka je chyba zadání (z výkresu se fréza zúží na šířku).
+V 🛠 Operace má drážka pole **Šířka drážky** (prázdné = Ø frézy).
+Úsečka v čele dál znamená drážku šířky frézy.
+
 **Drážka pro pero do pláště:** nástrojem **Drážka** klepněte v **nárysu**
 na díl v místě drážky — otevře se **⊐ Drážka pro pero** se Z klepnutí jako
 středem: délka (vnější, vč. zaoblení), šířka (= Ø frézy), hloubka *od

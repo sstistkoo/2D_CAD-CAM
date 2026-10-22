@@ -4,9 +4,13 @@
 import { faceDrawingsForCam } from './faceDepth.js';
 import { shellHolesForCam } from './shellHoles.js';
 import { shellSlotsForCam } from './shellSlots.js';
+import { faceSlotForCam } from './faceSlots.js';
 
 export function cadDrawingsForCam() {
-  const out = faceDrawingsForCam();
+  // Drážky na čele (stadion, faceSlots.js) → úsečka osy se šířkou slotW.
+  const out = faceDrawingsForCam().map(f => ({
+    ...f, objects: f.objects.map(o => (o.type === 'polyline' ? faceSlotForCam(o, f.z, f.side) || o : o)),
+  }));
   const holes = shellHolesForCam();
   const { slots, errors } = shellSlotsForCam();
   if (!holes.length && !slots.length && !errors.length) return out;

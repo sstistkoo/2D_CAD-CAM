@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v588';
+const CACHE_NAME = 'skica-v589';
 const ASSETS = [
   './',
   './index.html',
@@ -194,6 +194,7 @@ const ASSETS = [
   './js/calculators/drillCutting.js',
   './js/calculators/drillCuttingMath.js',
   './js/calculators/drillGeometry.js',
+  './js/calculators/faceSlot.js',
   './js/calculators/fanucAlarms.js',
   './js/calculators/fanucHub.js',
   './js/calculators/fanucOffsets.js',
@@ -299,6 +300,7 @@ const ASSETS = [
   './js/faceView/facePattern.js',
   './js/faceView/faceReference.js',
   './js/faceView/faceRotate.js',
+  './js/faceView/faceSlots.js',
   './js/faceView/faceView.js',
   './js/faceView/shellHoleDraw.js',
   './js/faceView/shellHoles.js',

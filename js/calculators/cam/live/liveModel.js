@@ -99,6 +99,9 @@ export function newLiveOp(kind, geo, n) {
     toolD: kind === 'mill' ? 10 : 8,
     stepDown: 2,
     slot: { x1: -pcd / 4, y1: 0, x2: pcd / 4, y2: 0 },
+    // Šířka drážky na čele (osa slot.x1…x2); chybí = Ø frézy (jeden průjezd).
+    // Širší než fréza → víc průjezdů kolem osy (millMoves, uživatel 22. 10. 2026).
+    slotW: null,
     toolName: kind === 'mill' ? 'FREZA_D10' : 'VRTAK_D8',
     toolNo: kind === 'mill' ? 6 : 5,
     rpm: kind === 'mill' ? 3000 : 2000,
@@ -116,6 +119,7 @@ export function normalizeLiveOp(op) {
   o.chipMode = o.chipMode === 'break' ? 'break' : 'clear';
   o.count = Math.max(1, Math.min(360, Math.round(o.count)));
   o.slot = { ...d.slot, ...(o.slot || {}) };
+  o.slotW = Number.isFinite(+o.slotW) && +o.slotW > 0 && o.slotW !== '' && o.slotW !== null ? +o.slotW : null;
   for (const k of ['x1', 'y1', 'x2', 'y2']) o.slot[k] = num(o.slot[k], 0);
   if (o.kind === 'mill' && o.millType === 'keyway') {
     o.side = 'radial';
@@ -204,15 +208,43 @@ export function millMoves(op) {
   const tr = op.toolD / 2;
   if (op.millType === 'slot') {
     const { x1, y1, x2, y2 } = op.slot;
+    const ext = Math.max(0, slotWidth(op) / 2 - tr);   // o kolik je drážka širší než fréza (na stranu)
     moves.push({ k: 'rapid', x: x1, y: y1, z: rtp }, { k: 'rapid', x: x1, y: y1, z: sdis });
-    let atStart = true;
-    levels.forEach(d => {
-      const p = atStart ? { x: x1, y: y1 } : { x: x2, y: y2 };
-      const q = atStart ? { x: x2, y: y2 } : { x: x1, y: y1 };
-      moves.push({ k: 'lin', x: p.x, y: p.y, z: zTop - out * d, plunge: true });
-      moves.push({ k: 'lin', x: q.x, y: q.y, z: zTop - out * d });
-      atStart = !atStart;
-    });
+    if (ext <= 1e-6) {
+      // Šířka = Ø frézy: jeden průjezd po ose, vrstvy tam a zpět.
+      let atStart = true;
+      levels.forEach(d => {
+        const p = atStart ? { x: x1, y: y1 } : { x: x2, y: y2 };
+        const q = atStart ? { x: x2, y: y2 } : { x: x1, y: y1 };
+        moves.push({ k: 'lin', x: p.x, y: p.y, z: zTop - out * d, plunge: true });
+        moves.push({ k: 'lin', x: q.x, y: q.y, z: zTop - out * d });
+        atStart = !atStart;
+      });
+    } else {
+      // Širší drážka: v každé vrstvě zanořit na ose u začátku, projet osu
+      // a pak „závodní dráhy" kolem osy s odsazením po ≤ ½ Ø frézy až na
+      // okraj (konce drážky = oblouky kolem konců osy, proti směru hodin).
+      const L = Math.hypot(x2 - x1, y2 - y1);
+      const ux = L > 1e-9 ? (x2 - x1) / L : 1, uy = L > 1e-9 ? (y2 - y1) / L : 0;
+      const rx = uy, ry = -ux;   // vpravo od osy
+      const offs = [];
+      const step = Math.max(0.1, op.toolD * 0.5);
+      for (let o = step; o < ext - 1e-6; o += step) offs.push(o);
+      offs.push(ext);
+      levels.forEach(d => {
+        const z = zTop - out * d;
+        moves.push({ k: 'lin', x: x1, y: y1, z, plunge: true });
+        moves.push({ k: 'lin', x: x2, y: y2, z });
+        offs.forEach(o => {
+          moves.push({ k: 'lin', x: x2 + rx * o, y: y2 + ry * o, z });
+          moves.push({ k: 'arc', x: x2 - rx * o, y: y2 - ry * o, z, cx: x2, cy: y2, ccw: true });
+          moves.push({ k: 'lin', x: x1 - rx * o, y: y1 - ry * o, z });
+          moves.push({ k: 'arc', x: x1 + rx * o, y: y1 + ry * o, z, cx: x1, cy: y1, ccw: true });
+          moves.push({ k: 'lin', x: x2 + rx * o, y: y2 + ry * o, z });
+        });
+        moves.push({ k: 'lin', x: x1, y: y1, z });   // zpět na osu k dalšímu zanoření (uvnitř drážky)
+      });
+    }
     const last = moves[moves.length - 1];
     moves.push({ k: 'rapid', x: last.x, y: last.y, z: rtp });
     return moves;
@@ -240,6 +272,11 @@ export function millMoves(op) {
   return moves;
 }
 
+/** Šířka drážky na čele (chybí = Ø frézy). */
+export function slotWidth(op) {
+  return op.slotW > 0 ? op.slotW : op.toolD;
+}
+
 /** Je operace drážka pro pero v plášti? */
 export function isKeyway(op) {
   return !!op && op.kind === 'mill' && op.millType === 'keyway';
@@ -264,6 +301,7 @@ export function liveOpProblems(op) {
   if (op.kind === 'mill') {
     if (!(op.toolD > 0)) out.push('Zadejte Ø frézy.');
     if (op.millType === 'pocket' && op.holeD < op.toolD) out.push('Kapsa je menší než fréza.');
+    if (op.millType === 'slot' && slotWidth(op) < op.toolD - 1e-9) out.push('Fréza je širší než drážka.');
     if (!(op.stepDown > 0)) out.push('Zadejte krok do hloubky.');
   }
   if (op.pattern === 'points' && op.millType !== 'slot' && parsePointList(op.points).length === 0)
@@ -289,7 +327,7 @@ export function liveOpSummary(op) {
     ? (op.side === 'radial' ? `${op.count}× po obvodu, Z${op.zPos}` : `rozteč Ø${op.pcd}, ${op.count}×`)
     : czCount(livePositions(op).length, 'bod', 'body', 'bodů');
   if (op.kind === 'mill') {
-    if (op.millType === 'slot') return `Drážka š. ${op.toolD} hl. ${op.depth}`;
+    if (op.millType === 'slot') return `Drážka š. ${+slotWidth(op).toFixed(3)} hl. ${op.depth}${slotWidth(op) > op.toolD + 1e-9 ? ` (fréza Ø${op.toolD})` : ''}`;
     if (op.millType === 'keyway') {
       const k = keywaySpan(op);
       return `Pero š. ${op.toolD} hl. ${op.depth} · Z${+k.zMax.toFixed(3)}…${+k.zMin.toFixed(3)} – ${op.pattern === 'pcd' ? `${op.count}× po obvodu` : pos}`;

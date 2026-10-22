@@ -12,7 +12,7 @@
 // Poháněný nástroj stojí nahoře (X+, liveSettings.toolAt) a díry se k němu
 // natáčejí osou C — dráha v řezu proto leží na poloměru díry nad osou.
 import { findLiveBlock } from './liveMarkers.js';
-import { livePositions, faceOut, liveOpProblems, liveOpOn, liveSettings, isKeyway, keywaySpan, depthLevels } from './liveModel.js';
+import { livePositions, faceOut, liveOpProblems, liveOpOn, liveSettings, isKeyway, keywaySpan, depthLevels, slotWidth } from './liveModel.js';
 import { sectBase, sectHeight } from './liveSection.js';
 
 const HEAD = /^[;(]\s*\[(\d+)\] /;   // „; [2] Díry Ø8: …" / „( [2] … )"
@@ -167,8 +167,8 @@ export function livePathSegments(ops, prms) {
 /** Poloměry, na kterých operace jede: [začátek, konec] (kapsa / drážka přes rozsah). */
 function radiiOf(op) {
   if (op.kind === 'mill' && op.millType === 'slot') {
-    const { x1, y1, x2, y2 } = op.slot;
-    return [[Math.hypot(x1, y1), Math.hypot(x2, y2)]];
+    const { x1, y1, x2, y2 } = op.slot, ext = Math.max(0, slotWidth(op) / 2 - op.toolD / 2);
+    return [[Math.max(0, Math.hypot(x1, y1) - ext), Math.hypot(x2, y2) + ext]];
   }
   const ext = op.kind === 'mill' ? Math.max(0, op.holeD / 2 - op.toolD / 2) : 0;
   const rs = [...new Set(livePositions(op).map(p => +p.r.toFixed(4)))];

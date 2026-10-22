@@ -471,7 +471,7 @@ export function initLiveTools(deps) {
   });
 
   const NUM_KEYS = new Set(['faceDir', 'pcd', 'count', 'startAngle', 'zTop', 'xTop', 'zPos', 'holeD', 'depth', 'peck',
-    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'chipBack', 'slot.x1', 'slot.y1', 'slot.x2', 'slot.y2', 'kz1', 'kz2']);
+    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'chipBack', 'slot.x1', 'slot.y1', 'slot.x2', 'slot.y2', 'kz1', 'kz2', 'slotW']);
   ed.addEventListener('change', e => {
     const el = e.target;
     const k = el.dataset.k;
@@ -479,7 +479,8 @@ export function initLiveTools(deps) {
     if (!k || !card) return;
     const oi = +card.dataset.op;
     let v = el.value;
-    if (NUM_KEYS.has(k)) {
+    if (k === 'slotW' && !String(v).trim()) v = null;   // prázdná šířka drážky = Ø frézy
+    else if (NUM_KEYS.has(k)) {
       v = safeEvalMath(v);
       if (!Number.isFinite(v)) { showToast('Neplatné číslo'); renderEditor(); return; }
     }

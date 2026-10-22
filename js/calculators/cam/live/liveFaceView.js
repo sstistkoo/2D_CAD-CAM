@@ -17,7 +17,7 @@
 // úhlu liveSettings.toolAt (soustruh NAHOŘE = X+ jako v řezu) a při obrábění
 // se k němu natáčí KUS (mach.rot) — nástroj kus neobjíždí.
 import { resolvePointsToAbsolute } from '../contourBuild.js';
-import { livePositions, liveSettings, isKeyway } from './liveModel.js';
+import { livePositions, liveSettings, isKeyway, slotWidth } from './liveModel.js';
 import { faceRadius } from '../../../faceView/faceReference.js';
 
 const COL = {
@@ -232,7 +232,7 @@ export function faceViewHit(t, ops, sx, sy) {
       const [ax, ay] = S(x1, y1), [bx, by] = S(x2, y2), dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
       const u = L2 > 0 ? Math.max(0, Math.min(1, ((sx - ax) * dx + (sy - ay) * dy) / L2)) : 0;
       const dd = Math.hypot(ax + dx * u - sx, ay + dy * u - sy);
-      if (dd <= Math.max(op.toolD / 2 * t.sc, 10)) take(dd);
+      if (dd <= Math.max(slotWidth(op) / 2 * t.sc, 10)) take(dd);
       return;
     }
     livePositions(op).forEach(p => {
@@ -266,7 +266,7 @@ function drawCheckMarks(ctx, ops, checks, cut, P, sc, rotRect) {
       const sev = c.marks.get(0);
       if (!sev) return;
       const { x1, y1, x2, y2 } = op.slot;
-      capsulePath(ctx, P, x1, y1, x2, y2, op.toolD / 2 + 2 / sc);
+      capsulePath(ctx, P, x1, y1, x2, y2, slotWidth(op) / 2 + 2 / sc);
       ctx.strokeStyle = CHK[sev]; ctx.stroke();
       return;
     }
@@ -324,7 +324,7 @@ function drawMachOp(ctx, op, oi, m, P, sc, sel, rotRect) {
     ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
     if (slot) {
       const { x1, y1, x2, y2 } = op.slot;
-      capsulePath(ctx, P, x1, y1, x2, y2, tr); edge(!done && !dep(0), COL.mill); ctx.stroke();
+      capsulePath(ctx, P, x1, y1, x2, y2, slotWidth(op) / 2); edge(!done && !dep(0), COL.mill); ctx.stroke();
     } else {
       livePositions(op).forEach((p, i) => {
         const [sx, sy] = P(p.x, p.y), r = Math.max(2, op.holeD / 2 * sc);
@@ -392,7 +392,7 @@ function drawMill(ctx, op, P, sc, sel) {
   ctx.strokeStyle = COL.mill; ctx.fillStyle = 'rgba(203,166,247,0.28)';
   if (op.millType === 'slot') {
     const { x1, y1, x2, y2 } = op.slot;
-    ctx.lineCap = 'round'; ctx.lineWidth = Math.max(3, op.toolD * sc);
+    ctx.lineCap = 'round'; ctx.lineWidth = Math.max(3, slotWidth(op) * sc);
     ctx.strokeStyle = 'rgba(203,166,247,0.40)';
     ctx.beginPath(); ctx.moveTo(...P(x1, y1)); ctx.lineTo(...P(x2, y2)); ctx.stroke();
     ctx.lineWidth = sel ? 1.6 : 1; ctx.strokeStyle = COL.mill; ctx.lineCap = 'butt';

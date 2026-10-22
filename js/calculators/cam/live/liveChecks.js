@@ -18,7 +18,7 @@
 // Nález: { sev: 'error' | 'warn', text } — 'warn' = může být záměr (díra
 // skrz, radiální díra do vývrtu, díra na přechodu průměrů).
 import { materialAt, objectPoints } from '../../../faceView/faceReference.js';
-import { livePositions, liveOpProblems, faceOut, isKeyway, keywaySpan } from './liveModel.js';
+import { livePositions, liveOpProblems, faceOut, isKeyway, keywaySpan, slotWidth } from './liveModel.js';
 
 const LATHE = 'soustruh';
 const SECT = 0.3;      // [mm] řez za rovinou čela (jako sectionAt v pohledu)
@@ -101,7 +101,7 @@ function segDist(x1, y1, x2, y2) {
 /** Stopy na čele: rozsah poloměrů [lo, hi] každé díry / kapsy, drážka celá. */
 function faceFootprints(op) {
   if (op.kind === 'mill' && op.millType === 'slot') {
-    const { x1, y1, x2, y2 } = op.slot, tr = op.toolD / 2;
+    const { x1, y1, x2, y2 } = op.slot, tr = slotWidth(op) / 2;
     return [{ lo: Math.max(0, segDist(x1, y1, x2, y2) - tr), hi: Math.max(Math.hypot(x1, y1), Math.hypot(x2, y2)) + tr }];
   }
   const h = op.holeD / 2;

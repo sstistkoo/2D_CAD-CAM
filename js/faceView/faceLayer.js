@@ -146,6 +146,8 @@ function toLocal(o, ox, oy) {
   if (o.type === 'circle' || o.type === 'arc') return { ...o, cx: o.cx - ox, cy: o.cy - oy };
   if (o.type === 'line' || o.type === 'constr')
     return { ...o, x1: o.x1 - ox, y1: o.y1 - oy, x2: o.x2 - ox, y2: o.y2 - oy };
+  if (o.type === 'polyline' && Array.isArray(o.vertices))
+    return { ...o, vertices: o.vertices.map(v => ({ x: v.x - ox, y: v.y - oy })) };
   return { ...o };
 }
 

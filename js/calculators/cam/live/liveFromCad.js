@@ -120,12 +120,18 @@ export function liveOpsFromCad(input, geo, prevOps) {
       slots++;
       const zt = Number.isFinite(l.zTop) ? r3(l.zTop) : zTop;
       const op = newLiveOp('mill', geo, ++n);
-      op.name = `Drážka ${i + 1}${zt === zTop ? tag : ` · Z${zt} ${faceDir < 0 ? '▶' : '◀'}`}`;
+      // Drážka nakreslená obrysem (faceView/faceSlots.js) nese šířku a hloubku.
+      const w = l.slotW > 0 ? r3(l.slotW) : null;
+      op.name = `Drážka ${i + 1}${w ? ` š. ${w}${l.depthTag ? ' ' + l.depthTag : ''}` : ''}${zt === zTop ? tag : ` · Z${zt} ${faceDir < 0 ? '▶' : '◀'}`}`;
       carry(op, prevSlots[i]);
       Object.assign(op, {
-        kind: 'mill', millType: 'slot', zTop: zt, faceDir, fromCad: true,
+        kind: 'mill', millType: 'slot', zTop: zt, faceDir, fromCad: true, slotW: w,
         slot: { x1: r3(l.x1), y1: r3(l.y1), x2: r3(l.x2), y2: r3(l.y2) },
+        ...(l.throughStock ? { throughStock: true } : {}),
       });
+      if (l.depth > 0) op.depth = l.depth;
+      // Fréza nesmí být širší než drážka (převzatá / výchozí Ø10).
+      if (w && op.toolD > w) { op.toolD = w; if (/^FREZA_D/.test(op.toolName || '')) op.toolName = `FREZA_D${w}`; }
       ops.push(normalizeLiveOp(op));
     });
   });

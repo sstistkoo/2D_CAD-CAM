@@ -59,7 +59,8 @@ export function opForm(op, chk) {
     }
   } else {
     if (!slot && !kw) h += f('holeD', 'Ø kapsy', op.holeD);
-    h += f('toolD', slot || kw ? 'Ø frézy = šířka' : 'Ø frézy', op.toolD) + f('depth', 'Hloubka', op.depth) + f('stepDown', 'Krok do hloubky', op.stepDown);
+    if (slot) h += f('slotW', 'Šířka drážky (prázdné = Ø frézy)', op.slotW ?? '');
+    h += f('toolD', kw ? 'Ø frézy = šířka' : 'Ø frézy', op.toolD) + f('depth', 'Hloubka', op.depth) + f('stepDown', 'Krok do hloubky', op.stepDown);
   }
   h += f('safe', 'Bezpečná vzdálenost', op.safe) + f('retract', 'Odjezd nad plochu', op.retract);
   h += txt('toolName', 'Nástroj', op.toolName) + f('toolNo', 'Číslo T', op.toolNo);

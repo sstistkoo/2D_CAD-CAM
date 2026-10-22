@@ -14,9 +14,10 @@ import { addObject } from '../objects.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { updateObjectList, updateProperties } from '../ui.js';
 import { renderAll } from '../render.js';
-import { getFaceLayer, faceLabel } from './faceLayer.js';
+import { getFaceLayer, getFaceLayers, faceLabel } from './faceLayer.js';
 import { holeDepthLabel, resolveFaceHole } from './faceDepth.js';
 import { saveSettings } from '../storage/settingsStore.js';
+import { faceSlotPolyline, faceSlotForCam, stadiumOf } from './faceSlots.js';
 
 const r3 = v => +(+v).toFixed(3);
 const fmt = v => String(r3(v));
@@ -103,4 +104,50 @@ function depthInfo(face, objs, depth) {
     return { text: ` skrz (materiál ${fmtC(t)} mm + přesah ${fmtC(res[0].depth - t)} → ${hl})` };
   }
   return { text: ` ${holeDepthLabel(depth)} (${hl})` };
+}
+
+/**
+ * Nakreslí drážku (ovál) do AKTUÁLNÍHO čela, nebo nahradí `replace`
+ * (úprava). spec { cx, cy (vůči středu čela), len, w, angle, depth }.
+ * @returns true = nakresleno
+ */
+export function drawFaceSlot(spec, replace = null) {
+  const face = replace ? getFaceLayers().find(l => l.id === replace.layer) : getFaceLayer();
+  if (!face || !face.origin) { showToast('Nejdřív zapněte ◎ Čelo (bokorys)'); return false; }
+  if (!(spec.w > 0) || !(spec.len >= spec.w)) { showToast('Délka drážky musí být aspoň její šířka'); return false; }
+  const obj = faceSlotPolyline(face, spec);
+  const local = { ...obj, vertices: obj.vertices.map(v => ({ x: v.x - face.origin.x, y: v.y - face.origin.y })) };
+  const cam = faceSlotForCam(local, Number.isFinite(face.faceZ) ? face.faceZ : 0, face.faceSide === 'left' ? 'left' : 'right');
+  if (spec.depth && spec.depth.mode === 'z' && !(cam && cam.depth > 0)) { showToast('Drážka nenakreslena: Z konce leží na straně nástroje nebo před materiálem.', 6000); return false; }
+  withUndoBatch(() => {
+    if (replace) { const i = state.objects.indexOf(replace); if (i >= 0) state.objects.splice(i, 1); }
+    addObject(obj);
+  });
+  state.selected = null; state.multiSelected.clear();
+  calculateAllIntersections();
+  updateObjectList();
+  updateProperties();
+  renderAll();
+  const dep = cam && cam.depth > 0 ? ` hl. ${fmtC(cam.depth)} mm` : (spec.depth ? ` ${holeDepthLabel(spec.depth)} — POZOR: hloubku nejde určit (materiál pod drážkou?)` : '');
+  showToast(`Čelo ${faceLabel(face)}: drážka ${fmtC(spec.len)}×${fmtC(spec.w)}${dep}${cam && cam.zTop != null ? ` od Z${fmtC(cam.zTop)}` : ''}${replace ? ' — upraveno' : ''}. V CAM: frézování Drážka (širší než fréza = víc průjezdů)`, 6000);
+  return true;
+}
+
+/** Drážka (stadion) čela pod bodem (svět), nebo null — klepnutí ji otevře k úpravě. */
+export function faceSlotAt(wx, wy, tolPx = 6) {
+  const tol = tolPx / (state.zoom || 1);
+  let best = null, bd = Infinity;
+  getFaceLayers().forEach(l => {
+    if (!l.visible) return;
+    state.objects.forEach(o => {
+      if (o.layer !== l.id) return;
+      const s = stadiumOf(o);
+      if (!s) return;
+      const dx = s.x2 - s.x1, dy = s.y2 - s.y1, L2 = dx * dx + dy * dy;
+      const t = L2 ? Math.max(0, Math.min(1, ((wx - s.x1) * dx + (wy - s.y1) * dy) / L2)) : 0;
+      const d = Math.hypot(s.x1 + t * dx - wx, s.y1 + t * dy - wy) - s.w / 2;
+      if (d <= tol && d < bd) { bd = d; best = o; }
+    });
+  });
+  return best;
 }

@@ -3,6 +3,8 @@
 // ║  Na díle v nárysu = drážka pro pero do pláště (CAM frézuje), ║
 // ║  jinde oválná drážka přes makerjs.models.Slot (2D kresba).  ║
 // ╚══════════════════════════════════════════════════════════════╝
+// Klepnutí do BOKORYSU otevře ◎ Drážka do čela (calculators/faceSlot.js,
+// obrys drážky do čela, CAM ji vyfrézuje i širší než fréza).
 // Klepnutí na díl v nárysu (obrys / materiál, mimo bokorys) otevře ⊐ Drážka
 // pro pero (calculators/shellSlot.js) se Z klepnutí jako středem drážky;
 // klepnutí na existující drážku pro pero ji otevře k úpravě (uživatel
@@ -18,6 +20,9 @@ import { inFaceDisc } from '../faceView/faceReference.js';
 import { shellZAt } from '../faceView/shellHoles.js';
 import { shellSlotAt } from '../faceView/shellHoleDraw.js';
 import { openShellSlotCalc } from '../calculators/shellSlot.js';
+import { getFaceLayer } from '../faceView/faceLayer.js';
+import { faceSlotAt } from '../faceView/facePattern.js';
+import { openFaceSlotCalc } from '../calculators/faceSlot.js';
 import { makerModelToPolylines } from '../lib/makerjsBridge.js';
 
 export function resetSlotState() { /* dialog je modální, žádný persistentní stav */ }
@@ -28,6 +33,14 @@ export function resetSlotState() { /* dialog je modální, žádný persistentn�
  */
 export function handleSlotClick(wx, wy) {
   const inDisc = faceViewOn() && inFaceDisc(wx, wy);
+  // Bokorys: drážka do čela (obrys), klepnutí na existující = úprava.
+  if (inDisc) {
+    const fs = faceSlotAt(wx, wy);
+    if (fs) { openFaceSlotCalc({ edit: fs }); return; }
+    const face = getFaceLayer();
+    openFaceSlotCalc({ x: wx - face.origin.x, y: wy - face.origin.y });
+    return;
+  }
   const hit = !inDisc && shellSlotAt(wx, wy);
   if (hit) { openShellSlotCalc({ edit: hit }); return; }
   const z = inDisc ? null : shellZAt(wx, wy);

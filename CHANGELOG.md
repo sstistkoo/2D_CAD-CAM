@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAD → CAM: drážka do čela (ovál) i širší než fréza.** Nástroj Drážka
+  v bokorysu otevře ◎ Drážka do čela (střed, délka, šířka, úhel osy
+  radiálně / tečně, hloubka jako díry). Kreslí se obrys (stadion) do čela;
+  osa a šířka z geometrie (přesun, otočení, Kr.pole). Do CAM frézování
+  Drážka s novou šířkou `slotW` — užší fréza jede víc průjezdy kolem osy
+  (oblouky kolem konců, TRANSMIT G2/G3 i polárně C + X). Úprava klepnutím.
+  Moduly `faceView/faceSlots.js`, `calculators/faceSlot.js`, test
+  `tests/face-slots.test.js`.
+
 - **CAD → CAM: drážka pro pero do pláště.** Nástroj Drážka: klepnutí na díl
   v nárysu otevře ⊐ Drážka pro pero (střed Z, délka, šířka = Ø frézy,
   hloubka od pláště / do Ø, počet po obvodu, úhel C nebo natočení podle díry

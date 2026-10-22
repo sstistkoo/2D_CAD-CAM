@@ -16,7 +16,7 @@
 // nárys CAD — faceFrontView bere u karuselu vodorovnou souřadnici bokorysu),
 // takže výška v řezu = r·cos C; nástroj vpravo (0°) je na poloměru díry.
 // Dřív r·sin C i u karuselu — vrták se kreslil na ose (21. 10. 2026).
-import { getLiveOps, livePositions, faceOut, isKeyway, keywaySpan } from './liveModel.js';
+import { getLiveOps, livePositions, faceOut, isKeyway, keywaySpan, slotWidth } from './liveModel.js';
 
 const COLS = { drill: ['rgba(250,179,135,0.22)', '#fab387'], radial: ['rgba(148,226,213,0.22)', '#94e2d5'], mill: ['rgba(203,166,247,0.22)', '#cba6f7'] };
 const EPS = 1e-6;
@@ -44,7 +44,7 @@ export function faceSpans(op, rot = 0, base = 90) {
   // Výška bodu kusu natočeného o rot (průmět do směru base).
   const Y = (x, y) => (x * c - y * s) * cb + (x * s + y * c) * sb;
   if (op.kind === 'mill' && op.millType === 'slot') {
-    const { x1, y1, x2, y2 } = op.slot, tr = op.toolD / 2;
+    const { x1, y1, x2, y2 } = op.slot, tr = slotWidth(op) / 2;
     const a = Y(x1, y1), b = Y(x2, y2);
     return [{ y0: Math.min(a, b) - tr, y1: Math.max(a, b) + tr, i: 0 }];
   }
