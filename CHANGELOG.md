@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vyvrtávání, zápich v díře i vnitřní závit upozorní ⚠, leží-li špička
   hlouběji od ústí než 4 × ⌀ ocelové tyče (`cam/ops/barOverhang.js`).
 
+- **CAM: vnější zápich libovolné šířky (Upich + ◯ Vnější, pravidlo 17,
+  schváleno 23. 10. 2026)** — pole Šířka zápichu: zápichy vedle sebe
+  s krokem ≤ 0,8 × šířka destičky od Z (bok u sklíčidla) k obráběcí
+  straně, boky a dno s přídavky, dokončení bok → dno → bok; šířka 0 =
+  upichnutí beze změny (`cam/ops/grooveWide.js`, test
+  `tests/cam-groove-wide.test.js`).
 - **CAM: zápich v díře z výkresu** — nakreslené obdélníkové zápichy ve
   stěně díry nabídne panel Upich + ◎ Vnitřní (✏ Z výkresu); klik vyplní
   Z, šířku a dno. Čárkovaný náhled zápichu na polotovaru

@@ -240,6 +240,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
     <div class="cam-sim-row">
       <div class="cam-sim-field"><label title="TRVALÝ přídavek jen v ose Z — poslední (finální) dráha ho nechá stát, NEODEBÍRÁ se dokončováním. Posune finální rovinu řezu o tuto hodnotu.">Přídavek Z</label><input type="number" step="0.1" data-p="allowanceZ" value="${prms.allowanceZ}"></div>
       <div class="cam-sim-field"><label title="Přídavek NA HOTOVO (jen v ose Z): materiál nechaný na finální rovině. Hlavní dráha ho nechá stát VŽDY; jen se zapnutou Dokončovací operací ho odebere druhá (plynulá) dráha.">Přídavek na hotovo</label><input type="number" step="0.1" data-p="finishAllowance" value="${prms.finishAllowance}"></div>
+      <div class="cam-sim-field"><label title="Šířka zápichu (pravidlo 17): od Z upich (bok na straně sklíčidla) k obráběcí straně. 0 = upichnutí / jeden zápich šířkou destičky. Širší = zápichy vedle sebe s krokem nejvýš 0,8 × šířka destičky, boky a dno s přídavky; Dokončovací operace pak jede bok → dno → bok.">Šířka zápichu</label><input type="number" step="0.1" min="0" data-p="grooveWidth" value="${prms.grooveWidth}"></div>
     </div>
     <div class="cam-sim-checkbox-row" data-tooltip="Dokončovací (plynulá, nepeckovaná) dráha odebírající Přídavek na hotovo. Bez ní jede jen jeden zápich na finální rovinu.">
       <input type="checkbox" id="cam-sim-fin" ${prms.doFinishing ? 'checked' : ''}>

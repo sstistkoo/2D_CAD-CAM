@@ -347,3 +347,19 @@ nesmí žádná část plátku — ne jen programovaný bod (střed nosu).**
     v obráběné zóně vzduch; stěnu nad stropem hlídá konec rozsahu Z.
 - Testy: `tests/cam-xrange-round-nose.test.js`, `tests/cam-chuck-traced-leads.test.js`,
   `tests/cam-face-first-layer-nose.test.js`.
+
+## Pravidlo 17 — Zápich libovolné šířky (Upich) ✅ schváleno
+
+**Šířka zápichu větší než destička = zápichy vedle sebe s krokem nejvýš
+0,8 × šířka destičky; boky a dno nechají přídavky, dokončení jede po
+prvním boku na dno, po dně ke druhému boku a po něm zpátky ven.**
+
+- Schválil uživatel 23. 10. 2026 (vnější zápich, Upich + ◯ Vnější).
+- Z (naklikané) = bok zápichu na straně SKLÍČIDLA — jako dnešní upich:
+  šířka vede od Z k obráběcí straně (zprava k +Z, zleva k −Z). Šířka 0
+  (nebo šířka destičky) = dnešní upichnutí beze změny.
+- Dojezd X = dno zápichu (spodní hrana destičky), Start X jako u upichu.
+- Boky: Přídavek Z (trvalý) + Přídavek na hotovo; dno: Přídavek na hotovo.
+  Dokončení (Dokončovací operace) ho odebere; bez ní zůstane.
+- Peckování / plynulý zápich a hlídání dosahu lišty jako u upichu.
+- Vnitřní zápich (Upich + ◎ Vnitřní) je totéž v zrcadle — pravidlo 13.

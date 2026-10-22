@@ -947,6 +947,15 @@ u upichu (výjezdy jen ke stěně díry). Do díry i ven jede tyč osou díry
 nevejde nebo zápich přesáhne dosah, dráha se nevydá a pod poli i v ⚠ je
 důvod.
 
+**Vnější zápich libovolné šířky (Upich + ◯ Vnější, pravidlo 17).** Pole
+**Šířka zápichu** u upichu: 0 = upichnutí / jeden zápich šířkou destičky
+jako dřív. Širší zápich se dělá zápichy vedle sebe (krok nejvýš 0,8 ×
+šířka destičky) od **Z upich** — boku na straně sklíčidla — k obráběcí
+straně (zprava doprava, zleva doleva), na **Dojezd X**. Boky nechají
+Přídavek Z + Přídavek na hotovo, dno Přídavek na hotovo; s Dokončovací
+operací jede destička po prvním boku na dno, po dně ke druhému boku a po
+něm nahoru. Umí to jen zapichovací destička (kulatá jen jeden zápich).
+
 **Vnitřní závit (Závit + ◎ Vnitřní)** jede do díry stejně: rychloposuvem
 před ústí a čelo polotovaru (o vůli X + 1 mm a ještě o to, kam tyč SNR
 sahá za špičku — destička IR je široká), k ose na odskok průchodů, teprve

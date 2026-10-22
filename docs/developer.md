@@ -716,6 +716,8 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/controlDialect.js` | Hlavička/závěr programu a převod mezi Sinumerik/Fanuc/Heidenhain. Bez vlastních importů, aby z něj mohly čerpat i moduly operací (jinak cyklus s `gcodeEmit.js`). Viz „Dialekt řídicího systému" níž |
 | `cam/ops/thread.js` | OPERACE závitování — `emitThread()`, celý vlastní program |
 | `cam/ops/partOff.js` | OPERACE upichnutí — `emitPartOff()`, celý vlastní program |
+| `cam/ops/grooveWide.js` | pravidlo 17 — vnější zápich širší než destička: `grooveWideActive`, `grooveWidePlan(prms, partOffGeom)` (zápichy vedle sebe, dokončení bok → dno → bok); volá `emitPartOff` |
+| `cam/holeGrooves.js` | zápichy ve stěně díry: `groovesInChain`, `chainWithoutGrooves` — zápich v díře z výkresu a polotovar jeho simulace (vyvrtávání nakreslený tvar bere celý, vybrání vyhrubuje po mezní čáru) |
 | `cam/ops/grooveInner.js` | OPERACE zápich v díře (Upich + ◎ Vnitřní, `partOffInner`) — `grooveInnerGeom()` (díra z `boreGeom`, zápichy vedle sebe, kontrola tyče `boreToolReach`/`boreFits` + bližší strana tyče vs. dosah), `emitGrooveInner()` přímo ve skutečných souřadnicích (výjezd před ústí i za čelo polotovaru); pravidlo 13 |
 | `cam/ops/barOverhang.js` | `barOverhangNote(prms, depth)` — hlášení vyložení tyče > 4 × ⌀ (⌀ = `holderWidth` vnitřního nože); volá bore, grooveInner, thread |
 | `cam/toolRadialFlip.js` | `radialFlip(prms)` — zápich v díře a vnitřní závit (`grooveInnerActive`, `threadInnerActive`; `toolReachAlongZ` = přesah nástroje za špičku pro výjezd z díry): `insertWorldLoop`, `toolFootprint(Visual)` a `holderWorldLoop` překlopí nástroj v X (ostří ven, tyč k ose); `calculatePipeline` u něj vnější obrys nehrubuje ani nedokončuje |
