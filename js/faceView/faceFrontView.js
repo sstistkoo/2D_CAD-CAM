@@ -14,7 +14,7 @@
 // stojí na ose vedle nárysu, promítací čáry vedou vodorovně), u karuselu
 // vodorovná (osy nárysu otočené).
 import { state } from '../state.js';
-import { faceHoles, profileObjects } from './faceLayer.js';
+import { faceHoles, profileObjects, faceViewC } from './faceLayer.js';
 import { faceCutGeom, objectsHash } from './faceReference.js';
 import { resolveHoleDepth, materialSpan, stockSpan } from './faceDepth.js';
 
@@ -54,8 +54,11 @@ export function holeFrontLines({ c, rh, z0, dir, len, tip }) {
  * díru, která materiál nezasáhne (nebo Z na straně nástroje), vynechá.
  * @param holes [{ face, o }] (faceLayer.faceHoles)
  */
-export function frontHoles(holes, objects, machineType) {
-  const isCar = machineType === 'karusel';
+export function frontHoles(holes, objects, machineType, viewC = machineType === 'karusel' ? 0 : 90) {
+  // Násobky 90° přesně (cos 90° = 6e-17 by posunul výšku díry o šum).
+  const th = viewC * Math.PI / 180;
+  const exact = v => (Math.abs(v) < 1e-12 ? 0 : Math.abs(Math.abs(v) - 1) < 1e-12 ? Math.sign(v) : v);
+  const cT = exact(Math.cos(th)), sT = exact(Math.sin(th));
   const memo = new Map();
   const out = [];
   holes.forEach(({ face, o }) => {
@@ -78,7 +81,10 @@ export function frontHoles(holes, objects, machineType) {
       if (res.depth < span.end) { end = res.depth; tip = true; }
     }
     const dir = side === 'left' ? 1 : -1;
-    out.push({ o, lines: holeFrontLines({ c: isCar ? hx : hy, rh: o.r, z0: faceZ + dir * span.start, dir, len: end - span.start, tip }) });
+    // Výška v nárysu = průmět středu díry do směru C, který je nahoře
+    // (posuvník natočení, faceViewC): C 90° → Y bokorysu, C 0° → X.
+    const c = hx * cT + hy * sT;
+    out.push({ o, lines: holeFrontLines({ c, rh: o.r, z0: faceZ + dir * span.start, dir, len: end - span.start, tip }) });
   });
   return out;
 }
@@ -91,7 +97,7 @@ let _cache = null;
 function holesKey(prof, holes) {
   const hk = holes.map(({ face, o }) => [face.id, face.faceZ, face.faceSide, face.origin.x, face.origin.y,
     o.cx, o.cy, o.r, o.holeDepth ? `${o.holeDepth.mode}:${o.holeDepth.value}:${!!o.holeDepth.stock}` : ''].join(',')).join(';');
-  return `${objectsHash(prof)}|${hk}|${state.machineType}`;
+  return `${objectsHash(prof)}|${hk}|${state.machineType}|${faceViewC()}`;
 }
 
 /** Svět z (z, poloměr) nárysu: soustruh wx = z, wy = r; karusel naopak. */
@@ -125,7 +131,7 @@ export function drawFrontView(g, w2s) {
   if (!holes.length) { _cache = null; return; }
   const prof = profileObjects();
   const key = holesKey(prof, holes);
-  if (!_cache || _cache.key !== key) _cache = { key, holes: frontHoles(holes, prof, state.machineType) };
+  if (!_cache || _cache.key !== key) _cache = { key, holes: frontHoles(holes, prof, state.machineType, faceViewC()) };
   const poly = pts => {
     g.beginPath();
     pts.forEach((p, i) => {

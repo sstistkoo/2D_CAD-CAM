@@ -380,6 +380,8 @@ function geoKey(objects, z, side) {
 
 // ── Geometrie posledního vykreslení: SNAP a skrývání čísel hlavních os ──
 let _disc = null;   // { x, y, r, R, radii[], solo, isCar }
+/** Kruh bokorysu z posledního vykreslení (střed, R těla, r s popisky), nebo null. */
+export function faceDiscGeom() { return _disc; }
 /** Leží světový bod v bokorysu (s rezervou na popisky)? */
 export function inFaceDisc(wx, wy) {
   return !!_disc && Math.hypot(wx - _disc.x, wy - _disc.y) <= _disc.r;

@@ -62,6 +62,24 @@ export function faceViewOn() {
   return faceViewMode() !== 'off';
 }
 
+/**
+ * NATOČENÍ POHLEDU (posuvník vpravo od bokorysu, faceRotate.js): úhel C,
+ * který je v nárysu NAHOŘE (soustruh; karusel vpravo). Výchozí jako dřív:
+ * soustruh C 90° (svislá osa bokorysu), karusel C 0°. Nárys pak ukazuje díry
+ * čel i děr v plášti tak, jak při tomto natočení dílu leží. Pamatuje se ve
+ * vrstvách čel (`viewC`, uloží se s výkresem).
+ */
+export function faceViewC() {
+  const l = getFaceLayer();
+  if (l && Number.isFinite(l.viewC)) return l.viewC;
+  return state.machineType === 'karusel' ? 0 : 90;
+}
+export function setFaceViewC(c) {
+  const v = +(((c % 360) + 360) % 360).toFixed(3);
+  getFaceLayers().forEach(l => { l.viewC = v; });
+  return v;
+}
+
 /** Patří objekt do kresby některého čela? */
 export function isFaceObject(o) {
   return !!o && isFaceLayerId(o.layer);

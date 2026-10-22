@@ -160,3 +160,42 @@ describe('NC výstup vrtání do pláště', () => {
     expect(L.filter(l => l === 'G1 X16 F120')).toHaveLength(2);
   });
 });
+
+describe('natočení pohledu (posuvník vpravo od bokorysu)', async () => {
+  const { shellFrontProjections, snapViewC } = await import('../js/faceView/shellHoleView.js');
+  const { frontHoles } = await import('../js/faceView/faceFrontView.js');
+  const { faceViewC, setFaceViewC } = await import('../js/faceView/faceLayer.js');
+  it('výchozí C nahoře: soustruh 90°, karusel 0°; uloží se do čel', () => {
+    state.layers.push({ id: 7, isFace: true, faceCurrent: true, origin: { x: 300, y: 0 }, faceZ: 200, faceSide: 'right', visible: true });
+    expect(faceViewC()).toBe(90);
+    state.machineType = 'karusel';
+    expect(faceViewC()).toBe(0);
+    expect(setFaceViewC(-30)).toBe(330);
+    expect(faceViewC()).toBe(330);
+  });
+  it('přichycení k dírám (4°) a po 45° (2°)', () => {
+    expect(snapViewC(48, [51])).toBe(51);
+    expect(snapViewC(44, [])).toBe(45);
+    expect(snapViewC(358.5, [])).toBe(0);
+    expect(snapViewC(40, [])).toBe(40);
+  });
+  it('díra v plášti: průmět podle C díry a C nahoře, k nám = kružnice', () => {
+    const res = { R: 20, depth: 10 };
+    const [up, side, down, diag] = shellFrontProjections(50, { d: 8, count: 4, angle: 90 }, res, 90);
+    expect(up.pts[0]).toEqual([46, 20]);
+    expect(side).toMatchObject({ circle: true, rh: 4 });   // C180 při C90 nahoře míří k nám / od nás
+    expect(down.pts[0][1]).toBeCloseTo(-20, 6);
+    expect(diag.circle).toBe(true);                        // C0
+    const [t45] = shellFrontProjections(50, { d: 8, count: 1, angle: 0 }, res, 45);
+    expect(t45.pts[0][1]).toBeCloseTo(20 * Math.SQRT1_2, 6);
+  });
+  it('díra v čele: výška v nárysu = průmět do směru C nahoře', () => {
+    const face = { id: 7, faceZ: 200, faceSide: 'right', origin: { x: 300, y: 0 } };
+    const holes = [{ face, o: { cx: 300 + 15, cy: 15, r: 3, holeDepth: { mode: 'depth', value: 10 } } }];
+    const c = v => frontHoles(holes, profile(), 'soustruh', v)[0].lines.center[0][1];
+    expect(c(90)).toBeCloseTo(15, 6);
+    expect(c(0)).toBeCloseTo(15, 6);
+    expect(c(45)).toBeCloseTo(15 * Math.SQRT2, 6);
+    expect(c(225)).toBeCloseTo(-15 * Math.SQRT2, 6);
+  });
+});

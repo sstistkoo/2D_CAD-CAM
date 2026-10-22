@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAD: posuvník natočení pohledu vpravo od bokorysu.** Úhel C nahoře
+  v nárysu (výchozí soustruh 90°, karusel 0°), přichycení k dírám a po 45°,
+  políčko a ⟲. Nárys ukazuje díry v čele i v plášti podle natočení, bokorys
+  průměr „C… nahoře". `faceView/faceRotate.js`, `faceLayer.faceViewC`.
+
 - **CAD → CAM: díry do pláště (radiální vrtání) kreslené v nárysu.** Nástroj
   Díra: klepnutí v nárysu na díl otevře ⊥ Díra do pláště (Z z klepnutí, Ø,
   hloubka do hloubky / do Ø / skrz stěnu do vývrtu, počet po obvodu, úhel C

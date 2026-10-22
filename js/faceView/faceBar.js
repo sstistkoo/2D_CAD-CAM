@@ -17,6 +17,7 @@ import { safeEvalMath } from '../utils.js';
 import { worldToScreen } from '../canvas.js';
 import { updateLayerList } from '../ui.js';
 import { getFaceLayer, getFaceLayers, faceViewMode, profileObjects, faceLabel } from './faceLayer.js';
+import { placeRotate } from './faceRotate.js';
 import { shoulderZs, profileBounds, profileRadii, faceRadius, faceCutGeom, onFaceDrawn, objectPoints, inFaceDisc } from './faceReference.js';
 
 const THUMB = 16;              // šířka jezdce posuvníku (výchozí vzhled prohlížečů) [px]
@@ -149,7 +150,7 @@ export function updateBar() {
   const mode = faceViewMode();
   if (!bar) buildBar();
   bar.style.display = mode === 'off' ? 'none' : '';
-  if (mode === 'off') return;
+  if (mode === 'off') { placeRotate(false); return; }
   const cur = getFaceLayer();
   const sel = bar.querySelector('[data-fb="sel"]');
   sel.innerHTML = getFaceLayers().map(l => `<option value="${l.id}"${l === cur ? ' selected' : ''}>${faceLabel(l)}</option>`).join('');
@@ -252,6 +253,8 @@ export function rangeValueAt(rect, layoutW, min, max, rtl, x) {
 const isCoarse = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 function placeBar() {
+  // Posuvník natočení (vpravo od bokorysu) se umísťuje se lištou.
+  placeRotate(!!bar && bar.style.display !== 'none');
   if (!bar || bar.style.display === 'none') return;
   const cur = getFaceLayer();
   const cv = document.getElementById('drawCanvas');

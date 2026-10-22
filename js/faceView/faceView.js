@@ -33,6 +33,7 @@ import {
 import { computeFaceOrigin, profileAtZ, shoulderZs } from './faceReference.js';
 import { initCutDrag } from './faceCutDrag.js';
 import { initFaceBar, updateBar, FACE_BAR_CSS } from './faceBar.js';
+import { FACE_ROT_CSS } from './faceRotate.js';
 import { drawHolesToFace } from './facePattern.js';
 import { drawShellHole } from './shellHoleDraw.js';
 
@@ -280,7 +281,7 @@ function toggle() {
   else disableFaceView();
 }
 
-const CSS = FACE_BAR_CSS + `
+const CSS = FACE_BAR_CSS + FACE_ROT_CSS + `
 #canvasFaceBtn { display: none; }
 /* ◎ patří k plátnu CAD — nad oknem (CAM, dialogy; z-index 200) by zakrývalo
    obsah a ovládalo neviditelný výkres (uživatel 18. 10. 2026). CAM má vlastní

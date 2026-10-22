@@ -19,7 +19,7 @@ import { bulgeToArc, deepClone } from '../utils.js';
 import { resetDimLabelRects } from './view.js';
 import { drawFaceReference, inFaceDisc } from '../faceView/faceReference.js';
 import { drawFrontView } from '../faceView/faceFrontView.js';
-import { drawShellHoles } from '../faceView/shellHoleView.js';
+import { drawShellHoles, drawViewCut } from '../faceView/shellHoleView.js';
 import { faceViewMode } from '../faceView/faceLayer.js';
 
 // ── Vykreslení objektů ──
@@ -41,6 +41,8 @@ export function renderObjects() {
   drawFrontView(ctx, worldToScreen);
   // Díry v plášti: obrys skrytou čarou v nárysu, paprsky v bokorysu.
   drawShellHoles(ctx, worldToScreen);
+  // Natočení pohledu (posuvník vpravo od bokorysu): průměr na úhlu C nahoře.
+  drawViewCut(ctx, worldToScreen);
 
   // Výplně (nástroj "Vybarvit") – kreslí se jako první vrstva, pod obrysy.
   drawFills(vp);

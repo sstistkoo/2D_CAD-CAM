@@ -634,6 +634,14 @@ děr podél osy: **Lin.pole** (kopie nesou data díry). Smazání vrstvy Díry
 v plášti smaže i díry (↩ vrátí). V CAM se přenesou samy jako **vrtání do
 pláště (osa X)** — jedna výška po obvodu = rozteč, víc výšek = seznam bodů
 „úhel; Z"; jiný Ø pláště = samostatná operace.
+**Natočení pohledu (posuvník vpravo od bokorysu):** svislý posuvník vedle
+bokorysu nastavuje, který úhel C je v nárysu **nahoře** (výchozí soustruh
+C 90°, karusel C 0°; tažením nahoru úhel roste, přichytí se k úhlům děr
+v čele i v plášti a po 45°; pod ním políčko pro přesný úhel a ⟲ zpět).
+Nárys pak ukáže díry v čele i v plášti tak, jak při tomto natočení dílu
+leží — díra v plášti mířící k nám / od nás jako kružnice na ose; v bokorysu
+je natočení vidět jako průměr s trojúhelníkem „C… nahoře". Značka díry
+v plášti (osa) zůstává nahoře. Natočení se uloží s výkresem.
 **Díry v nárysu:** díry všech čel se v nárysu kreslí jako na výkresu —
 **tenkou čárkovanou čarou** (skrytá hrana) v materiálu, kterým díra vede:
 od prvního materiálu za rovinou čela (stojí-li posuvník před přírubou, díra
