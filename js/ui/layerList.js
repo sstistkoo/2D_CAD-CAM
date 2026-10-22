@@ -8,7 +8,7 @@
 // z js/ui.js (updateLayerList), nikdy z js/ui/* napřímo.
 
 import { COLORS } from '../constants.js';
-import { state, showToast } from '../state.js';
+import { state, showToast, pushUndo } from '../state.js';
 import { renderAll } from '../render.js';
 import { openLayerColorPicker } from './colorPicker.js';
 import { updateObjectList } from '../ui.js';
@@ -134,6 +134,16 @@ export function initLayerButtons() {
     // profilem a šly do CAM) — smaže se celé čelo (js/faceView/faceView.js).
     if (state.layers[idx].isFace) {
       if (bridge.deleteFace) bridge.deleteFace(state.layers[idx]);
+      return;
+    }
+    // Díry v plášti: stejně — smazat i s dírami (jedním ↩), ne na Konturu.
+    if (state.layers[idx].isShell) {
+      pushUndo();
+      state.objects = state.objects.filter(o => o.layer !== delId);
+      state.layers.splice(idx, 1);
+      state.activeLayer = 0;
+      updateLayerList(); updateObjectList(); renderAll();
+      showToast('Vrstva Díry v plášti smazána i s dírami (↩ vrátí díry)');
       return;
     }
     state.layers.splice(idx, 1);

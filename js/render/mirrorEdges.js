@@ -16,7 +16,7 @@ import { LINE_WIDTH } from '../constants.js';
 import { objDash, objWidthMul } from '../lineStyles.js';
 import { bulgeToArc, getRectCorners } from '../utils.js';
 import { resolveObjectColor } from './common.js';
-import { isFaceObject } from '../faceView/faceLayer.js';
+import { isFeatureObject } from '../faceView/faceLayer.js';
 import { materialAt, objectsHash } from '../faceView/faceReference.js';
 
 const TYPES = new Set(['line', 'arc', 'rect', 'polyline']);
@@ -139,7 +139,7 @@ export function drawAxisEdges(g, w2s) {
   if (state.machineType === 'karusel') return;
   const off = new Set((state.layers || []).filter(l => !l.visible).map(l => l.id));
   const objs = state.objects.filter(o => o && TYPES.has(o.type) && !o.isDimension && !o.isCoordLabel
-    && !o.isCamPathNote && !off.has(o.layer) && !isFaceObject(o));
+    && !o.isCamPathNote && !off.has(o.layer) && !isFeatureObject(o));
   const key = objectsHash(objs);
   if (!_cache || _cache.key !== key) {
     _cache = { key, lines: [...axisEdgeLines(objs.filter(o => !o.isStock)), ...axisEdgeLines(objs.filter(o => o.isStock))] };

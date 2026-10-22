@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAD → CAM: díry do pláště (radiální vrtání) kreslené v nárysu.** Nástroj
+  Díra: klepnutí v nárysu na díl otevře ⊥ Díra do pláště (Z z klepnutí, Ø,
+  hloubka do hloubky / do Ø / skrz stěnu do vývrtu, počet po obvodu, úhel C
+  nebo „Natočit podle" díry v čele + odsazení). Ve vrstvě Díry v plášti
+  (není profil) osa díry + obrys skrytou čarou z aktuálního profilu,
+  v bokorysu paprsky na úhlech C (kontrola natočení vůči dírám v čele).
+  Klepnutí na díru = úprava, Lin.pole = víc děr podél osy. Do CAM se
+  přenesou samy jako vrtání do pláště (rozteč / body „úhel; Z"). Moduly
+  `faceView/shellHoles.js`, `shellHoleDraw.js`, `shellHoleView.js`,
+  `calculators/shellHole.js`, test `tests/shell-holes.test.js` (vč. NC
+  výstupu radiálního vrtání Sinumerik / Fanuc / Heidenhain).
+
 - **CAM: díry z CAD se přenesou samy a vrtají od materiálu.** Při otevření
   CAM se díry a drážky z bokorysu převedou na operace poháněných nástrojů
   jako 📥 Z CAD (nahradí jen dřív načtené z CAD, nástroj a otáčky zůstanou).

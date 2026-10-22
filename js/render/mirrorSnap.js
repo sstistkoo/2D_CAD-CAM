@@ -7,7 +7,7 @@
 // objekty (body i hrany), jen bez vazby na zdroj. Modul nesmí importovat
 // canvas.js (cyklus) — proto tu je i zrcadlení, které kreslí mirrorFills.js.
 import { state } from '../state.js';
-import { isFaceObject } from '../faceView/faceLayer.js';
+import { isFeatureObject } from '../faceView/faceLayer.js';
 import { frontHoleSnapLines } from '../faceView/faceFrontView.js';
 import { axisEdgeSnapLines } from './mirrorEdges.js';
 
@@ -49,7 +49,7 @@ export function mirrorObjectAcrossY(obj) {
 /** Zrcadlí se (kreslí i chytá) jen geometrie kontury z viditelných vrstev. */
 export function mirrorable(obj) {
   if (!obj || obj.isDimension || obj.isCoordLabel || obj.isCamPathNote || obj.type === 'text') return false;
-  if (isFaceObject(obj)) return false;   // kresba čela (bokorys) není kontura
+  if (isFeatureObject(obj)) return false;   // kresba čela (bokorys) není kontura
   const layer = (state.layers || []).find(l => l.id === obj.layer);
   return !(layer && !layer.visible);
 }

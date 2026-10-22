@@ -34,7 +34,7 @@ import { cadSyncOps } from './liveCadSync.js';
 import { createLiveProgram } from './liveProgram.js';
 import { createDrillUi } from './liveDrillUi.js';
 import { settingsTitle } from './liveSettingsUi.js';
-import { faceDrawingsForCam } from '../../../faceView/faceDepth.js';
+import { cadDrawingsForCam } from '../../../faceView/shellHoles.js';
 import { liveProfile, liveCutAt, autoSide, drawCutMark } from './liveCut.js';
 import { createCutBar } from './liveCutBar.js';
 import { attachFaceNav, defaultNav, isDefaultNav } from './liveFaceNav.js';
@@ -438,9 +438,9 @@ export function initLiveTools(deps) {
       st.selected = ops.length - 1;
       commit(p => { p.liveOps = ops; });
     } else if (act === 'from-cad') {
-      const res = liveOpsFromCad(faceDrawingsForCam(), livePartGeometry(S), getLiveOps(S.params));
+      const res = liveOpsFromCad(cadDrawingsForCam(), livePartGeometry(S), getLiveOps(S.params));
       if (!res.holes && !res.slots) {
-        showToast('V CAD není nakreslené čelo — zapněte ◎ (bokorys), kružnice = díra, úsečka = drážka', 5000);
+        showToast('V CAD nejsou díry — do čela: ◎ (bokorys), kružnice = díra, úsečka = drážka; do pláště: nástroj Díra, klepnout v nárysu na díl', 5000);
         return;
       }
       st.selected = res.ops.length - 1;

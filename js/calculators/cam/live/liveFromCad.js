@@ -42,9 +42,14 @@ export function detectPcd(pts) {
  * @returns {{ ops, holes, slots, skipped }}
  */
 export function liveOpsFromCad(input, geo, prevOps) {
-  const faces = Array.isArray(input) && input.length && input[0] && Array.isArray(input[0].objects)
+  // Díry v plášti (faceView/shellHoles.shellHolesForCam) jdou v poli jako
+  // položka { kind: 'shell', holes } vedle čel.
+  const isEntry = f => f && (Array.isArray(f.objects) || f.kind === 'shell');
+  const list = Array.isArray(input) && input.length && input.every(isEntry)
     ? input
     : [{ z: geo ? geo.faceZ : 0, side: 'right', objects: input || [] }];
+  const faces = list.filter(f => f.kind !== 'shell');
+  const shells = list.filter(f => f.kind === 'shell');
   const prev = (prevOps || []).filter(o => o.fromCad);
   const manual = (prevOps || []).filter(o => !o.fromCad);
   const ops = [...manual];
@@ -124,5 +129,48 @@ export function liveOpsFromCad(input, geo, prevOps) {
       ops.push(normalizeLiveOp(op));
     });
   });
+  shells.forEach(sh => {
+    const r = radialOps(sh.holes || [], geo, prev, () => ++n, carry);
+    ops.push(...r.ops);
+    holes += r.holes;
+    skipped += (sh.errors || []).length;
+  });
   return { ops, holes, slots, skipped };
+}
+
+/**
+ * Díry v plášti → operace vrtání do pláště (side 'radial'). Skupina = stejný
+ * Ø, hloubka a Ø pláště; díry z jedné výšky Z s rovnoměrnými úhly → po
+ * obvodu (count, startAngle, zPos), jinak seznam bodů „úhel; Z" (např.
+ * Lin.pole podél osy). Nástroj, otáčky… z dřívější radiální operace se
+ * stejným Ø.
+ */
+function radialOps(holes, geo, prev, nextN, carry) {
+  const byKey = new Map();
+  holes.forEach(h => {
+    const key = `${h.d}|${h.depth}|${h.xTop}|${h.tag || ''}`;
+    if (!byKey.has(key)) byKey.set(key, { d: h.d, depth: h.depth, xTop: h.xTop, tag: h.tag || '', pts: [] });
+    h.angles.forEach(a => byKey.get(key).pts.push({ a: r3(norm360(a)), z: r3(h.z) }));
+  });
+  const ops = [];
+  let count = 0;
+  [...byKey.values()].sort((p, q) => p.d - q.d || q.xTop - p.xTop).forEach(g => {
+    const pts = g.pts.sort((p, q) => q.z - p.z || p.a - q.a);
+    count += pts.length;
+    const op = newLiveOp('drill', geo, nextN());
+    op.name = `Díry Ø${g.d} do pláště${g.tag ? ' ' + g.tag : ''} · Ø${g.xTop}`;
+    const isRad = o => o.side === 'radial' && o.kind === 'drill' && Math.abs(o.holeD - g.d) < 1e-3;
+    carry(op, prev.find(o => isRad(o) && Math.abs(o.xTop - g.xTop) < 1e-3) || prev.find(isRad));
+    Object.assign(op, { kind: 'drill', side: 'radial', holeD: g.d, depth: g.depth, xTop: g.xTop, fromCad: true });
+    const oneZ = pts.every(p => Math.abs(p.z - pts[0].z) < 1e-6);
+    const pcd = oneZ ? detectPcd(pts.map(p => ({ a: p.a, r: 1 }))) : null;
+    if (oneZ && (pcd || pts.length === 1)) {
+      Object.assign(op, { pattern: 'pcd', count: pts.length, startAngle: pcd ? pcd.startAngle : pts[0].a, zPos: pts[0].z });
+    } else {
+      op.pattern = 'points';
+      op.points = pts.map(p => `${p.a}; ${p.z}`).join('\n');
+    }
+    ops.push(normalizeLiveOp(op));
+  });
+  return { ops, holes: count };
 }

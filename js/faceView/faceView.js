@@ -34,6 +34,7 @@ import { computeFaceOrigin, profileAtZ, shoulderZs } from './faceReference.js';
 import { initCutDrag } from './faceCutDrag.js';
 import { initFaceBar, updateBar, FACE_BAR_CSS } from './faceBar.js';
 import { drawHolesToFace } from './facePattern.js';
+import { drawShellHole } from './shellHoleDraw.js';
 
 /** Zasahuje profil do kruhu bokorysu? */
 function overlaps(b, o, R) {
@@ -373,6 +374,8 @@ bridge.drawHolesToFace = spec => {
   if (faceViewMode() === 'off') enableFaceView();
   return drawHolesToFace(spec);
 };
+// ⊥ Díra do pláště (calculators/shellHole.js) → nárys, bokorys není potřeba.
+bridge.drawShellHole = drawShellHole;
 initFaceBar({ setCurrent, newFace: newFaceLayer, deleteFace, refresh, setFaceZ, renameFace });
 mount();
 // Řez v nárysu jde chytit myší / prstem a táhnout (faceCutDrag.js).

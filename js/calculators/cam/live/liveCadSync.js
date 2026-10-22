@@ -6,12 +6,12 @@
 // nakreslené není, nic se nemění (smazání načtených operací je dál ruční).
 import { liveOpsFromCad } from './liveFromCad.js';
 import { getLiveOps } from './liveModel.js';
-import { faceDrawingsForCam } from '../../../faceView/faceDepth.js';
+import { cadDrawingsForCam } from '../../../faceView/shellHoles.js';
 
 // Co z operace pochází z výkresu — porovnává se jen to (nástroj, otáčky,
 // posuvy zůstávají z dřívější operace).
 const GEO = ['kind', 'millType', 'side', 'holeD', 'zTop', 'faceDir', 'pattern', 'pcd', 'count',
-  'startAngle', 'points', 'depth', 'slot', 'throughStock'];
+  'startAngle', 'points', 'depth', 'slot', 'throughStock', 'xTop', 'zPos'];
 
 /** Otisk operací načtených z CAD (jen geometrie z výkresu). */
 export function cadOpsSignature(ops) {
@@ -22,10 +22,10 @@ export function cadOpsSignature(ops) {
  * Operace po přenosu z CAD, nebo null (v CAD nic / beze změny).
  * @param params S.params (liveOps)
  * @param geo livePartGeometry(S)
- * @param [drawings] kresby čel (výchozí faceDrawingsForCam() — testy podstrčí)
+ * @param [drawings] kresby čel a díry v plášti (výchozí cadDrawingsForCam() — testy podstrčí)
  * @returns {{ ops, holes, slots, skipped }|null}
  */
-export function cadSyncOps(params, geo, drawings = faceDrawingsForCam()) {
+export function cadSyncOps(params, geo, drawings = cadDrawingsForCam()) {
   const cur = getLiveOps(params);
   const res = liveOpsFromCad(drawings, geo, cur);
   if (!res.holes && !res.slots) return null;

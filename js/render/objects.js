@@ -19,6 +19,7 @@ import { bulgeToArc, deepClone } from '../utils.js';
 import { resetDimLabelRects } from './view.js';
 import { drawFaceReference, inFaceDisc } from '../faceView/faceReference.js';
 import { drawFrontView } from '../faceView/faceFrontView.js';
+import { drawShellHoles } from '../faceView/shellHoleView.js';
 import { faceViewMode } from '../faceView/faceLayer.js';
 
 // ── Vykreslení objektů ──
@@ -38,6 +39,8 @@ export function renderObjects() {
   drawFaceReference(ctx, worldToScreen);
   // Nárys dokreslený pod osu + díry čel skrytou čarou (jen podklad).
   drawFrontView(ctx, worldToScreen);
+  // Díry v plášti: obrys skrytou čarou v nárysu, paprsky v bokorysu.
+  drawShellHoles(ctx, worldToScreen);
 
   // Výplně (nástroj "Vybarvit") – kreslí se jako první vrstva, pod obrysy.
   drawFills(vp);

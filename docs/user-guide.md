@@ -616,6 +616,24 @@ otevře se okno **◎ Díra do čela** s polohou X, Y vůči ose vřetena (vidě
 i polárně: Ø a úhel C), Ø díry a hloubkou jako výše → **◎ Do čela**. Ø
 a hloubku si okno pamatuje pro další díru. Bez zapnutého bokorysu se okno
 otevře s X0 Y0 a ◎ Do čela bokorys zapne.
+**Díra do pláště (radiální):** nástrojem **Díra** klepněte v **nárysu** na
+díl v místě díry (na obrys nebo do materiálu) — otevře se okno **⊥ Díra do
+pláště** se Z z klepnutí: Ø díry, hloubka (*Do hloubky* od pláště / *Do Ø* /
+*Skrz stěnu* do vývrtu + přesah, prázdný = 0,3·Ø + 1), **počet po obvodu**
+(rovnoměrně) a **úhel C** první díry (C 0° = X bokorysu, C 90° = Y — jako
+díry v čele). **Natočit podle** nabídne díry v čele: úhel = jejich C +
+**odsazení**, takže radiální díra sedí vůči díře v čele. Okno hned ukáže
+Ø pláště v Z díry, radiální hloubku (dno na Ø) a úhly. → **⊥ Do pláště**
+nakreslí do vrstvy **Díry v plášti** osu díry napříč osou vřetena a obrys
+skrytou čarou se špičkou 118° (díra natočená do roviny nárysu); v bokorysu
+se každá díra ukáže jako **paprsek** od pláště na svém úhlu — natočení vůči
+dírám v čele je vidět. Ø pláště a hloubka se počítají z aktuálního profilu
+(po úpravě kontury díra sedí sama; nejde-li určit, osa je přeškrtnutá
+červeně). Klepnutí nástrojem Díra na osu díry ji otevře k **úpravě**. Víc
+děr podél osy: **Lin.pole** (kopie nesou data díry). Smazání vrstvy Díry
+v plášti smaže i díry (↩ vrátí). V CAM se přenesou samy jako **vrtání do
+pláště (osa X)** — jedna výška po obvodu = rozteč, víc výšek = seznam bodů
+„úhel; Z"; jiný Ø pláště = samostatná operace.
 **Díry v nárysu:** díry všech čel se v nárysu kreslí jako na výkresu —
 **tenkou čárkovanou čarou** (skrytá hrana) v materiálu, kterým díra vede:
 od prvního materiálu za rovinou čela (stojí-li posuvník před přírubou, díra
@@ -809,7 +827,8 @@ záložku (vyvrtávací tyč vybere *Zapnout* v záložce). Dráhy každé čás
 **🔄 Dráhy** — „✂ Po úsecích" je vidět jen u soustružení.
 
 **Díry z výkresu (záložka Vrtání nahoře).** Díry nakreslené v CAD do
-bokorysu (nástroj Díra, Kr.pole) se do CAM přenesou samy jako skupiny
+bokorysu (nástroj Díra, Kr.pole) i do pláště v nárysu (nástroj Díra,
+Lin.pole) se do CAM přenesou samy jako skupiny
 (stejný Ø na roztečné kružnici = jedna skupina). Přepnutím na záložku
 **Vrtání** se otevře ◎ pohled na čelo a nahoře v záložce je **Co vrtat**:
 **Díry z výkresu** (poháněný vrták, kus se natáčí osou C) nebo **Středová

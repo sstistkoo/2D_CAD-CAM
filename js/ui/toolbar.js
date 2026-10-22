@@ -311,7 +311,7 @@ export function resetHint() {
     mirror: "Vyberte objekty pro zrcadlení (Shift+M)",
     boolean: "Klikněte na první uzavřenou konturu",
     circularArray: "Klepněte na objekt pro kruhové pole (v bokorysu: klik na střed a vytáhnout roztečnou kružnici)",
-    faceHole: "Klepněte do bokorysu na místo díry (SNAP chytá střed a kružnice) – Ø a hloubka → ◎ Do čela",
+    faceHole: "Díra do čela: klepněte do bokorysu (SNAP chytá střed a kružnice) · do pláště: klepněte v nárysu na díl v místě díry",
     profileTrace: "Klepněte na první bod kontury (R = radius, Enter = dokončit)",
     fill: "Klikněte do plochy, kterou chcete vybarvit",
     vkDraw: "Klepněte do výkresu – bod se zapíše do VK kontury (typ prvku VL/VKr volíte v okně)",

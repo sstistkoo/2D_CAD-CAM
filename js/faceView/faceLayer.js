@@ -67,9 +67,29 @@ export function isFaceObject(o) {
   return !!o && isFaceLayerId(o.layer);
 }
 
-/** Objekty profilu (vše kromě vrstev čel). */
+// DÍRY V PLÁŠTI (radiální, faceView/shellHoles.js) leží v nárysu ve vlastní
+// vrstvě s příznakem `isShell` — stejně jako čela to NENÍ profil (CAM, CNC
+// kód, kontrola kontury, zrcadlení je vynechávají).
+export const SHELL_LAYER_NAME = 'Díry v plášti';
+
+/** Vrstva děr v plášti, nebo null (ještě nebyla díra do pláště). */
+export function getShellLayer() {
+  return (state.layers || []).find(l => l && l.isShell) || null;
+}
+
+/** Vrstva kresby pro poháněné nástroje (čelo nebo plášť) — není profil. */
+export function isFeatureLayerId(id) {
+  return (state.layers || []).some(l => l && l.id === id && (l.isFace || l.isShell));
+}
+
+/** Objekt kresby pro poháněné nástroje (díra / drážka čela, díra v plášti). */
+export function isFeatureObject(o) {
+  return !!o && isFeatureLayerId(o.layer);
+}
+
+/** Objekty profilu (vše kromě vrstev čel a děr v plášti). */
 export function profileObjects() {
-  const ids = new Set(getFaceLayers().map(l => l.id));
+  const ids = new Set((state.layers || []).filter(l => l && (l.isFace || l.isShell)).map(l => l.id));
   return ids.size ? state.objects.filter(o => !ids.has(o.layer)) : state.objects;
 }
 
