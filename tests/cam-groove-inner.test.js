@@ -321,3 +321,16 @@ describe('zápich z výkresu (bod 3)', async () => {
     expect(Math.max(...grooveHoleLoop(S()).map(q => q.x))).toBe(20);
   });
 });
+
+describe('díra z polotovaru části (ne z výchozích parametrů vyvrtávání)', () => {
+  // Polotovar části = díl s dírou ⌀24 (r 12) do Z −40; parametry vyvrtávání
+  // mají výchozí ⌀30 — ty se brát nesmí.
+  const P = (pts) => pts.map(([x, z], i) => ({ id: 400 + i, type: i ? 'G1' : 'G0', x, z, r: 0, mode: 'ABS' }));
+  const stockPoints = P([[0, -40], [12, -40], [12, 0], [40, 0], [40, -60], [0, -60]]);
+  it('stěna díry z polotovaru: start zápichu o vůli před r 12', async () => {
+    const p = params(bar(16, 2), { stockMode: 'casting', boreDiameter: 30, boreDepth: 20, borePreDiameter: 20, borePreDepth: 30, grooveBottomX: 14, grooveWidth: 4 });
+    const { gcode } = await runCamProg({ ...prog(p), stockPoints });
+    expect(gcode).toMatch(/G0 X10\.800/);         // 12 − vůle 1 − rádius 0,2
+    expect(gcode).not.toMatch(/G0 X13\.800/);     // rychloposuv ke stěně ne podle výchozího ⌀30
+  });
+});

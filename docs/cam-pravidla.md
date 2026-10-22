@@ -261,6 +261,13 @@ protější stěny díry. Kde se nevejde, dráha se nevydá a nahlásí se.**
   průchodů, teprve potom na Z startu; po posledním průchodu z odskoku
   zpět před ústí a teprve odtud do bezpečné polohy. Nikdy šikmo z/do
   bezpečné polohy přes stěnu díry.
+- **Náběh vnitřního závitu ve stěně** (schválil uživatel 23. 10. 2026, jen
+  hlášení): leží-li část náběhu za čelem dílu v díře užší než ⌀D závitu
+  (díra z výkresu, jinak v polotovaru části, jinak předvrtání ⌀(D − 2H)),
+  program se vydá a ⚠ řekne, že je potřeba vybrání nebo závit od ústí.
+- **Díra pro zápich v díře** (upřesnění 23. 10. 2026): ruční ⌀, jinak díra
+  v polotovaru části (díl obrobený předchozími částmi), jinak parametry
+  vyvrtávání / předvrtání — ty mají výchozí hodnoty i tam, kde se nevyvrtává.
 - **Vyložení tyče** (schválil uživatel 22. 10. 2026, jen hlášení): leží-li
   špička v díře hlouběji od ústí než 4 × ⌀ ocelové tyče, dráha se vydá
   a ⚠ upozorní na chvění (vyvrtávání, zápich v díře, vnitřní závit).

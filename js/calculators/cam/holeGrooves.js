@@ -46,3 +46,25 @@ export function chainWithoutGrooves(segs) {
   }
   return out;
 }
+
+/**
+ * Obdélníkové zápichy na VNĚJŠÍM obrysu (úseky kontury v libovolném směru):
+ * schod DOLŮ k ose → ROVNÉ DNO podél osy → schod zpátky NAHORU (pravidlo 17,
+ * vnější zápich z výkresu). Zápich ve stěně díry (dno dál od osy než okolí)
+ * sem nepatří — ten hledá groovesInChain.
+ * @returns {{zLo:number, zHi:number, W:number, rBot:number, rTop:number}[]}
+ *   zLo/zHi = boky (menší / větší Z), rBot = poloměr dna, rTop = nižší z okrajů
+ */
+export function groovesOnOuter(segs) {
+  const out = [];
+  const S = (segs || []).filter(Boolean);
+  for (let i = 0; i + 2 < S.length; i++) {
+    const a = S[i], b = S[i + 1], c = S[i + 2];
+    if (!radial(a) || !axial(b) || !radial(c)) continue;
+    // Dno níž (blíž ose) než oba okraje: a jde dolů, c nahoru.
+    if (!(a.p2.x < a.p1.x - EPS) || !(c.p2.x > c.p1.x + EPS)) continue;
+    const z1 = a.p1.z, z2 = c.p1.z;
+    out.push({ zLo: r3(Math.min(z1, z2)), zHi: r3(Math.max(z1, z2)), W: r3(Math.abs(z2 - z1)), rBot: r3(b.p1.x), rTop: r3(Math.min(a.p1.x, c.p2.x)) });
+  }
+  return out;
+}

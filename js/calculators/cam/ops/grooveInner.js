@@ -32,6 +32,7 @@ import { boreChainFromState } from '../boreContour.js';
 import { buildStockLoopRaw, toolFootprint } from '../materialRemoval.js';
 import { toolReachAlongZ } from '../toolRadialFlip.js';
 import { barOverhangNote } from './barOverhang.js';
+import { stockHoleRadiusAt } from '../stockHole.js';
 
 const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
 /** Mezera mezi tyčí a stěnou díry [mm] (jako WALL_GAP vyvrtávání). */
@@ -42,6 +43,12 @@ const STEP_FRAC = 0.8;
 /** Poloměr díry (stěny) ve skutečném Z, nebo null, kde díra není. */
 function holeRadiusAt(g, z, holeR) {
   if (holeR > 0) return holeR;
+  // Díra v polotovaru části (obrobený předchozími částmi) má přednost před
+  // parametry vyvrtávání — ty mají výchozí hodnoty i tam, kde se nevyvrtává.
+  if (g.stock) {
+    const rs = stockHoleRadiusAt(g.stock, z);
+    if (rs !== null) return rs;
+  }
   const depth = g.s * (g.zF - z);
   if (g.chain) {
     // Tvar z výkresu: lineární interpolace po řetězu (oblouk ~ tětiva).
@@ -63,8 +70,9 @@ function holeRadiusAt(g, z, holeR) {
   return null;
 }
 
-/** Nejmenší poloměr díry na úseku Z (vzorkuje po 0,25 mm + konce). */
-function holeMinRadius(g, z1, z2, holeR) {
+/** Nejmenší poloměr díry na úseku Z (vzorkuje po 0,25 mm + konce); null = kus úseku mimo díru.
+ *  `g` = boreGeom (díra z vyvrtávání / předvrtání / výkresu), holeR > 0 = ruční ⌀/2. */
+export function holeMinRadius(g, z1, z2, holeR) {
   const lo = Math.min(z1, z2), hi = Math.max(z1, z2);
   const n = Math.max(1, Math.ceil((hi - lo) / 0.25));
   let m = Infinity;
@@ -92,7 +100,7 @@ function barNearSide(prms) {
  */
 export function grooveInnerGeom(prms, chain = null, stockLoop = null) {
   const bg = boreGeom(prms, chain);
-  const g = { s: bg.s, zF: bg.zF, D: bg.D, L: bg.L, d0: bg.d0, L0: bg.L0, chain: bg.chain };
+  const g = { s: bg.s, zF: bg.zF, D: bg.D, L: bg.L, d0: bg.d0, L0: bg.L0, chain: bg.chain, stock: stockLoop };
   const k = prms.mode === 'DIAMON' ? 2 : 1;
   const ins = getInsert(prms);
   const w = ins.widthZ || 0;                         // šířka destičky (0 = není zapichovací)
@@ -115,6 +123,7 @@ export function grooveInnerGeom(prms, chain = null, stockLoop = null) {
   if (W < w - 1e-6) return fail(`Šířka zápichu ${W} mm je menší než šířka destičky ${w} mm — vyber užší destičku.`);
   const rHole = holeMinRadius(g, zA, zB, holeR);
   if (rHole === null) return fail('Zápich leží mimo díru — zadej ⌀ díry, nebo nastav vyvrtávání / předvrtání (Hrub. + ◎ Vnitřní).');
+  if (rHole === Infinity) return fail('Zápich leží mimo polotovar — zkontroluj Z zápichu.');
   // Cesta od ústí k zápichu: nejužší místo díry, kudy tyč jede rychloposuvem.
   const rPath = holeMinRadius(g, g.zF, zA, holeR);
   if (rPath === null) return fail('Mezi ústím díry a zápichem není díra — zkontroluj Z zápichu a ⌀ díry.');

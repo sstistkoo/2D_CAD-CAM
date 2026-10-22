@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   straně, boky a dno s přídavky, dokončení bok → dno → bok; šířka 0 =
   upichnutí beze změny (`cam/ops/grooveWide.js`, test
   `tests/cam-groove-wide.test.js`).
+- **CAM: vnější zápich z výkresu** — zápich nakreslený na obrysu dílu
+  nabídne Upich + ◯ Vnější (✏ Z výkresu); klik vyplní Z upich, šířku
+  a Dojezd X (`groovesOnOuter` v `cam/holeGrooves.js`).
+- **CAM: hlášení náběhu vnitřního závitu ve stěně díry** (pravidlo 13,
+  23. 10. 2026) — `threadRunInNote` v `cam/ops/thread.js`.
 - **CAM: zápich v díře z výkresu** — nakreslené obdélníkové zápichy ve
   stěně díry nabídne panel Upich + ◎ Vnitřní (✏ Z výkresu); klik vyplní
   Z, šířku a dno. Čárkovaný náhled zápichu na polotovaru
@@ -26,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM: zápich v díře bral díru z výchozích parametrů vyvrtávání**
+  (⌀30 × 20 i v části, kde se nevyvrtává) — teď nejdřív z polotovaru
+  části (díl obrobený předchozími částmi, `cam/stockHole.js`); kontrola
+  náběhu závitu parametry vyvrtávání nebere vůbec.
 - **CAM: zápich v díře s dírou z výkresu (✏)** — generátor dostával celý
   výsledek `boreChainFromState` místo seznamu úseků, takže tvar díry tiše
   ignoroval a počítal se starým ⌀ z polí; panel ukazoval totéž. Teď oba

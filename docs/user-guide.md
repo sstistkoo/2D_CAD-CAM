@@ -927,8 +927,9 @@ Upich v zrcadle.
    0,8 × šířka destičky.
 3. **Dno X** = poloměr vnější hrany destičky na dně (za stěnou díry).
    Hloubka zápichu smí být nejvýš **dosah** destičky v tyči (čip na kartě).
-4. **⌀ díry** 0 = automaticky: hotový ⌀ z vyvrtávání (u díry z výkresu ✏
-   její skutečný tvar), jinak předvrtání.
+4. **⌀ díry** 0 = automaticky: díra v polotovaru části (v programu po
+   částech díl obrobený předchozími částmi — skutečná díra i vybrání),
+   u díry z výkresu ✏ její tvar, jinak ⌀ z vyvrtávání / předvrtání.
 
 **Zápich z výkresu.** Je-li zápich nakreslený ve stěně díry (samostatný
 řetěz díry i díra napojená na čelo — schod ven, rovné dno, schod zpět),
@@ -955,12 +956,18 @@ straně (zprava doprava, zleva doleva), na **Dojezd X**. Boky nechají
 Přídavek Z + Přídavek na hotovo, dno Přídavek na hotovo; s Dokončovací
 operací jede destička po prvním boku na dno, po dně ke druhému boku a po
 něm nahoru. Umí to jen zapichovací destička (kulatá jen jeden zápich).
+Zápich nakreslený na obrysu dílu (schod dolů → rovné dno → schod nahoru)
+nabídne řádek **✏ Z výkresu** nad poli upichu; klik vyplní Z upich (bok
+u sklíčidla), šířku i Dojezd X.
 
 **Vnitřní závit (Závit + ◎ Vnitřní)** jede do díry stejně: rychloposuvem
 před ústí a čelo polotovaru (o vůli X + 1 mm a ještě o to, kam tyč SNR
 sahá za špičku — destička IR je široká), k ose na odskok průchodů, teprve
 pak na Z startu; po posledním průchodu zpět před ústí a teprve odtud do
-bezpečné polohy. Dřív jel šikmo z bezpečné polohy na start a zpátky —
+bezpečné polohy. Leží-li náběh v díře užší než ⌀D (závit hlouběji
+v hladké díře), ⚠ upozorní, že nůž v náběhu najede do stěny — před
+závitem musí být vybrání aspoň ⌀D, nebo závit začni na ústí.
+Dřív jel šikmo z bezpečné polohy na start a zpátky —
 z konce závitu by tyč projela stěnou díry. Uložený program s vnitřním
 závitem se přepočítá při další změně parametrů nebo přes 🔄 Dráhy.
 

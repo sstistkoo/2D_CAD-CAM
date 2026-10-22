@@ -3,8 +3,9 @@
 // šířka hlouběji do díry, dno = poloměr vnější hrany destičky na dně,
 // ⌀ díry 0 = z vyvrtávání / předvrtání.
 import { grooveInnerGeom } from '../ops/grooveInner.js';
+import { buildStockLoopRaw } from '../materialRemoval.js';
 import { boreChainFromState } from '../boreContour.js';
-import { groovesFromDrawing } from './grooveCad.js';
+import { groovesFromDrawing, outerGroovesFromDrawing, outerGrooveZ } from './grooveCad.js';
 
 const cz = (v) => String(Math.round(v * 1000) / 1000).replace('.', ',');
 
@@ -22,7 +23,10 @@ export function grooveInnerFieldsHtml(prms, S = null) {
   // Stejná díra jako v generátoru: z výkresu (✏), jinak z polí.
   let chain = null;
   try { const c = S && prms.boreSource === 'cad' ? boreChainFromState(S) : null; chain = c ? c.segs : null; } catch { chain = null; }
-  const g = grooveInnerGeom(prms, chain);
+  // …a polotovar části (díra z předchozích částí), jako v emisi.
+  let stock = null;
+  try { stock = S && S._cachedCalc ? buildStockLoopRaw(prms, S._cachedCalc.stockPathSegments) : null; } catch { stock = null; }
+  const g = grooveInnerGeom(prms, chain, stock);
   const src = holeSource(prms, !!chain);
   const w = parseFloat(prms.toolLength) || 0;
   const info = g.ok
@@ -64,6 +68,19 @@ export function grooveCadRowHtml(S) {
   const same = (g) => Math.abs(parseFloat(p.partOffZ) - g.zA) < 1e-3 && Math.abs((parseFloat(p.grooveWidth) || 0) - g.W) < 1e-3
     && Math.abs((parseFloat(p.grooveBottomX) || 0) - g.rBot) < 1e-3;
   const btns = list.map((g, i) => `<button data-act="groove-from-cad" data-i="${i}" class="cam-sim-btn ${same(g) ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="font-size:11px;padding:4px 6px" title="Převzít zápich z výkresu: bok u ústí Z ${cz(g.zA)}, šířka ${cz(g.W)} mm, dno ⌀${cz(2 * g.rBot)} (stěna ⌀${cz(2 * g.rWall)})">Z ${cz(g.zA)} · š ${cz(g.W)} · ⌀${cz(2 * g.rBot)}</button>`).join('');
+  return `<div class="cam-sim-row" style="align-items:center;flex-wrap:wrap;gap:4px">
+      <span style="color:#a6adc8;font-size:11px">✏ Z výkresu:</span>${btns}
+    </div>`;
+}
+
+/** Vnější zápichy nakreslené na obrysu (Upich + ◯ Vnější, pravidlo 17). */
+export function grooveOuterCadRowHtml(S) {
+  const list = outerGroovesFromDrawing(S);
+  if (!list.length) return '';
+  const p = S.params;
+  const same = (g) => Math.abs(parseFloat(p.partOffZ) - outerGrooveZ(p, g)) < 1e-3 && Math.abs((parseFloat(p.grooveWidth) || 0) - g.W) < 1e-3
+    && Math.abs((parseFloat(p.allowanceX) || 0) - g.rBot) < 1e-3;
+  const btns = list.map((g, i) => `<button data-act="groove-outer-from-cad" data-i="${i}" class="cam-sim-btn ${same(g) ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="font-size:11px;padding:4px 6px" title="Převzít zápich z výkresu: Z upich ${cz(outerGrooveZ(p, g))} (bok u sklíčidla), šířka ${cz(g.W)} mm, Dojezd X ${cz(g.rBot)} (dno ⌀${cz(2 * g.rBot)})">Z ${cz(g.zLo)}…${cz(g.zHi)} · ⌀${cz(2 * g.rBot)}</button>`).join('');
   return `<div class="cam-sim-row" style="align-items:center;flex-wrap:wrap;gap:4px">
       <span style="color:#a6adc8;font-size:11px">✏ Z výkresu:</span>${btns}
     </div>`;

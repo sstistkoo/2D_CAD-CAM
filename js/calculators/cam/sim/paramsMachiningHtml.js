@@ -10,7 +10,7 @@ import { getInsert } from '../inserts/index.js';
 import { computeThreadPassCuts } from '../threadHelpers.js';
 import { drillGeom, drillAutoFaceZ } from '../ops/drill.js';
 import { paramsBoreHtml } from './paramsBoreHtml.js';
-import { grooveInnerFieldsHtml, grooveCadRowHtml } from './paramsGrooveHtml.js';
+import { grooveInnerFieldsHtml, grooveCadRowHtml, grooveOuterCadRowHtml } from './paramsGrooveHtml.js';
 import { SURFACE_TABS, surfaceInner, programInner } from './machSurface.js';
 
 /** @param ctx { S, escHTML, escAttr } */
@@ -229,7 +229,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
       </div>
       <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="partoff-clear" class="cam-sim-btn cam-sim-btn-gray" style="width:100%;font-size:11px;padding:5px 6px" ${_poActive || S.partOffPickMode ? '' : 'disabled'} title="Zrušit upichnutí — zpět na zapichování/hrubování tvaru">✖ Zrušit</button></div>
     </div>
-    ${_inner ? grooveCadRowHtml(S) : ''}
+    ${_inner ? grooveCadRowHtml(S) : grooveOuterCadRowHtml(S)}
     ${_poActive && _inner ? grooveInnerFieldsHtml(prms, S) : ''}
     ${_poActive && !_inner ? `${!_shapeOk ? `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#f38ba8">⚠ Upichnutí podporuje jen kulatý / upichovací plátek — přepni tvar plátku (dráhy se nevygenerují).</small>` : ''}
     <div class="cam-sim-row">

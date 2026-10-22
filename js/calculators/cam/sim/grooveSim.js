@@ -97,8 +97,10 @@ export function grooveOutline(S) {
   const p = S.params;
   if (!grooveInnerActive(p) || threadInnerActive(p)) return null;
   const src = p.boreSource === 'cad' ? boreChainFromState(S) : null;
-  const g = grooveInnerGeom(p, src ? src.segs : null);
-  if (!(g.rHole > 0) || !(g.rBot > 0) || !Number.isFinite(g.zA)) {
+  let stock = null;
+  try { stock = S._cachedCalc ? buildStockLoopRaw(p, S._cachedCalc.stockPathSegments) : null; } catch { stock = null; }
+  const g = grooveInnerGeom(p, src ? src.segs : null, stock);
+  if (!(g.rHole > 0) || g.rHole === Infinity || !(g.rBot > 0) || !Number.isFinite(g.zA)) {
     // Nevydaná dráha: aspoň kde zápich je (bok u ústí, šířka, dno), když jde.
     const rB = num(p.grooveBottomX), zA = num(p.partOffZ, NaN), W = num(p.grooveWidth) || g.w;
     if (!(rB > 0) || !Number.isFinite(zA) || !(W > 0)) return null;

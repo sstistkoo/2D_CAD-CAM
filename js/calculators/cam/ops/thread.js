@@ -12,6 +12,10 @@ import { buildStockLoopRaw, toolFootprint } from '../materialRemoval.js';
 import { holderWorldLoop } from '../collisionValidator.js';
 import { toolReachAlongZ } from '../toolRadialFlip.js';
 import { barOverhangNote } from './barOverhang.js';
+import { boreGeom } from './bore.js';
+import { holeMinRadius } from './grooveInner.js';
+import { stockHoleRadiusAt } from '../stockHole.js';
+import { boreChainFromState } from '../boreContour.js';
 
 /**
  * @param ctx  { S, calc, prms, lines, addCmt, addN, note, arcR, flipArc }
@@ -96,6 +100,13 @@ export function emitThread(ctx) {
       const zMouth = zs.length ? (dirZ < 0 ? Math.max(...zs) : Math.min(...zs)) : zStart;
       const ovh = barOverhangNote(prms, Math.abs(zCut - zMouth));
       if (ovh) { addCmt(`! ${ovh}`); if (S.genNotes) S.genNotes.push({ type: 'warning', msg: `Vnitřní závit: ${ovh}` }); }
+      // Náběh v díře (jen hlášení, pravidlo 13): kus náběhu za ústím, kde je
+      // díra užší než ⌀D — poslední průchody by tam nožem najely do stěny.
+      // Ústí = čelo DÍLU (kontura), ne polotovaru — přídavek na čele se zarovná.
+      const cz = ((calc && calc.contourSegments) || []).flatMap(sg => [sg.p1 && sg.p1.z, sg.p2 && sg.p2.z]).filter(Number.isFinite);
+      const zPart = cz.length ? (dirZ < 0 ? Math.max(...cz) : Math.min(...cz)) : zMouth;
+      const runInNote = threadRunInNote(prms, S, { z0, zStart, zMouth: zPart, dirZ, Dnom, rMinor, stock });
+      if (runInNote) { addCmt(`! ${runInNote}`); if (S.genNotes) S.genNotes.push({ type: 'warning', msg: `Vnitřní závit: ${runInNote}` }); }
       // + kam nástroj sahá za špičku do díry (tyč SNR přečnívá destičku).
       const back = prms.roughingSide === 'left';
       const ext2 = toolReachAlongZ([holderWorldLoop(prms, back), toolFootprint(prms)], dirZ);
@@ -139,4 +150,42 @@ export function emitThread(ctx) {
     addCmt(line);
   });
   return lines;
+}
+
+const cz2 = (v) => String(Math.round(v * 100) / 100).replace('.', ',');
+
+/**
+ * Náběh vnitřního závitu ve stěně díry (pravidlo 13, jen hlášení, schválil
+ * uživatel 23. 10. 2026): úsek náběhu od Z startu proti směru řezu, který
+ * leží za ústím (v materiálu), a díra je tam užší než ⌀D závitu — nůž by
+ * v posledních průchodech najel do stěny. Díra = díra nakreslená ve výkresu
+ * (✏), jinak díra v polotovaru části (obrobený předchozími částmi), jinak
+ * předvrtání závitu ⌀(D − 2H). Parametry vyvrtávání ne — mají výchozí
+ * hodnoty i tam, kde se nevyvrtává.
+ * @returns text hlášení, nebo null
+ */
+export function threadRunInNote(prms, S, { z0, zStart, zMouth, dirZ, Dnom, rMinor, stock = null }) {
+  // Úsek náběhu v materiálu: od Z startu k ústí (nebo k začátku náběhu, je-li blíž).
+  const zIn = dirZ < 0 ? Math.min(z0, zMouth) : Math.max(z0, zMouth);
+  if (!(dirZ < 0 ? zIn > zStart + 1e-6 : zIn < zStart - 1e-6)) return null;
+  let chain = null;
+  try { const src = prms.boreSource === 'cad' && S ? boreChainFromState(S) : null; chain = src ? src.segs : null; } catch { chain = null; }
+  let r = null;
+  if (chain) {
+    try { r = holeMinRadius(boreGeom(prms, chain), zStart, zIn, 0); } catch { r = null; }
+  }
+  if (r === null && stock) {
+    // Díra v polotovaru: nejužší místo na úseku náběhu (null = u osy plno).
+    let m = Infinity;
+    const n = Math.max(1, Math.ceil(Math.abs(zIn - zStart) / 0.25));
+    for (let i = 0; i <= n && m !== null; i++) {
+      // Bez samotného Z startu — tam závit začíná (u vybrání tam leží jeho schod).
+      const rs = stockHoleRadiusAt(stock, zStart + (zIn - zStart) * Math.max(i / n, 0.01));
+      m = rs === null ? null : Math.min(m, rs);
+    }
+    r = m === Infinity ? null : m;
+  }
+  if (r === null) r = rMinor;
+  if (r >= Dnom / 2 - 1e-3) return null;
+  return `Náběh závitu Z ${cz2(zIn)} až Z ${cz2(zStart)} leží v díře ⌀${cz2(2 * r)} — nůž by v posledních průchodech najel do stěny (⌀${cz2(Dnom)}). Před závitem musí být vybrání aspoň ⌀${cz2(Dnom)} (Upich + ◎ Vnitřní), nebo závit začni na ústí.`;
 }

@@ -62,3 +62,40 @@ describe('vnější zápich libovolné šířky', () => {
     expect((await run({ toolShape: 'round', toolRadius: 2 })).gcode).toMatch(/! Zápich širší než destička umí jen/);
   });
 });
+
+describe('vnější zápich z výkresu', async () => {
+  const { outerGroovesFromDrawing, outerGrooveZ, groovesOnOuter } = await import('../js/calculators/cam/sim/grooveCad.js');
+  const { grooveOuterCadRowHtml } = await import('../js/calculators/cam/sim/paramsGrooveHtml.js');
+  const P = (pts) => pts.map(([x, z], i) => ({ id: i + 1, type: i ? 'G1' : 'G0', x, z, r: 0, mode: 'ABS' }));
+  // Hřídel ⌀36 se zápichem ⌀28 mezi Z 12 a 20 (kreslený od čela ke sklíčidlu).
+  const grooved = P([[0, 40], [18, 40], [18, 20], [14, 20], [14, 12], [18, 12], [18, 0]]);
+  const S = (over = {}) => ({ params: { ...base, ...over }, contourPoints: grooved });
+
+  it('najde zápich: boky Z 12 / 20, šířka 8, dno r 14', () => {
+    expect(outerGroovesFromDrawing(S())).toEqual([{ zLo: 12, zHi: 20, W: 8, rBot: 14, rTop: 18 }]);
+  });
+  it('i obrys kreslený opačným směrem; schod jen jedním směrem není zápich', () => {
+    const rev = P([[18, 0], [18, 12], [14, 12], [14, 20], [18, 20], [18, 40], [0, 40]]);
+    expect(outerGroovesFromDrawing({ params: base, contourPoints: rev })).toHaveLength(1);
+    expect(outerGroovesFromDrawing({ params: base, contourPoints: P([[0, 40], [18, 40], [18, 20], [14, 20], [14, 0]]) })).toEqual([]);
+  });
+  it('díra napojená na čelo se nepočítá (zápich v díře sem nepatří)', () => {
+    const L = (a, b) => ({ type: 'line', p1: { x: a[0], z: a[1] }, p2: { x: b[0], z: b[1] } });
+    expect(groovesOnOuter([L([10, 0], [10, -10]), L([10, -10], [13, -10]), L([13, -10], [13, -18]), L([13, -18], [10, -18])])).toEqual([]);
+  });
+  it('Z upich = bok u sklíčidla: zprava menší Z, zleva větší', () => {
+    const g = outerGroovesFromDrawing(S())[0];
+    expect(outerGrooveZ({ roughingSide: 'right' }, g)).toBe(12);
+    expect(outerGrooveZ({ roughingSide: 'left' }, g)).toBe(20);
+  });
+  it('panel nabídne tlačítko, převzatý zápich svítí zeleně a program ho vyřeže celý', async () => {
+    expect(grooveOuterCadRowHtml(S({ partOffZ: 5 }))).toContain('data-act="groove-outer-from-cad" data-i="0" class="cam-sim-btn cam-sim-btn-gray"');
+    const p = { partOffZ: 12, grooveWidth: 8, allowanceX: 14 };
+    expect(grooveOuterCadRowHtml(S(p))).toContain('cam-sim-btn-green');
+    const { gcode } = await runCamProg({ params: { ...base, ...p }, contourPoints: grooved, stockPoints: [], flipX: false, flipZ: false });
+    const c = cuts(gcode);
+    expect(Math.min(...c.map(m => m.z))).toBeCloseTo(12.2, 6);     // bok u sklíčidla + rádius
+    expect(Math.max(...c.map(m => m.z))).toBeCloseTo(17.2, 6);     // druhý bok 20 − 3 + rádius
+    expect(Math.min(...c.map(m => m.x))).toBeCloseTo(14.2, 6);     // dno r 14 + rádius
+  });
+});

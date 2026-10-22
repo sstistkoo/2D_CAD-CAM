@@ -94,3 +94,27 @@ describe('vnitřní závit v díře', () => {
     expect(validateToolpath(calcSim.simPath, sp, segs, { planStock: true })).toEqual([]);
   });
 });
+
+describe('náběh vnitřního závitu ve stěně díry (jen hlášení)', () => {
+  it('závit od ústí (náběh před čelem dílu): bez hlášení, i s přídavkem polotovaru na čele', async () => {
+    const { gcode } = await runCamProg(prog(params({ stockFace: 2 })));
+    expect(gcode).not.toContain('Náběh závitu');
+  });
+  it('závit hlouběji v hladké díře: náběh ve stěně → ⚠, program se vydá', async () => {
+    const { gcode } = await runCamProg(prog(params({ threadZStart: -10, threadZEnd: -25 })));
+    expect(gcode).toMatch(/! Náběh závitu Z -7 až Z -10 leží v díře ⌀17,29/);
+    expect(gcode).toMatch(/G33 Z-25/);
+  });
+  // Polotovar části = díl obrobený předchozími částmi (odlitek z obrysu).
+  const S2 = (pts) => pts.map(([x, z], i) => ({ id: 300 + i, type: i ? 'G1' : 'G0', x, z, r: 0, mode: 'ABS' }));
+  const stockWith = (recessR) => S2([[0, -40], [8.65, -40], [8.65, -10], [recessR, -10], [recessR, 0], [40, 0], [40, -60], [0, -60]]);
+  const deep = params({ threadZStart: -10, threadZEnd: -25, stockMode: 'casting' });
+  it('polotovar části má vybrání ⌀22 před závitem: bez hlášení (parametry vyvrtávání se neberou)', async () => {
+    const { gcode } = await runCamProg({ ...prog(deep), stockPoints: stockWith(11) });
+    expect(gcode).not.toContain('Náběh závitu');
+  });
+  it('polotovar části má jen předvrtání: ⚠ s jeho ⌀', async () => {
+    const { gcode } = await runCamProg({ ...prog(deep), stockPoints: stockWith(8.65) });
+    expect(gcode).toMatch(/! Náběh závitu Z -7 až Z -10 leží v díře ⌀17,3/);
+  });
+});
