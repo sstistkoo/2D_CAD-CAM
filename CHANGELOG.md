@@ -315,6 +315,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM: výchozí název operace bez čísla** — operace normalizovaná bez
+  pořadí (např. načtená ze starého uložení bez názvu) se jmenovala
+  „Frézování undefined" i v komentáři NC; teď „Frézování" / „Vrtání".
+
 - **CAD: díry v plášti — opravy po kontrole.** Díra vrácená ↩ po smazání
   vrstvy Díry v plášti už nespadne do profilu (do CAM / CNC kódu): díra se
   pozná podle svých dat i bez vrstvy, další díra ji vrátí do vrstvy. Z díry

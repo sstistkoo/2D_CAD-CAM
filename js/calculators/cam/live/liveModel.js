@@ -73,7 +73,7 @@ export function newLiveOp(kind, geo, n) {
   const pcd = Math.round(outerD * 0.6);
   return {
     id: 'L' + Date.now().toString(36) + Math.floor(Math.random() * 1e4),
-    name: kind === 'mill' ? `Frézování ${n}` : `Vrtání ${n}`,
+    name: `${kind === 'mill' ? 'Frézování' : 'Vrtání'}${n != null ? ` ${n}` : ''}`,
     kind,                     // 'drill' | 'mill'
     side: 'face',             // 'face' (axiálně do čela) | 'radial' (do pláště)
     pattern: 'pcd',           // 'pcd' (roztečná kružnice) | 'points'
