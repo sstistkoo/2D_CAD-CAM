@@ -375,3 +375,26 @@ describe('hloubka zápichu i s Vůlí X (polotovar končí na offsetové čáře
     expect(grooveInnerGeom(p({ grooveBottomX: 17.2, stockClearX: 0.3 })).ok).toBe(true);
   });
 });
+
+describe('sražení hran zápichu v díře', async () => {
+  const { MaterialRemoval } = await import('../js/calculators/cam/materialRemoval.js');
+  const { validateToolpath } = await import('../js/calculators/cam/collisionValidator.js');
+  const { simStockArgs } = await import('../js/calculators/cam/sim/grooveSim.js');
+  const { pointInLoop } = await import('../js/geom/geomCore.js');
+  const solidAt = (loops, x, z) => loops.some(l => pointInLoop({ x, z }, l) === 'inside');
+  it('sražení 0,5 na obou hranách u stěny díry, bez kolizí, tvar sedí', async () => {
+    const r = await runCamProg(prog(params(bar(25, 3), { grooveChamfer: 0.5 })));
+    expect(r.gcode).toContain('Dokončení se sražením 0.5×45°');
+    const [sp, segs] = simStockArgs(r.S, r.calcSim);
+    expect(validateToolpath(r.calcSim.simPath, sp, segs, { planStock: true })).toEqual([]);
+    const rm = new MaterialRemoval(sp, segs);
+    rm.advanceTo(r.calcSim.simPath, r.calcSim.simPath.length - 1);
+    const L = rm.model.loops;
+    expect(solidAt(L, 20.25, -9.85)).toBe(false);   // sražení u boku Z −10 (u ústí)
+    expect(solidAt(L, 20.4, -9.6)).toBe(true);      // mimo sražení zůstalo
+    expect(solidAt(L, 20.25, -18.15)).toBe(false);  // sražení u boku Z −18
+    expect(solidAt(L, 20.4, -18.4)).toBe(true);
+    expect(solidAt(L, 22.9, -14)).toBe(false);      // dno r 23 na míru
+    expect(solidAt(L, 23.1, -14)).toBe(true);
+  });
+});

@@ -9,6 +9,19 @@ const isLine = (s) => s && s.type !== 'arc' && s.p1 && s.p2;
 const radial = (s) => isLine(s) && Math.abs(s.p2.z - s.p1.z) < EPS && Math.abs(s.p2.x - s.p1.x) > EPS;
 const axial = (s) => isLine(s) && Math.abs(s.p2.x - s.p1.x) < EPS && Math.abs(s.p2.z - s.p1.z) > EPS;
 const r3 = (v) => Math.round(v * 1000) / 1000;
+/** Úsečka pod 45° s odvěsnou s (sražení), jinak 0. */
+const chamfer45 = (s) => {
+  if (!isLine(s)) return 0;
+  const dx = Math.abs(s.p2.x - s.p1.x), dz = Math.abs(s.p2.z - s.p1.z);
+  return dx > EPS && Math.abs(dx - dz) < 1e-4 ? dx : 0;
+};
+const same = (p, q) => p && q && Math.abs(p.x - q.x) < 1e-4 && Math.abs(p.z - q.z) < 1e-4;
+/** Sražení 45° stejné velikosti před i za zápichem (úseky i−1 a i+3), jinak 0. */
+function grooveChamferAt(S, i) {
+  const pre = S[i - 1], post = S[i + 3];
+  const s1 = chamfer45(pre), s2 = chamfer45(post);
+  return s1 > 0 && Math.abs(s1 - s2) < 1e-4 && same(pre.p2, S[i].p1) && same(post.p1, S[i + 2].p2) ? r3(s1) : 0;
+}
 
 /**
  * Obdélníkové zápichy v řetězu díry (úseky od ústí dovnitř).
@@ -23,7 +36,10 @@ export function groovesInChain(segs) {
     if (!radial(a) || !axial(b) || !radial(c)) continue;
     // Ven (poloměr roste), dno, zpátky k ose (poloměr klesá).
     if (!(a.p2.x > a.p1.x + EPS) || !(c.p2.x < c.p1.x - EPS)) continue;
-    out.push({ zA: r3(a.p1.z), W: r3(Math.abs(c.p1.z - a.p1.z)), rBot: r3(b.p1.x), rWall: r3(Math.min(a.p1.x, c.p2.x)) });
+    // Se sražením 45° na obou hranách: stěna = začátek / konec sražení.
+    const s = grooveChamferAt(segs, i);
+    const rWall = s > 0 ? Math.min(segs[i - 1].p1.x, segs[i + 3].p2.x) : Math.min(a.p1.x, c.p2.x);
+    out.push({ zA: r3(a.p1.z), W: r3(Math.abs(c.p1.z - a.p1.z)), rBot: r3(b.p1.x), rWall: r3(rWall), ...(s > 0 ? { s } : {}) });
   }
   return out;
 }
@@ -38,10 +54,13 @@ export function chainWithoutGrooves(segs) {
   for (let i = 0; i < segs.length; i++) {
     const a = segs[i], b = segs[i + 1], c = segs[i + 2];
     if (radial(a) && axial(b) && radial(c) && a.p2.x > a.p1.x + EPS && c.p2.x < c.p1.x - EPS) {
-      const p = { x: a.p1.x, z: c.p1.z };
-      out.push({ type: 'line', p1: a.p1, p2: p });
-      if (Math.abs(c.p2.x - p.x) > EPS) out.push({ type: 'line', p1: p, p2: c.p2 });
-      i += 2;
+      // Se sražením: zahodit i sražení před (už v `out`) a za zápichem.
+      const ch = grooveChamferAt(segs, i) > 0;
+      const from = ch ? out.pop().p1 : a.p1, to = ch ? segs[i + 3].p2 : c.p2;
+      const p = { x: from.x, z: to.z };
+      out.push({ type: 'line', p1: from, p2: p });
+      if (Math.abs(to.x - p.x) > EPS) out.push({ type: 'line', p1: p, p2: to });
+      i += ch ? 3 : 2;
     } else out.push(a);
   }
   return out;
@@ -64,7 +83,9 @@ export function groovesOnOuter(segs) {
     // Dno níž (blíž ose) než oba okraje: a jde dolů, c nahoru.
     if (!(a.p2.x < a.p1.x - EPS) || !(c.p2.x > c.p1.x + EPS)) continue;
     const z1 = a.p1.z, z2 = c.p1.z;
-    out.push({ zLo: r3(Math.min(z1, z2)), zHi: r3(Math.max(z1, z2)), W: r3(Math.abs(z2 - z1)), rBot: r3(b.p1.x), rTop: r3(Math.min(a.p1.x, c.p2.x)) });
+    const s = grooveChamferAt(S, i);
+    const rTop = s > 0 ? Math.min(S[i - 1].p1.x, S[i + 3].p2.x) : Math.min(a.p1.x, c.p2.x);
+    out.push({ zLo: r3(Math.min(z1, z2)), zHi: r3(Math.max(z1, z2)), W: r3(Math.abs(z2 - z1)), rBot: r3(b.p1.x), rTop: r3(rTop), ...(s > 0 ? { s } : {}) });
   }
   return out;
 }

@@ -30,7 +30,7 @@ export function grooveInnerFieldsHtml(prms, S = null) {
   const src = holeSource(prms, !!chain);
   const w = parseFloat(prms.toolLength) || 0;
   const info = g.ok
-    ? `Díra ⌀${cz(2 * g.rHole)}, zápich ${cz(g.W)} × ${cz(g.depth)} mm: ${g.plunges.length} ${g.plunges.length === 1 ? 'zápich' : g.plunges.length < 5 ? 'zápichy' : 'zápichů'} destičkou š ${cz(w)}${g.doFinish ? ' + dokončení bok → dno → bok' : ''}.`
+    ? `Díra ⌀${cz(2 * g.rHole)}, zápich ${cz(g.W)} × ${cz(g.depth)} mm: ${g.plunges.length} ${g.plunges.length === 1 ? 'zápich' : g.plunges.length < 5 ? 'zápichy' : 'zápichů'} destičkou š ${cz(w)}${g.doFinish ? (g.chamfer > 0 ? ` + dokončení se sražením ${cz(g.chamfer)}×45°` : ' + dokončení bok → dno → bok') : ''}.`
     : `⚠ ${g.reason}`;
   return `<div class="cam-sim-row">
       <div class="cam-sim-field"><label title="Z boku zápichu blíž k ústí díry (naklikaný bod). Lze upravit i ručně.">Z bok u ústí</label><input type="number" step="0.01" data-p="partOffZ" value="${parseFloat(prms.partOffZ)}"></div>
@@ -41,6 +41,7 @@ export function grooveInnerFieldsHtml(prms, S = null) {
       <div class="cam-sim-field"><label title="Průměr díry, ze které se zapichuje. 0 = automaticky (${src || 'ruční'}): hotový ⌀ z vyvrtávání, jinak předvrtání.">⌀ díry</label><input type="number" step="0.1" min="0" data-p="grooveHoleD" value="${prms.grooveHoleD}" placeholder="auto"></div>
       <div class="cam-sim-field"><label title="TRVALÝ přídavek na bocích zápichu — zůstane i po dokončení.">Přídavek Z</label><input type="number" step="0.1" data-p="allowanceZ" value="${prms.allowanceZ}"></div>
       <div class="cam-sim-field"><label title="Přídavek NA HOTOVO na bocích a dně: zápichy ho nechají stát, dokončovací dráha (je-li zapnutá) ho odebere.">Přídavek na hotovo</label><input type="number" step="0.1" data-p="finishAllowance" value="${prms.finishAllowance}"></div>
+      <div class="cam-sim-field"><label title="Sražení hran zápichu 45° u stěny díry [mm] — dělá ho jen Dokončovací operace (sražení → bok → dno → bok → sražení). 0 = ostré hrany.">Sražení</label><input type="number" step="0.1" min="0" data-p="grooveChamfer" value="${prms.grooveChamfer || 0}"></div>
     </div>
     <small class="cam-sim-info-box" style="display:block;margin-top:4px${g.ok ? '' : ';color:#f38ba8'}">${info}${src && src !== 'není zadaná' ? ` Díra: ${src}.` : ''}</small>
     <div class="cam-sim-checkbox-row" data-tooltip="Dokončení: po prvním boku na dno, po dně ke druhému boku a po něm zpátky ke stěně díry (odebere Přídavek na hotovo).">
@@ -66,8 +67,8 @@ export function grooveCadRowHtml(S) {
   if (!list.length) return '';
   const p = S.params;
   const same = (g) => Math.abs(parseFloat(p.partOffZ) - g.zA) < 1e-3 && Math.abs((parseFloat(p.grooveWidth) || 0) - g.W) < 1e-3
-    && Math.abs((parseFloat(p.grooveBottomX) || 0) - g.rBot) < 1e-3;
-  const btns = list.map((g, i) => `<button data-act="groove-from-cad" data-i="${i}" class="cam-sim-btn ${same(g) ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="font-size:11px;padding:4px 6px" title="Převzít zápich z výkresu: bok u ústí Z ${cz(g.zA)}, šířka ${cz(g.W)} mm, dno ⌀${cz(2 * g.rBot)} (stěna ⌀${cz(2 * g.rWall)})">Z ${cz(g.zA)} · š ${cz(g.W)} · ⌀${cz(2 * g.rBot)}</button>`).join('');
+    && Math.abs((parseFloat(p.grooveBottomX) || 0) - g.rBot) < 1e-3 && Math.abs((parseFloat(p.grooveChamfer) || 0) - (g.s || 0)) < 1e-3;
+  const btns = list.map((g, i) => `<button data-act="groove-from-cad" data-i="${i}" class="cam-sim-btn ${same(g) ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="font-size:11px;padding:4px 6px" title="Převzít zápich z výkresu: bok u ústí Z ${cz(g.zA)}, šířka ${cz(g.W)} mm, dno ⌀${cz(2 * g.rBot)} (stěna ⌀${cz(2 * g.rWall)})${g.s ? `, sražení ${cz(g.s)}×45°` : ''}">Z ${cz(g.zA)} · š ${cz(g.W)} · ⌀${cz(2 * g.rBot)}${g.s ? ` · ⦣${cz(g.s)}` : ''}</button>`).join('');
   return `<div class="cam-sim-row" style="align-items:center;flex-wrap:wrap;gap:4px">
       <span style="color:#a6adc8;font-size:11px">✏ Z výkresu:</span>${btns}
     </div>`;
@@ -79,8 +80,8 @@ export function grooveOuterCadRowHtml(S) {
   if (!list.length) return '';
   const p = S.params;
   const same = (g) => Math.abs(parseFloat(p.partOffZ) - outerGrooveZ(p, g)) < 1e-3 && Math.abs((parseFloat(p.grooveWidth) || 0) - g.W) < 1e-3
-    && Math.abs((parseFloat(p.allowanceX) || 0) - g.rBot) < 1e-3;
-  const btns = list.map((g, i) => `<button data-act="groove-outer-from-cad" data-i="${i}" class="cam-sim-btn ${same(g) ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="font-size:11px;padding:4px 6px" title="Převzít zápich z výkresu: Z upich ${cz(outerGrooveZ(p, g))} (bok u sklíčidla), šířka ${cz(g.W)} mm, Dojezd X ${cz(g.rBot)} (dno ⌀${cz(2 * g.rBot)})">Z ${cz(g.zLo)}…${cz(g.zHi)} · ⌀${cz(2 * g.rBot)}</button>`).join('');
+    && Math.abs((parseFloat(p.allowanceX) || 0) - g.rBot) < 1e-3 && Math.abs((parseFloat(p.grooveChamfer) || 0) - (g.s || 0)) < 1e-3;
+  const btns = list.map((g, i) => `<button data-act="groove-outer-from-cad" data-i="${i}" class="cam-sim-btn ${same(g) ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="font-size:11px;padding:4px 6px" title="Převzít zápich z výkresu: Z upich ${cz(outerGrooveZ(p, g))} (bok u sklíčidla), šířka ${cz(g.W)} mm, Dojezd X ${cz(g.rBot)} (dno ⌀${cz(2 * g.rBot)})${g.s ? `, sražení ${cz(g.s)}×45°` : ''}">Z ${cz(g.zLo)}…${cz(g.zHi)} · ⌀${cz(2 * g.rBot)}${g.s ? ` · ⦣${cz(g.s)}` : ''}</button>`).join('');
   return `<div class="cam-sim-row" style="align-items:center;flex-wrap:wrap;gap:4px">
       <span style="color:#a6adc8;font-size:11px">✏ Z výkresu:</span>${btns}
     </div>`;

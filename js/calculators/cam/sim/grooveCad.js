@@ -52,6 +52,7 @@ export function attachGrooveCadEvents({ tabBody, S, applyChange, pushHistory, au
       S.params.partOffZ = g.zA;
       S.params.grooveWidth = g.W;
       S.params.grooveBottomX = g.rBot;
+      S.params.grooveChamfer = g.s || 0;
       S.partOffPickMode = false;
       const picked = autoPickToolFor ? autoPickToolFor('groovein').msg : '';
       const cz = (v) => String(v).replace('.', ',');
@@ -68,6 +69,7 @@ export function attachGrooveCadEvents({ tabBody, S, applyChange, pushHistory, au
       S.params.partOffZ = outerGrooveZ(S.params, g);
       S.params.grooveWidth = g.W;
       S.params.allowanceX = g.rBot;
+      S.params.grooveChamfer = g.s || 0;
       S.partOffPickMode = false;
       const picked = autoPickToolFor ? autoPickToolFor('partoff').msg : '';
       const cz = (v) => String(v).replace('.', ',');

@@ -108,6 +108,8 @@ export function _defaultCamParams() {
     grooveWidth: 0,
     grooveBottomX: 0,
     grooveHoleD: 0,
+    // Sražení hran zápichu 45° [mm] (vnější i v díře) — jen dokončením; 0 = bez.
+    grooveChamfer: 0,
     finishingSlot: null,  // index do toolMagazine pro dokončování (null = stejný nástroj)
     // ── Závitování (záložka „Závit") ──
     // Aktivní = generuje se závitovací cyklus (G33/G32 průchody) místo

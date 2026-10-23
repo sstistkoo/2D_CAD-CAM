@@ -716,6 +716,7 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/controlDialect.js` | Hlavička/závěr programu a převod mezi Sinumerik/Fanuc/Heidenhain. Bez vlastních importů, aby z něj mohly čerpat i moduly operací (jinak cyklus s `gcodeEmit.js`). Viz „Dialekt řídicího systému" níž |
 | `cam/ops/thread.js` | OPERACE závitování — `emitThread()`, celý vlastní program |
 | `cam/ops/partOff.js` | OPERACE upichnutí — `emitPartOff()`, celý vlastní program |
+| `cam/ops/grooveChamfer.js` | `chamferFinishPath` — dokončení zápichu se sražením 45° (souřadnice u podél osy od boku A, d hloubka od povrchu; roh destičky po posunutých čarách); volá grooveWide i grooveInner |
 | `cam/ops/grooveWide.js` | pravidlo 17 — vnější zápich širší než destička: `grooveWideActive`, `grooveWidePlan(prms, partOffGeom)` (zápichy vedle sebe, dokončení bok → dno → bok); volá `emitPartOff` |
 | `cam/stockHole.js` | `stockHoleRadiusAt(loop, z)` — stěna díry v polotovaru části (null = u osy plno, Infinity = vzduch); zápich v díře a náběh vnitřního závitu |
 | `cam/holeGrooves.js` | zápichy ve stěně díry: `groovesInChain`, `chainWithoutGrooves` — zápich v díře z výkresu a polotovar jeho simulace (vyvrtávání nakreslený tvar bere celý, vybrání vyhrubuje po mezní čáru) |

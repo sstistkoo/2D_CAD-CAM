@@ -89,7 +89,18 @@ export function emitPartOff(ctx) {
       wide.plunges.forEach((zc, i) => (prms.partOffSmooth
         ? smoothPlunge(zc, `Zápich ${i + 1}/${n}`, 'Zápich', wide.xRough)
         : peckPlunge(zc, `Zápich ${i + 1}/${n}`, wide.xRough)));
-      if (wide.doFinish) {
+      if (wide.chamfer && !wide.doFinish) {
+        addCmt('! Srazeni hran dela jen dokoncovaci operace - zapni ji.');
+        if (S.genNotes) S.genNotes.push({ type: 'warning', msg: 'Zápich: sražení hran dělá jen dokončení — zapni Dokončovací operaci.' });
+      }
+      if (wide.doFinish && wide.chamferPath) {
+        // Sražení → bok → dno → bok → sražení (grooveChamfer.js, pravidlo 17).
+        const [p0, ...rest] = wide.chamferPath;
+        simCounter += 1; addN(`G0 Z${p0.z.toFixed(3)}${note('', `Dokončení se sražením ${wide.chamfer}×45°`)}`, simCounter);
+        simCounter += 1; addN(`G0 X${xd(p0.x)}`, simCounter);
+        rest.forEach((q, i) => { simCounter += 1; addN(`G1 X${xd(q.x)} Z${q.z.toFixed(3)}${i === 0 ? ` F${prms.feed}${note('', 'Sražení')}` : ''}`, simCounter); });
+        simCounter += 1; addN(`G0 X${xd(xClear)}${note('', 'Vyjezd')}`, simCounter);
+      } else if (wide.doFinish) {
         simCounter += 1; addN(`G0 Z${wide.zFinA.toFixed(3)}${note('', 'Dokončení – bok u sklíčidla')}`, simCounter);
         simCounter += 1; addN(`G0 X${xd(xCenterStart)}`, simCounter);
         simCounter += 1; addN(`G1 X${xd(wide.xFinal)} F${prms.feed}${note('', 'Dokončovací zápich')}`, simCounter);

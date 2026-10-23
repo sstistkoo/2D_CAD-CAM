@@ -33,6 +33,7 @@ import { buildStockLoopRaw, toolFootprint } from '../materialRemoval.js';
 import { toolReachAlongZ } from '../toolRadialFlip.js';
 import { barOverhangNote } from './barOverhang.js';
 import { stockHoleRadiusAt } from '../stockHole.js';
+import { chamferFinishPath } from './grooveChamfer.js';
 
 const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
 /** Mezera mezi tyčí a stěnou díry [mm] (jako WALL_GAP vyvrtávání). */
@@ -111,7 +112,8 @@ export function grooveInnerGeom(prms, chain = null, stockLoop = null) {
   const rBot = num(prms.grooveBottomX, 0);            // poloměr dna (vnější hrana destičky)
   const allowZ = Math.max(0, num(prms.allowanceZ, 0));
   const finAllow = Math.max(0, num(prms.finishAllowance, 0));
-  const doFinish = !!prms.doFinishing && finAllow > 1e-6;
+  // Sražení dělá dokončení i bez Přídavku na hotovo (je to nový tvar, ne přídavek).
+  const doFinish = !!prms.doFinishing && (finAllow > 1e-6 || num(prms.grooveChamfer) > 0);
   const holeR = Math.max(0, num(prms.grooveHoleD, 0)) / 2;
   const clr = Math.max(0.5, stockClearances(prms).x);
   const out = { ok: false, k, s: g.s, zF: g.zF, w, rIns, W, zA, zB, rBot, allowZ, finAllow, doFinish, clr };
@@ -173,8 +175,17 @@ export function grooveInnerGeom(prms, chain = null, stockLoop = null) {
   // + kam nástroj sahá za špičku do díry (směr −s).
   const ext2 = toolReachAlongZ([holderWorldLoop(prms, prms.roughingSide === 'left'), toolFootprint(prms)], -g.s);
   const zOut = g.zF + g.s * (Math.max(0, g.s * (zStock - g.zF)) + clr + 1 + ext2);
+  // Sražení hran (doplnění 23. 10. 2026): povrch = stěna díry, hloubka ven.
+  const sCh = Math.max(0, num(prms.grooveChamfer));
+  let chamferPath = null;
+  if (sCh > 0) {
+    const ch = chamferFinishPath({ s: sCh, uA: fa > 0 ? allowZ : 0, uB: fa > 0 ? W - allowZ : W, w, r: rIns,
+      depth: rBot - rHole, dStart: -(rIns + 0.5) });
+    if (!ch.ok) return fail(ch.reason);
+    chamferPath = ch.pts.map(q => ({ z: zOfU(q.u), x: rHole + q.d }));
+  }
   return { ...out, ok: true, rHole, rWall, reach, zNear, rcStart, rcIn, rcBotFinal, rcBotRough,
-    plunges: plunges.map(zOfU), zFinA: zOfU(fa > 0 ? allowZ : 0), zFinB: zOfU(fa > 0 ? W - allowZ - w : 0), zOut, depth };
+    plunges: plunges.map(zOfU), zFinA: zOfU(fa > 0 ? allowZ : 0), zFinB: zOfU(fa > 0 ? W - allowZ - w : 0), zOut, depth, chamfer: sCh, chamferPath };
 }
 
 /**
@@ -226,7 +237,18 @@ export function emitGrooveInner(ctx) {
       N(`G0 X${xd(g.rcIn)}${note('', 'K ose')}`);
     };
     g.plunges.forEach((zc, i) => plunge(zc, g.rcBotRough, g.plunges.length > 1 ? `Zápich ${i + 1}/${g.plunges.length}` : 'Rovina zápichu'));
-    if (g.doFinish) {
+    if (g.chamfer > 0 && !g.doFinish) {
+      addCmt('! Srazeni hran dela jen dokoncovaci operace - zapni ji.');
+      if (S.genNotes) S.genNotes.push({ type: 'warning', msg: 'Zápich v díře: sražení hran dělá jen dokončení — zapni Dokončovací operaci.' });
+    }
+    if (g.doFinish && g.chamferPath) {
+      // Sražení → bok → dno → bok → sražení (grooveChamfer.js).
+      const [p0, ...rest] = g.chamferPath;
+      N(`G0 Z${zs(p0.z)}${note('', `Dokončení se sražením ${g.chamfer}×45°`)}`);
+      N(`G0 X${xd(p0.x)}`);
+      rest.forEach((q, i) => N(`G1 X${xd(q.x)} Z${zs(q.z)}${i === 0 ? ` F${F}${note('', 'Sražení')}` : ''}`));
+      N(`G0 X${xd(g.rcIn)}${note('', 'K ose')}`);
+    } else if (g.doFinish) {
       // Dokončení: první bok na dno, po dně ke druhému boku, po něm ke stěně.
       N(`G0 Z${zs(g.zFinA)}${note('', 'Dokončení – bok u ústí')}`);
       N(`G0 X${xd(g.rcStart)}`);

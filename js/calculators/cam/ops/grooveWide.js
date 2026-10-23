@@ -8,15 +8,16 @@
 // po dně ke druhému boku, po něm nahoru. Šířka ≤ šířka destičky = dnešní
 // upichnutí (ops/partOff.js beze změny).
 import { getInsert } from '../inserts/index.js';
+import { chamferFinishPath } from './grooveChamfer.js';
 
 const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
 /** Překryv sousedních zápichů: krok ≤ 0,8 × šířka destičky (jako v díře). */
 const STEP_FRAC = 0.8;
 
-/** Je zadaná šířka zápichu širší než destička (→ víc zápichů)? */
+/** Je zadaná šířka zápichu širší než destička (→ víc zápichů), nebo sražení hran? */
 export function grooveWideActive(prms) {
   const w = getInsert(prms).widthZ || 0;
-  return num(prms.grooveWidth) > (w > 0 ? w : 0) + 1e-6;
+  return num(prms.grooveWidth) > (w > 0 ? w : 0) + 1e-6 || num(prms.grooveChamfer) > 0;
 }
 
 /**
@@ -28,10 +29,13 @@ export function grooveWidePlan(prms, geom) {
   const ins = getInsert(prms);
   const w = ins.widthZ || 0;
   const r = geom.rIns;
-  const W = num(prms.grooveWidth);
+  // Šířka 0 se sražením = jeden zápich šířkou destičky (+ sražení dokončením).
+  const W = num(prms.grooveWidth) || w;
+  const sCh = Math.max(0, num(prms.grooveChamfer));
   const allowZ = Math.max(0, num(prms.allowanceZ));
   const finAllow = Math.max(0, num(prms.finishAllowance));
-  const out = { ok: false, W, w, plunges: [], doFinish: geom.doFinish };
+  // Sražení dělá dokončení i bez Přídavku na hotovo (je to nový tvar, ne přídavek).
+  const out = { ok: false, W, w, plunges: [], doFinish: sCh > 0 ? !!prms.doFinishing : geom.doFinish };
   if (!(w > 0)) return { ...out, reason: 'Zápich širší než destička umí jen zapichovací (upichovací) destička — kulatou jde jen jeden zápich.' };
   const fa = allowZ + finAllow;
   const span = W - 2 * fa;
@@ -43,10 +47,21 @@ export function grooveWidePlan(prms, geom) {
   const zOfU = (u) => geom.pz + geom.dir * (u + r);
   const plunges = [];
   for (let i = 0; i < n; i++) plunges.push(zOfU(fa + i * step));
-  return {
+  const plan = {
     ...out, ok: true, plunges,
     xFinal: geom.xCenterTarget,                 // spodní hrana na Dojezdu X
     xRough: geom.xCenterTarget + finAllow,      // dno: Přídavek na hotovo zůstává
-    zFinA: zOfU(allowZ), zFinB: zOfU(W - allowZ - w),
+    zFinA: zOfU(fa > 0 ? allowZ : 0), zFinB: zOfU(fa > 0 ? W - allowZ - w : 0),
   };
+  if (sCh > 0) {
+    // Sražení hran: povrch = Start X (spodní hrana destičky na startu), hloubka
+    // ke dnu (Dojezd X); d = povrch − X středu rohu − … → X = povrch − d.
+    const surf = geom.startEdgeX;
+    const uA = fa > 0 ? allowZ : 0, uB = fa > 0 ? W - allowZ : W;
+    const ch = chamferFinishPath({ s: sCh, uA, uB, w, r, depth: surf - geom.allowX, dStart: -(r + 0.5) });
+    if (!ch.ok) return { ...out, reason: ch.reason };
+    plan.chamferPath = ch.pts.map(q => ({ z: zOfU(q.u), x: surf - q.d }));
+    plan.chamfer = sCh;
+  }
+  return plan;
 }

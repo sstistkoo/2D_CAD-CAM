@@ -371,3 +371,11 @@ prvním boku na dno, po dně ke druhému boku a po něm zpátky ven.**
   Dokončení (Dokončovací operace) ho odebere; bez ní zůstane.
 - Peckování / plynulý zápich a hlídání dosahu lišty jako u upichu.
 - Vnitřní zápich (Upich + ◎ Vnitřní) je totéž v zrcadle — pravidlo 13.
+- **Sražení hran zápichu** ✅ schválil uživatel 23. 10. 2026 (vnější i v díře):
+  pole Sražení s (45°), 0 = beze změny. Hrubovací zápichy se nemění; sražení
+  udělá jen dokončení — sražení 45° z povrchu na bok → bok → dno → druhý bok
+  → sražení 45° zpět na povrch (i bez Přídavku na hotovo). Povrch: vnější =
+  Start X, v díře = stěna díry. Musí platit 2s < šířka a s < hloubka, jinak
+  se dráha nevydá a nahlásí se. Bez Dokončovací operace se sražení neudělá
+  a ⚠ to řekne. Zápich nakreslený se sraženími 45° (stejnými) ve výkresu se
+  pozná i se s.

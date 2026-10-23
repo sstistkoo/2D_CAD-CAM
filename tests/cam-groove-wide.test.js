@@ -99,3 +99,67 @@ describe('vnější zápich z výkresu', async () => {
     expect(Math.min(...c.map(m => m.x))).toBeCloseTo(14.2, 6);     // dno r 14 + rádius
   });
 });
+
+describe('sražení hran zápichu 45° (jen dokončením)', async () => {
+  const { MaterialRemoval } = await import('../js/calculators/cam/materialRemoval.js');
+  const { pointInLoop } = await import('../js/geom/geomCore.js');
+  const solidAt = (loops, x, z) => loops.some(l => pointInLoop({ x, z }, l) === 'inside');
+  it('vnější: sražení 1 → bok → dno → bok → sražení; tvar po úběru sedí', async () => {
+    const r = await run({ grooveChamfer: 1, partOffZ: -20 });   // v materiálu (válec od Z 2 dozadu)
+    expect(r.gcode).toContain('Dokončení se sražením 1×45°');
+    const c = cuts(r.gcode);
+    // Hrubování beze změny (3 zápichy na X 12,4), pak 5 úseků dokončení.
+    expect(c.slice(0, 3).map(m => m.x)).toEqual([12.4, 12.4, 12.4]);
+    const fin = c.slice(3).map(m => [+m.z.toFixed(3), +m.x.toFixed(3)]);
+    expect(fin).toEqual([[-19.8, 19.083], [-19.8, 12.2], [-14.8, 12.2], [-14.8, 19.083], [-13.183, 20.7]]);
+    // Skutečný úběr: hrany sražené 1 × 45°, boky a dno na míru, okolí nedotčené.
+    const rm = new MaterialRemoval(r.params, r.calcSim.stockPathSegments);
+    rm.advanceTo(r.calcSim.simPath, r.calcSim.simPath.length - 1);
+    const L = rm.model.loops;
+    expect(solidAt(L, 19.65, -20.35)).toBe(false);   // v sražení u boku Z −20
+    expect(solidAt(L, 19.3, -20.7)).toBe(true);      // pod sražením zůstalo
+    expect(solidAt(L, 19.65, -11.65)).toBe(false);   // sražení u boku Z −12
+    expect(solidAt(L, 19.3, -11.3)).toBe(true);
+    expect(solidAt(L, 15, -20.1)).toBe(true);        // bok Z −20 na míru
+    expect(solidAt(L, 15, -19.9)).toBe(false);
+    expect(solidAt(L, 11.9, -16)).toBe(true);        // dno r 12 na míru
+    expect(solidAt(L, 12.1, -16)).toBe(false);
+    expect(solidAt(L, 19.9, -22)).toBe(true);        // okolí nedotčené
+  });
+  it('sražení se nevejde / je hlubší než zápich → hlášení, zápich se nevydá', async () => {
+    expect((await run({ grooveChamfer: 4 })).gcode).toMatch(/! Sražení 4 mm se na zápich 8\.00 mm nevejde/);
+    expect((await run({ grooveChamfer: 3, allowanceX: 17.5 })).gcode).toMatch(/! Sražení 3 mm není menší než hloubka/);
+  });
+  it('bez dokončení: zápichy ano, sražení ne a ⚠ to řekne', async () => {
+    const { gcode } = await run({ grooveChamfer: 1, doFinishing: false });
+    expect(gcode).toMatch(/! Srazeni hran dela jen dokoncovaci operace/);
+    expect(gcode).not.toContain('Sražení');
+  });
+  it('šířka 0 + sražení: jeden zápich šířkou destičky a dokončení se sražením', async () => {
+    const c = cuts((await run({ grooveWidth: 0, grooveChamfer: 0.5, finishAllowance: 0, allowanceZ: 0 })).gcode);
+    expect(c[0].z).toBeCloseTo(10.2, 6);   // sražení dokončením i bez přídavku na hotovo
+    expect(c.length).toBe(1 + 5);
+  });
+});
+
+describe('zápich se sražením z výkresu', async () => {
+  const { outerGroovesFromDrawing, groovesInChain, chainWithoutGrooves } = await import('../js/calculators/cam/sim/grooveCad.js');
+  const P = (pts) => pts.map(([x, z], i) => ({ id: 600 + i, type: i ? 'G1' : 'G0', x, z, r: 0, mode: 'ABS' }));
+  const L = (a, b) => ({ type: 'line', p1: { x: a[0], z: a[1] }, p2: { x: b[0], z: b[1] } });
+  it('vnější: sražení 0,5 na obou hranách se pozná (boky i dno beze změny)', () => {
+    const c = P([[0, 40], [18, 40], [18, 20.5], [17.5, 20], [14, 20], [14, 12], [17.5, 12], [18, 11.5], [18, 0]]);
+    expect(outerGroovesFromDrawing({ params: base, contourPoints: c })).toEqual([{ zLo: 12, zHi: 20, W: 8, rBot: 14, rTop: 18, s: 0.5 }]);
+  });
+  it('různě velká sražení = bez sražení (zápich se nabídne ostrý)', () => {
+    const c = P([[0, 40], [18, 40], [18, 20.5], [17.5, 20], [14, 20], [14, 12], [17, 12], [18, 11], [18, 0]]);
+    expect(outerGroovesFromDrawing({ params: base, contourPoints: c })).toEqual([{ zLo: 12, zHi: 20, W: 8, rBot: 14, rTop: 17 }]);
+  });
+  it('v díře: sražení se pozná a polotovar simulace ho nemá (stěna místo něj)', () => {
+    const chain = [L([20, 0], [20, -9.5]), L([20, -9.5], [20.5, -10]), L([20.5, -10], [23, -10]), L([23, -10], [23, -18]),
+      L([23, -18], [20.5, -18]), L([20.5, -18], [20, -18.5]), L([20, -18.5], [20, -30])];
+    expect(groovesInChain(chain)).toEqual([{ zA: -10, W: 8, rBot: 23, rWall: 20, s: 0.5 }]);
+    const filled = chainWithoutGrooves(chain);
+    expect(Math.max(...filled.flatMap(s => [s.p1.x, s.p2.x]))).toBe(20);
+    expect(filled[filled.length - 1].p2).toEqual({ x: 20, z: -30 });
+  });
+});

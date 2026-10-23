@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   straně, boky a dno s přídavky, dokončení bok → dno → bok; šířka 0 =
   upichnutí beze změny (`cam/ops/grooveWide.js`, test
   `tests/cam-groove-wide.test.js`).
+- **CAM: sražení hran zápichu 45°** (vnější i v díře, pravidlo 17,
+  schváleno 23. 10. 2026) — pole Sražení; dokončení jede sražení → bok →
+  dno → bok → sražení s korekcí rádiusu destičky; zápich se sraženími se
+  pozná i z výkresu (`cam/ops/grooveChamfer.js`).
 - **CAM: vnější zápich z výkresu** — zápich nakreslený na obrysu dílu
   nabídne Upich + ◯ Vnější (✏ Z výkresu); klik vyplní Z upich, šířku
   a Dojezd X (`groovesOnOuter` v `cam/holeGrooves.js`).

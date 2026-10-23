@@ -966,6 +966,10 @@ straně (zprava doprava, zleva doleva), na **Dojezd X**. Boky nechají
 Přídavek Z + Přídavek na hotovo, dno Přídavek na hotovo; s Dokončovací
 operací jede destička po prvním boku na dno, po dně ke druhému boku a po
 něm nahoru. Umí to jen zapichovací destička (kulatá jen jeden zápich).
+**Sražení** s (45°, vnější i v díře): hrubovací zápichy se nemění, sražení
+udělá dokončení — sražení z povrchu na bok → bok → dno → druhý bok →
+sražení zpět (i bez Přídavku na hotovo). 2s musí být menší než šířka a s
+menší než hloubka; bez Dokončovací operace se sražení neudělá (⚠).
 Zápich nakreslený na obrysu dílu (schod dolů → rovné dno → schod nahoru)
 nabídne řádek **✏ Z výkresu** nad poli upichu; klik vyplní Z upich (bok
 u sklíčidla), šířku i Dojezd X.
