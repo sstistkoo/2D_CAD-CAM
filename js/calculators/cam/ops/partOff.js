@@ -9,6 +9,7 @@ import { stockClearances } from '../camMath.js';
 import { partOffGeom } from '../threadHelpers.js';
 import { buildControlTailLines } from '../controlDialect.js';
 import { grooveWideActive, grooveWidePlan } from './grooveWide.js';
+import { profileRadiusAt } from '../holeGrooves.js';
 
 /**
  * @param ctx  { S, calc, prms, lines, addCmt, addN, note, arcR, flipArc }
@@ -43,7 +44,8 @@ export function emitPartOff(ctx) {
   const xCenterTarget = geom.xCenterTarget; // střed plátku, spodní hrana na dojezdu
   const xClear = geom.xCenterTop + clr;
   // Pravidlo 17: šířka zápichu > destička = víc zápichů vedle sebe (grooveWide.js).
-  const wide = geom.canCut && grooveWideActive(prms) ? grooveWidePlan(prms, geom) : null;
+  const wide = geom.canCut && grooveWideActive(prms)
+    ? grooveWidePlan(prms, geom, (z) => profileRadiusAt(calc && calc.contourSegments, z)) : null;
   addCmt(wide ? `--- ZAPICH sirka ${wide.W} (pravidlo 17) ---` : '--- UPICHNUTI ---');
   if (!geom.canCut) {
     addCmt(geom.reason);

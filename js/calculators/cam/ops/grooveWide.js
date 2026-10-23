@@ -22,10 +22,11 @@ export function grooveWideActive(prms) {
 
 /**
  * Plán vnějšího zápichu z geometrie upichu (`partOffGeom`).
+ * @param surfaceAt (z) → poloměr obrysu dílu v Z (povrch pro sražení), nebo null
  * @returns {{ok:boolean, reason?:string, W:number, w:number, plunges:number[],
  *   xRough:number, xFinal:number, zFinA:number, zFinB:number, doFinish:boolean}}
  */
-export function grooveWidePlan(prms, geom) {
+export function grooveWidePlan(prms, geom, surfaceAt = null) {
   const ins = getInsert(prms);
   const w = ins.widthZ || 0;
   const r = geom.rIns;
@@ -54,13 +55,18 @@ export function grooveWidePlan(prms, geom) {
     zFinA: zOfU(fa > 0 ? allowZ : 0), zFinB: zOfU(fa > 0 ? W - allowZ - w : 0),
   };
   if (sCh > 0) {
-    // Sražení hran: povrch = Start X (spodní hrana destičky na startu), hloubka
-    // ke dnu (Dojezd X); d = povrch − X středu rohu − … → X = povrch − d.
-    const surf = geom.startEdgeX;
+    // Sražení hran: povrch = obrys dílu vedle každého boku (osoustružený díl,
+    // ne surový polotovar); bez obrysu Start X. X středu rohu = povrch − d.
+    const side = (z) => { const v = surfaceAt ? surfaceAt(z) : null; return v !== null && v > geom.allowX ? v : geom.startEdgeX; };
+    const surfA = side(geom.pz - geom.dir * 0.01), surfB = side(geom.pz + geom.dir * (W + 0.01));
     const uA = fa > 0 ? allowZ : 0, uB = fa > 0 ? W - allowZ : W;
-    const ch = chamferFinishPath({ s: sCh, uA, uB, w, r, depth: surf - geom.allowX, dStart: -(r + 0.5) });
-    if (!ch.ok) return { ...out, reason: ch.reason };
-    plan.chamferPath = ch.pts.map(q => ({ z: zOfU(q.u), x: surf - q.d }));
+    const o = { s: sCh, uA, uB, w, r, dStart: -(r + 0.5) };
+    const chA = chamferFinishPath({ ...o, depth: surfA - geom.allowX });
+    const chB = chamferFinishPath({ ...o, depth: surfB - geom.allowX });
+    if (!chA.ok) return { ...out, reason: chA.reason };
+    if (!chB.ok) return { ...out, reason: chB.reason };
+    plan.chamferPath = [...chA.pts.slice(0, 4).map(q => ({ z: zOfU(q.u), x: surfA - q.d })),
+      ...chB.pts.slice(4).map(q => ({ z: zOfU(q.u), x: surfB - q.d }))];
     plan.chamfer = sCh;
   }
   return plan;

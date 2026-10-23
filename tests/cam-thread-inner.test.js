@@ -118,3 +118,18 @@ describe('náběh vnitřního závitu ve stěně díry (jen hlášení)', () => 
     expect(gcode).toMatch(/! Náběh závitu Z -7 až Z -10 leží v díře ⌀17,3/);
   });
 });
+
+describe('vnitřní závit: tyč se musí vejít i na odskoku (pravidlo 13)', () => {
+  it('velká Vůle X: odskok se zastaví tak, aby protější strana tyče minula protější stěnu', async () => {
+    const { gcode } = await runCamProg(prog(params({ stockClearX: 3 })));
+    const odskok = [...gcode.matchAll(/G0 X([\d.]+) ; Odskok/g)].map(m => parseFloat(m[1]));
+    // Tyč SNR0012 sahá 15 mm od špičky, díra r 8,647 → odskok aspoň 15 − 8,647 + 0,2.
+    expect(Math.min(...odskok)).toBeGreaterThanOrEqual(15 - 8.647 + 0.2 - 1e-3);
+  });
+  it('tyč, která se do díry nevejde: žádné průchody, ⚠ důvod', async () => {
+    const big = buildIsoInternalKnife('BTH', { bar: 20 });   // Dmin 25, díra ⌀17,3
+    const { gcode } = await runCamProg(prog(params({ ...big.tool, toolName: big.name })));
+    expect(gcode).toMatch(/! Tyč se do díry ⌀17\.29 nevejde/);
+    expect(gcode).not.toMatch(/G33/);
+  });
+});

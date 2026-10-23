@@ -32,7 +32,7 @@ import { boreChainFromState } from '../boreContour.js';
 import { buildStockLoopRaw, toolFootprint } from '../materialRemoval.js';
 import { toolReachAlongZ } from '../toolRadialFlip.js';
 import { barOverhangNote } from './barOverhang.js';
-import { stockHoleRadiusAt } from '../stockHole.js';
+import { stockHoleRadiusAt, stockFrontZ } from '../stockHole.js';
 import { chamferFinishPath } from './grooveChamfer.js';
 
 const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
@@ -123,6 +123,13 @@ export function grooveInnerGeom(prms, chain = null, stockLoop = null) {
   if (!prms.toolInternal) return fail('Nástroj je vnější upichovák — do díry patří vnitřní zapichovací tyč (📚 katalog → Vnitřní (do díry)).');
   if (!Number.isFinite(zA)) return fail('Naklikej Z zápichu (bok u ústí díry).');
   if (W < w - 1e-6) return fail(`Šířka zápichu ${W} mm je menší než šířka destičky ${w} mm — vyber užší destičku.`);
+  // Ústí: má-li polotovar části v místě zápichu díru, je ústí jeho čelo
+  // (Z vyvrtávání má výchozí hodnotu 0 i u dílu nakresleného jinde).
+  if (stockLoop && Number.isFinite(zA) && stockHoleRadiusAt(stockLoop, zA) !== null) {
+    const zFront = stockFrontZ(stockLoop, g.s);
+    if (zFront !== null) g.zF = zFront;
+  }
+  out.zF = g.zF;
   const rHole = holeMinRadius(g, zA, zB, holeR);
   if (rHole === null) return fail('Zápich leží mimo díru — zadej ⌀ díry, nebo nastav vyvrtávání / předvrtání (Hrub. + ◎ Vnitřní).');
   if (rHole === Infinity) return fail('Zápich leží mimo polotovar — zkontroluj Z zápichu.');
@@ -176,13 +183,19 @@ export function grooveInnerGeom(prms, chain = null, stockLoop = null) {
   const ext2 = toolReachAlongZ([holderWorldLoop(prms, prms.roughingSide === 'left'), toolFootprint(prms)], -g.s);
   const zOut = g.zF + g.s * (Math.max(0, g.s * (zStock - g.zF)) + clr + 1 + ext2);
   // Sražení hran (doplnění 23. 10. 2026): povrch = stěna díry, hloubka ven.
+  // Každá hrana od své stěny (vedle zápichu může být schod); nájezd o Vůli X.
   const sCh = Math.max(0, num(prms.grooveChamfer));
   let chamferPath = null;
   if (sCh > 0) {
-    const ch = chamferFinishPath({ s: sCh, uA: fa > 0 ? allowZ : 0, uB: fa > 0 ? W - allowZ : W, w, r: rIns,
-      depth: rBot - rHole, dStart: -(rIns + 0.5) });
-    if (!ch.ok) return fail(ch.reason);
-    chamferPath = ch.pts.map(q => ({ z: zOfU(q.u), x: rHole + q.d }));
+    const wallAt = (z) => { const r = holeRadiusAt(g, z, holeR); return r !== null && Number.isFinite(r) ? r : rHole; };
+    const rA = wallAt(zA + g.s * 0.01), rB = wallAt(zB - g.s * 0.01);
+    const o = { s: sCh, uA: fa > 0 ? allowZ : 0, uB: fa > 0 ? W - allowZ : W, w, r: rIns, dStart: -(rIns + clr) };
+    const chA = chamferFinishPath({ ...o, depth: rBot - rA });
+    const chB = chamferFinishPath({ ...o, depth: rBot - rB });
+    if (!chA.ok) return fail(chA.reason);
+    if (!chB.ok) return fail(chB.reason);
+    chamferPath = [...chA.pts.slice(0, 4).map(q => ({ z: zOfU(q.u), x: rA + q.d })),
+      ...chB.pts.slice(4).map(q => ({ z: zOfU(q.u), x: rB + q.d }))];
   }
   return { ...out, ok: true, rHole, rWall, reach, zNear, rcStart, rcIn, rcBotFinal, rcBotRough,
     plunges: plunges.map(zOfU), zFinA: zOfU(fa > 0 ? allowZ : 0), zFinB: zOfU(fa > 0 ? W - allowZ - w : 0), zOut, depth, chamfer: sCh, chamferPath };

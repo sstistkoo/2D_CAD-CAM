@@ -35,6 +35,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM: kontrola zápichů a vnitřního závitu (23. 10. 2026)**:
+  - sražení vnějšího zápichu bralo povrch ze Start X (= surový polotovar)
+    — na osoustruženém dílu vznikalo ve vzduchu; teď z obrysu dílu vedle
+    každého boku (i se schodem vedle zápichu);
+  - zápich v díře bral ústí z výchozího Z vyvrtávání (0) — u dílu s čelem
+    jinde falešně hlásil „není díra"; teď z čela polotovaru části;
+  - simulace odečítala díru z parametrů i tam, kde ji polotovar části už
+    má; výběr zapichovací tyče a předvyplnění dna brali výchozí ⌀30 —
+    teď skutečná díra části (`partHoleDiameter`);
+  - vnitřní závit: odskok mezi průchody nehlídal protější stranu tyče
+    (validátor protější stěnu nevidí) — teď se tyč musí vejít (pravidlo 13),
+    jinak se závit nevydá;
+  - dokončení se sražením v díře najíždí ke stěně na Vůli X.
 - **CAM: zápich v díře — hloubka i s Vůlí X** — tyč smí ke stěně díry jen
   po offsetovou čáru polotovaru (jako validátor); dřív jen 0,2 mm od stěny,
   takže ⛔ hlásil kolizi tyče u hlubších zápichů. Test dočištění vybrání po

@@ -12,7 +12,7 @@ import { buildStockLoopRaw, toolFootprint } from '../materialRemoval.js';
 import { holderWorldLoop } from '../collisionValidator.js';
 import { toolReachAlongZ } from '../toolRadialFlip.js';
 import { barOverhangNote } from './barOverhang.js';
-import { boreGeom } from './bore.js';
+import { boreGeom, boreToolReach } from './bore.js';
 import { holeMinRadius } from './grooveInner.js';
 import { stockHoleRadiusAt } from '../stockHole.js';
 import { boreChainFromState } from '../boreContour.js';
@@ -63,7 +63,18 @@ export function emitThread(ctx) {
   // rozhoduje větší/menší konec).
   const rSurfMax = Math.max(rSurfAt(z0), rSurfAt(zCut));
   const rSurfMin = Math.min(rSurfAt(z0), rSurfAt(zCut));
-  const rClear = ext ? rSurfMax + clr : Math.max(0.2, rSurfMin - clr);
+  let rClear = ext ? rSurfMax + clr : Math.max(0.2, rSurfMin - clr);
+  // Vnitřní (pravidlo 13): tyč se musí vejít — na odskoku nesmí protější strana
+  // tyče k protější stěně díry (validátor ji v polovičním řezu nevidí). Jen
+  // u vnitřního nože (katalog / příznak) — vlastní nůž obrys tyče nepopisuje.
+  let fitErr = null;
+  if (!ext && prms.toolInternal === true) {
+    const reach = boreToolReach(prms);
+    rClear = Math.max(rClear, reach - rSurfMin + 0.2);
+    if (rClear > rSurfMin - 0.2) {
+      fitErr = `Tyč se do díry ⌀${(2 * rSurfMin).toFixed(2)} nevejde (pravidlo 13): sahá ${reach.toFixed(1)} mm od špičky — vyber tenčí tyč.`;
+    }
+  }
   // Způsob přísuvu: radiální (kolmý) / boční po boku profilu / střídavý.
   // Boční = start průchodu se posune v Z o hloubka·tan(ε/2) — G33 drží
   // synchronizaci se vřetenem, takže posun startu posouvá řez v drážce
@@ -86,6 +97,9 @@ export function emitThread(ctx) {
   addCmt(`--- ZAVITOVANI ${prms.threadName || `⌀${Dnom}×${P}`} (${ext ? 'vnejsi' : 'vnitrni'}, H=${H.toFixed(3)}, ${cuts.length} pruchodu, ${infeedLabel}${taper !== 0 ? `, kuzel 1:${Math.abs(taper)}` : ''}) ---`);
   if (!ext && rMinor <= 0.05) {
     addCmt(`! Vnitrni zavit: prumer diry ⌀${(rMinor * 2).toFixed(3)} <= 0 — zkontroluj ⌀D a hloubku H. Drahy nevygenerovany.`);
+  } else if (fitErr) {
+    addCmt(`! ${fitErr}`);
+    if (S.genNotes) S.genNotes.push({ type: 'warning', msg: `Vnitřní závit: ${fitErr}` });
   } else {
     addN(`G97 S${rpm}${note('', 'Konstantní otáčky pro závit')}`);
     // Vnitřní (pravidlo 13, 22. 10. 2026): do díry jen přes ústí — před ústí

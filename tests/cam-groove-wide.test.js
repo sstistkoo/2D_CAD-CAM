@@ -163,3 +163,32 @@ describe('zápich se sražením z výkresu', async () => {
     expect(filled[filled.length - 1].p2).toEqual({ x: 20, z: -30 });
   });
 });
+
+describe('sražení na osoustruženém dílu (povrch z obrysu, ne ze surového polotovaru)', () => {
+  // Polotovar ⌀40, díl ⌀36 v místě zápichu — sražení patří na hranu ⌀36.
+  const turned = [
+    { id: 1, type: 'G0', x: 0, z: 2, r: 0, mode: 'ABS' },
+    { id: 2, type: 'G1', x: 18, z: 2, r: 0, mode: 'ABS' },
+    { id: 3, type: 'G1', x: 18, z: -40, r: 0, mode: 'ABS' },
+  ];
+  it('sražení na r 18 (obrys), ne na r 20 (polotovar)', async () => {
+    const r = await runCamProg({ params: { ...base, partOffZ: -20, grooveChamfer: 1 }, contourPoints: turned, stockPoints: [], flipX: false, flipZ: false });
+    const fin = cuts(r.gcode).slice(3).map(m => [+m.z.toFixed(3), +m.x.toFixed(3)]);
+    expect(fin[0]).toEqual([-19.8, 17.083]);                 // sražení → bok A na povrchu 18
+    expect(fin[fin.length - 1][1]).toBeCloseTo(18.7, 3);      // výjezd nad povrch 18
+  });
+  it('schod vedle zápichu: každá hrana od svého povrchu', async () => {
+    const step = [
+      { id: 1, type: 'G0', x: 0, z: 2, r: 0, mode: 'ABS' },
+      { id: 2, type: 'G1', x: 18, z: 2, r: 0, mode: 'ABS' },
+      { id: 3, type: 'G1', x: 18, z: -16, r: 0, mode: 'ABS' },
+      { id: 4, type: 'G1', x: 19, z: -16, r: 0, mode: 'ABS' },
+      { id: 5, type: 'G1', x: 19, z: -40, r: 0, mode: 'ABS' },
+    ];
+    // Zápich Z −20 … −12: bok A (Z −20) u r 19, bok B (Z −12) u r 18.
+    const r = await runCamProg({ params: { ...base, partOffZ: -20, grooveChamfer: 1 }, contourPoints: step, stockPoints: [], flipX: false, flipZ: false });
+    const fin = cuts(r.gcode).slice(3).map(m => [+m.z.toFixed(3), +m.x.toFixed(3)]);
+    expect(fin[0][1]).toBeCloseTo(18.083, 3);   // 19 − 0,917
+    expect(fin[3][1]).toBeCloseTo(17.083, 3);   // 18 − 0,917
+  });
+});

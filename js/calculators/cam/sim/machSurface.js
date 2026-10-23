@@ -17,6 +17,7 @@
 import { showToast } from '../../../state.js';
 import { threadProfileDepth } from '../threadHelpers.js';
 import { isoBoringBarDiameter } from '../../isoInternalTools.js';
+import { partHoleDiameter } from './grooveSim.js';
 
 // Nože, se kterými se vně nesoustruží (vlastní operace / poháněné nástroje).
 const SPECIAL = new Set(['drill', 'threading', 'parting', 'mill', 'tap']);
@@ -122,7 +123,7 @@ function setGrooveInner(inner, ctx) {
     if (S.params.threadActive) { S.params.threadActive = false; off += ', závit vypnut'; }
     if (S.params.drillActive) { S.params.drillActive = false; off += ', vrtání vypnuto'; }
     picked = ctx.grooveEnsureBar ? ctx.grooveEnsureBar() : autoPickToolFor('groovein').msg;
-    const D = parseFloat(S.params.grooveHoleD) || parseFloat(S.params.boreDiameter) || parseFloat(S.params.borePreDiameter) || 0;
+    const D = partHoleDiameter(S);   // ruční ⌀ / díra v polotovaru části / vyvrtávání
     if (D > 0 && !(parseFloat(S.params.grooveBottomX) > D / 2)) S.params.grooveBottomX = Math.round((D / 2 + 1) * 1000) / 1000;
   } else {
     picked = autoPickToolFor('partoff').msg;

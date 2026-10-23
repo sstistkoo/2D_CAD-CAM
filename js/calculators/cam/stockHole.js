@@ -21,3 +21,29 @@ export function stockHoleRadiusAt(loop, z) {
   }
   return best;
 }
+
+/**
+ * Nejužší místo díry v polotovaru na úseku Z (po 0,25 mm + konce).
+ * @returns {number|null} poloměr (Infinity = celý úsek ve vzduchu),
+ *   null = někde na úseku je polotovar u osy plný
+ */
+export function stockHoleMinRadius(loop, z1, z2) {
+  const lo = Math.min(z1, z2), hi = Math.max(z1, z2);
+  const n = Math.max(1, Math.ceil((hi - lo) / 0.25));
+  let m = Infinity;
+  for (let i = 0; i <= n; i++) {
+    const r = stockHoleRadiusAt(loop, lo + (hi - lo) * i / n);
+    if (r === null) return null;
+    m = Math.min(m, r);
+  }
+  return m;
+}
+
+/**
+ * Ústí díry v polotovaru: čelo polotovaru na straně obrábění (zprava
+ * největší Z, zleva nejmenší) — odtud tyč do díry vjíždí.
+ */
+export function stockFrontZ(loop, s) {
+  const zs = (loop || []).map(q => q.z).filter(Number.isFinite);
+  return zs.length ? (s > 0 ? Math.max(...zs) : Math.min(...zs)) : null;
+}

@@ -15,6 +15,7 @@ import { holderWorldLoop } from '../collisionValidator.js';
 import { boreGeom, boreHoleLoop } from '../ops/bore.js';
 import { boreChainFromState } from '../boreContour.js';
 import { polyDifference, polyArea } from '../../../geom/geomCore.js';
+import { stockHoleRadiusAt } from '../stockHole.js';
 
 const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
 
@@ -59,6 +60,38 @@ export function grooveHoleLoop(S) {
   return [{ x: -1, z: zOut }, { x: r, z: zOut }, { x: r, z: g.zF - g.s * L }, { x: -1, z: g.zF - g.s * L }];
 }
 
+/** Z, kde se zjišťuje, jestli polotovar díru už má: kousek za bokem
+ *  zápichu u ústí, u závitu prostředek závitu. */
+function holeProbeZ(p) {
+  if (threadInnerActive(p)) {
+    const zS = num(p.threadZStart);
+    const zE = Number.isFinite(parseFloat(p.threadZEnd)) ? parseFloat(p.threadZEnd) : zS - 10;
+    return (zS + zE) / 2;
+  }
+  const s = p.roughingSide === 'left' ? -1 : 1;
+  return num(p.partOffZ) - s * 0.1;
+}
+
+/**
+ * ⌀ díry pro výběr zapichovací tyče a předvyplnění dna: ruční ⌀, jinak díra
+ * v polotovaru části v místě zápichu (± 5 mm, když Z ještě není), jinak
+ * parametry vyvrtávání / předvrtání.
+ */
+export function partHoleDiameter(S) {
+  const p = S.params || {};
+  const manual = num(p.grooveHoleD);
+  if (manual > 0) return manual;
+  try {
+    const stock = S._cachedCalc ? buildStockLoopRaw(p, S._cachedCalc.stockPathSegments) : null;
+    if (stock) {
+      const z = num(p.partOffZ, NaN);
+      const r = Number.isFinite(z) ? stockHoleRadiusAt(stock, z) : null;
+      if (r !== null && Number.isFinite(r)) return Math.round(2 * r * 1000) / 1000;
+    }
+  } catch { /* bez polotovaru — z parametrů */ }
+  return num(p.boreDiameter) || num(p.borePreDiameter) || 0;
+}
+
 /**
  * Argumenty (params, segmenty polotovaru) pro modely úběru / validátor.
  * Mimo zápich v díře beze změny; jinak polotovar MÍNUS díra jako odlitek.
@@ -68,6 +101,9 @@ export function simStockArgs(S, calc, segs = calc && calc.stockPathSegments) {
   if (!radialFlip(S.params)) return [S.params, segs];
   try {
     const stock = buildStockLoopRaw(S.params, segs);
+    // Polotovar části díru už má (program po částech) → nic neodečítat, jinak
+    // by simulace ukázala díru z parametrů (výchozí ⌀30) místo skutečné.
+    if (stock && stockHoleRadiusAt(stock, holeProbeZ(S.params)) !== null) return [S.params, segs];
     const hole = grooveHoleLoop(S);
     if (!stock || !hole) return [S.params, segs];
     const rest = polyDifference([stock], [hole]);

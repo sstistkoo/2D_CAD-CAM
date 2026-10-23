@@ -15,6 +15,7 @@ import { strategyKnifeSlot } from '../strategyKnife.js';
 import { drillGeom, drillAutoFaceZ } from '../ops/drill.js';
 import { preDrillPlan, catalogDrillFor, applyPreDrillPlan } from '../ops/borePreDrill.js';
 import { _defaultMagSlot, _isoMagSlot } from './magSlots.js';
+import { partHoleDiameter } from './grooveSim.js';
 
 /** @param ctx { S, toolUi, gcodeStale, pathInputsKey, fullUpdate, saveState, pushHistory, dropInsertGuides, afterToolChange, applyAfterToolChange } */
 export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpdate, saveState, pushHistory, dropInsertGuides, afterToolChange, applyAfterToolChange }) {
@@ -265,10 +266,9 @@ export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpd
     return ` — tyč ${rec.name} přidána z 📚 katalogu do 🔧 Zásobníku jako T${num}`;
   }
 
-  /** ⌀ díry pro zápich v díře: ruční, jinak vyvrtávání, jinak předvrtání. */
+  /** ⌀ díry pro zápich v díře: ruční, jinak díra v polotovaru části, jinak vyvrtávání / předvrtání. */
   function grooveHoleDiameter() {
-    const p = S.params;
-    return parseFloat(p.grooveHoleD) || parseFloat(p.boreDiameter) || parseFloat(p.borePreDiameter) || 0;
+    return partHoleDiameter(S);
   }
 
   /** Zápich v díře: tyč ze 🔧 Zásobníku, jinak nejtlustší vhodná z 📚 katalogu. @returns doplněk toastu */

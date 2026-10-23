@@ -398,3 +398,29 @@ describe('sražení hran zápichu v díře', async () => {
     expect(solidAt(L, 23.1, -14)).toBe(true);
   });
 });
+
+describe('díra a ústí z polotovaru části (kontrola 23. 10. 2026)', async () => {
+  const { simStockArgs, partHoleDiameter } = await import('../js/calculators/cam/sim/grooveSim.js');
+  const P = (pts) => pts.map(([x, z], i) => ({ id: 700 + i, type: i ? 'G1' : 'G0', x, z, r: 0, mode: 'ABS' }));
+  // Díl s čelem na Z 60 a dírou ⌀24 (r 12) do Z 20; Z vyvrtávání zůstalo výchozí 0.
+  const stockPoints = P([[0, 20], [12, 20], [12, 60], [40, 60], [40, 0], [0, 0]]);
+  const p = (over = {}) => params(bar(16, 2), { stockMode: 'casting', partOffZ: 50, grooveWidth: 4, grooveBottomX: 13.5, boreZStart: 0, ...over });
+  it('ústí = čelo polotovaru (Z 60), ne výchozí Z 0 vyvrtávání', async () => {
+    const r = await runCamProg({ ...prog(p()), stockPoints });
+    expect(r.gcode).not.toMatch(/^; ! /m);
+    expect(r.gcode).toMatch(/G0 Z6[0-9]\.\d+ ; Před ústí díry/);
+    expect(r.gcode).toMatch(/G0 X10\.800/);                     // stěna r 12 z polotovaru
+  });
+  it('simulace neodečítá díru z parametrů, když ji polotovar má', async () => {
+    const r = await runCamProg({ ...prog(p()), stockPoints });
+    const [sp, segs] = simStockArgs(r.S, r.calcSim);
+    expect(sp).toBe(r.S.params);                                // beze změny
+    expect(segs).toBe(r.calcSim.stockPathSegments);
+  });
+  it('⌀ díry pro výběr tyče = díra polotovaru v místě zápichu', async () => {
+    const r = await runCamProg({ ...prog(p()), stockPoints });
+    r.S._cachedCalc = r.calcSim;
+    expect(partHoleDiameter(r.S)).toBe(24);
+    expect(partHoleDiameter({ ...r.S, params: { ...r.S.params, grooveHoleD: 26 } })).toBe(26);
+  });
+});

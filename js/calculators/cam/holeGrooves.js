@@ -89,3 +89,20 @@ export function groovesOnOuter(segs) {
   }
   return out;
 }
+
+/**
+ * Poloměr obrysu dílu (úseky kontury, poloměry) ve skutečném Z — největší
+ * z úseků, které tím Z procházejí (oblouk po tětivě). null = obrys tam není.
+ * Povrch pro sražení hran vnějšího zápichu (ops/grooveWide.js).
+ */
+export function profileRadiusAt(segs, z) {
+  let best = null;
+  for (const sg of segs || []) {
+    if (!sg || !sg.p1 || !sg.p2) continue;
+    const a = sg.p1, b = sg.p2;
+    if (z < Math.min(a.z, b.z) - 1e-9 || z > Math.max(a.z, b.z) + 1e-9) continue;
+    const x = Math.abs(b.z - a.z) < 1e-9 ? Math.max(a.x, b.x) : a.x + (z - a.z) * (b.x - a.x) / (b.z - a.z);
+    if (best === null || x > best) best = x;
+  }
+  return best;
+}
