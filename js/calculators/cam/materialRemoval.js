@@ -147,6 +147,13 @@ export function insertExtent(prms) {
  * (`toolFootprintVisual`) podle klíče plátku `footprintChordTol`.
  */
 export function toolFootprint(prms, chordTol = 0) {
+  // Destička natočená do čela (čelní zápich): stadion s tělem radiálně ven by
+  // ležel napříč zápichem — stopou je skutečný obrys (jako u vrtáku).
+  if (getInsert(prms).bodySweepZ) {
+    const back = prms.roughingSide === 'left';
+    const outline = insertWorldLoop(prms, back);
+    if (outline) return back ? outline.reverse() : outline;
+  }
   const loop = toolFootprintBase(prms, chordTol);
   return loop && radialFlip(prms) ? flipLoopX(loop) : loop;
 }
@@ -230,7 +237,10 @@ export function toolFootprintVisual(prms) {
   if (ins.footprintIsOutline) return body;
   const H = Math.max((parseFloat(prms.depthOfCut) || 0) * 2, 3);
   // Tělo se zametá k držáku: ven od osy, u zápichu v díře k ose.
-  const merged = toolSweep(body, [{ x: 0, z: 0 }, { x: radialFlip(prms) ? -H : H, z: 0 }]);
+  // Destička natočená do čela (čelní zápich): tělo míří osově (zleva zrcadlově).
+  const bz = ins.bodySweepZ || 0;
+  const sweepTo = bz ? { x: 0, z: (prms.roughingSide === 'left' ? -bz : bz) * H } : { x: radialFlip(prms) ? -H : H, z: 0 };
+  const merged = toolSweep(body, [{ x: 0, z: 0 }, sweepTo]);
   return (merged.length === 1 && merged[0].length >= 3) ? merged[0] : body;
 }
 

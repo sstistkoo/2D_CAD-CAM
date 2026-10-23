@@ -390,6 +390,13 @@ do SVG.
    (soustruh: výška, karusel: vodorovná poloha), druhou souřadnici dá klik.
 3. Vytvoří se zápichová geometrie
 
+**Čelní zápich (O-kroužek).** Typ **Čelní zápich — do čela**: klikni na
+čelo, zadej vnitřní **⌀d1**, vnější **⌀d2**, **hloubku** a případně
+**sražení** hran u čela. Orientace říká, kterým směrem zápich jde (čelo
+vpravo → zápich doleva, čelo vlevo → doprava). Vznikne otevřená křivka
+čelo → vnitřní stěna → dno → vnější stěna → čelo; CAM ji v Upich + ⊚ Čelní
+pozná (✏ Z výkresu).
+
 ---
 
 ## CAM workflow
@@ -899,6 +906,7 @@ Vynechaný kus hlásí panel ⚠ větou **„Dokončování: … řetěz(ů) za�
 záložka Vyvrt.; tyč a předvrtání se vyberou samy, viz *Vyvrtávání* níž),
 **Hot. + ◎ Vnitřní** = jen dokončení stěny díry (viz níž),
 **Upich + ◎ Vnitřní** = zápich v díře (viz níž),
+**Upich + ⊚ Čelní** = čelní (axiální) zápich do čela, např. pro O-kroužek (viz níž),
 **Závit + ◎ Vnitřní** = vnitřní závit (destička IR v tyči). Přepínač čte
 přímo nastavení operace, takže ukazuje vždy to, co program opravdu dělá
 (i závit načtený z výkresu jako vnitřní). **◯ Vnější** vyvrtávání vypne
@@ -957,6 +965,24 @@ u upichu (výjezdy jen ke stěně díry). Do díry i ven jede tyč osou díry
 (před ústí → k ose → na Z), nikdy šikmo přes stěnu. Když se tyč do díry
 nevejde nebo zápich přesáhne dosah, dráha se nevydá a pod poli i v ⚠ je
 důvod.
+
+**Čelní zápich (Upich + ⊚ Čelní, pravidlo 19).** Mezikruží ⌀d1–⌀d2 do
+čela dílu čelním zapichovacím nožem (📚 katalog → **Čelní zápichy**:
+destička natočená do čela, zakřivená čepel pro **rozsah průměrů**
+⌀Dmin–Dmax a **dosah** = největší hloubka). Nůž se vybere sám ze
+🔧 Zásobníku, jinak se vhodný přidá z katalogu.
+1. **✂️ Ukázat bod** → klik na **čelo** (Z čela), nebo **✏ Z výkresu** —
+   zápich nakreslený nástrojem Zápich (typ Čelní) vyplní Z čela, ⌀d1, ⌀d2,
+   hloubku i sražení.
+2. **⌀d1 / ⌀d2** = vnitřní / vnější stěna, **Hloubka** od čela (nejvýš
+   dosah čepele). Zápich musí ležet v rozsahu čepele a být aspoň tak
+   široký jako destička.
+3. Osové zápichy vedle sebe od vnitřní stěny ven s krokem nejvýš 0,8 ×
+   šířka destičky; stěny nechají Přídavek X + Přídavek na hotovo, dno
+   Přídavek na hotovo. **Dokončovací operace** jede vnitřní stěna → dno →
+   vnější stěna (se Sražením i sražení hran).
+4. Pohyb: před čelo (vůle + rádius), radiálně nad zápich, osově do čela,
+   zpět před čelo. Na polotovaru se zápich ukáže čárkovaně.
 
 **Vnější zápich libovolné šířky (Upich + ◯ Vnější, pravidlo 17).** Pole
 **Šířka zápichu** u upichu: 0 = upichnutí / jeden zápich šířkou destičky

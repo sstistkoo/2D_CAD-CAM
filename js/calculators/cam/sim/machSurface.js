@@ -13,11 +13,14 @@
 //   Upich  vnitřní = zápich v díře vnitřní zapichovací tyčí (`partOffInner`,
 //          doplnění pravidla 13 z 22. 10. 2026, ops/grooveInner.js),
 //   Závit  vnitřní = vnitřní závit (`threadExternal: false`).
+//   Upich  ⊚ Čelní = čelní (axiální) zápich do čela (`partOffFace`,
+//          pravidlo 19 z 23. 10. 2026, ops/grooveFace.js).
 // Vrtání a Frézování jsou z podstaty „do materiálu" — přepínač nemají.
 import { showToast } from '../../../state.js';
 import { threadProfileDepth } from '../threadHelpers.js';
 import { isoBoringBarDiameter } from '../../isoInternalTools.js';
 import { partHoleDiameter } from './grooveSim.js';
+import { faceGroovesFromDrawing } from './grooveCad.js';
 
 // Nože, se kterými se vně nesoustruží (vlastní operace / poháněné nástroje).
 const SPECIAL = new Set(['drill', 'threading', 'parting', 'mill', 'tap']);
@@ -31,14 +34,20 @@ export const SURFACE_TABS = new Set(['hrub', 'hot', 'upich', 'zavit']);
 export function surfaceInner(prms, tab) {
   if (tab === 'zavit') return prms.threadExternal === false;
   if (tab === 'hrub' || tab === 'hot') return !!prms.boreActive;
-  if (tab === 'upich') return !!prms.partOffInner;
+  if (tab === 'upich') return !!prms.partOffInner && !prms.partOffFace;
   return false;
+}
+
+/** Plocha operace záložky: 'outer' | 'inner' | 'face' (čelní jen Upich). */
+export function surfaceMode(prms, tab) {
+  if (tab === 'upich' && prms.partOffFace) return 'face';
+  return surfaceInner(prms, tab) ? 'inner' : 'outer';
 }
 
 /** Obrábí program uvnitř díry? (čip souhrnu Obrábění) */
 export function programInner(prms) {
   const partOff = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
-  return !!prms.boreActive || (!!prms.threadActive && prms.threadExternal === false) || (partOff && !!prms.partOffInner);
+  return !!prms.boreActive || (!!prms.threadActive && prms.threadExternal === false) || (partOff && !!prms.partOffInner && !prms.partOffFace);
 }
 
 /**
@@ -52,10 +61,11 @@ export function attachSurfaceEvents(ctx) {
   tabBody.querySelectorAll('[data-surface]').forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = S.machiningSubTab || 'hrub';
-      const inner = btn.dataset.surface === 'inner';
-      if (!SURFACE_TABS.has(tab) || surfaceInner(S.params, tab) === inner) return;
+      const mode = btn.dataset.surface;
+      const inner = mode === 'inner';
+      if (!SURFACE_TABS.has(tab) || surfaceMode(S.params, tab) === mode) return;
       if (tab === 'zavit') setThreadInner(inner, ctx);
-      else if (tab === 'upich') setGrooveInner(inner, ctx);
+      else if (tab === 'upich') setGrooveMode(mode, ctx);
       else setBore(inner, ctx, tab === 'hot');
     });
   });
@@ -109,12 +119,31 @@ function setBore(on, ctx, finish = false) {
  * zapichovací tyč (zásobník, jinak katalog) a předvyplní dno zápichu kousek
  * za stěnou díry; vnější vrátí upichovák (ne tyč).
  */
-function setGrooveInner(inner, ctx) {
+function setGrooveMode(mode, ctx) {
   const { S, applyChange, pushHistory, autoPickToolFor } = ctx;
+  const inner = mode === 'inner', face = mode === 'face';
   pushHistory();   // může vyměnit nůž a vypnout jiný cyklus — jeden krok ↩
   S.params.partOffInner = inner;
+  S.params.partOffFace = face;
   let off = '', picked = '';
   const active = S.params.partOffZ != null && isFinite(parseFloat(S.params.partOffZ));
+  if (face) {
+    // Jeden cyklus na program; zápich z výkresu předvyplní Z čela, ⌀d1/⌀d2 a hloubku.
+    if (S.params.boreActive) { S.params.boreActive = false; off += ', vyvrtávání vypnuto'; }
+    if (S.params.threadActive) { S.params.threadActive = false; off += ', závit vypnut'; }
+    if (S.params.drillActive) { S.params.drillActive = false; off += ', vrtání vypnuto'; }
+    const g = faceGroovesFromDrawing(S)[0];
+    if (g && !(parseFloat(S.params.faceGrooveD2) > 0)) {
+      Object.assign(S.params, { partOffZ: g.zFace, faceGrooveD1: g.d1, faceGrooveD2: g.d2, faceGrooveDepth: g.t, grooveChamfer: g.s || 0 });
+      off += `, zápich ⌀${g.d1}–${g.d2} × ${g.t} z výkresu`;
+    }
+    picked = autoPickToolFor('grooveface').msg;
+    const regen = !S.gcodeDirty;
+    const on = S.params.partOffZ != null && isFinite(parseFloat(S.params.partOffZ));
+    showToast(`⊚ Čelní — zápich do čela${on ? '' : ' (Z čela naklikej ✂️ Ukázat bod)'}${picked}${off}${regen ? '' : ' — dráhy vygeneruj přes 🔄 Dráhy'}`);
+    applyChange({ cycle: true });
+    return;
+  }
   if (inner) {
     const mag = S.toolMagazine || [];
     if (outerKnife(mag[S.activeMagazineSlot])) S._turnSlot = S.activeMagazineSlot;

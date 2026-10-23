@@ -7,9 +7,9 @@
 // ops/grooveInner.js podle pravidla 13.
 import { boreChainFromState, segmentsFromPoints, splitBoreFromSegments } from '../boreContour.js';
 import { showToast } from '../../../state.js';
-import { groovesInChain, groovesOnOuter } from '../holeGrooves.js';
+import { groovesInChain, groovesOnOuter, groovesInFace } from '../holeGrooves.js';
 
-export { groovesInChain, chainWithoutGrooves, groovesOnOuter } from '../holeGrooves.js';
+export { groovesInChain, chainWithoutGrooves, groovesOnOuter, groovesInFace } from '../holeGrooves.js';
 const r3 = (v) => Math.round(v * 1000) / 1000;
 
 /** Zápichy v díře nakreslené ve výkresu (samostatný řetěz, jinak díra v kontuře). */
@@ -37,6 +37,17 @@ export function outerGroovesFromDrawing(S) {
   }
 }
 
+/** Čelní zápichy nakreslené v čele dílu (pravidlo 19) — na straně obrábění. */
+export function faceGroovesFromDrawing(S) {
+  try {
+    const p = S.params || {};
+    const segs = segmentsFromPoints(S.contourPoints, p.mode).filter(Boolean);
+    return groovesInFace(segs, p.roughingSide === 'left' ? -1 : 1);
+  } catch {
+    return [];
+  }
+}
+
 /** Z upich vnějšího zápichu = bok na straně sklíčidla (zprava menší Z, zleva větší). */
 export function outerGrooveZ(prms, g) {
   return prms.roughingSide === 'left' ? g.zHi : g.zLo;
@@ -57,6 +68,20 @@ export function attachGrooveCadEvents({ tabBody, S, applyChange, pushHistory, au
       const picked = autoPickToolFor ? autoPickToolFor('groovein').msg : '';
       const cz = (v) => String(v).replace('.', ',');
       showToast(`Zápich v díře z výkresu: Z ${cz(g.zA)}, šířka ${cz(g.W)}, dno ⌀${cz(r3(2 * g.rBot))}${picked}`);
+      applyChange({ cycle: true });
+    });
+  });
+  // Čelní zápich z výkresu (Upich + ⊚ Čelní): Z čela, ⌀d1, ⌀d2, hloubka, sražení.
+  tabBody.querySelectorAll('[data-act="groove-face-from-cad"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const g = faceGroovesFromDrawing(S)[Number(btn.dataset.i)];
+      if (!g) return;
+      pushHistory();
+      Object.assign(S.params, { partOffFace: true, partOffInner: false, partOffZ: g.zFace, faceGrooveD1: g.d1, faceGrooveD2: g.d2, faceGrooveDepth: g.t, grooveChamfer: g.s || 0 });
+      S.partOffPickMode = false;
+      const picked = autoPickToolFor ? autoPickToolFor('grooveface').msg : '';
+      const cz = (v) => String(v).replace('.', ',');
+      showToast(`Čelní zápich z výkresu: Z ${cz(g.zFace)}, ⌀${cz(g.d1)}–${cz(g.d2)}, hloubka ${cz(g.t)}${picked}`);
       applyChange({ cycle: true });
     });
   });

@@ -115,6 +115,7 @@ export function roundInsert(prms) {
     footprintChordTol: 0.02,
     bodyInCollisionEnvelope: false,
     faceBodyZFromWidth: false,
+    bodySweepZ: 0,   // tělo nad břitem radiálně ven (viz parting.js)
     plungeAngleMaxDeg: 89,
     // Ruční úhel zanoření platí (viz parting.js).
     plungeFixed: false,

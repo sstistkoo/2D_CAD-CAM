@@ -508,7 +508,8 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // Dokončovací dráha — celá operace v ops/finish.js. Zápich v díře a vnitřní
   // závit (nástroj obrácený radiálně, toolRadialFlip.js) vnější obrys
   // nedokončují — tyč by se na něm jen falešně hlásila jako kolize držáku.
-  const grooveInnerOp = radialFlip(prms);
+  // …a čelní zápich (natočená destička, vlastní program — ops/grooveFace.js).
+  const grooveInnerOp = radialFlip(prms) || (!!prms.partOffFace && prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ)));
   if ((prms.doFinishing || prms.finishOnly) && !grooveInnerOp) {
     finishOffsetPath = buildFinishPath({
       prms, clearance, contourSegments, preBridgeContour, machinableContour,

@@ -46,6 +46,7 @@ export function drillInsert(prms) {
     footprintIsNoseOnly: false,
     bodyInCollisionEnvelope: false,
     faceBodyZFromWidth: false,
+    bodySweepZ: 0,   // tělo nad břitem radiálně ven (viz parting.js)
     plungeAngleMaxDeg: 89,
     plungeFixed: false,
     // Podélně ani čelně nesoustruží — `longRoughing: false` by ho ale

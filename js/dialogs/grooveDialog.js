@@ -10,6 +10,18 @@ import { lookupDin76, lookupDin509 } from '../calculators/dinGrooves.js';
  * @returns {{error:string}|{params:object}}
  */
 export function validateGrooveParams(raw) {
+  // Čelní (axiální) zápich do čela — např. pro O-kroužek (pravidlo 19 v CAM).
+  if (raw?.type === 'face') {
+    const d1 = Number(raw.diameter), d2 = Number(raw.d2), t = Number(raw.t);
+    const s = Number(raw.s) || 0;
+    if (!Number.isFinite(d1) || d1 < 0) return { error: 'Vnitřní průměr d1 musí být ≥ 0' };
+    if (!Number.isFinite(d2) || d2 <= d1) return { error: 'Vnější průměr d2 musí být větší než d1' };
+    if (!Number.isFinite(t) || t <= 0) return { error: 'Hloubka t musí být > 0' };
+    if (s < 0 || (s > 0 && !(2 * s < (d2 - d1) / 2 && s < t))) {
+      return { error: 'Sražení s: 2·s musí být menší než šířka (d2 − d1)/2 a s menší než hloubka t' };
+    }
+    return { params: { type: 'face', diameter: d1, d2, t, s, mirror: !!raw.mirror } };
+  }
   const diameter = Number(raw?.diameter);
   const f = Number(raw?.f);
   const t = Number(raw?.t);
@@ -54,32 +66,41 @@ export function showGrooveDialog(onConfirm, opts = {}) {
           <option value="din509e">DIN 509 E – výběh broušení (15°)</option>
           <option value="din509f">DIN 509 F – výběh broušení (8°)</option>
           <option value="custom">Vlastní</option>
+          <option value="face">Čelní zápich (O-kroužek) — do čela</option>
         </select>
       </label>
-      <label class="cnc-field" title="Vodorovně = plocha zápichu leží vodorovně, hloubka jde dolů. Svisle = plocha svisle, hloubka jde doleva. Soustruh: vodorovně = na válci, svisle = na čele. Karusel (osy prohozené): svisle = na válci, vodorovně = na čele.">
+      <label class="cnc-field not-face" title="Vodorovně = plocha zápichu leží vodorovně, hloubka jde dolů. Svisle = plocha svisle, hloubka jde doleva. Soustruh: vodorovně = na válci, svisle = na čele. Karusel (osy prohozené): svisle = na válci, vodorovně = na čele.">
         <span>Orientace</span>
         <select data-id="orient">
           <option value="h">Vodorovně ↔</option>
           <option value="v">Svisle ↕</option>
         </select>
       </label>
-      <label class="cnc-field" title="Průměr, na kterém zápich leží (u zápichu na čele průměr jeho vstupní hrany)">
-        <span>Průměr d [mm]</span>
+      <label class="cnc-field" title="Průměr, na kterém zápich leží (u zápichu na čele průměr jeho vstupní hrany). U čelního zápichu VNITŘNÍ průměr d1.">
+        <span data-id="dLabel">Průměr d [mm]</span>
         <input data-id="diameter" type="number" value="20" min="0.1" step="0.5">
+      </label>
+      <label class="cnc-field face-only" title="Vnější průměr zápichu v čele">
+        <span>Vnější ⌀d2 [mm]</span>
+        <input data-id="d2" type="number" value="40" min="0.1" step="0.5">
+      </label>
+      <label class="cnc-field face-only" title="Sražení hran zápichu u čela 45° (0 = ostré hrany)">
+        <span>Sražení s [mm]</span>
+        <input data-id="s" type="number" value="0" min="0" step="0.1">
       </label>
       <label class="cnc-field din76-only" title="Stoupání závitu – určuje rozměry dle DIN 76">
         <span>Stoupání P [mm]</span>
         <input data-id="pitch" type="number" value="1.5" min="0.1" step="0.05">
       </label>
-      <label class="cnc-field" title="Šířka zápichu (axiální)">
+      <label class="cnc-field not-face" title="Šířka zápichu (axiální)">
         <span>Šířka f [mm]</span>
         <input data-id="f" type="number" value="4" min="0.1" step="0.1">
       </label>
-      <label class="cnc-field" title="Radiální hloubka zápichu">
+      <label class="cnc-field" title="Hloubka zápichu (u čelního zápichu osově do čela)">
         <span>Hloubka t [mm]</span>
         <input data-id="t" type="number" value="0.8" min="0.01" step="0.05">
       </label>
-      <label class="cnc-field" title="Poloměr přechodu na dně zápichu">
+      <label class="cnc-field not-face" title="Poloměr přechodu na dně zápichu">
         <span>Poloměr r [mm]</span>
         <input data-id="r" type="number" value="0.8" min="0" step="0.05">
       </label>
@@ -118,12 +139,21 @@ export function showGrooveDialog(onConfirm, opts = {}) {
   const orientSel = overlay.querySelector('[data-id="orient"]');
   const mirrorSel = overlay.querySelector('[data-id="mirror"]');
   const din76Fields = overlay.querySelectorAll('.din76-only');
+  const faceFields = overlay.querySelectorAll('.face-only');
+  const notFaceFields = overlay.querySelectorAll('.not-face');
+  const d2Inp = overlay.querySelector('[data-id="d2"]');
+  const sInp = overlay.querySelector('[data-id="s"]');
+  const dLabel = overlay.querySelector('[data-id="dLabel"]');
   const customFields = overlay.querySelectorAll('.custom-only');
 
   function applyPreset() {
     const type = typeSel.value;
     din76Fields.forEach(el => el.style.display = (type === 'din76') ? '' : 'none');
     customFields.forEach(el => el.style.display = (type === 'custom') ? '' : 'none');
+    faceFields.forEach(el => el.style.display = (type === 'face') ? '' : 'none');
+    notFaceFields.forEach(el => el.style.display = (type === 'face') ? 'none' : '');
+    dLabel.textContent = type === 'face' ? 'Vnitřní ⌀d1 [mm]' : 'Průměr d [mm]';
+    applyOrientLabels();
     if (type === 'din76') {
       const dims = lookupDin76(parseFloat(pitchInp.value));
       fInp.value = dims.f; rInp.value = dims.r; tInp.value = dims.t;
@@ -137,6 +167,12 @@ export function showGrooveDialog(onConfirm, opts = {}) {
 
   // Popisky směru podle orientace (svisle: zápich pokračuje nahoru/dolů)
   function applyOrientLabels() {
+    if (typeSel.value === 'face') {
+      // Čelní zápich: hloubka jde do čela — zprava (čelo vpravo) do −Z.
+      mirrorSel.options[0].textContent = 'Čelo vpravo (zápich doleva) ←';
+      mirrorSel.options[1].textContent = 'Čelo vlevo (zápich doprava) →';
+      return;
+    }
     const v = orientSel.value === 'v';
     mirrorSel.options[0].textContent = v ? 'Šikmá stěna dole ↑' : 'Šikmá stěna vlevo →';
     mirrorSel.options[1].textContent = v ? 'Šikmá stěna nahoře ↓' : 'Šikmá stěna vpravo ←';
@@ -169,6 +205,8 @@ export function showGrooveDialog(onConfirm, opts = {}) {
       alpha,
       mirror: mirrorSel.value === '1',
       orient: orientSel.value,
+      d2: parseFloat(d2Inp.value),
+      s: parseFloat(sInp.value),
     };
     const validated = validateGrooveParams(raw);
     if (validated.error) {

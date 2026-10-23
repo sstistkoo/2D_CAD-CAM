@@ -49,6 +49,7 @@ export function createHitTest({ S, canvas }) {
     if (S.simRunning) return null;
     const prms = S.params;
     if (prms.partOffZ == null || !isFinite(parseFloat(prms.partOffZ))) return null;
+    if (prms.partOffFace) return null;   // čelní zápich nemá Dojezd / Start X (pravidlo 19)
     const calc = S._cachedCalc; if (!calc) return null;
     const g = partOffGeom(prms, calc);
     if (!g.canCut) return null;

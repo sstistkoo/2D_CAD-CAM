@@ -131,6 +131,13 @@ export function simStockArgs(S, calc, segs = calc && calc.stockPathSegments) {
  */
 export function grooveOutline(S) {
   const p = S.params;
+  if (p.partOffFace) {
+    // Čelní zápich (pravidlo 19): mezikruží ⌀d1–⌀d2 do hloubky od čela.
+    const zF = num(p.partOffZ, NaN), r1 = num(p.faceGrooveD1) / 2, r2 = num(p.faceGrooveD2) / 2, t = num(p.faceGrooveDepth);
+    if (!Number.isFinite(zF) || !(r2 > r1) || !(t > 0)) return null;
+    const zB = zF - (p.roughingSide === 'left' ? -1 : 1) * t;
+    return { groove: [[r1, zF], [r1, zB], [r2, zB], [r2, zF]], wall: [] };
+  }
   if (!grooveInnerActive(p) || threadInnerActive(p)) return null;
   const src = p.boreSource === 'cad' ? boreChainFromState(S) : null;
   let stock = null;

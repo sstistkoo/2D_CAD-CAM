@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM + CAD: čelní (axiální) zápich, např. pro O-kroužek (Upich + ⊚ Čelní,
+  pravidlo 19, schváleno 23. 10. 2026)** — mezikruží ⌀d1–⌀d2 do hloubky
+  od čela; osové zápichy vedle sebe, stěny a dno s přídavky, dokončení
+  vnitřní stěna → dno → vnější stěna, sražení hran (`cam/ops/grooveFace.js`).
+  Čelní zapichovací nože v 📚 katalogu (skupina Čelní zápichy, rozsah ⌀
+  čepele a dosah, `isoFaceGrooves.js`); nůž se vybere sám, jinak se přidá
+  z katalogu. V CAD nástroj Zápich → typ **Čelní zápich**; nakreslený
+  zápich převezme CAM přes ✏ Z výkresu. Testy `tests/cam-groove-face*.test.js`,
+  `tests/groove-face-cad.test.js`.
 - **CAM: hlášení vyložení tyče** (pravidlo 13, schváleno 22. 10. 2026):
   vyvrtávání, zápich v díře i vnitřní závit upozorní ⚠, leží-li špička
   hlouběji od ústí než 4 × ⌀ ocelové tyče (`cam/ops/barOverhang.js`).

@@ -16,6 +16,7 @@ import { drillGeom, drillAutoFaceZ } from '../ops/drill.js';
 import { preDrillPlan, catalogDrillFor, applyPreDrillPlan } from '../ops/borePreDrill.js';
 import { _defaultMagSlot, _isoMagSlot } from './magSlots.js';
 import { partHoleDiameter } from './grooveSim.js';
+import { isoFaceGrooveFromName, buildIsoFaceGroove, FACE_GROOVE_RANGES, isoFaceGrooveWidths } from '../../isoFaceGrooves.js';
 
 /** @param ctx { S, toolUi, gcodeStale, pathInputsKey, fullUpdate, saveState, pushHistory, dropInsertGuides, afterToolChange, applyAfterToolChange } */
 export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpdate, saveState, pushHistory, dropInsertGuides, afterToolChange, applyAfterToolChange }) {
@@ -216,8 +217,9 @@ export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpd
           : `v zásobníku není ${what} a 📚 ISO katalog ho nemá — nakresli vlastní ▽ nůž`;
     } else if (op === 'partoff') {
       // Vnější upich: upichovák, ne vnitřní zapichovací tyč.
-      if (S.params.toolShape === 'parting' && S.params.toolInternal !== true) return same;
-      idx = mag.findIndex(s => s.shape === 'parting' && s.internal !== true);
+      // …a ne čelní zapichovací nůž (destička natočená do čela).
+      if (S.params.toolShape === 'parting' && S.params.toolInternal !== true && !isoFaceGrooveFromName(S.params.toolName)) return same;
+      idx = mag.findIndex(s => s.shape === 'parting' && s.internal !== true && !isoFaceGrooveFromName(s.name));
       if (idx < 0 && S.params.toolShape === 'round') return same;
       missing = 'v zásobníku není upichovák — přidej ho z 🧰 Knihovna → 📚 ISO katalog';
     } else if (op === 'groovein') {
@@ -228,6 +230,12 @@ export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpd
       if (ok(S.params.toolName)) return same;
       mag.forEach((s, i) => { if (ok(s.name) && (idx < 0 || isoGroovingBar(s.name).d > isoGroovingBar(mag[idx].name).d)) idx = i; });
       missing = `v zásobníku není vnitřní zapichovací tyč do díry ⌀${D} — přidej ji z 🧰 Knihovna → 📚 ISO katalog → Vnitřní (do díry)`;
+    } else if (op === 'grooveface') {
+      // Čelní zápich (pravidlo 19): čelní nůž, jehož rozsah čepele zápich pokryje
+      // a dosah stačí na hloubku; z vhodných nejširší destička (nejméně zápichů).
+      const ok = (name) => faceKnifeFits(isoFaceGrooveFromName(name));
+      if (ok(S.params.toolName)) return same;
+      mag.forEach((s, i) => { if (ok(s.name) && (idx < 0 || isoFaceGrooveFromName(s.name).w > isoFaceGrooveFromName(mag[idx].name).w)) idx = i; });
     } else if (op === 'drill') {
       if (getInsert(S.params).canDrill) return same;
       idx = mag.findIndex(s => s.shape === 'drill');
@@ -243,6 +251,7 @@ export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpd
       });
       missing = `v zásobníku není vyvrtávací tyč do předvrtání ⌀${d0} — přidej ji z 🧰 Knihovna → 📚 ISO katalog → Vnitřní (do díry)`;
     }
+    if (idx < 0 && op === 'grooveface') return faceKnifeFromCatalog();   // není v zásobníku → 📚 katalog
     if (idx < 0) return { changed: false, msg: missing ? ` ⚠ ${missing}` : '' };
     _loadMagSlot(idx);
     return { changed: true, msg: ` — nůž T${mag[idx].slot} ${mag[idx].name}${mag[idx].vbdCode ? ' (' + mag[idx].vbdCode + ')' : ''}` };
@@ -264,6 +273,32 @@ export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpd
     S.toolMagazine.push(_isoMagSlot(rec, num));
     _loadMagSlot(S.toolMagazine.length - 1);
     return ` — tyč ${rec.name} přidána z 📚 katalogu do 🔧 Zásobníku jako T${num}`;
+  }
+
+  /** Pokryje čelní nůž (z jména) zadaný čelní zápich? Bez zadání stačí, že je čelní. */
+  function faceKnifeFits(t) {
+    if (!t) return false;
+    const p = S.params;
+    const d1 = parseFloat(p.faceGrooveD1) || 0, d2 = parseFloat(p.faceGrooveD2) || 0, depth = parseFloat(p.faceGrooveDepth) || 0;
+    if (!(d2 > d1)) return true;
+    return d1 >= t.dmin - 1e-6 && d2 <= t.dmax + 1e-6 && depth <= t.a + 1e-6 && t.w <= (d2 - d1) / 2 + 1e-6;
+  }
+
+  /** Čelní zápich bez vhodného nože v zásobníku: přidá ho z 📚 katalogu (rozsah ⌀, šířka, dosah). */
+  function faceKnifeFromCatalog() {
+    const p = S.params;
+    const d1 = parseFloat(p.faceGrooveD1) || 0, d2 = parseFloat(p.faceGrooveD2) || 0, depth = parseFloat(p.faceGrooveDepth) || 0;
+    const set = d2 > d1;
+    const ri = set ? FACE_GROOVE_RANGES.findIndex(rg => d1 >= rg.dmin && d2 <= rg.dmax) : 1;
+    if (ri < 0) return { changed: false, msg: ` ⚠ zápich ⌀${d1}–${d2} nepokryje rozsah žádného čelního nože z 📚 katalogu (${FACE_GROOVE_RANGES.map(rg => `⌀${rg.dmin}–${rg.dmax}`).join(', ')}) — rozděl ho nebo použij vlastní nůž` };
+    const ws = isoFaceGrooveWidths(FACE_GROOVE_RANGES[ri]).filter(g => g.a >= depth - 1e-6 && (!set || g.w <= (d2 - d1) / 2 + 1e-6));
+    if (!ws.length) return { changed: false, msg: ` ⚠ na zápich ⌀${d1}–${d2} × ${depth} není v 📚 katalogu destička (šířka / dosah čepele)` };
+    const rec = buildIsoFaceGroove({ range: ri, width: ws[ws.length - 1].w });
+    if (!Array.isArray(S.toolMagazine)) S.toolMagazine = [];
+    const num = S.toolMagazine.length > 0 ? Math.max(...S.toolMagazine.map(t => t.slot || 0)) + 1 : 1;
+    S.toolMagazine.push(_isoMagSlot(rec, num));
+    _loadMagSlot(S.toolMagazine.length - 1);
+    return { changed: true, msg: ` — nůž ${rec.name} přidán z 📚 katalogu do 🔧 Zásobníku jako T${num}` };
   }
 
   /** ⌀ díry pro zápich v díře: ruční, jinak díra v polotovaru části, jinak vyvrtávání / předvrtání. */

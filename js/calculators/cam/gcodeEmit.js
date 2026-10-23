@@ -22,6 +22,7 @@ import { ctrlCmt, buildControlHeaderLines, buildControlTailLines,
 import { emitThread } from './ops/thread.js';
 import { emitPartOff } from './ops/partOff.js';
 import { emitGrooveInner } from './ops/grooveInner.js';
+import { emitGrooveFace } from './ops/grooveFace.js';
 import { emitDrill } from './ops/drill.js';
 import { emitBore } from './ops/bore.js';
 import { emitBorePreDrilled } from './ops/borePreDrill.js';
@@ -97,6 +98,9 @@ export function generateAutoGCode(S, calc) {
 
   // ── UPICHNUTÍ (part-off) ── samostatná operace, viz ops/partOff.js.
   const partOffActive = prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ));
+  // Upich + ⊚ Čelní = čelní zápich (pravidlo 19, ops/grooveFace.js).
+  if (partOffActive && prms.partOffFace)
+    return emitGrooveFace({ S, calc, prms, lines, addCmt, addN, note });
   // Upich + ◎ Vnitřní = zápich v díře (pravidlo 13, ops/grooveInner.js).
   if (partOffActive && prms.partOffInner)
     return emitGrooveInner({ S, calc, prms, lines, addCmt, addN, note });

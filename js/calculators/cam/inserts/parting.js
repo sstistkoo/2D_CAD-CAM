@@ -69,6 +69,9 @@ export function partingInsert(prms) {
     footprintIsNoseOnly: false,
     bodyInCollisionEnvelope: true,
     faceBodyZFromWidth: true,
+    // Tělo nad břitem (úběr materiálu — toolFootprintVisual) míří osově, je-li
+    // destička natočená do čela (čelní zápich, −90° → +Z, +90° → −Z); 0 = radiálně ven.
+    bodySweepZ: Math.abs((parseFloat(prms.toolAngle) || 0) + 90) < 1 ? 1 : Math.abs((parseFloat(prms.toolAngle) || 0) - 90) < 1 ? -1 : 0,
     plungeAngleMaxDeg: 90,
     // Zanoření je VŽDY kolmo — ruční „Úhel zanoření" se nepoužije (pravidlo 6:
     // „Upichovák: kolmo"; uživatel 25. 9. 2026 viděl u upichováku 15°, které

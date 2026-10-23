@@ -90,6 +90,21 @@ export function placeGrooveProfile(profile, { orient = 'h', mirror = false, anch
 }
 
 /**
+ * Čelní (axiální) zápich do čela — např. pro O-kroužek (pravidlo 19 v CAM).
+ * Profil v souřadnicích (z osově, r radiálně): od čela na ⌀d1 do hloubky t,
+ * po dně na ⌀d2 a zpět na čelo; se sražením s jsou hrany u čela pod 45°.
+ * `dir` = +1: čelo vpravo, zápich do −Z; −1: čelo vlevo, zápich do +Z.
+ * @returns {{z:number, r:number}[]} body od vnitřní hrany na čele k vnější
+ */
+export function buildFaceGrooveProfile({ zFace, d1, d2, t, s = 0, dir = 1 }) {
+  const r1 = d1 / 2, r2 = d2 / 2, zb = zFace - dir * t;
+  const zs = zFace - dir * s;
+  return s > 0
+    ? [{ z: zFace, r: r1 - s }, { z: zs, r: r1 }, { z: zb, r: r1 }, { z: zb, r: r2 }, { z: zs, r: r2 }, { z: zFace, r: r2 + s }]
+    : [{ z: zFace, r: r1 }, { z: zb, r: r1 }, { z: zb, r: r2 }, { z: zFace, r: r2 }];
+}
+
+/**
  * Klik při aktivním nástroji „groove": klik na plátno → dialog → po
  * potvrzení se profil zápichu umístí vstupní hranou na pozici kliknutí.
  * Průměr d určuje radiální souřadnici – na soustruhu výšku (svět y), na
@@ -101,6 +116,19 @@ export function handleGrooveClick(wx, wy) {
   const isKarusel = state.machineType === 'karusel';
   showGrooveDialog((params) => {
     if (!params) return;
+    if (params.type === 'face') {
+      // Čelní zápich: Z čela z kliknutí (soustruh vodorovně = Z, karusel svisle).
+      const prof = buildFaceGrooveProfile({ zFace: isKarusel ? wy : wx, d1: params.diameter, d2: params.d2,
+        t: params.t, s: params.s, dir: params.mirror ? -1 : 1 });
+      const vertices = prof.map(p => (isKarusel ? { x: p.r, y: p.z } : { x: p.z, y: p.r }));
+      withUndoBatch(() => {
+        addObject({ type: 'polyline', vertices, bulges: vertices.slice(1).map(() => 0), closed: false,
+          name: `Čelní zápich ⌀${params.diameter}–${params.d2}×${params.t}${params.s ? ` s${params.s}` : ''}` });
+      });
+      renderAll();
+      showToast(`Čelní zápich přidán (⌀${params.diameter}–${params.d2}, hloubka ${params.t}) — napoj ho na čelo kontury ✓`);
+      return;
+    }
     const { diameter, f, t, r, alpha, type, mirror, orient } = params;
     const R1 = diameter / 2;
 

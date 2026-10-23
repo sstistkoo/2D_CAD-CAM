@@ -379,3 +379,22 @@ prvním boku na dno, po dně ke druhému boku a po něm zpátky ven.**
   se dráha nevydá a nahlásí se. Bez Dokončovací operace se sražení neudělá
   a ⚠ to řekne. Zápich nakreslený se sraženími 45° (stejnými) ve výkresu se
   pozná i se s.
+
+## Pravidlo 19 — Čelní (axiální) zápich ✅ schváleno
+
+**Zápich do čela (Upich + ⊚ Čelní): osovými zápichy vedle sebe radiálně
+s krokem nejvýš 0,8 × šířka destičky od vnitřní stěny ⌀d1 k vnější ⌀d2 na
+hloubku t; dokončení po vnitřní stěně na dno, po dně k vnější stěně a po ní
+ven (se sražením jako ostatní zápichy).**
+
+- Schválil uživatel 23. 10. 2026 (zápich pro O-kroužek apod.).
+- Z čela = povrch (naklikané jako u upichu), dno = Z čela − hloubka (zprava
+  do −Z, zleva do +Z). ⌀d1 / ⌀d2 / hloubka zadané nebo ✏ z výkresu.
+- Stěny (⌀d1, ⌀d2) nechají Přídavek X + Přídavek na hotovo, dno Přídavek na
+  hotovo; dokončení ho odebere (sražení i bez přídavku, 2s < šířka, s < hloubka).
+- Nástroj = čelní zapichovací nůž (destička natočená −90°, čepel zakřivená):
+  zápich musí ležet v jeho rozsahu průměrů (d1 ≥ Dmin, d2 ≤ Dmax) a hloubka
+  ≤ dosah; jinak se dráha nevydá a nahlásí se.
+- Pohyb: rychloposuvem před čelo (vůle + přesah nástroje), radiálně nad
+  zápich, osově do čela, zpět před čelo. Peckování (osově) / plynulý zápich
+  jako u upichu.

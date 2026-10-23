@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v605';
+const CACHE_NAME = 'skica-v607';
 const ASSETS = [
   './',
   './index.html',
@@ -92,6 +92,7 @@ const ASSETS = [
   './js/calculators/cam/ops/finishEmit.js',
   './js/calculators/cam/ops/finishSteep.js',
   './js/calculators/cam/ops/grooveChamfer.js',
+  './js/calculators/cam/ops/grooveFace.js',
   './js/calculators/cam/ops/grooveInner.js',
   './js/calculators/cam/ops/grooveWide.js',
   './js/calculators/cam/ops/long/airPieces.js',
@@ -169,6 +170,7 @@ const ASSETS = [
   './js/calculators/cam/sim/paramsBoreHtml.js',
   './js/calculators/cam/sim/paramsEventsGeneral.js',
   './js/calculators/cam/sim/paramsEventsMachining.js',
+  './js/calculators/cam/sim/paramsGrooveFaceHtml.js',
   './js/calculators/cam/sim/paramsGrooveHtml.js',
   './js/calculators/cam/sim/paramsMachiningHtml.js',
   './js/calculators/cam/sim/paramsPanelsHtml.js',
@@ -235,6 +237,7 @@ const ASSETS = [
   './js/calculators/iso965Data.js',
   './js/calculators/isoCatalogPanel.js',
   './js/calculators/isoDrills.js',
+  './js/calculators/isoFaceGrooves.js',
   './js/calculators/isoInternalTools.js',
   './js/calculators/isoMills.js',
   './js/calculators/isoTaps.js',

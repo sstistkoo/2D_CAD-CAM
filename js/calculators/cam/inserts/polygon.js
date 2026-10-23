@@ -90,6 +90,7 @@ export function polygonInsert(prms) {
     footprintIsNoseOnly: false,
     bodyInCollisionEnvelope: false,
     faceBodyZFromWidth: false,
+    bodySweepZ: 0,   // tělo nad břitem radiálně ven (viz parting.js)
     plungeAngleMaxDeg: bottomEdgeDeg,
     // Ruční úhel zanoření platí, jen ne strměji než spodní hrana (strop výš).
     plungeFixed: false,

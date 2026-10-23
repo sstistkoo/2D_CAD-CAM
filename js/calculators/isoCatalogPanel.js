@@ -28,6 +28,7 @@ import {
   isoThreadInsertsForBar, isoInnerGrooveWidths,
 } from './isoInternalTools.js';
 import { isoThreadInsertLabel } from './isoThreadInserts.js';
+import { FACE_GROOVE_TYPE, FACE_GROOVE_RANGES, isoFaceGrooveWidths, buildIsoFaceGroove, isoFaceGrooveCount } from './isoFaceGrooves.js';
 
 const PREF_KEY = 'skica.isoCatalog';   // jen pohodlí: naposledy zvolený dřík a skupina
 
@@ -40,9 +41,9 @@ const MILL_TYPE = { id: 'ML', special: 'mill', groups: ['mill'],
 // Závitníky (22. 10. 2026) — závity do děr z výkresu poháněným nástrojem.
 const TAP_TYPE = { id: 'TP', special: 'tap', groups: ['tap'],
   desc: 'Strojní závitník pro poháněný nástroj — závity do děr z výkresu. Do 🔧 Zásobníku; CAM ho vybere podle závitu.' };
-const GROUPS = [...ISO_GROUPS, { id: 'internal', label: 'Vnitřní (do díry)' }, { id: 'drill', label: 'Vrtáky a navrtávák' }, { id: 'mill', label: 'Frézy (poháněné)' }, { id: 'tap', label: 'Závitníky (poháněné)' }];
+const GROUPS = [...ISO_GROUPS, { id: 'facegroove', label: 'Čelní zápichy' }, { id: 'internal', label: 'Vnitřní (do díry)' }, { id: 'drill', label: 'Vrtáky a navrtávák' }, { id: 'mill', label: 'Frézy (poháněné)' }, { id: 'tap', label: 'Závitníky (poháněné)' }];
 const isLiveT = (t) => t.special === 'mill' || t.special === 'tap';
-const typeById = (id) => (id === DRILL_TYPE.id ? DRILL_TYPE : id === MILL_TYPE.id ? MILL_TYPE : id === TAP_TYPE.id ? TAP_TYPE
+const typeById = (id) => (id === FACE_GROOVE_TYPE.id ? FACE_GROOVE_TYPE : id === DRILL_TYPE.id ? DRILL_TYPE : id === MILL_TYPE.id ? MILL_TYPE : id === TAP_TYPE.id ? TAP_TYPE
   : ISO_HOLDER_TYPES.find((t) => t.id === id) || ISO_INTERNAL_TYPES.find((t) => t.id === id));
 const isInternal = (t) => ISO_INTERNAL_TYPES.includes(t);
 
@@ -61,6 +62,7 @@ function savePrefs(p) {
 function shapeLabel(t) {
   if (t.special === 'parting') return t.round ? '▮ radiusový zápich' : t.long ? '▮ upichovací lišta, dlouhý dosah' : '▮ zapichovací';
   if (t.special === 'grooving') return '▮ vnitřní zapichovací';
+  if (t.special === 'facegroove') return '▮ čelní zapichovací';
   if (t.special === 'threading') return '▽ závitová';
   if (t.special === 'drill') return '⌀ vrták';
   if (t.special === 'mill') return '✣ fréza';
@@ -86,6 +88,7 @@ export function mountIsoCatalog(root, opts) {
   };
 
   const recFor = (t) => {
+    if (t.special === 'facegroove') return buildIsoFaceGroove({ ...(st.sel[t.id] || {}), hand: st.hand });
     if (t.special === 'drill') return buildIsoDrill(st.sel[t.id] || {});
     if (t.special === 'mill') return buildIsoMill(st.sel[t.id] || {});
     if (t.special === 'tap') return buildIsoTap(st.sel[t.id] || {});
@@ -106,6 +109,13 @@ export function mountIsoCatalog(root, opts) {
     if (t.special === 'mill') {
       return select('kind', ISO_MILL_KINDS.map((x) => [x.id, x.label]), k.kind, 'Druh — tvrdokov 3 / 4 zuby, HSS-Co 2 zuby (řežou středem) nebo HSS-Co 4 zuby (neřeže středem, zanoření rampou)')
         + select('diameter', isoMillDiameters().map((d) => [d, isoMillLabel(d, k.kind)]), k.diameter, 'Průměr frézy');
+    }
+    if (t.special === 'facegroove') {
+      const rgi = Number.isInteger(k.range) ? k.range : 1;
+      return select('range', FACE_GROOVE_RANGES.map((r, i) => [i, `⌀${r.dmin}–${r.dmax}`]), rgi,
+        'Rozsah průměrů zakřivené čepele — zápich musí ležet v něm (vnitřní ⌀d1 ≥ Dmin, vnější ⌀d2 ≤ Dmax)')
+        + select('width', isoFaceGrooveWidths(FACE_GROOVE_RANGES[rgi]).map((g) => [g.w, `š ${cz(g.w)} mm · R ${cz(g.r)} · dosah ${g.a}`]), k.width,
+          'Šířka zapichovací destičky; dosah = největší hloubka čelního zápichu');
     }
     if (t.special === 'drill') {
       return select('kind', ISO_DRILL_KINDS.map((x) => [x.id, x.label]), k.kind, 'Druh — vrták HSS-Co 118° (DIN 338 / 345), tvrdokov 140° (5×D, vnitřní chlazení) nebo navrtávák 90° / 120°')
@@ -166,6 +176,7 @@ export function mountIsoCatalog(root, opts) {
     if (p.toolClearanceAngle) chips.push(`α ${p.toolClearanceAngle}°`);
     // Vyvrtávací tyč: nejmenší díra a rozumné vyložení ocelové tyče (4×D).
     if (k.internal) chips.push(`díra ≥ ⌀${k.dmin}`, `vyložení ≤ ${4 * k.bar} (4×D)`);
+    if (k.face) chips.push(`zápich ⌀${k.dmin}–${k.dmax}`);
     chips.push(p.toolShape === 'tap' ? `Vc ${rec.vc} · F = P·n` : p.toolShape === 'mill' ? `Vc ${rec.vc} · fz ${cz(rec.f)}` : p.toolShape === 'drill' ? `Vc ${rec.vc} · f ${cz(rec.f)}` : `Vc ${rec.vc} · f ${cz(rec.f)} · ap ${cz(rec.ap)}`);
     const big = st.zoom === t.id;
     return `<div class="iso-cat-card${big ? ' iso-cat-card--big' : ''}" data-id="${t.id}">
@@ -187,11 +198,12 @@ export function mountIsoCatalog(root, opts) {
   function visibleTypes() {
     const holders = ISO_HOLDER_TYPES.filter((t) => !t.alias && (st.group === 'all' || t.groups.includes(st.group))
       && isoVariants(t, st.shank).length > 0);
+    const face = st.group === 'all' || st.group === 'facegroove' ? [FACE_GROOVE_TYPE] : [];
     const internal = st.group === 'all' || st.group === 'internal' ? ISO_INTERNAL_TYPES : [];
     const drill = st.group === 'all' || st.group === 'drill' ? [DRILL_TYPE] : [];
     const mill = st.group === 'all' || st.group === 'mill' ? [MILL_TYPE] : [];
     const tap = st.group === 'all' || st.group === 'tap' ? [TAP_TYPE] : [];
-    return [...holders, ...internal, ...drill, ...mill, ...tap];
+    return [...holders, ...face, ...internal, ...drill, ...mill, ...tap];
   }
 
   function render() {
@@ -210,7 +222,7 @@ export function mountIsoCatalog(root, opts) {
         ${GROUPS.map((g) => `<button data-g="group" data-v="${g.id}" class="${st.group === g.id ? 'on' : ''}">${esc(g.label)}</button>`).join('')}
       </div>
       <div class="iso-cat-list">${visibleTypes().map(cardHTML).join('') || '<div class="iso-cat-empty">Pro tento dřík tu není žádný nůž.</div>'}</div>
-      <div class="iso-cat-note">Dřík ${shank.h}×${shank.b}: l1 ${shank.l1} mm, u přesazených držáků f1 ${shank.f1} mm. Katalog umí ${isoCatalogCount()} kombinací vnějších nožů, ${isoInternalCount()} vnitřních, ${isoDrillCount()} vrtáků, ${isoMillCount()} fréz a ${isoTapCount()} závitníků.
+      <div class="iso-cat-note">Dřík ${shank.h}×${shank.b}: l1 ${shank.l1} mm, u přesazených držáků f1 ${shank.f1} mm. Katalog umí ${isoCatalogCount()} kombinací vnějších nožů, ${isoInternalCount()} vnitřních, ${isoFaceGrooveCount()} čelních zapichovacích, ${isoDrillCount()} vrtáků, ${isoMillCount()} fréz a ${isoTapCount()} závitníků.
         Vnitřní nože mají místo dříku tyč ⌀ na kartě; CAM je použije na vyvrtávání (Hrub./Hot. + ◎ Vnitřní), zápich v díře (Upich + ◎ Vnitřní) a vnitřní závit.
         Rozměry držáků a tvar hlavy jsou <b>orientační</b> podle ISO 5608/5610 a typických katalogů — ověřte v katalogu výrobce.
         Po použití jde obrys upravit v 🔪 Geometrii.</div>`;
@@ -236,7 +248,7 @@ export function mountIsoCatalog(root, opts) {
     if (!o || !card) return;
     const id = card.dataset.id;
     const cur = { ...(recFor(typeById(id)) || {}).iso, ...(st.sel[id] || {}) };
-    cur[o.dataset.o] = ['width', 'diameter', 'bar', 'reach'].includes(o.dataset.o) ? Number(o.value) : o.value;
+    cur[o.dataset.o] = ['width', 'diameter', 'bar', 'reach', 'range'].includes(o.dataset.o) ? Number(o.value) : o.value;
     if (o.dataset.o === 'variant') { delete cur.size; delete cur.radius; }
     st.sel[id] = cur;
     replaceCard(id);

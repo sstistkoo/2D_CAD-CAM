@@ -106,3 +106,27 @@ export function profileRadiusAt(segs, z) {
   }
   return best;
 }
+
+/**
+ * Čelní (axiální) zápichy na obrysu dílu (pravidlo 19): osový schod DO čela →
+ * radiální dno → osový schod zpátky ven (volitelně se stejnými sraženími 45°
+ * na obou hranách u čela). `dir` = +1 čelo vpravo (zápich do −Z), −1 vlevo.
+ * @returns {{zFace:number, d1:number, d2:number, t:number, s?:number}[]}
+ */
+export function groovesInFace(segs, dir = 1) {
+  const out = [];
+  const S = (segs || []).filter(Boolean);
+  for (let i = 0; i + 2 < S.length; i++) {
+    const a = S[i], b = S[i + 1], c = S[i + 2];
+    if (!axial(a) || !radial(b) || !axial(c)) continue;
+    // a jde do čela (proti dir), c zpátky ven; dno hlouběji než oba vstupy.
+    const da = a.p2.z - a.p1.z, dc = c.p2.z - c.p1.z;
+    if (!(dir * da < -EPS) || !(dir * dc > EPS)) continue;
+    const s = grooveChamferAt(S, i);
+    const zFace = s > 0 ? S[i - 1].p1.z : a.p1.z;
+    if (s === 0 && Math.abs(c.p2.z - zFace) > 1e-4) continue;       // obě hrany na témže čele
+    const r1 = Math.min(a.p1.x, c.p1.x), r2 = Math.max(a.p1.x, c.p1.x);
+    out.push({ zFace: r3(zFace), d1: r3(2 * r1), d2: r3(2 * r2), t: r3(Math.abs(b.p1.z - zFace)), ...(s > 0 ? { s } : {}) });
+  }
+  return out;
+}

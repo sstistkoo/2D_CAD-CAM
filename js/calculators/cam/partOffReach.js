@@ -51,7 +51,7 @@ export function partOffReachDepth(prms) {
 export function partOffReachWarning(prms, xStockTop) {
   if (!(prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ)))) return null;
   // Zápich v díře (Upich + ◎ Vnitřní) hlídá dosah sám (ops/grooveInner.js).
-  if (prms.partOffInner) return null;
+  if (prms.partOffInner || prms.partOffFace) return null;   // čelní zápich hlídá dosah čepele sám
   const reach = partOffReachDepth(prms);
   if (reach === null) return null;
   const need = xStockTop - (parseFloat(prms.allowanceX) || 0);

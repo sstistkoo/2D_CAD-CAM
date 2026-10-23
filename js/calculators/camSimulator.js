@@ -4313,14 +4313,14 @@ export function openCamSimulator(initialContour, initialGCode) {
         S.params.partOffZ = Math.round(wz * 1000) / 1000;
         S.partOffPickMode = false;
         S.params.drillActive = false; S.params.boreActive = false;   // jeden cyklus na program (vrtání/vyvrtávání by upich schovalo)
-        const picked = autoPickToolFor(S.params.partOffInner ? 'groovein' : 'partoff').msg;   // zápich v díře = zapichovací tyč
+        const picked = autoPickToolFor(S.params.partOffFace ? 'grooveface' : S.params.partOffInner ? 'groovein' : 'partoff').msg;   // v díře tyč, do čela čelní nůž
         // Horní bod úsečky (Start X) předvyplnit povrchem polotovaru — jen když
         // ještě není nastavený (uživatel ho pak může přetáhnout níž do kapsy).
-        if (!S.params.partOffInner && !(parseFloat(S.params.partOffStartX) > 0)) {
+        if (!S.params.partOffInner && !S.params.partOffFace && !(parseFloat(S.params.partOffStartX) > 0)) {
           const stTop = (S._cachedCalc && parseFloat(S._cachedCalc.stockTopX)) || (parseFloat(S.params.stockDiameter) || 0) / 2;
           if (stTop > 0) S.params.partOffStartX = Math.round(stTop * 100) / 100;
         }
-        showToast(`${S.params.partOffInner ? 'Zápich v díře (bok u ústí)' : 'Upichnutí'} v Z=${S.params.partOffZ.toFixed(2)}${picked}${S.gcodeDirty ? ' — program má ruční úpravy, cyklus vygeneruj přes 🔄 Dráhy' : ''}`);
+        showToast(`${S.params.partOffFace ? 'Čelní zápich (čelo)' : S.params.partOffInner ? 'Zápich v díře (bok u ústí)' : 'Upichnutí'} v Z=${S.params.partOffZ.toFixed(2)}${picked}${S.gcodeDirty ? ' — program má ruční úpravy, cyklus vygeneruj přes 🔄 Dráhy' : ''}`);
         // Zapnutí režimu → cyklus se projeví hned (pokud v programu nejsou
         // ruční úpravy, které mají přednost).
         applyChange({ cycle: true });
