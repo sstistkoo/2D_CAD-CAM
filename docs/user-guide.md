@@ -2089,8 +2089,7 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
 - **Kužel** (Taper) – v pravém panelu Kalkulačky. V liště okna je 🔢 Kalkulačka:
   klepni do pole, spočítej a tlačítkem ↓ se výsledek vloží do pole; 🗑 Vymazat
   (také v liště) smaže všechny zadané hodnoty a měřicí místa. Bez záložek:
-  nahoře Zobrazení (díra / čep; názvy stran Spodek/Vrch pro svislou osu –
-  karusel, nebo Začátek/Konec pro vodorovnou – soustruh; výpočet je stejný),
+  nahoře Zobrazení (díra / čep a kde je větší Ø – dole / nahoře, ⇅ prohodí),
   pak náčrt, výsledky a pole;
   úplně dole rozbalovací tabulky Morse / ISO.
   - *Kužel* – jeden výpočet pro čep i díru. Náčrt řezu je klikací: klepni na

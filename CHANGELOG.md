@@ -30,7 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Kužel:** kuželovitost jde zadat libovolným poměrem (7:24, 3:50; samotné
   číslo = 1:x), tabulka ISO vyplní přesně 7:24. Tlačítko 🗑 Vymazat je v liště
-  okna vedle Kalkulačky. Volba názvů stran s vysvětlením (svisle / vodorovně).
+  okna vedle Kalkulačky. Volba názvů stran (Začátek / Konec) odebrána – strany jsou vždy Spodek / Vrch;
+  nahoře je místo ní „Větší Ø je" (dole / nahoře, ⇅).
 
 - **Kužel bez záložek:** nahoře Zobrazení (díra / čep, strany), pod ním náčrt,
   výsledky a pole; tabulky Morse / ISO úplně dole jako rozbalovací sekce.

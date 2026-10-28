@@ -16,7 +16,6 @@ const LS_KEY = 'skica.taperKuzel';
 const LS_OLD = 'skica.taperBore';
 const NAMES = {
   vs: { A: 'Spodek', B: 'Vrch', a: 'od spodu', b: 'od vrchu', bigA: 'dole', bigB: 'nahoře' },
-  zk: { A: 'Začátek', B: 'Konec', a: 'od začátku', b: 'od konce', bigA: 'na začátku', bigB: 'na konci' },
 };
 const CF = { ratio: 'K', half: 'a' };                 // tvar kuželovitosti → pole (1:x nebo úhel α)
 const SOLVE = ['D', 'd', 'L', 'C'];                     // veličiny, které se navzájem dopočítávají
@@ -34,7 +33,9 @@ export function taperBoreHTML() {
   return '<div class="tb-sec" id="tbSection">' +
     group('Zobrazení',
       sel('kind', 'Typ', [['hole', 'Díra'], ['shaft', 'Čep / hřídel']]) +
-      sel('names', 'Názvy stran', [['vs', 'Spodek / Vrch (svisle, karusel)'], ['zk', 'Začátek / Konec (vodorovně, soustruh)']])) +
+      '<label class="cnc-field"><span>Větší Ø je</span><div class="tb-row">' +
+        '<select data-tb="big"><option value="A">dole</option><option value="B">nahoře</option></select>' +
+        '<button type="button" class="tb-swap" title="Prohodit větší ↔ menší">⇅</button></div></label>') +
     '<div class="tp-hint">Klepni na kótu a zadej hodnotu – stačí 3 údaje (D, d, délka, kuželovitost), nebo Ø z výkresu v hloubce + délka + kuželovitost. Klepnutím do díry přidáš měřicí místo.</div>' +
     '<svg class="calc-svg tb-svg" viewBox="0 0 340 390" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
     '<div class="tb-err"></div>' +
@@ -49,9 +50,6 @@ export function taperBoreHTML() {
       fld('D', 'D', 'velký Ø mm', 'např. 40') +
       fld('d', 'd', 'malý Ø mm', 'např. 37') +
       fld('L', 'L', 'délka mm', 'např. 34+135+25') +
-      '<label class="cnc-field"><span>Větší Ø je</span><div class="tb-row">' +
-        '<select data-tb="big"><option value="A">dole</option><option value="B">nahoře</option></select>' +
-        '<button type="button" class="tb-swap" title="Prohodit větší ↔ menší">⇅</button></div></label>' +
       fld('K', 'Kuželovitost', '1:x nebo a:b', 'např. 300 nebo 7:24') +
       fld('a', 'Úhel \u03B1', '\u00B0 sklon k ose', 'např. 1.43')) +
     group('Ø z výkresu v hloubce <small>(nepovinné)</small>',
@@ -97,7 +95,7 @@ export function initTaperBore(overlay) {
   let lastText = '', lastNc = '', geo = null;
 
   const num = el => { const s = el.value.trim(); if (!s) return null; const v = safeEvalMath(s); return isFinite(v) ? v : NaN; };
-  const names = () => NAMES[$('names').value] || NAMES.vs;
+  const names = () => NAMES.vs;                         // strany vždy Spodek / Vrch
   const isEdited = k => order.includes(k);
   const okNum = x => x !== null && x !== undefined && Number.isFinite(x);
 
@@ -348,7 +346,7 @@ export function initTaperBore(overlay) {
   });
 
   // ── Uložení vstupů (dopočítané hodnoty se neukládají)
-  const IDS = ['kind', 'names', 'refD', 'es', 'ei', 'ref', 'refSide', 'big'];
+  const IDS = ['kind', 'refD', 'es', 'ei', 'ref', 'refSide', 'big'];
   function save() {
     try {
       const o = { order, cform };
