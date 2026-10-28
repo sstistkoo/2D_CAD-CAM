@@ -2095,6 +2095,10 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   - *Šrouby VBD* – orientační momenty upínacích šroubů destiček M2–M8 (Torx)
     podle katalogů Kennametal a Denitool; klepnutí převezme šroub a klíč do
     Moje nože. Rozhoduje hodnota výrobce na držáku / obalu šroubu.
+    Pod ní Kennametal Kenloc (čep negativních VBD s otvorem, dotahuje se
+    imbusem): imbus 2 → KLM-33/34 1,7 Nm, 2,5 → KLM-44/46 3,3 Nm (CNMG 12),
+    3 → KLM-56/58 5,5 Nm. V Moje nože se podle zadaného plátku (ISO i ANSI,
+    např. CNMG120412 / CNMG433) nebo imbusu čep a moment navrhne sám.
   - *Šroub M* – moment a předpětí metrického šroubu M4–M36 (8.8, 10.9, 12.9,
     A2-70, A4-80) podle VDI 2230 (90 % meze kluzu, μ 0,10–0,16), např. upínky
     a čelisti na desce karuselu.

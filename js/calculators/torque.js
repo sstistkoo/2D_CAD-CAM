@@ -10,7 +10,7 @@
 import { showToast } from '../state.js';
 import { makeOverlay } from '../dialogFactory.js';
 import {
-  INSERT_SCREWS, STRENGTH_CLASSES, FRICTION, METRIC_BOLTS, TORQUE_UNITS,
+  INSERT_SCREWS, KENLOC_PINS, insertIC, hexKeyOf, STRENGTH_CLASSES, FRICTION, METRIC_BOLTS, TORQUE_UNITS,
   boltTorque, yieldOf, wrenchSetting, convertTorque,
 } from './torqueMath.js';
 import {
@@ -39,6 +39,8 @@ const textField = (id, label, placeholder) =>
 export function openTorqueCalc() {
   const refRows = INSERT_SCREWS.map(([th, key, lo, hi, use], i) =>
     '<tr data-ref="' + i + '"><td>' + th + '</td><td>' + key + '</td><td style="white-space:nowrap"><strong>' + range(lo, hi) + '</strong></td><td>' + use + '</td></tr>').join('');
+  const pinRows = KENLOC_PINS.map(([hex, pin, th, v, , use], i) =>
+    '<tr data-pin="' + i + '"><td style="white-space:nowrap">' + nm(hex) + ' mm</td><td>' + pin + ' (' + th + ')</td><td style="white-space:nowrap"><strong>' + nm(v) + '</strong></td><td>' + use + '</td></tr>').join('');
 
   const body =
     tabsHtml([['tools', 'Moje nože'], ['ref', 'Šrouby VBD'], ['bolt', 'Šroub M'], ['key', 'Klíč']]) +
@@ -48,7 +50,7 @@ export function openTorqueCalc() {
         '<span class="cnc-field-full">' + textField('tName', 'Nůž / držák', 'např. T3 PCLNR 3232P19') + '</span>' +
         textField('tInsert', 'Plátek (VBD)', 'CNMG 190612') +
         textField('tScrew', 'Šroub', 'M5 / páka…') +
-        textField('tKey', 'Klíč', 'T20') +
+        textField('tKey', 'Klíč', 'T20 / imbus 2,5') +
         numField('tNm', 'Moment', 'Nm', 'z katalogu') +
         '<span class="cnc-field-full">' + textField('tNote', 'Poznámka', 'podložka, páka, upínka…') + '</span>' +
       '</div>' +
@@ -68,6 +70,10 @@ export function openTorqueCalc() {
       '<div class="cnc-table-wrap cnc-table-tall"><table class="cnc-table"><thead><tr>' +
         '<th>Závit</th><th>Klíč</th><th>Nm</th><th>Použití</th>' +
       '</tr></thead><tbody>' + refRows + '</tbody></table></div>' +
+      '<div class="cnc-table-label">Kennametal Kenloc – čep negativních VBD s otvorem (imbus) <small>klepni = převzít</small></div>' +
+      '<div class="cnc-table-wrap"><table class="cnc-table"><thead><tr>' +
+        '<th>Imbus</th><th>Čep</th><th>Nm</th><th>VBD</th>' +
+      '</tr></thead><tbody data-id="pinRows">' + pinRows + '</tbody></table></div>' +
       '<div class="calc-note">Rozsah podle katalogů Kennametal a Denitool – výrobci se liší až 2× (M3,5: 1,7 vs 3,4 Nm). ' +
         '<strong>Platí hodnota vyražená na držáku, na obalu šroubu nebo v katalogu výrobce.</strong> ' +
         'Šroub VBD utahuj momentovým šroubovákem (ne „od ruky" L-klíčem), závit lehce namaž pastou proti zadření ' +
@@ -136,6 +142,14 @@ export function openTorqueCalc() {
     if (t && Number.isFinite(t.nm)) html += outMain(nm(t.nm) + ' Nm', esc(t.name) + (t.key ? ' · klíč ' + esc(t.key) : ''));
     else html += outHint(editIdx >= 0 ? 'Úprava záznamu – změň a dej Uložit.' : 'Nový záznam.');
     if (ref) html += outRow('Orientačně ' + ref[0] + ' ' + ref[1], range(ref[2], ref[3]) + ' Nm');
+    // Kenloc: podle plátku (IC, negativní) nebo podle imbusu
+    const ins = insertIC(f.tInsert.value), hex = hexKeyOf(f.tKey.value);
+    const pin = KENLOC_PINS.find(p => (ins && ins.neg && Math.abs(p[4] - ins.ic) < 0.01) || (hex !== null && p[0] === hex));
+    if (pin && !ref) {
+      html += outRow('Kenloc ' + pin[1] + ', imbus ' + nm(pin[0]), nm(pin[3]) + ' Nm');
+      if (ins && ins.neg && hex !== null && hex !== pin[0]) html += outWarn('Plátek odpovídá imbusu ' + nm(pin[0]) + ', zadán ' + nm(hex) + ' – jiný upínací systém? Ověř v katalogu držáku.');
+      else html += outHint('Platí pro držáky Kennametal Kenloc (čep s pákovým účinkem). Jiný výrobce / upínka shora → jeho katalog.');
+    }
     const v = val(f.tNm);
     if (ref && v > 0 && (v > ref[3] * 1.5 || v < ref[2] * 0.6)) html += outWarn('Zadaný moment je daleko od běžného rozsahu – ověř v katalogu.');
     info.innerHTML = html;
@@ -184,7 +198,7 @@ export function openTorqueCalc() {
     editIdx = -1; fillForm(null); renderList(); showToolInfo(); solve(); f.tName.focus();
   });
   q('tFilter').addEventListener('input', renderList);
-  [f.tScrew, f.tNm].forEach(i => i.addEventListener('input', () => { showToolInfo(); solve(); }));
+  [f.tScrew, f.tNm, f.tInsert, f.tKey].forEach(i => i.addEventListener('input', () => { showToolInfo(); solve(); }));
 
   // ── Šrouby VBD → převzít do formuláře ──
   overlay.querySelector('[data-tab-body="ref"] tbody').addEventListener('click', (e) => {
@@ -196,6 +210,18 @@ export function openTorqueCalc() {
     overlay.querySelector('.calc-tab[data-tab="tools"]').click();
     showToolInfo();
     showToast('Šroub ' + th + ' převzat – moment doplň z katalogu');
+  });
+
+  q('pinRows').addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-pin]');
+    if (!tr) return;
+    const [hex, pin, th, v] = KENLOC_PINS[+tr.dataset.pin];
+    f.tScrew.value = 'Kenloc ' + pin.split(' / ').pop() + ' (' + th + ')';
+    f.tKey.value = 'imbus ' + nm(hex);
+    if (!f.tNm.value.trim()) f.tNm.value = nm(v);
+    overlay.querySelector('.calc-tab[data-tab="tools"]').click();
+    showToolInfo();
+    showToast('Kenloc čep převzat – ' + nm(v) + ' Nm (Kennametal)');
   });
 
   // ── Výpočty ──

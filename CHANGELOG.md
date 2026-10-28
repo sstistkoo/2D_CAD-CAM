@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (upínky na desce karuselu), nastavení momentového klíče s prodloužením
   a převod jednotek. Moduly `calculators/torque.js`, `torqueMath.js`, test
   `tests/torqueMath.test.js`.
+- **Nm – Kenloc:** tabulka čepů Kennametal Kenloc (imbus 2 / 2,5 / 3 mm →
+  1,7 / 3,3 / 5,5 Nm) a automatický návrh v Moje nože podle označení plátku
+  (ISO i ANSI) nebo zadaného imbusu.
 
 ### Fixed
 

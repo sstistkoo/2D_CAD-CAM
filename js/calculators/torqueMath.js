@@ -28,6 +28,41 @@ export const INSERT_SCREWS = [
   ['M8', 'T30', 21, 21, 'velké hrubovací VBD – karusel'],
 ];
 
+/**
+ * Kennametal Kenloc – upínací čep negativních VBD s otvorem (CNMG, DNMG, TNMG, WNMG, SNMG),
+ * dotahuje se imbusem. Zdroj: Kennametal „Torque Recommendations" (řada KLM…).
+ * Číslice v označení = vepsaná kružnice IC v osminách palce (KLM-46 → ½" = 12,7 mm).
+ * [imbus mm, čep, závit, Nm, IC mm, příklady VBD]
+ */
+export const KENLOC_PINS = [
+  [2, 'KLM-33 / KLM-34', 'M5', 1.7, 9.525, 'CNMG 09, DNMG 11, TNMG 16, WNMG 06'],
+  [2.5, 'KLM-44 / KLM-46', 'M6,3', 3.3, 12.7, 'CNMG 12, DNMG 15, TNMG 22, WNMG 08, SNMG 12'],
+  [3, 'KLM-56 / KLM-58', 'M8', 5.5, 15.875, 'CNMG 16, SNMG 15'],
+];
+
+/** ISO / ANSI označení VBD → vepsaná kružnice IC [mm] a zda je negativní (2. písmeno N). */
+const IC_ISO = {
+  C09: 9.525, C12: 12.7, C16: 15.875, C19: 19.05, C25: 25.4,
+  D11: 9.525, D15: 12.7, D19: 15.875,
+  S09: 9.525, S12: 12.7, S15: 15.875, S19: 19.05, S25: 25.4,
+  T16: 9.525, T22: 12.7, T27: 15.875, T33: 19.05,
+  W06: 9.525, W08: 12.7, V16: 9.525,
+};
+export function insertIC(code) {
+  const c = String(code || '').toUpperCase().replace(/[\s-]/g, '');
+  let m = c.match(/^([CDSTWV])([A-Z])[A-Z]{2}(\d{2})[\dT]\d{3}/);          // ISO: CNMG120412
+  if (m) return IC_ISO[m[1] + m[3]] ? { ic: IC_ISO[m[1] + m[3]], neg: m[2] === 'N' } : null;
+  m = c.match(/^([CDSTWV])([A-Z])[A-Z]{2}(\d)\d\d/);                 // ANSI: CNMG433
+  if (m) return { ic: +m[3] * 25.4 / 8, neg: m[2] === 'N' };
+  return null;
+}
+
+/** Text klíče → průměr imbusu v mm (např. „imbus 2,5", „2.5", „SW3"), Torx → null. */
+export function hexKeyOf(text) {
+  const m = String(text || '').trim().match(/^(?:imbus|inbus|hex|sw|šestihran)?\s*(\d+(?:[.,]\d+)?)\s*(?:mm)?$/i);
+  return m ? parseFloat(m[1].replace(',', '.')) : null;
+}
+
 /** Pevnostní třídy: [klíč, název, Rp0,2 MPa do M16, Rp0,2 MPa nad M16]. */
 export const STRENGTH_CLASSES = [
   ['8.8', '8.8', 640, 660],

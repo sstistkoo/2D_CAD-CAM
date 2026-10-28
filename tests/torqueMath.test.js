@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   boltTorque, yieldOf, wrenchSetting, convertTorque,
-  METRIC_BOLTS, INSERT_SCREWS,
+  METRIC_BOLTS, INSERT_SCREWS, KENLOC_PINS, insertIC, hexKeyOf,
 } from '../js/calculators/torqueMath.js';
 
 const bolt = (d, cls, mu) => {
@@ -59,5 +59,26 @@ describe('torqueMath – data', () => {
       expect(lo).toBeGreaterThan(0);
       expect(hi).toBeGreaterThanOrEqual(lo);
     }
+  });
+});
+
+describe('torqueMath – Kenloc a označení VBD', () => {
+  it('CNMG120412FN i ANSI CNMG433FN → IC 12,7, negativní', () => {
+    expect(insertIC('CNMG120412FN')).toEqual({ ic: 12.7, neg: true });
+    expect(insertIC('cnmg 433 fn')).toEqual({ ic: 12.7, neg: true });
+  });
+  it('CCMT09T304 je pozitivní, neznámé označení → null', () => {
+    expect(insertIC('CCMT09T304')).toEqual({ ic: 9.525, neg: false });
+    expect(insertIC('RCMX2006')).toBeNull();
+  });
+  it('imbus z textu klíče, Torx → null', () => {
+    expect(hexKeyOf('imbus 2,5')).toBe(2.5);
+    expect(hexKeyOf('2.5 mm')).toBe(2.5);
+    expect(hexKeyOf('T20')).toBeNull();
+  });
+  it('CNMG 12 s imbusem 2,5 → Kenloc KLM-46, 3,3 Nm', () => {
+    const pin = KENLOC_PINS.find(p => p[0] === 2.5);
+    expect(pin[3]).toBe(3.3);
+    expect(pin[4]).toBe(insertIC('CNMG120412').ic);
   });
 });
