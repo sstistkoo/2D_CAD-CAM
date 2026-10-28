@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Kalkulačka v horní liště a v okně Kužel.** Tlačítko 🔢 v horní liště
+  (desktop i mobilní horní pruh) a v liště okna Kužel; výsledek tlačítkem ↓
+  se vloží do posledního aktivního pole. Náčrty kuželu mají vysvětlivky
+  (D, d, L, α, 2α, 1:x; Ø, tol, hl., L, šipky měřicích míst) a nápovědy u kót.
+
+### Fixed
+
+- **Kužel:** vložení výsledku z kalkulačky do polí D/d/L/α padalo (pole typu
+  number nepodporují pozici kurzoru) – pole jsou teď textová a berou i výrazy.
+  Prázdná kuželovitost se v náčrtu ukazovala jako „1 : null". Upozornění,
+  když je D menší než d nebo zápis v poli neplatný.
+
 - **Kužel: horní lišta, klikací náčrty, záložky.** Kalkulačka Kužel jde spustit
   z horní lišty (desktop) i z horního pruhu na mobilu. Hodnoty se zadávají
   klepnutím na kóty v náčrtu (okénko u místa klepnutí, `svgInlineEdit.js`);

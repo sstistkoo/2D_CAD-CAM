@@ -2087,7 +2087,9 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     X = A − d_v·(1 + cot(α/2)); zadá se šířka nebo naměřená míra, druhá se
     dopočítá.
 - **Kužel** (Taper) – spouští se i z horní lišty (🔺 Kužel; na mobilu v horním
-  pruhu vedle SOU/ABS). Tři záložky:
+  pruhu vedle SOU/ABS). Vedle je i 🔢 Kalkulačka (také v liště okna Kužel):
+  klepni do pole, spočítej a tlačítkem ↓ se výsledek vloží do pole. Náčrty mají
+  vysvětlivky značek a nápovědu u každé kóty. Tři záložky:
   - *Kužel D · d · L · α*: klikací náčrt – klepni na kótu (D, d, L, α, 1:x, 2α)
     a zadej hodnotu, nebo vyplň pole; stačí tři údaje. Zadané hodnoty jsou
     bílé, dopočítané žluté, chybějící „?". Prázdné zadání v okénku hodnotu smaže.

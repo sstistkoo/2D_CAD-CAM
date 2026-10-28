@@ -14,12 +14,19 @@ const ln = (x1, y1, x2, y2, cls) =>
 const txt = (x, y, s, cls, anchor = 'middle') =>
   '<text class="' + cls + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + anchor + '">' + s + '</text>';
 
+const TIPS = {
+  D: 'Zadaný průměr z výkresu', tol: 'Tolerance – ISO (H7, h6…) nebo úchylky +0.046 / 0',
+  ref: 'Hloubka, ve které platí zadaný průměr (od spodu / od vrchu)', L: 'Celková délka kužele',
+  C: 'Kuželovitost – 1:x, úhel α, 2α nebo C', swap: 'Prohodit, na které straně je větší průměr',
+};
+
 /** Klikací popisek; anchor 'start' nebo 'middle'; rot = otočení kolem (x, y). */
 function lbl(x, y, s, key, cls, { anchor = 'middle', rot = 0 } = {}) {
   const w = Math.max(28, s.length * 6.8 + 10), h = 19;
   const rx = anchor === 'start' ? x - 4 : x - w / 2;
   const tr = rot ? ' transform="rotate(' + rot + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')"' : '';
-  return '<g class="sk-edit" data-edit="' + key + '"' + tr + '>' +
+  const tip = TIPS[key] || (key.startsWith('pt:') ? 'Měřicí místo – upravit hloubku / stranu nebo smazat' : '');
+  return '<g class="sk-edit" data-edit="' + key + '"' + tr + '>' + (tip ? '<title>' + tip + '</title>' : '') +
     '<rect class="sk-hit" x="' + rx.toFixed(1) + '" y="' + (y - 13.5).toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h + '" rx="5"/>' +
     txt(x, y, s, cls, anchor) + '</g>';
 }
@@ -113,6 +120,11 @@ export function drawBoreSketch(svg, m) {
     }
   });
 
+  // Vysvětlivky
+  const lg = (yy, t) => '<text class="sk-legend" x="170" y="' + yy + '" text-anchor="middle">' + t + '</text>';
+  s += lg(354, '<tspan class="sk-lk">\u00D8</tspan> zadaný průměr \u00B7 <tspan class="sk-lk">tol</tspan> jeho tolerance');
+  s += lg(370, '<tspan class="sk-lk">hl.</tspan> hloubka zadaného \u00D8 \u00B7 <tspan class="sk-lk">L</tspan> délka kužele');
+  s += lg(386, '<tspan class="sk-lk">1) 2)</tspan> měřicí místa: <tspan class="sk-lk">\u2193</tspan> ' + n.b + ', <tspan class="sk-lk">\u2191</tspan> ' + n.a);
   svg.innerHTML = s;
   return {
     L,

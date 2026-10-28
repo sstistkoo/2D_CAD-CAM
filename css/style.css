@@ -8165,3 +8165,9 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 .svg-pop-row .svg-pop-del { color: var(--ctp-red); }
 #mobileCoordBar .coord-ind.coord-ind-btn { opacity: 1; color: var(--ctp-peach); font-weight: 700; }
 #taperSlide:empty { display: none; }
+.calc-title-tool { margin-left: auto; margin-right: 8px; background: var(--ctp-surface0); color: var(--ctp-text); border: 1px solid var(--ctp-surface1); border-radius: 6px; padding: 4px 10px; font-size: 13px; cursor: pointer; }
+.calc-title-tool:hover { background: var(--ctp-surface1); }
+.calc-svg .sk-legend { fill: var(--ctp-subtext0); font: 10.5px "Consolas", monospace; }
+.calc-svg .sk-legend .sk-lk { fill: var(--ctp-text); font-weight: bold; }
+.calc-svg .sk-legend-k { fill: var(--ctp-subtext0); }
+.calc-svg .sk-legend .sk-lk-calc { fill: var(--ctp-yellow); }

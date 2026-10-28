@@ -29,8 +29,8 @@ const group = (title, inner) => '<fieldset class="tb-group"><legend>' + title + 
 /** HTML záložky. */
 export function taperBoreHTML() {
   return '<div class="tb-sec" id="tbSection">' +
-    '<div class="tp-hint">Klikni na kótu v náčrtu a zadej hodnotu. Klik do díry přidá měřicí místo, klik na místo ho upraví (hl.↓ = od vrchu, hl.↑ = od spodu).</div>' +
-    '<svg class="calc-svg tb-svg" viewBox="0 0 340 340" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
+    '<div class="tp-hint">Klepni na kótu a zadej hodnotu. Klepnutím do díry přidáš měřicí místo, klepnutím na místo ho upravíš.</div>' +
+    '<svg class="calc-svg tb-svg" viewBox="0 0 340 396" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
     '<div class="tb-err"></div>' +
     '<div class="cnc-table-wrap cnc-table-tall tb-res"></div>' +
     '<div class="cnc-actions">' +
@@ -138,7 +138,7 @@ export function initTaperBore(overlay) {
 
   function taperLabel() {
     const v = num($('cval'));
-    if (!(v >= 0)) return 'kuželovitost ?';
+    if (v === null || !(v >= 0)) return 'kuželovitost ?';
     const m = $('cmode').value;
     return m === 'ratio' ? '1 : ' + v + ' (zveličeno)' : m === 'half' ? 'α ' + v + '°' : m === 'full' ? '2α ' + v + '°' : 'C ' + v + ' /mm';
   }

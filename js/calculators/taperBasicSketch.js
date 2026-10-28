@@ -4,11 +4,18 @@
 // Schematický náčrt komolého kužele. Každá kóta je klikací skupina
 // s data-edit="<id pole>"; zadávání řeší svgInlineEdit.js.
 
+/** Nápovědy ke kótám (tooltip). */
+const TIPS = {
+  D: 'D – velký průměr kužele', d: 'd – malý průměr kužele', L: 'L – délka kužele (mezi D a d)',
+  a: 'α – polovrcholový úhel: sklon povrchu k ose (= náklon suportu)', K: '1 : x – kuželovitost: na x mm délky se Ø změní o 1 mm',
+  a2: '2α – vrcholový úhel kužele (dvojnásobek α)',
+};
+
 /** Klikací popisek: průhledná plocha pro prst + text. */
 export function editLabel(x, y, txt, key, cls, rot = 0) {
   const w = Math.max(30, txt.length * 7 + 12), h = 20;
   const tr = rot ? ' transform="rotate(' + rot + ' ' + x + ' ' + y + ')"' : '';
-  return '<g class="sk-edit" data-edit="' + key + '"' + tr + '>' +
+  return '<g class="sk-edit" data-edit="' + key + '"' + tr + '>' + (TIPS[key] ? '<title>' + TIPS[key] + ' – klepni a zadej</title>' : '') +
     '<rect class="sk-hit" x="' + (x - w / 2).toFixed(1) + '" y="' + (y - 14) + '" width="' + w + '" height="' + h + '" rx="5"/>' +
     '<text class="' + cls + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle">' + txt + '</text></g>';
 }
@@ -62,5 +69,9 @@ export function drawBasicTaper(svg, v, edited) {
   // 1:x a 2α (nahoře)
   s += editLabel(92, 18, val('K', '1 : ', '', 2), 'K', cls('K'));
   s += editLabel(240, 18, val('a2', '2α ', '°', 4), 'a2', cls('a2'));
+  // Vysvětlivky
+  s += '<text class="sk-legend" x="170" y="226" text-anchor="middle"><tspan class="sk-lk">D</tspan> velký \u00D8 \u00B7 <tspan class="sk-lk">d</tspan> malý \u00D8 \u00B7 <tspan class="sk-lk">L</tspan> délka kužele</text>';
+  s += '<text class="sk-legend" x="170" y="242" text-anchor="middle"><tspan class="sk-lk">\u03B1</tspan> sklon k ose \u00B7 <tspan class="sk-lk">2\u03B1</tspan> vrchol. úhel \u00B7 <tspan class="sk-lk">1:x</tspan> kuželovitost</text>';
+  s += '<text class="sk-legend sk-legend-k" x="170" y="258" text-anchor="middle">bílá = zadáno \u00B7 <tspan class="sk-lk-calc">žlutá = dopočítáno</tspan> \u00B7 ? = chybí</text>';
   svg.innerHTML = s;
 }

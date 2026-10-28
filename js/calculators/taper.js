@@ -47,17 +47,18 @@ export function openTaperCalc() {
   }
 
   const fld = (id, label, unit, ph) =>
-    '<label class="cnc-field"><span>' + label + ' <small>' + unit + '</small></span><input type="number" data-id="' + id + '" step="any" placeholder="' + ph + '"></label>';
+    '<label class="cnc-field"><span>' + label + ' <small>' + unit + '</small></span><input type="text" inputmode="decimal" autocomplete="off" data-id="' + id + '" placeholder="' + ph + '"></label>';
   const body =
     tabsHtml([['basic', 'Kužel D · d · L · α'], ['tol', 'S tolerancí'], ['tab', 'Morse / ISO']]) +
     '<div class="tp-pane" data-pane="basic">' +
       '<div class="tp-hint">Klikni na kótu v náčrtu nebo vyplň pole – stačí 3 údaje (úhel lze zadat i jako 1:x nebo 2α).</div>' +
-      '<svg class="calc-svg tp-svg" viewBox="0 0 340 214" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
+      '<svg class="calc-svg tp-svg" viewBox="0 0 340 266" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
       '<div class="cnc-fields cnc-fields-3">' +
-        fld('D', 'D', 'mm', 'Velký Ø') + fld('d', 'd', 'mm', 'Malý Ø') + fld('L', 'L', 'mm', 'Délka') +
-        fld('a', 'α', '° polovrch.', 'Úhel') + fld('K', '1 :', 'x', 'např. 20') + fld('a2', '2α', '° vrchol.', 'Úhel') +
+        fld('D', 'D', 'velký Ø mm', 'např. 40') + fld('d', 'd', 'malý Ø mm', 'např. 37') + fld('L', 'L', 'délka mm', 'např. 60') +
+        fld('a', 'α', 'úhel ke ose °', 'např. 1.43') + fld('K', '1 : x', 'kuželovitost', 'např. 20') + fld('a2', '2α', 'vrcholový °', 'např. 2.86') +
       '</div>' +
       '<div class="cnc-info" id="taperInfo"></div>' +
+      '<div class="tb-err" id="taperWarn"></div>' +
       '<div class="cnc-result" id="taperSlide"></div>' +
       '<div class="cnc-actions">' +
         '<button class="cnc-btn cnc-btn-clear tp-clear">🗑 Vymazat</button>' +
@@ -92,6 +93,16 @@ export function openTaperCalc() {
   const infoEl = overlay.querySelector("#taperInfo");
   const slideEl = overlay.querySelector("#taperSlide");
   const sketch = overlay.querySelector(".tp-svg");
+  const warnEl = overlay.querySelector("#taperWarn");
+
+  // 🔢 Kalkulačka v liště okna – výsledek „↓" vloží do posledního aktivního pole
+  const calcBtn = document.createElement("button");
+  calcBtn.type = "button";
+  calcBtn.className = "calc-title-tool";
+  calcBtn.title = "Kalkulačka – klepni nejdřív do pole, výsledek tlačítkem ↓ se vloží do něj";
+  calcBtn.textContent = "\uD83D\uDD22 Kalkulačka";
+  calcBtn.addEventListener("click", e => { e.stopPropagation(); import("../ui.js").then(m => m.openCalculator()); });
+  overlay.querySelector(".calc-titlebar .calc-close-btn").before(calcBtn);
 
   // Záložky (pamatuje poslední)
   const TAB_KEY = "skica.taperTab";
@@ -120,7 +131,12 @@ export function openTaperCalc() {
     });
   });
 
-  function v(inp) { return inp.value !== "" ? safeEvalMath(inp.value) : null; }
+  // Prázdné nebo neplatné pole = null (neplatné se zvýrazní červeně v listeneru)
+  function v(inp) {
+    if (inp.value.trim() === "") return null;
+    const x = safeEvalMath(inp.value);
+    return Number.isFinite(x) ? x : null;
+  }
   function sc(inp, val) { inp.value = parseFloat(val.toFixed(4)); inp.classList.add("computed"); }
 
   function solve() {
@@ -155,12 +171,17 @@ export function openTaperCalc() {
 
     const parts = [];
     const slideParts = [];
-    if (v(inpD) !== null && v(inpd) !== null && v(inpL) !== null) {
+    if (v(inpD) !== null && v(inpd) !== null && v(inpL) !== null && v(inpL) > 0) {
       const taper = (v(inpD) - v(inpd)) / v(inpL);
-      parts.push("Kuželovitost: " + taper.toFixed(6));
-      parts.push("1:" + (1 / taper).toFixed(2));
+      parts.push("Změna Ø na 1 mm: " + taper.toFixed(6));
+      if (taper > 0) parts.push("1:" + (1 / taper).toFixed(2));
     }
     infoEl.textContent = parts.join("  \u2502  ");
+    const warn = [];
+    if (v(inpD) !== null && v(inpd) !== null && v(inpD) < v(inpd)) warn.push("D má být VĚTŠÍ průměr než d – prohoď hodnoty.");
+    if ((v(inpL) !== null && v(inpL) <= 0) || (edited.has("a") && v(inpA) !== null && (v(inpA) <= 0 || v(inpA) >= 90))) warn.push("Délka musí být kladná a úhel α mezi 0° a 90°.");
+    allInp.forEach(i => { if (i.value.trim() !== "" && !Number.isFinite(safeEvalMath(i.value))) warn.push("Neplatný zápis v poli " + i.dataset.id + "."); });
+    warnEl.textContent = warn.join(" ");
 
     // Náklon příčného suportu / koníku
     const aFinal = v(inpA);
