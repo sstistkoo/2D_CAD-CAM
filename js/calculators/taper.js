@@ -49,10 +49,10 @@ export function openTaperCalc() {
   const fld = (id, label, unit, ph) =>
     '<label class="cnc-field"><span>' + label + ' <small>' + unit + '</small></span><input type="text" inputmode="decimal" autocomplete="off" data-id="' + id + '" placeholder="' + ph + '"></label>';
   const body =
-    tabsHtml([['basic', 'Kužel D · d · L · α'], ['tol', 'S tolerancí'], ['tab', 'Morse / ISO']]) +
+    tabsHtml([['basic', 'Kužel'], ['tol', 'S tolerancí'], ['tab', 'Morse / ISO']]) +
     '<div class="tp-pane" data-pane="basic">' +
       '<div class="tp-hint">Klikni na kótu v náčrtu nebo vyplň pole – stačí 3 údaje (úhel lze zadat i jako 1:x nebo 2α).</div>' +
-      '<svg class="calc-svg tp-svg" viewBox="0 0 340 266" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
+      '<svg class="calc-svg tp-svg" viewBox="0 0 340 238" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
       '<div class="cnc-fields cnc-fields-3">' +
         fld('D', 'D', 'velký Ø mm', 'např. 40') + fld('d', 'd', 'malý Ø mm', 'např. 37') + fld('L', 'L', 'délka mm', 'např. 60') +
         fld('a', 'α', 'úhel ke ose °', 'např. 1.43') + fld('K', '1 : x', 'kuželovitost', 'např. 20') + fld('a2', '2α', 'vrcholový °', 'např. 2.86') +

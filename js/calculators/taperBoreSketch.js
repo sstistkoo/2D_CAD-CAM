@@ -78,7 +78,7 @@ export function drawBoreSketch(svg, m) {
   const wMax = Math.max(hw(0), hw(L));
   s += ln(CX + wMax + 2, yA, xL + 4, yA, 'cs-ext') + ln(CX + wMax + 2, yB, xL + 4, yB, 'cs-ext');
   s += arrowV(xL, yB, yA);
-  s += lbl(xL + 12, (yA + yB) / 2, 'L ' + (m.known.L ? f3(L).replace(/\.?0+$/, '') : '?'), 'L', m.known.L ? 'sk-val' : 'sk-empty', { rot: -90 });
+  s += lbl(xL + 12, (yA + yB) / 2, 'délka L ' + (m.known.L ? f3(L).replace(/\.?0+$/, '') : '?'), 'L', m.known.L ? 'sk-val' : 'sk-empty', { rot: -90 });
 
   // Hloubka zadaného průměru (vlevo)
   const zr = m.zRef, yr = y(zr);
@@ -86,8 +86,8 @@ export function drawBoreSketch(svg, m) {
   const yEdge = m.refSide === 'A' ? yA : yB;
   s += ln(xR - 4, yr, CX - hw(zr), yr, 'cs-ext');
   if (Math.abs(yr - yEdge) > 6) s += arrowV(xR, yEdge, yr);
-  const refMid = Math.abs(yr - yEdge) > 40 ? (yr + yEdge) / 2 : yEdge + (m.refSide === 'A' ? -22 : 22);
-  s += lbl(xR - 12, refMid, 'hl. ' + (m.known.ref ? m.refDepth : '?'), 'ref', m.known.ref ? 'sk-val' : 'sk-empty', { rot: -90 });
+  const refMid = Math.abs(yr - yEdge) > 110 ? (yr + yEdge) / 2 : yEdge + (m.refSide === 'A' ? -52 : 52);
+  s += lbl(xR - 12, refMid, 'hloubka Ø ' + (m.known.ref ? m.refDepth : '?'), 'ref', m.known.ref ? 'sk-val' : 'sk-empty', { rot: -90 });
   s += ln(CX - hw(zr), yr, CX + hw(zr), yr, 'tb-ref');
 
   // Popisky: zadaný Ø + měřicí místa, bez překryvu
@@ -110,9 +110,9 @@ export function drawBoreSketch(svg, m) {
     const w = hw(it.z);
     if (it.ref) {
       s += ln(CX - w + 2, it.yy, lx - 4, it.ly - 4, 'tb-ref-lead');
-      const dTxt = m.known.D ? 'Ø' + f3(m.D).replace(/\.?0+$/, '') : 'Ø ?';
+      const dTxt = 'zadaný Ø' + (m.known.D ? f3(m.D).replace(/\.?0+$/, '') : ' ?');
       s += lbl(lx, it.ly, dTxt, 'D', m.known.D ? 'tb-ref-t' : 'sk-empty', { anchor: 'start' });
-      s += lbl(lx + width(dTxt) + 2, it.ly, m.tolTxt, 'tol', m.tolTxt === 'tol ?' ? 'sk-empty' : 'tb-ref-t', { anchor: 'start' });
+      s += lbl(lx + width(dTxt) + 2, it.ly, m.tolTxt, 'tol', m.tolTxt === 'tolerance ?' ? 'sk-empty' : 'tb-ref-t', { anchor: 'start' });
     } else {
       s += ln(CX - w, it.yy, CX + w, it.yy, 'tb-pt-l');
       s += ln(CX - w + 2, it.yy, lx - 4, it.ly - 4, 'tb-pt-l');
@@ -122,9 +122,8 @@ export function drawBoreSketch(svg, m) {
 
   // Vysvětlivky
   const lg = (yy, t) => '<text class="sk-legend" x="170" y="' + yy + '" text-anchor="middle">' + t + '</text>';
-  s += lg(354, '<tspan class="sk-lk">\u00D8</tspan> zadaný průměr \u00B7 <tspan class="sk-lk">tol</tspan> jeho tolerance');
-  s += lg(370, '<tspan class="sk-lk">hl.</tspan> hloubka zadaného \u00D8 \u00B7 <tspan class="sk-lk">L</tspan> délka kužele');
-  s += lg(386, '<tspan class="sk-lk">1) 2)</tspan> měřicí místa: <tspan class="sk-lk">\u2193</tspan> ' + n.b + ', <tspan class="sk-lk">\u2191</tspan> ' + n.a);
+  s += lg(356, 'kuželovitost je v náčrtu zveličená');
+  s += lg(371, '<tspan class="sk-lk">1) 2)</tspan> měřicí místa: <tspan class="sk-lk">\u2193</tspan> ' + n.b + ', <tspan class="sk-lk">\u2191</tspan> ' + n.a);
   svg.innerHTML = s;
   return {
     L,

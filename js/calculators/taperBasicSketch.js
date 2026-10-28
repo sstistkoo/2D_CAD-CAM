@@ -50,28 +50,26 @@ export function drawBasicTaper(svg, v, edited) {
   // D (vlevo)
   s += ln(x0 - 30, yT, x0 - 2, yT, 'cs-ext') + ln(x0 - 30, yB, x0 - 2, yB, 'cs-ext');
   s += arrowsV(x0 - 24, yT, yB);
-  s += editLabel(x0 - 38, cy, val('D', 'D '), 'D', cls('D'), -90);
+  s += editLabel(x0 - 38, cy, val('D', 'D velký Ø '), 'D', cls('D'), -90);
   // d (vpravo)
   s += ln(x1 + 2, yt, x1 + 30, yt, 'cs-ext') + ln(x1 + 2, yb, x1 + 30, yb, 'cs-ext');
   s += arrowsV(x1 + 24, yt, yb);
-  s += editLabel(x1 + 40, cy, val('d', 'd '), 'd', cls('d'), -90);
+  s += editLabel(x1 + 40, cy, val('d', 'd malý Ø '), 'd', cls('d'), -90);
   // L (dole)
   s += ln(x0, yB + 2, x0, yB + 26, 'cs-ext') + ln(x1, yb + 2, x1, yB + 26, 'cs-ext');
   s += arrowsH(x0, x1, yB + 20);
-  s += editLabel((x0 + x1) / 2, yB + 38, val('L', 'L '), 'L', cls('L'));
+  s += editLabel((x0 + x1) / 2, yB + 38, val('L', 'L délka kužele '), 'L', cls('L'));
   // α u velkého průměru: vodorovná pomocná čára a oblouk ke sklonu
   const ang = Math.atan2(yt - yT, x1 - x0);
   const R = 46;
   s += ln(x0, yT, x0 + R + 26, yT, 'cs-ext');
   s += '<path class="cs-arc" d="M' + (x0 + R) + ' ' + yT + ' A' + R + ' ' + R + ' 0 0 1 ' +
     (x0 + R * Math.cos(ang)).toFixed(1) + ' ' + (yT + R * Math.sin(ang)).toFixed(1) + '"/>';
-  s += editLabel(x0 + 98, yT - 10, val('a', 'α ', '°', 4), 'a', cls('a'));
+  s += editLabel(x0 + 98, yT - 8, val('a', 'α sklon k ose ', '°', 4), 'a', cls('a'));
   // 1:x a 2α (nahoře)
-  s += editLabel(92, 18, val('K', '1 : ', '', 2), 'K', cls('K'));
-  s += editLabel(240, 18, val('a2', '2α ', '°', 4), 'a2', cls('a2'));
-  // Vysvětlivky
-  s += '<text class="sk-legend" x="170" y="226" text-anchor="middle"><tspan class="sk-lk">D</tspan> velký \u00D8 \u00B7 <tspan class="sk-lk">d</tspan> malý \u00D8 \u00B7 <tspan class="sk-lk">L</tspan> délka kužele</text>';
-  s += '<text class="sk-legend" x="170" y="242" text-anchor="middle"><tspan class="sk-lk">\u03B1</tspan> sklon k ose \u00B7 <tspan class="sk-lk">2\u03B1</tspan> vrchol. úhel \u00B7 <tspan class="sk-lk">1:x</tspan> kuželovitost</text>';
-  s += '<text class="sk-legend sk-legend-k" x="170" y="258" text-anchor="middle">bílá = zadáno \u00B7 <tspan class="sk-lk-calc">žlutá = dopočítáno</tspan> \u00B7 ? = chybí</text>';
+  s += editLabel(86, 16, val('K', 'kuželovitost 1 : ', '', 2), 'K', cls('K'));
+  s += editLabel(254, 16, val('a2', 'vrchol. 2α ', '°', 3), 'a2', cls('a2'));
+  // Barvy hodnot
+  s += '<text class="sk-legend sk-legend-k" x="170" y="228" text-anchor="middle">bílá = zadáno \u00B7 <tspan class="sk-lk-calc">žlutá = dopočítáno</tspan> \u00B7 ? = chybí</text>';
   svg.innerHTML = s;
 }

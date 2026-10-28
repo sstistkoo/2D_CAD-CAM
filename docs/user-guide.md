@@ -2089,7 +2089,7 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
 - **Kužel** (Taper) – v pravém panelu Kalkulačky. V liště okna je tlačítko
   🔢 Kalkulačka: klepni do pole, spočítej a tlačítkem ↓ se výsledek vloží do pole. Náčrty mají
   vysvětlivky značek a nápovědu u každé kóty. Tři záložky:
-  - *Kužel D · d · L · α*: klikací náčrt – klepni na kótu (D, d, L, α, 1:x, 2α)
+  - *Kužel*: klikací náčrt – klepni na kótu (D, d, L, α, 1:x, 2α)
     a zadej hodnotu, nebo vyplň pole; stačí tři údaje. Zadané hodnoty jsou
     bílé, dopočítané žluté, chybějící „?". Prázdné zadání v okénku hodnotu smaže.
   - *S tolerancí*: výkres udává jeden průměr s tolerancí (ISO H7, h6… nebo

@@ -30,7 +30,7 @@ const group = (title, inner) => '<fieldset class="tb-group"><legend>' + title + 
 export function taperBoreHTML() {
   return '<div class="tb-sec" id="tbSection">' +
     '<div class="tp-hint">Klepni na kótu a zadej hodnotu. Klepnutím do díry přidáš měřicí místo, klepnutím na místo ho upravíš.</div>' +
-    '<svg class="calc-svg tb-svg" viewBox="0 0 340 396" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
+    '<svg class="calc-svg tb-svg" viewBox="0 0 340 380" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
     '<div class="tb-err"></div>' +
     '<div class="cnc-table-wrap cnc-table-tall tb-res"></div>' +
     '<div class="cnc-actions">' +
@@ -140,11 +140,11 @@ export function initTaperBore(overlay) {
     const v = num($('cval'));
     if (v === null || !(v >= 0)) return 'kuželovitost ?';
     const m = $('cmode').value;
-    return m === 'ratio' ? '1 : ' + v + ' (zveličeno)' : m === 'half' ? 'α ' + v + '°' : m === 'full' ? '2α ' + v + '°' : 'C ' + v + ' /mm';
+    return 'kuželovitost ' + (m === 'ratio' ? '1 : ' + v : m === 'half' ? 'α ' + v + '°' : m === 'full' ? '2α ' + v + '°' : 'C ' + v + ' /mm');
   }
   function tolLabel(p) {
     const iso = $('iso').value.trim();
-    if (!iso && esEl.value.trim() === '' && eiEl.value.trim() === '') return 'tol ?';
+    if (!iso && esEl.value.trim() === '' && eiEl.value.trim() === '') return 'tolerance ?';
     return (iso && !$('iso').classList.contains('tb-bad') ? iso + ' ' : '') + fmtDev(p.es, p.ei);
   }
 

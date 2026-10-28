@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Kužel: popisy přímo u kót v náčrtu** (D velký Ø, d malý Ø, L délka kužele,
+  α sklon k ose, kuželovitost 1:x, vrchol. 2α; v řezu zadaný Ø, hloubka Ø,
+  délka L, kuželovitost). První záložka se jmenuje jen „Kužel".
+
 - **Kalkulačka v horní liště a v okně Kužel.** Tlačítko 🔢 v horní liště
   (desktop i mobilní horní pruh) a v liště okna Kužel; výsledek tlačítkem ↓
   se vloží do posledního aktivního pole. Náčrty kuželu mají vysvětlivky
