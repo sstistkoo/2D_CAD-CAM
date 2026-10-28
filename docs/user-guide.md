@@ -2101,7 +2101,8 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     Když výkres udává průměr v hloubce (např. Ø211 v hl. 22,5 od spodu),
     klepni na „+ Ø v hloubce" – pak stačí ještě délka a kuželovitost (nebo
     D či d). Tolerance se zadává jen dole ručně (horní / dolní úchylka) a
-    platí pro všechny průměry. Klepnutí do díry přidá měřicí místo (od spodu
+    platí pro všechny průměry; prázdné pole = 0 a větší hodnota se vezme jako
+    horní úchylka. Klepnutí do díry přidá měřicí místo (od spodu
     / od vrchu / z obou), klepnutí na místo ho upraví nebo smaže. Výsledky:
     jmenovitý, min. a max. Ø v měřicích místech a na hranách, rozdíl
     vrch − spodek, náklon suportu a přísuv na stranu. *Kopírovat* = čitelný

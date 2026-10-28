@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Kužel – tolerance:** prázdná úchylka = 0 a větší hodnota se bere jako horní
+  (dřív kladná dolní úchylka bez horní zastavila výpočet); po dopsání se pole
+  samo doplní nulou a prohodí.
+
 - **Kužel – nečitelné popisky:** nevyplněné kóty v náčrtu byly černé na černém
   (proměnná `--ctp-overlay1` v paletě neexistuje) – teď šedé. Totéž u legend
   skupin polí (`--ctp-subtext1`).
@@ -27,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nezaokrouhlují na ±0,8 (`js/calculators/tolerance.js`).
 
 ### Added
+
+- **Kužel – výsledky shora dolů:** hrana vrchu, měřicí místa a zadaný Ø podle
+  vzdálenosti od vrchu (místa od spodu mají v závorce i vzdálenost od vrchu),
+  nakonec hrana spodku; čísla míst v tabulce i náčrtu jdou shora. Nový řádek
+  „Na 1 mm délky se Ø změní o …". Úhel α v náčrtu se nepřekrývá s popisky.
 
 - **Kužel:** kuželovitost jde zadat libovolným poměrem (7:24, 3:50; samotné
   číslo = 1:x), tabulka ISO vyplní přesně 7:24. Tlačítko 🗑 Vymazat je v liště

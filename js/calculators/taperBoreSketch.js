@@ -76,19 +76,6 @@ export function drawBoreSketch(svg, m) {
   s += lbl(266, 16, '⇅ větší ' + (m.bigSide === 'A' ? n.bigA : n.bigB), 'swap', 'sk-btn');
   if (!m.ref) s += lbl(266, 42, '+ Ø v hloubce', 'refAdd', 'sk-btn');
 
-  // Úhel α: svislá pomocná čára a oblouk ke stěně v půli délky (vpravo)
-  {
-    const zm = L * 0.5, Wx = CX + hw(zm), Wy = y(zm);
-    const Ux = CX + hw(zm + L * 0.3), Uy = y(zm + L * 0.3);
-    const R = 64, a1 = -Math.PI / 2, a2 = Math.atan2(Uy - Wy, Ux - Wx);
-    s += ln(Wx, Wy, Wx, Wy - R - 14, 'cs-ext');
-    if (slope) {
-      s += '<path class="cs-arc tb-alpha-arc" d="M' + Wx.toFixed(1) + ' ' + (Wy - R).toFixed(1) + ' A' + R + ' ' + R + ' 0 0 ' + (a2 > a1 ? 1 : 0) + ' ' +
-        (Wx + R * Math.cos(a2)).toFixed(1) + ' ' + (Wy + R * Math.sin(a2)).toFixed(1) + '"/>';
-    }
-    s += lbl(Wx - 10, Wy - R + 4, m.aTxt, 'Ca', CLS[m.stForm('half')], { anchor: 'end' });
-  }
-
   // Hrany: velký D a malý d
   const keyOf = side => side === m.bigSide ? 'D' : 'd';
   const edge = side => {
@@ -142,6 +129,27 @@ export function drawBoreSketch(svg, m) {
       s += lbl(lx, it.ly, it.t, it.key, it.cls, { anchor: 'start' });
     }
   });
+
+  // Úhel α: svislá pomocná čára a oblouk ke stěně (vpravo, mimo popisky)
+  {
+    // místo, kde nepřekáží popiskům měřicích míst a zadaného Ø
+    const busy = items.flatMap(it => [it.ly, it.yy]);
+    let zm = L * 0.5, best = -1;
+    [0.5, 0.42, 0.58, 0.34, 0.66, 0.28].forEach(f => {
+      const ly = y(L * f) - 60;
+      const dmin = busy.length ? Math.min(...busy.map(b => Math.abs(b - ly))) : 999;
+      if (dmin > best + 2) { best = dmin; zm = L * f; }
+    });
+    const Wx = CX + hw(zm), Wy = y(zm);
+    const Ux = CX + hw(zm + L * 0.3), Uy = y(zm + L * 0.3);
+    const R = 64, a1 = -Math.PI / 2, a2 = Math.atan2(Uy - Wy, Ux - Wx);
+    s += ln(Wx, Wy, Wx, Wy - R - 14, 'cs-ext');
+    if (slope) {
+      s += '<path class="cs-arc tb-alpha-arc" d="M' + Wx.toFixed(1) + ' ' + (Wy - R).toFixed(1) + ' A' + R + ' ' + R + ' 0 0 ' + (a2 > a1 ? 1 : 0) + ' ' +
+        (Wx + R * Math.cos(a2)).toFixed(1) + ' ' + (Wy + R * Math.sin(a2)).toFixed(1) + '"/>';
+    }
+    s += lbl(Wx - 10, Wy - R + 4, m.aTxt, 'Ca', CLS[m.stForm('half')], { anchor: 'end' });
+  }
 
   const lg = (yy, t) => '<text class="sk-legend" x="170" y="' + yy + '" text-anchor="middle">' + t + '</text>';
   s += lg(366, 'bílá = zadáno · <tspan class="sk-lk-calc">žlutá = dopočítáno</tspan> · ? = chybí');

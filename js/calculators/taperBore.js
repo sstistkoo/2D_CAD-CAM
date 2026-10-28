@@ -175,7 +175,9 @@ export function initTaperBore(overlay) {
     relabel();
     const n = names();
     const bigSide = $('big').value;
-    const es = num(esEl) || 0, ei = num(eiEl) || 0;
+    // Prázdná úchylka = 0; větší z obou je horní (kladná dolní se tak „prohodí")
+    const tA = num(esEl) || 0, tB = num(eiEl) || 0;
+    const es = Math.max(tA, tB), ei = Math.min(tA, tB);
     const refDia = num($('refD'));
     const ref = refDia > 0 ? { dia: refDia, depth: num($('ref')) || 0, side: $('refSide').value } : null;
     const k = {
@@ -207,22 +209,36 @@ export function initTaperBore(overlay) {
         '  \u2502  \u03B1 ' + fm.half.toFixed(5) + '\u00B0  \u2502  změna \u00D8 ' + fm.C.toFixed(6) + ' mm/mm';
     } else formsEl.textContent = '';
     slideEl.innerHTML = done && sol.C > 0
-      ? '🔧 <strong>Náklon suportu:</strong> ' + taperForms(sol.C).half.toFixed(4) + '°<br>' +
+      ? '📏 Na <strong>1 mm</strong> délky se Ø změní o <strong>' + fmtN(sol.C, 6) + ' mm</strong> (na stranu ' + fmtN(sol.C / 2, 6) + ' mm)<br>' +
+        '🔧 <strong>Náklon suportu:</strong> ' + taperForms(sol.C).half.toFixed(4) + '°<br>' +
         'Příčný přísuv na stranu (= posun koníku na délce L): <strong>' + f3((sol.D - sol.d) / 2) + ' mm</strong>'
       : '';
 
-    // Tabulka
+    // Tabulka: shora dolů – hrana vrchu, místa a zadaný Ø podle vzdálenosti od vrchu, hrana spodku
+    let ordered = [];
     if (ok) {
-      let h = '<table class="cnc-table tb-table"><thead><tr><th>#</th><th>Místo</th><th>Ø jmen.</th><th>min</th><th>max</th></tr></thead><tbody>';
-      r.rows.forEach((row, i) => {
-        h += '<tr' + (row.outside ? ' class="tb-out" title="Mimo délku kužele"' : '') + '><td>' + (i + 1) + '</td><td>' + row.depth + ' ' + (row.side === 'A' ? n.a : n.b) +
-          '</td><td><strong>' + f3(row.nom) + '</strong></td><td>' + f3(row.min) + '</td><td>' + f3(row.max) + '</td></tr>';
+      const L = sol.L;
+      const fromTop = z => L - z;
+      const where = (depth, side, z) => side === 'B' ? depth + ' ' + n.b : depth + ' ' + n.a + ' <small>(' + trim0(fromTop(z)) + ' ' + n.b + ')</small>';
+      ordered = r.rows.map((row, i) => ({ no: i + 1, row, top: fromTop(row.z), place: where(row.depth, row.side, row.z), nom: row.nom, cls: row.outside ? 'tb-out' : '' }));
+      if (ref) {
+        const zr = ref.side === 'B' ? L - ref.depth : ref.depth;
+        ordered.push({ no: '\u00D8', top: fromTop(zr), place: 'zadaný \u00D8: ' + where(ref.depth, ref.side, zr), nom: ref.dia, cls: 'tb-refrow' });
+      }
+      ordered.push({ no: '', top: 0, place: n.B + ' (hrana)', nom: r.endB, cls: 'tb-end' });
+      ordered.push({ no: '', top: L, place: n.A + ' (hrana) <small>(' + trim0(L) + ' ' + n.b + ')</small>', nom: r.endA, cls: 'tb-end' });
+      const rank = o => (o.cls === 'tb-end' ? (o.top === 0 ? -1 : 1) : 0);
+      ordered.sort((x, y) => (x.top - y.top) || (rank(x) - rank(y)));
+      let no = 0;                                       // čísla míst shora dolů (stejná v náčrtu)
+      ordered.forEach(o => { if (o.row) { o.no = ++no; o.row.no = no; } });
+      let h = '<table class="cnc-table tb-table"><thead><tr><th>#</th><th>Místo <small>(shora dolů)</small></th><th>\u00D8 jmen.</th><th>min</th><th>max</th></tr></thead><tbody>';
+      ordered.forEach(o => {
+        h += '<tr class="' + o.cls + '"' + (o.cls === 'tb-out' ? ' title="Mimo délku kužele"' : '') + '><td>' + o.no + '</td><td>' + o.place +
+          '</td><td><strong>' + f3(o.nom) + '</strong></td><td>' + f3(o.nom + ei) + '</td><td>' + f3(o.nom + es) + '</td></tr>';
       });
-      h += '<tr class="tb-end"><td></td><td>' + n.A + ' (hrana)</td><td>' + f3(r.endA) + '</td><td>' + f3(r.endA + ei) + '</td><td>' + f3(r.endA + es) + '</td></tr>';
-      h += '<tr class="tb-end"><td></td><td>' + n.B + ' (hrana)</td><td>' + f3(r.endB) + '</td><td>' + f3(r.endB + ei) + '</td><td>' + f3(r.endB + es) + '</td></tr>';
       h += '</tbody></table>';
       if (r.diffs.length) {
-        h += '<div class="tb-diffs">' + r.diffs.map(dd => 'Rozdíl ' + n.B.toLowerCase() + ' − ' + n.A.toLowerCase() + ' v hl. ' + dd.depth +
+        h += '<div class="tb-diffs">' + r.diffs.map(dd => 'Rozdíl ' + n.B.toLowerCase() + ' \u2212 ' + n.A.toLowerCase() + ' v hl. ' + dd.depth +
           ': <strong>' + f3(Math.abs(dd.diff)) + '</strong> <small>(rozteč ' + trim0(dd.span) + ' mm)</small>').join('<br>') + '</div>';
       }
       resEl.innerHTML = h;
@@ -235,7 +251,7 @@ export function initTaperBore(overlay) {
       const lines = ['Kužel ' + ratioTxt + ', D ' + f3(sol.D) + ', d ' + f3(sol.d) + ', L ' + trim0(sol.L) + (es || ei ? ', tolerance ' + dev : '')];
       if (ref) lines.push('Zadáno Ø' + trim0(ref.dia) + ' ' + dev + ' v hl. ' + ref.depth + ' ' + (ref.side === 'A' ? n.a : n.b));
       const nc = [($('kind').value === 'shaft' ? 'Kuželový čep ' : 'Kuželová díra ') + ratioTxt];
-      r.rows.forEach(row => {
+      ordered.filter(o => o.row).map(o => o.row).forEach(row => {
         lines.push('Ø v hl. ' + row.depth + ' ' + (row.side === 'A' ? n.a : n.b) + ' = ' + f3(row.nom) + ' ' + dev);
         nc.push('Rozměr v hloubce ' + row.depth + ' ' + (row.side === 'A' ? n.a : n.b) + ' je ' + f3(row.nom) + ' ' + dev);
       });
@@ -252,7 +268,7 @@ export function initTaperBore(overlay) {
     const Ld = okNum(sol.L) && sol.L > 0 ? sol.L : 200;
     const stOf = key => isEdited(key) && okNum(k[key]) ? 'val' : okNum(sol[key]) ? 'calc' : 'empty';
     const rows = [];
-    if (ok) r.rows.forEach((row, i) => { if (!row.outside) rows.push({ ...row, no: i + 1 }); });
+    if (ok) r.rows.forEach((row, i) => { if (!row.outside) rows.push({ ...row, no: row.no || i + 1 }); });
     else {
       let no = 0;
       pts.forEach((pt, i) => {
@@ -388,6 +404,15 @@ export function initTaperBore(overlay) {
   };
   ['D', 'd', 'L'].forEach(key => $(key).addEventListener('input', () => onSolveInput(key, $(key))));
   Object.entries(CF).forEach(([form, id]) => $(id).addEventListener('input', () => onSolveInput('C', $(id), form)));
+  // Po dopsání úchylky: prázdné pole = 0, větší hodnota do horní úchylky
+  [esEl, eiEl].forEach(el => el.addEventListener('change', () => {
+    const a = esEl.value.trim(), b = eiEl.value.trim();
+    if (!a && !b) return;
+    const va = a ? num(esEl) : 0, vb = b ? num(eiEl) : 0;
+    if (!Number.isFinite(va) || !Number.isFinite(vb)) return;
+    esEl.value = trim0(Math.max(va, vb)); eiEl.value = trim0(Math.min(va, vb));
+    update();
+  }));
   IDS.forEach(id => {
     $(id).addEventListener('input', () => {
       if (id === 'es' || id === 'ei') $(id).classList.remove('computed');
