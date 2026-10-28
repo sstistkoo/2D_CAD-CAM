@@ -2086,25 +2086,24 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   - *Rybina*: vnější (čep) M = B + d_v·(1 + cot(α/2)), vnitřní (drážka)
     X = A − d_v·(1 + cot(α/2)); zadá se šířka nebo naměřená míra, druhá se
     dopočítá.
-- **Kužel** (Taper) – v pravém panelu Kalkulačky. V liště okna je tlačítko
-  🔢 Kalkulačka: klepni do pole, spočítej a tlačítkem ↓ se výsledek vloží do pole. Náčrty mají
-  vysvětlivky značek a nápovědu u každé kóty. Tři záložky:
-  - *Kužel*: klikací náčrt – klepni na kótu (D, d, L, α, 1:x, 2α)
-    a zadej hodnotu, nebo vyplň pole; stačí tři údaje. Zadané hodnoty jsou
-    bílé, dopočítané žluté, chybějící „?". Prázdné zadání v okénku hodnotu smaže.
-  - *S tolerancí*: výkres udává jeden průměr s tolerancí (ISO H7, h6… nebo
-    úchylky „+0.046 / 0") v hloubce od jedné strany, kuželovitost (1:x, α, 2α
-    nebo C) a délku (lze výrazem 34+135+25). Vše jde zadat klepnutím do náčrtu
-    řezu: Ø, tolerance, hloubka (s volbou strany), L, kuželovitost, „⇅ větší"
-    prohodí větší a menší průměr. Klepnutí do díry přidá měřicí místo
-    (předvyplní hloubku od bližší strany; volba od spodu / od vrchu / z obou),
-    klepnutí na místo ho upraví nebo smaže. Pole jsou pod náčrtem seskupená
-    (Zadaný průměr, Kužel, Měřicí místa, Zobrazení), „Po krocích" rozepíše
-    místa rovnoměrně. Tabulka: jmenovitý, min. a max. Ø v každém místě,
-    průměry na hranách, rozdíl vrch − spodek. *Kopírovat* dá čitelný přehled,
-    *Do programu* text velkými písmeny bez diakritiky jako komentář do NC
-    programu („ROZMER V HLOUBCE 13.1 OD VRCHU JE 210.472 +0.046/-0").
-  - *Morse / ISO*: tabulky, klepnutím se kužel vyplní do první záložky.
+- **Kužel** (Taper) – v pravém panelu Kalkulačky. V liště okna je 🔢 Kalkulačka:
+  klepni do pole, spočítej a tlačítkem ↓ se výsledek vloží do pole. Dvě záložky:
+  - *Kužel* – jeden výpočet pro čep i díru. Náčrt řezu je klikací: klepni na
+    kótu (D velký Ø, d malý Ø, délka L, kuželovitost 1:x / α / 2α / C,
+    tolerance, „⇅ větší" prohodí stranu většího Ø) a zadej hodnotu. Stačí
+    3 údaje z D, d, L a kuželovitosti; zadaný údaj je bílý, dopočítaný žlutý,
+    chybějící „?". Při zadání čtvrtého se nejstarší zadání uvolní a dopočítá.
+    Když výkres udává průměr v hloubce (např. Ø211 H7 v hl. 22,5 od spodu),
+    klepni na „+ Ø v hloubce" – pak stačí ještě délka a kuželovitost (nebo
+    D či d). Tolerance (ISO nebo úchylky) platí pro všechny průměry.
+    Klepnutí do díry přidá měřicí místo (od spodu / od vrchu / z obou),
+    klepnutí na místo ho upraví nebo smaže. Výsledky: jmenovitý, min. a max.
+    Ø v měřicích místech a na hranách, rozdíl vrch − spodek, náklon suportu
+    a přísuv na stranu. *Kopírovat* = čitelný přehled, *Do programu* = text
+    velkými písmeny bez diakritiky jako komentář do NC programu. Pod
+    výsledky jsou všechna pole seskupená (Kužel, Ø z výkresu v hloubce,
+    Tolerance, Měřicí místa, Zobrazení – díra / čep, názvy stran).
+  - *Morse / ISO* – tabulky; klepnutím se kužel vyplní do záložky Kužel.
 - **Závity** – převodné tabulky. U vybraného závitu **rozpis průchodů**:
   hloubky řezů stejné jako v CAM (ubývající přísuv a_k = h·√(k/n), počet řezů
   automaticky jako CAM, nerez +30 %, hliník −20 %, tlačítka − / + mění počet),

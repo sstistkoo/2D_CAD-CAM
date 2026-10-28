@@ -49,3 +49,29 @@ describe('taperBoreMath', () => {
     expect(computeTaperBore({ ...base, refDepth: 300 }).error).toBeTruthy();
   });
 });
+
+import { solveTaper } from '../js/calculators/taperBoreMath.js';
+describe('solveTaper – sjednocený kužel', () => {
+  const n = null;
+  it('D, d, L → C', () => {
+    const r = solveTaper({ D: 40, d: 37, L: 60, C: n }, null, 'A');
+    expect(r.C).toBeCloseTo(0.05, 10); expect(r.computed.has('C')).toBe(true);
+  });
+  it('D, L, C → d a d, L, C → D', () => {
+    expect(solveTaper({ D: 40, d: n, L: 60, C: 0.05 }, null, 'A').d).toBeCloseTo(37, 10);
+    expect(solveTaper({ D: n, d: 37, L: 60, C: 0.05 }, null, 'A').D).toBeCloseTo(40, 10);
+    expect(solveTaper({ D: 40, d: 37, L: n, C: 0.05 }, null, 'A').L).toBeCloseTo(60, 10);
+  });
+  it('Ø211 v hl. 22.5 od spodu, 1:300, L 194 → hrany jako v programu', () => {
+    const r = solveTaper({ D: n, d: n, L: 194, C: 1 / 300 }, { dia: 211, depth: 22.5, side: 'A' }, 'A');
+    expect(r.D).toBeCloseTo(211.075, 3); expect(r.d).toBeCloseTo(210.428, 3);
+  });
+  it('Ø v hloubce + D + L → kuželovitost', () => {
+    const r = solveTaper({ D: 211.075, d: n, L: 194, C: n }, { dia: 211, depth: 22.5, side: 'A' }, 'A');
+    expect(1 / r.C).toBeCloseTo(300, 0);
+  });
+  it('chyby', () => {
+    expect(solveTaper({ D: 37, d: 40, L: 60, C: n }, null, 'A').error).toBeTruthy();
+    expect(solveTaper({ D: n, d: n, L: n, C: 0.05 }, { dia: 211, depth: 5, side: 'A' }, 'A').error).toBeTruthy();
+  });
+});

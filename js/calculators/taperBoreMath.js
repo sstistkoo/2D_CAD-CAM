@@ -117,3 +117,50 @@ export function fmtDev(es, ei) {
   };
   return one(es, '+0') + '/' + one(ei, '\u22120');
 }
+
+/**
+ * Sjednocený výpočet kužele: ze zadaných veličin dopočítá zbylé.
+ * Bez zadaného Ø v hloubce stačí 3 ze 4 {D, d, L, C}.
+ * Se zadaným Ø v hloubce (ref) stačí L + jedno z {C, D, d}.
+ * @param {object} k  D velký Ø, d malý Ø, L délka, C změna Ø/mm (null = neznámé)
+ * @param {{dia:number, depth:number, side:'A'|'B'}|null} ref  zadaný Ø v hloubce
+ * @param {'A'|'B'} bigSide  strana s větším Ø
+ * @returns {{D:number|null, d:number|null, L:number|null, C:number|null, computed:Set<string>, warn?:string, error?:string}}
+ */
+export function solveTaper(k, ref, bigSide) {
+  let { D, d, L, C } = k;
+  const known = x => x !== null && x !== undefined && Number.isFinite(x);
+  const out = new Set();
+  const set = (name, val) => { out.add(name); return val; };
+  let warn;
+
+  if (ref && known(ref.dia)) {
+    if (!known(L)) return { D, d, L, C, computed: out, error: 'Se zadaným Ø v hloubce zadej i délku kužele L' };
+    const depth = ref.depth || 0;
+    if (depth < 0 || depth > L) return { D, d, L, C, computed: out, error: 'Hloubka zadaného Ø je mimo délku kužele' };
+    const distBig = ref.side === bigSide ? depth : L - depth;   // od velkého konce
+    const distSmall = L - distBig;
+    if (known(C)) {
+      const D2 = ref.dia + C * distBig, d2 = ref.dia - C * distSmall;
+      if ((known(D) && Math.abs(D - D2) > 1e-3) || (known(d) && Math.abs(d - d2) > 1e-3)) warn = 'Zadaný Ø v hloubce má přednost – D a d jsou přepočítané';
+      D = set('D', D2); d = set('d', d2);
+    } else if (known(D) && distBig > 0) {
+      C = set('C', (D - ref.dia) / distBig); d = set('d', D - C * L);
+    } else if (known(d) && distSmall > 0) {
+      C = set('C', (ref.dia - d) / distSmall); D = set('D', d + C * L);
+    } else {
+      return { D, d, L, C, computed: out, error: 'K zadanému Ø v hloubce doplň kuželovitost (nebo D či d)' };
+    }
+  } else {
+    const n = [D, d, L, C].filter(known).length;
+    if (n < 3) return { D, d, L, C, computed: out };
+    if (!known(C)) C = set('C', (D - d) / L);
+    else if (!known(L)) L = set('L', C > 0 ? (D - d) / C : NaN);
+    else if (!known(d)) d = set('d', D - C * L);
+    else if (!known(D)) D = set('D', d + C * L);
+    else if (Math.abs((D - d) - C * L) > 1e-3) warn = 'Zadané D, d, L a kuželovitost si odporují';
+  }
+  if (known(D) && known(d) && D < d) return { D, d, L, C, computed: out, error: 'D (velký Ø) vychází menší než d – zkontroluj zadání nebo prohoď, kde je větší Ø' };
+  if (known(L) && !(L > 0)) return { D, d, L, C, computed: out, error: 'Délka kužele musí být kladná' };
+  return { D, d, L, C, computed: out, warn };
+}

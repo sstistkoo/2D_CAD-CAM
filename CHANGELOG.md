@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Kužel – tabulka Morse:** klepnutí vyplňovalo špatné hodnoty (atributy
+  `data-mD` a `data-md` HTML sloučí, protože převádí na malá písmena).
+
 - **Kužel jen v pravém panelu:** odebrána tlačítka Kužel a Kalkulačka z horní
   lišty a horního pruhu nad plátnem; kalkulačka zůstává v liště okna Kužel.
 
@@ -20,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nezaokrouhlují na ±0,8 (`js/calculators/tolerance.js`).
 
 ### Added
+
+- **Kužel: sjednocený výpočet.** Záložky „Kužel" a „S tolerancí" jsou spojené
+  do jedné: stejný klikací náčrt pro čep i díru; kužel ze 3 údajů {D, d, L,
+  kuželovitost} nebo z Ø v hloubce + délky a kuželovitosti; tolerance a
+  měřicí místa vždy po ruce (`solveTaper` v `taperBoreMath.js`). Starý
+  `taperBasicSketch.js` odstraněn, uložené vstupy se převezmou.
 
 - **Kužel: popisy přímo u kót v náčrtu** (D velký Ø, d malý Ø, L délka kužele,
   α sklon k ose, kuželovitost 1:x, vrchol. 2α; v řezu zadaný Ø, hloubka Ø,
