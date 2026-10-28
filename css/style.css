@@ -8172,3 +8172,4 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 .calc-title-clear { color: var(--ctp-red); }
 @media (max-width: 420px) { .taper-window .calc-title-tool { padding: 4px 7px; font-size: 12px; } }
 .tb-res .tb-refrow td { color: var(--ctp-blue); }
+#tbSection .tb-forms:empty { display: none; }

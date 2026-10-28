@@ -107,9 +107,10 @@ export function initTaperBore(overlay) {
   function addPoint(depth = '', side = 'AB') {
     const row = document.createElement('div');
     row.className = 'tb-pt';
-    row.innerHTML = '<input type="text" inputmode="decimal" class="tb-pt-d" placeholder="hloubka mm" value="' + depth + '">' +
+    row.innerHTML = '<input type="text" inputmode="decimal" class="tb-pt-d" placeholder="hloubka mm">' +
       '<select class="tb-pt-s">' + sideOpts(side) + '</select>' +
       '<button type="button" class="tb-pt-del" title="Odebrat">✕</button>';
+    row.querySelector('.tb-pt-d').value = depth;
     row.querySelector('.tb-pt-del').addEventListener('click', () => { row.remove(); update(); });
     row.querySelectorAll('input,select').forEach(e => e.addEventListener('input', update));
     ptsEl.appendChild(row);
@@ -154,7 +155,9 @@ export function initTaperBore(overlay) {
 
   /** Ručně zadaná kuželovitost → C (poměr 1:x nebo a:b, případně úhel α). */
   function cValue() {
-    return cform === 'ratio' ? ratioToC($('K').value) : taperC(cform, num(fieldOf('C')));
+    if (cform === 'ratio') return ratioToC($('K').value);
+    const a = num(fieldOf('C'));
+    return a > 0 && a < 90 ? taperC(cform, a) : NaN;  // úhel α musí být mezi 0° a 90°
   }
 
   function readPoints() {
@@ -194,7 +197,12 @@ export function initTaperBore(overlay) {
     const done = !sol.error && okNum(sol.D) && okNum(sol.d) && okNum(sol.L) && okNum(sol.C);
     const anyInput = SOLVE.some(isEdited) || !!ref;
     const bad = SOLVE.filter(key => isEdited(key) && !Number.isFinite(key === 'C' ? cValue() : num(fieldOf(key))));
-    errEl.textContent = bad.length ? 'Neplatný zápis: ' + bad.map(b => b === 'C' ? 'kuželovitost' : b).join(', ') + '.'
+    const badName = { C: 'kuželovitost', es: 'horní úchylka', ei: 'dolní úchylka', ref: 'hloubka zadaného Ø' };
+    ['es', 'ei', 'ref'].forEach(id => { if ($(id).value.trim() && !Number.isFinite(num($(id)))) bad.push(id); });
+    const badPts = ptRows().filter(r => { const t = r.querySelector('.tb-pt-d').value.trim(); return t && !(safeEvalMath(t) >= 0); }).length;
+    if (badPts) bad.push('pt');
+    badName.pt = 'hloubka měřicího místa';
+    errEl.textContent = bad.length ? 'Neplatný zápis: ' + bad.map(b => badName[b] || b).join(', ') + '.'
       : sol.error && anyInput ? sol.error : sol.warn || '';
 
     const pts = readPoints();
@@ -220,7 +228,7 @@ export function initTaperBore(overlay) {
       const L = sol.L;
       const fromTop = z => L - z;
       const where = (depth, side, z) => side === 'B' ? depth + ' ' + n.b : depth + ' ' + n.a + ' <small>(' + trim0(fromTop(z)) + ' ' + n.b + ')</small>';
-      ordered = r.rows.map((row, i) => ({ no: i + 1, row, top: fromTop(row.z), place: where(row.depth, row.side, row.z), nom: row.nom, cls: row.outside ? 'tb-out' : '' }));
+      ordered = r.rows.map((row, i) => ({ no: i + 1, row, top: fromTop(row.z), place: where(row.depth, row.side, row.z) + (row.outside ? ' <small>– mimo kužel!</small>' : ''), nom: row.nom, cls: row.outside ? 'tb-out' : '' }));
       if (ref) {
         const zr = ref.side === 'B' ? L - ref.depth : ref.depth;
         ordered.push({ no: '\u00D8', top: fromTop(zr), place: 'zadaný \u00D8: ' + where(ref.depth, ref.side, zr), nom: ref.dia, cls: 'tb-refrow' });
@@ -444,7 +452,8 @@ export function initTaperBore(overlay) {
   }
   const copy = t => {
     if (!t) { showToast('Není co kopírovat'); return; }
-    navigator.clipboard?.writeText(t).then(() => showToast('Zkopírováno'), () => showToast('Schránka nedostupná'));
+    if (!navigator.clipboard?.writeText) { showToast('Schránka není v tomto prohlížeči dostupná'); return; }
+    navigator.clipboard.writeText(t).then(() => showToast('Zkopírováno'), () => showToast('Schránka nedostupná'));
   };
   root.querySelector('.tb-copy').addEventListener('click', () => copy(lastText));
   root.querySelector('.tb-copy-nc').addEventListener('click', () => copy(lastNc));

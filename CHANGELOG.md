@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Kužel – závěrečná kontrola:** hlášení neplatného zápisu i u úchylek,
+  hloubky zadaného Ø a měřicích míst (dřív se tiše braly jako 0); úhel α mimo
+  0–90° se hlásí; měřicí místo za délkou kužele je v tabulce označené „mimo
+  kužel"; kopírování bez dostupné schránky nespadne; hodnota místa se do pole
+  zapisuje bezpečně (ne přes HTML).
+
 - **Kužel – tolerance:** prázdná úchylka = 0 a větší hodnota se bere jako horní
   (dřív kladná dolní úchylka bez horní zastavila výpočet); po dopsání se pole
   samo doplní nulou a prohodí.
