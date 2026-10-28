@@ -25,9 +25,9 @@ export function openTaperCalc() {
     { name: "120 (1:20)", D: 120, ratio: 20 },
     { name: "160 (1:20)", D: 160, ratio: 20 },
     { name: "200 (1:20)", D: 200, ratio: 20 },
-    { name: "7:24 ISO 30", D: 31.75, ratio: 3.4286 },
-    { name: "7:24 ISO 40", D: 44.45, ratio: 3.4286 },
-    { name: "7:24 ISO 50", D: 69.85, ratio: 3.4286 },
+    { name: "7:24 ISO 30", r: "7:24", D: 31.75, ratio: 3.4286 },
+    { name: "7:24 ISO 40", r: "7:24", D: 44.45, ratio: 3.4286 },
+    { name: "7:24 ISO 50", r: "7:24", D: 69.85, ratio: 3.4286 },
     { name: "1:10", D: 0, ratio: 10 },
     { name: "1:5",  D: 0, ratio: 5 },
     { name: "1:50", D: 0, ratio: 50 },
@@ -44,8 +44,8 @@ export function openTaperCalc() {
   for (var mti = 0; mti < metricData.length; mti++) {
     var mt = metricData[mti];
     var mAng = Math.atan(1 / (2 * mt.ratio)) * 180 / Math.PI;
-    metricRows += '<tr data-ratio="' + mt.ratio + '" data-big="' + mt.D + '">' +
-      '<td>' + mt.name + '</td><td>1:' + mt.ratio + '</td><td>' + mAng.toFixed(4) + '°</td></tr>';
+    metricRows += '<tr data-ratio="' + (mt.r || mt.ratio) + '" data-big="' + mt.D + '">' +
+      '<td>' + mt.name + '</td><td>' + (mt.r || '1:' + mt.ratio) + '</td><td>' + mAng.toFixed(4) + '°</td></tr>';
   }
 
   const body =
@@ -76,16 +76,25 @@ export function openTaperCalc() {
   calcBtn.addEventListener("click", e => { e.stopPropagation(); import("../ui.js").then(mod => mod.openCalculator()); });
   overlay.querySelector(".calc-titlebar .calc-close-btn").before(calcBtn);
 
+  // 🗑 Vymazat v liště okna (vymaže všechny zadané hodnoty a měřicí místa)
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button";
+  clearBtn.className = "calc-title-tool calc-title-clear";
+  clearBtn.title = "Vymazat všechny zadané hodnoty a měřicí místa";
+  clearBtn.textContent = "\uD83D\uDDD1 Vymazat";
+  overlay.querySelector(".calc-titlebar .calc-close-btn").before(clearBtn);
+
   onOverlayRemoved(overlay, closeInlineEdit);
 
   const api = initTaperBore(overlay);
+  clearBtn.addEventListener("click", e => { e.stopPropagation(); api?.clearAll(); });
 
   // Tabulky Morse / ISO → vyplnit kužel (data-* bez velkých písmen – HTML je
   // převádí na malá, dřívější data-mD/data-md se tak přepisovaly)
   overlay.querySelectorAll('.tp-tables .cnc-table tbody tr').forEach(tr => {
     tr.addEventListener("click", () => {
       if (!api) return;
-      if (tr.dataset.ratio) api.setRatio(parseFloat(tr.dataset.ratio), parseFloat(tr.dataset.big));
+      if (tr.dataset.ratio) api.setRatio(tr.dataset.ratio, parseFloat(tr.dataset.big));
       else api.setDdL(tr.dataset.big, tr.dataset.small, tr.dataset.len);
       overlay.querySelector(".tb-svg")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });

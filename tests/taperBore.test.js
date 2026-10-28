@@ -75,3 +75,19 @@ describe('solveTaper – sjednocený kužel', () => {
     expect(solveTaper({ D: n, d: n, L: n, C: 0.05 }, { dia: 211, depth: 5, side: 'A' }, 'A').error).toBeTruthy();
   });
 });
+
+import { ratioToC } from '../js/calculators/taperBoreMath.js';
+describe('ratioToC – libovolný poměr', () => {
+  it('x, 1:x, a:b', () => {
+    expect(ratioToC('300')).toBeCloseTo(1 / 300, 12);
+    expect(ratioToC('1:300')).toBeCloseTo(1 / 300, 12);
+    expect(ratioToC('7:24')).toBeCloseTo(7 / 24, 12);
+    expect(ratioToC(' 1 : 20 ')).toBeCloseTo(0.05, 12);
+    expect(ratioToC('3,5:100')).toBeCloseTo(0.035, 12);
+  });
+  it('chyby', () => {
+    expect(ratioToC('')).toBeNaN();
+    expect(ratioToC('7:0')).toBeNaN();
+    expect(ratioToC('abc')).toBeNaN();
+  });
+});

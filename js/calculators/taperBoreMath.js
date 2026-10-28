@@ -164,3 +164,18 @@ export function solveTaper(k, ref, bigSide) {
   if (known(L) && !(L > 0)) return { D, d, L, C, computed: out, error: 'Délka kužele musí být kladná' };
   return { D, d, L, C, computed: out, warn };
 }
+
+/**
+ * Kuželovitost jako poměr: „300" = 1:300, „1:300", „7:24", „1 : 20" …
+ * @returns {number} C = změna Ø na 1 mm délky; NaN při chybném zápisu
+ */
+export function ratioToC(text) {
+  const s = String(text ?? '').trim().replace(/,/g, '.');
+  const m = /^([\d.]+)\s*:\s*([\d.]+)$/.exec(s);
+  if (m) {
+    const a = parseFloat(m[1]), b = parseFloat(m[2]);
+    return a > 0 && b > 0 ? a / b : NaN;
+  }
+  const x = parseFloat(s);
+  return /^[\d.]+$/.test(s) && x > 0 ? 1 / x : NaN;
+}
