@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Kužel jen v pravém panelu:** odebrána tlačítka Kužel a Kalkulačka z horní
+  lišty a horního pruhu nad plátnem; kalkulačka zůstává v liště okna Kužel.
+
 - **Tolerance ISO 286: j6 pro rozměry do 3 mm** vracelo +2/−4 µm, správně je
   +4/−2 µm (j5 a j6 mají společnou dolní úchylku). Doplněno j8 do 3 mm (+8/−6)
   a regresní test (`js/calculators/iso286.js`).

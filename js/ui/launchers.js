@@ -15,17 +15,12 @@ import { showCombinedModal } from '../dialogs/combinedModal.js';
 import { openAIPanel } from '../ai/aiPanel.js';
 import { openNotesDialog } from './notesDialog.js';
 import { openTrigCalc } from './trigCalc.js';
-import { openCalculator } from './calculator.js';
 
 /** Listenery spouštěcích tlačítek (při načtení, z js/ui.js). */
 export function initLauncherButtons() {
   document.getElementById("btnOpenTrig").addEventListener("click", () => { openTrigCalc(); bridge.extendTrigCalc?.(); }); // záložka Obecný: calculators/trigGeneral.js
   document.getElementById("btnOpenCutting").addEventListener("click", openCuttingCalc);
   document.getElementById("btnOpenTaper").addEventListener("click", openTaperCalc);
-  document.getElementById("btnTopTaper")?.addEventListener("click", openTaperCalc);
-  document.getElementById("mobileTaperBtn")?.addEventListener("click", openTaperCalc);
-  document.getElementById("btnTopCalc")?.addEventListener("click", () => openCalculator());
-  document.getElementById("mobileCalcTopBtn")?.addEventListener("click", () => openCalculator());
   document.getElementById("btnOpenThread").addEventListener("click", openThreadCalc);
   document.getElementById("btnOpenConvert").addEventListener("click", openConvertCalc);
   document.getElementById("btnOpenWeight").addEventListener("click", openWeightCalc);
