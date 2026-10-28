@@ -32,6 +32,37 @@ export function openToleranceCalc() {
   }
   freeHTML += '</tbody></table>';
 
+  // ── ISO 2768-2 : volné geometrické tolerance (třídy H, K, L; hodnoty v mm) ──
+  // [rozsah, H, K, L]
+  var geoTables = [
+    { title: 'Přímost a rovinnost – délka (mm)', rows: [
+      ['do 10', 0.02, 0.05, 0.1], ['10 – 30', 0.05, 0.1, 0.2], ['30 – 100', 0.1, 0.2, 0.4],
+      ['100 – 300', 0.2, 0.4, 0.8], ['300 – 1000', 0.3, 0.6, 1.2], ['1000 – 3000', 0.4, 0.8, 1.6] ] },
+    { title: 'Kolmost – kratší strana úhlu (mm)', rows: [
+      ['do 100', 0.2, 0.4, 0.6], ['100 – 300', 0.3, 0.6, 1.0],
+      ['300 – 1000', 0.4, 0.8, 1.5], ['1000 – 3000', 0.5, 1.0, 2.0] ] },
+    { title: 'Souměrnost – délka (mm)', rows: [
+      ['do 100', 0.5, 0.6, 0.6], ['100 – 300', 0.5, 0.6, 1.0],
+      ['300 – 1000', 0.5, 0.8, 1.5], ['1000 – 3000', 0.5, 1.0, 2.0] ] },
+    { title: 'Kruhové házení (radiální, axiální)', rows: [['všechny rozměry', 0.1, 0.2, 0.5]] },
+  ];
+  var geoHTML = '';
+  for (var gi = 0; gi < geoTables.length; gi++) {
+    var gt = geoTables[gi];
+    geoHTML += '<div class="cnc-table-label">' + gt.title + '</div>' +
+      '<div class="cnc-table-wrap"><table class="cnc-table"><thead><tr>' +
+      '<th>Rozsah</th><th>H</th><th>K</th><th>L</th></tr></thead><tbody>';
+    for (var gr = 0; gr < gt.rows.length; gr++) {
+      var grow = gt.rows[gr];
+      geoHTML += '<tr><td>' + grow[0] + '</td><td>' + grow[1] + '</td><td>' + grow[2] + '</td><td>' + grow[3] + '</td></tr>';
+    }
+    geoHTML += '</tbody></table></div>';
+  }
+  geoHTML += '<div class="tol-res-note">Hodnoty = šířka tolerančního pásma (mm). ' +
+    'Rovnoběžnost: větší z tolerance rozměru a rovinnosti/přímosti. ' +
+    'Kruhovitost: tolerance průměru, nejvýše však kruhové házení. ' +
+    'Souosost: bez vlastní hodnoty, nejvýše kruhové házení.</div>';
+
   // ── ISO 286: data a pravidla v iso286.js (hodnoty z tabulek ISO 286-2) ──
   var holeLetters = HOLE_LETTERS;
   var shaftLetters = SHAFT_LETTERS;
@@ -56,6 +87,8 @@ export function openToleranceCalc() {
   var body =
     '<details class="tol-free"><summary>Volné míry – ČSN EN ISO 2768-1 <small>(■ m = střední třída)</small></summary>' +
     '<div class="cnc-table-wrap">' + freeHTML + '</div></details>' +
+    '<details class="tol-free"><summary>Volné geometrické tolerance – ČSN EN ISO 2768-2 <small>(třídy H, K, L)</small></summary>' +
+    geoHTML + '</details>' +
     '<div class="cnc-table-label" style="margin-top:12px">Tolerované rozměry – ČSN EN ISO 286-1</div>' +
     '<div class="tol-toggle-row">' +
       '<button class="tol-toggle tol-active" data-src="iso">Třída a stupeň ISO</button>' +

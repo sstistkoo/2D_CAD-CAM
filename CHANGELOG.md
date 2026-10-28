@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tolerance: volné geometrické tolerance ČSN EN ISO 2768-2** — pod volné míry
+  rozměrů přibyla stejně sbalitelná lišta s tabulkami tříd H, K, L (přímost
+  a rovinnost, kolmost, souměrnost, kruhové házení) a poznámkou k rovnoběžnosti,
+  kruhovitosti a souososti (`js/calculators/tolerance.js`).
 - **Tlačítko Zpět (mobil i prohlížeč) vrací o jeden krok místo ukončení PWA /
   návratu na jinou stránku** (`js/backButton.js`) — postupně zavře nejvyšší
   dialog → nápovědu → boční panel/lištu → zruší rozdělané kreslení a výběr →
