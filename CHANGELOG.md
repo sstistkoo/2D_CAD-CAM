@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tlačítko Zpět (mobil i prohlížeč) vrací o jeden krok místo ukončení PWA /
+  návratu na jinou stránku** (`js/backButton.js`) — postupně zavře nejvyšší
+  dialog → nápovědu → boční panel/lištu → zruší rozdělané kreslení a výběr →
+  zavře plovoucí okno → vrátí nástroj Výběr. Na nejvyšší úrovni upozorní
+  „Pro ukončení stiskněte Zpět znovu"; teprve druhé Zpět do 2 s aplikaci
+  opustí. Test `tests/back-button.test.js`.
 - **CAM + CAD: čelní (axiální) zápich, např. pro O-kroužek (Upich + ⊚ Čelní,
   pravidlo 19, schváleno 23. 10. 2026)** — mezikruží ⌀d1–⌀d2 do hloubky
   od čela; osové zápichy vedle sebe, stěny a dno s přídavky, dokončení

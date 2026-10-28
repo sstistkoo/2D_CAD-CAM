@@ -14,6 +14,7 @@ import { bridge } from './bridge.js';
 import { loadFont } from './lib/fontLoader.js';
 import { installErrorReporter } from './errorReport.js';
 import { APP_VERSION } from './constants.js';
+import { initBackButton } from './backButton.js';
 // Geometrické knihovny (Clipper2/Turf/Detect-Collisions) se importují
 // výhradně přes adaptér js/geom/geomCore.js — ne přímo z lib/.
 
@@ -23,6 +24,9 @@ loadFont().catch(() => { /* fallback uvnitř export funkce */ });
 // ── Globální error handlery: konzole + viditelná lišta „⚠ Něco se pokazilo"
 // s „📋 Zkopírovat pro Clauda" (errorReport.js) ──
 installErrorReporter();
+
+// Tlačítko Zpět (mobil/prohlížeč) = o jeden krok v aplikaci, ne konec PWA
+initBackButton();
 
 // Side-effect imports — tyto moduly registrují event listenery při načtení
 import './render.js';
