@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Tolerance ISO 286: j6 pro rozměry do 3 mm** vracelo +2/−4 µm, správně je
+  +4/−2 µm (j5 a j6 mají společnou dolní úchylku). Doplněno j8 do 3 mm (+8/−6)
+  a regresní test (`js/calculators/iso286.js`).
+- **Tolerance: přepnutí Díra ↔ Hřídel si pamatuje zvolenou třídu** pro každý
+  režim zvlášť (dřív se vždy vrátila na H/h). Úchylky ±0,75 µm (js2/JS2) se už
+  nezaokrouhlují na ±0,8 (`js/calculators/tolerance.js`).
+
 ### Added
 
 - **Tolerance: volné geometrické tolerance ČSN EN ISO 2768-2** — pod volné míry

@@ -203,11 +203,22 @@ export function openToleranceCalc() {
     isHole = hole;
     btnHole.classList.toggle("tol-active", hole);
     btnShaft.classList.toggle("tol-active", !hole);
+    // Zapamatovat zvolenou třídu odcházejícího režimu a obnovit tu pro nový režim
+    var cur = getGridVal(gridClass);
+    if (cur) savedCls[hole ? "shaft" : "hole"] = cur;
     gridClass.innerHTML = hole ? holeBtns : shaftBtns;
+    pickBtn(gridClass, hole ? savedCls.hole : savedCls.shaft);
     calc();
   }
-  btnHole.addEventListener("click", function() { setMode(true); });
-  btnShaft.addEventListener("click", function() { setMode(false); });
+  function pickBtn(grid, val) {
+    var b = val != null && grid.querySelector('.tol-g-btn[data-val="' + val + '"]');
+    if (!b) return;
+    var prev = grid.querySelector('.tol-g-active');
+    if (prev) prev.classList.remove('tol-g-active');
+    b.classList.add('tol-g-active');
+  }
+  btnHole.addEventListener("click", function() { if (!isHole) setMode(true); });
+  btnShaft.addEventListener("click", function() { if (isHole) setMode(false); });
 
   // Přepínač: třída + stupeň ISO × vlastní horní/dolní úchylka (mm)
   overlay.querySelectorAll('[data-src]').forEach(function(b) {
@@ -221,16 +232,18 @@ export function openToleranceCalc() {
   });
 
   // Úchylky s desetinnou částí (js/JS u lichého IT) bez zbytečných nul
-  function sign(v) { var r = Math.round(v * 10) / 10; return r > 0 ? "+" + r : "" + r; }
-  function mm(v) { return String(parseFloat(v.toFixed(4))); }
+  // (±0,75 µm u js2/JS2 → zaokrouhlení na setiny µm, rozměry na 5 desetinných míst mm)
+  function sign(v) { var r = Math.round(v * 100) / 100; return r > 0 ? "+" + r : "" + r; }
+  function mm(v) { return String(parseFloat(v.toFixed(5))); }
 
   var LS_KEY = "skica_tolerance";
   function saveState() {
+    var cur = getGridVal(gridClass);
+    if (cur) savedCls[isHole ? "hole" : "shaft"] = cur;
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
         custom: isCustom, um: devUm, hole: isHole, dim: inpDim.value, up: inpUp.value, lo: inpLo.value,
-        cls: { hole: getGridVal(gridClass) && isHole ? getGridVal(gridClass) : savedCls.hole,
-               shaft: getGridVal(gridClass) && !isHole ? getGridVal(gridClass) : savedCls.shaft },
+        cls: { hole: savedCls.hole, shaft: savedCls.shaft },
         it: getGridVal(gridIT)
       }));
     } catch (e) { /* localStorage nedostupné */ }
@@ -265,7 +278,7 @@ export function openToleranceCalc() {
     var dimMax = dim + r.upper / 1000;
     var dimMin = dim + r.lower / 1000;
     var kind = isHole ? "Díra" : "Hřídel";
-    var tolMm = (r.tol / 1000).toFixed(4).replace(/0$/, '');
+    var tolMm = mm(r.tol / 1000);
 
     // Rozhodující rozměr: díra = menší průměr (úchylka +), hřídel = větší průměr (úchylka −)
     var keyLbl = isHole ? "Ø min" : "Ø max";

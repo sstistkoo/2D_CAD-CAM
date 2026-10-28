@@ -69,6 +69,14 @@ describe('ISO 286 – díry', () => {
     expect(deviations('B', 11, 1).error).toBeTruthy();
     expect(deviations('c', 11, 0.8).error).toBeUndefined();
   });
+  it('j5/j6/j7/j8 do 3 mm (j6 = +4/−2, ne +2/−4)', () => {
+    expect(dev('j', 5, 2)).toEqual([2, -2]);
+    expect(dev('j', 6, 2)).toEqual([4, -2]);
+    expect(dev('j', 7, 2)).toEqual([6, -4]);
+    expect(dev('j', 8, 2)).toEqual([8, -6]);
+    expect(deviations('j', 8, 5).error).toBeTruthy();
+  });
+
   it('nedefinované j/J stupně vrátí chybu', () => {
     expect(deviations('j', 9, 25).error).toBeTruthy();
     expect(deviations('J', 5, 25).error).toBeTruthy();

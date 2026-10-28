@@ -55,11 +55,13 @@ const EI_FINE = {
   r: [10, 15, 19, 23, 28, 34, 34, 41, 43, 51, 54, 63, 65, 68, 77, 80, 84, 94, 98, 108, 114, 126, 132],
   s: [14, 19, 23, 28, 35, 43, 43, 53, 59, 71, 79, 92, 100, 108, 122, 130, 140, 158, 170, 190, 208, 232, 252],
 };
-// j: dolní úchylka ei pro j5, j6, j7
+// j: dolní úchylka ei pro j5, j6, j7 (j5 a j6 mají v ISO 286 společný sloupec),
+// j8 je definováno jen do 3 mm
 const J_SHAFT = {
   5: [-2, -2, -2, -3, -4, -5, -7, -9, -11, -13, -16, -18, -20],
-  6: [-4, -2, -2, -3, -4, -5, -7, -9, -11, -13, -16, -18, -20],
+  6: [-2, -2, -2, -3, -4, -5, -7, -9, -11, -13, -16, -18, -20],
   7: [-4, -4, -5, -6, -8, -10, -12, -15, -18, -21, -26, -28, -32],
+  8: [-6],
 };
 // J: horní úchylka ES pro J6, J7, J8
 const J_HOLE = {
@@ -121,7 +123,7 @@ export function deviations(letter, grade, dim) {
 
   if (l === 'j') {
     const tbl = hole ? J_HOLE[grade] : J_SHAFT[grade];
-    if (!tbl) return { error: (hole ? 'J' : 'j') + grade + ' není v ISO 286 definováno (' + (hole ? 'J6–J8' : 'j5–j7') + ')' };
+    if (!tbl || tbl[ri] === undefined) return { error: (hole ? 'J' : 'j') + grade + ' není v ISO 286 pro tento rozměr definováno (' + (hole ? 'J6–J8' : 'j5–j7, j8 jen do 3 mm') + ')' };
     return hole ? { upper: tbl[ri], lower: tbl[ri] - tol, tol } : { upper: tbl[ri] + tol, lower: tbl[ri], tol };
   }
 
