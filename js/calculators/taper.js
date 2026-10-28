@@ -1,12 +1,11 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  SKICA – Kalkulačka Kužel (okno se záložkami)                ║
+// ║  SKICA – Kalkulačka Kužel (okno)                             ║
 // ╚══════════════════════════════════════════════════════════════╝
-// Záložka „Kužel" = taperBore.js (čep i díra, tolerance, hloubky, náčrt),
-// záložka „Morse / ISO" = tabulky, klepnutím vyplní kužel.
+// Obsah = taperBore.js (čep i díra, tolerance, hloubky, klikací náčrt),
+// dole rozbalovací tabulky Morse / ISO – klepnutím vyplní kužel.
 
 import { makeOverlay, onOverlayRemoved } from '../dialogFactory.js';
 import { taperBoreHTML, initTaperBore } from './taperBore.js';
-import { tabsHtml, wireTabs } from './calcKit.js';
 import { closeInlineEdit } from './svgInlineEdit.js';
 
 export function openTaperCalc() {
@@ -50,20 +49,20 @@ export function openTaperCalc() {
   }
 
   const body =
-    tabsHtml([['kuzel', 'Kužel'], ['tab', 'Morse / ISO']]) +
-    '<div class="tp-pane" data-pane="kuzel">' + taperBoreHTML() + '</div>' +
-    '<div class="tp-pane" data-pane="tab" hidden>' +
-      '<div class="cnc-table-label">Morse kužely <small>(klepni pro vyplnění)</small></div>' +
+    taperBoreHTML() +
+    '<details class="calc-details tp-tables">' +
+      '<summary>Morse / ISO kužely <small>(klepni na řádek – vyplní kužel)</small></summary>' +
+      '<div class="cnc-table-label">Morse kužely</div>' +
       '<div class="cnc-table-wrap cnc-table-tall">' +
-        '<table class="cnc-table"><thead><tr><th></th><th>D</th><th>d</th><th>L</th><th>α</th></tr></thead>' +
+        '<table class="cnc-table"><thead><tr><th></th><th>D</th><th>d</th><th>L</th><th>\u03B1</th></tr></thead>' +
         '<tbody>' + morseRows + '</tbody></table>' +
       '</div>' +
-      '<div class="cnc-table-label">Metrické a ISO kužely <small>(klepni)</small></div>' +
+      '<div class="cnc-table-label">Metrické a ISO kužely</div>' +
       '<div class="cnc-table-wrap cnc-table-tall">' +
-        '<table class="cnc-table" id="metricTaperTbl"><thead><tr><th>Kužel</th><th>Poměr</th><th>α</th></tr></thead>' +
+        '<table class="cnc-table" id="metricTaperTbl"><thead><tr><th>Kužel</th><th>Poměr</th><th>\u03B1</th></tr></thead>' +
         '<tbody>' + metricRows + '</tbody></table>' +
       '</div>' +
-    '</div>';
+    '</details>';
 
   const overlay = makeOverlay("taper", "🔺 Kužel", body, "cnc-window taper-window");
   if (!overlay) return;
@@ -77,30 +76,18 @@ export function openTaperCalc() {
   calcBtn.addEventListener("click", e => { e.stopPropagation(); import("../ui.js").then(mod => mod.openCalculator()); });
   overlay.querySelector(".calc-titlebar .calc-close-btn").before(calcBtn);
 
-  // Záložky (pamatuje poslední)
-  const TAB_KEY = "skica.taperTab";
-  function showTab(id) {
-    overlay.querySelectorAll(".tp-pane").forEach(p => { p.hidden = p.dataset.pane !== id; });
-    overlay.querySelectorAll(".calc-tab").forEach(b => b.classList.toggle("calc-tab-active", b.dataset.tab === id));
-    closeInlineEdit();
-    try { localStorage.setItem(TAB_KEY, id); } catch (e) { /* nedostupné */ }
-  }
-  wireTabs(overlay, showTab);
-  let lastTab = null;
-  try { lastTab = localStorage.getItem(TAB_KEY); } catch (e) { /* nedostupné */ }
-  if (lastTab && overlay.querySelector('.tp-pane[data-pane="' + lastTab + '"]')) showTab(lastTab);
   onOverlayRemoved(overlay, closeInlineEdit);
 
   const api = initTaperBore(overlay);
 
   // Tabulky Morse / ISO → vyplnit kužel (data-* bez velkých písmen – HTML je
   // převádí na malá, dřívější data-mD/data-md se tak přepisovaly)
-  overlay.querySelectorAll('[data-pane="tab"] .cnc-table tbody tr').forEach(tr => {
+  overlay.querySelectorAll('.tp-tables .cnc-table tbody tr').forEach(tr => {
     tr.addEventListener("click", () => {
       if (!api) return;
       if (tr.dataset.ratio) api.setRatio(parseFloat(tr.dataset.ratio), parseFloat(tr.dataset.big));
       else api.setDdL(tr.dataset.big, tr.dataset.small, tr.dataset.len);
-      showTab("kuzel");
+      overlay.querySelector(".tb-svg")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
 }

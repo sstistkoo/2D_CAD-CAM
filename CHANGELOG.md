@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Kužel – nečitelné popisky:** nevyplněné kóty v náčrtu byly černé na černém
+  (proměnná `--ctp-overlay1` v paletě neexistuje) – teď šedé. Totéž u legend
+  skupin polí (`--ctp-subtext1`).
+
 - **Kužel – tabulka Morse:** klepnutí vyplňovalo špatné hodnoty (atributy
   `data-mD` a `data-md` HTML sloučí, protože převádí na malá písmena).
 
@@ -23,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nezaokrouhlují na ±0,8 (`js/calculators/tolerance.js`).
 
 ### Added
+
+- **Kužel bez záložek:** nahoře Zobrazení (díra / čep, strany), pod ním náčrt,
+  výsledky a pole; tabulky Morse / ISO úplně dole jako rozbalovací sekce.
 
 - **Kužel: úhel přímo v náčrtu i v polích.** Kuželovitost se zadává buď jako
   1:x, nebo úhel α (sklon k ose); druhý tvar se dopočítá. V náčrtu je „1:x"

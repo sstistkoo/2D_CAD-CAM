@@ -32,6 +32,9 @@ const group = (title, inner) => '<fieldset class="tb-group"><legend>' + title + 
 /** HTML záložky Kužel. */
 export function taperBoreHTML() {
   return '<div class="tb-sec" id="tbSection">' +
+    group('Zobrazení',
+      sel('kind', 'Typ', [['hole', 'Díra'], ['shaft', 'Čep / hřídel']]) +
+      sel('names', 'Strany', [['vs', 'Spodek / Vrch'], ['zk', 'Začátek / Konec']])) +
     '<div class="tp-hint">Klepni na kótu a zadej hodnotu – stačí 3 údaje (D, d, délka, kuželovitost), nebo Ø z výkresu v hloubce + délka + kuželovitost. Klepnutím do díry přidáš měřicí místo.</div>' +
     '<svg class="calc-svg tb-svg" viewBox="0 0 340 390" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
     '<div class="tb-err"></div>' +
@@ -64,9 +67,6 @@ export function taperBoreHTML() {
         '<button type="button" class="cnc-btn tb-add">➕ Místo</button>' +
         '<button type="button" class="cnc-btn tb-step" title="Rozepsat rovnoměrně po celé délce">≡ Po krocích</button>' +
       '</div></fieldset>' +
-    group('Zobrazení',
-      sel('kind', 'Typ', [['hole', 'Díra'], ['shaft', 'Čep / hřídel']]) +
-      sel('names', 'Strany', [['vs', 'Spodek / Vrch'], ['zk', 'Začátek / Konec']])) +
     '<div class="cnc-actions"><button type="button" class="cnc-btn cnc-btn-clear tb-clear">🗑 Vymazat vše</button></div>' +
   '</div>';
 }

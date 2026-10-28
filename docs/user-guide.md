@@ -2087,7 +2087,9 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     X = A − d_v·(1 + cot(α/2)); zadá se šířka nebo naměřená míra, druhá se
     dopočítá.
 - **Kužel** (Taper) – v pravém panelu Kalkulačky. V liště okna je 🔢 Kalkulačka:
-  klepni do pole, spočítej a tlačítkem ↓ se výsledek vloží do pole. Dvě záložky:
+  klepni do pole, spočítej a tlačítkem ↓ se výsledek vloží do pole. Bez záložek:
+  nahoře Zobrazení (díra / čep, názvy stran), pak náčrt, výsledky a pole;
+  úplně dole rozbalovací tabulky Morse / ISO.
   - *Kužel* – jeden výpočet pro čep i díru. Náčrt řezu je klikací: klepni na
     kótu a zadej hodnotu – D velký Ø, d malý Ø, délka L, kuželovitost
     „1:x" (nahoře) nebo úhel „α" (oblouk u stěny = sklon k ose, náklon
@@ -2103,8 +2105,8 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     vrch − spodek, náklon suportu a přísuv na stranu. *Kopírovat* = čitelný
     přehled, *Do programu* = text velkými písmeny bez diakritiky jako komentář
     do NC programu. Pole pod výsledky: Kužel, Ø z výkresu v hloubce,
-    Tolerance, Měřicí místa, Zobrazení (díra / čep, názvy stran).
-  - *Morse / ISO* – tabulky; klepnutím se kužel vyplní do záložky Kužel.
+    Tolerance, Měřicí místa.
+  - *Morse / ISO* (dole, rozbalovací) – klepnutím na řádek se kužel vyplní.
 - **Závity** – převodné tabulky. U vybraného závitu **rozpis průchodů**:
   hloubky řezů stejné jako v CAM (ubývající přísuv a_k = h·√(k/n), počet řezů
   automaticky jako CAM, nerez +30 %, hliník −20 %, tlačítka − / + mění počet),

@@ -8116,10 +8116,10 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 .tb-err:empty { display: none; }
 .cnc-field input.tb-bad { border-color: var(--ctp-red); }
 .tb-res:empty { display: none; }
-.tb-res .tb-end td { color: var(--ctp-overlay1); }
+.tb-res .tb-end td { color: var(--ctp-overlay2); }
 .tb-res .tb-out td { color: var(--ctp-red); }
 .tb-res strong { color: var(--ctp-green); }
-.tb-diffs { padding: 6px 8px; font: 12px "Consolas", monospace; color: var(--ctp-subtext1); border-top: 1px solid var(--ctp-surface0); }
+.tb-diffs { padding: 6px 8px; font: 12px "Consolas", monospace; color: var(--ctp-text); border-top: 1px solid var(--ctp-surface0); }
 .tb-diffs strong { color: var(--ctp-peach); }
 .tb-svg:empty { display: none; }
 .calc-svg .tb-mat { fill: url(#tbHatch); stroke: var(--ctp-text); stroke-width: 1.5; stroke-linejoin: round; }
@@ -8135,16 +8135,16 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 .taper-window { max-width: 520px; }
 .tp-hint { font-size: 12px; color: var(--ctp-subtext0); margin: 0 0 6px; }
 .tb-group { border: 1px solid var(--ctp-surface0); border-radius: 6px; padding: 4px 10px 8px; margin: 0 0 10px; min-width: 0; }
-.tb-group legend { font-size: 12px; font-weight: 700; color: var(--ctp-subtext1); padding: 0 4px; }
+.tb-group legend { font-size: 12px; font-weight: 700; color: var(--ctp-text); padding: 0 4px; }
 .tb-group legend small { font-weight: 400; color: var(--ctp-overlay0); }
 .tb-group .cnc-fields { margin-bottom: 0; }
-.tb-table td:first-child { color: var(--ctp-overlay1); }
+.tb-table td:first-child { color: var(--ctp-overlay2); }
 .calc-svg .sk-edit { cursor: pointer; }
 .calc-svg .sk-hit { fill: transparent; stroke: var(--ctp-surface1); stroke-width: 1; stroke-dasharray: 2 2; }
 .calc-svg .sk-edit:hover .sk-hit { fill: var(--ctp-surface0); stroke: var(--ctp-blue); stroke-dasharray: none; }
 .calc-svg .sk-val { fill: var(--ctp-text); font: bold 12px "Consolas", monospace; }
 .calc-svg .sk-calc { fill: var(--ctp-yellow); font: 12px "Consolas", monospace; }
-.calc-svg .sk-empty { fill: var(--ctp-overlay1); font: italic 12px "Consolas", monospace; }
+.calc-svg .sk-empty { fill: var(--ctp-subtext0); font: italic 12px "Consolas", monospace; }
 .calc-svg .sk-btn { fill: var(--ctp-peach); font: 11px "Consolas", monospace; }
 .calc-svg .tb-add-zone { fill: transparent; cursor: crosshair; }
 .calc-svg .tb-mat, .calc-svg .tb-pt-l, .calc-svg .tb-ref, .calc-svg .tb-ref-lead { pointer-events: none; }
