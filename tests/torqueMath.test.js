@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   boltTorque, yieldOf, wrenchSetting, convertTorque,
-  METRIC_BOLTS, INSERT_SCREWS, KENLOC_PINS, insertIC, hexKeyOf,
+  METRIC_BOLTS, INSERT_SCREWS, KENLOC_PINS, CLAMP_SCREWS, insertIC, hexKeyOf,
 } from '../js/calculators/torqueMath.js';
 
 const bolt = (d, cls, mu) => {
@@ -80,5 +80,12 @@ describe('torqueMath – Kenloc a označení VBD', () => {
     const pin = KENLOC_PINS.find(p => p[0] === 2.5);
     expect(pin[3]).toBe(3.3);
     expect(pin[4]).toBe(insertIC('CNMG120412').ic);
+  });
+});
+
+describe('torqueMath – upínky shora', () => {
+  it('imbus 2,5 → šroub upínky 4,0–4,2 Nm, rozsahy platné', () => {
+    expect(CLAMP_SCREWS.find(c => c[0] === 2.5).slice(3)).toEqual([4.0, 4.2]);
+    for (const [, , , lo, hi] of CLAMP_SCREWS) expect(hi).toBeGreaterThanOrEqual(lo);
   });
 });

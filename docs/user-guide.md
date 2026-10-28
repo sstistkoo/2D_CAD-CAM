@@ -2099,6 +2099,8 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     imbusem): imbus 2 → KLM-33/34 1,7 Nm, 2,5 → KLM-44/46 3,3 Nm (CNMG 12),
     3 → KLM-56/58 5,5 Nm. V Moje nože se podle zadaného plátku (ISO i ANSI,
     např. CNMG120412 / CNMG433) nebo imbusu čep a moment navrhne sám.
+    Další tabulka: šrouby upínek shora Kennametal (imbus 2 → 2,1 Nm,
+    2,5 → 4,0–4,2 Nm, 3 → 6–7 Nm, 4 → 17 Nm); u imbusu se ukážou obě možnosti.
   - *Šroub M* – moment a předpětí metrického šroubu M4–M36 (8.8, 10.9, 12.9,
     A2-70, A4-80) podle VDI 2230 (90 % meze kluzu, μ 0,10–0,16), např. upínky
     a čelisti na desce karuselu.

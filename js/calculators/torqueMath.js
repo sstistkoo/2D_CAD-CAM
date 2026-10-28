@@ -40,6 +40,17 @@ export const KENLOC_PINS = [
   [3, 'KLM-56 / KLM-58', 'M8', 5.5, 15.875, 'CNMG 16, SNMG 15'],
 ];
 
+/**
+ * Kennametal – šrouby upínek shora (claw / top clamp, řada STCM), dotahují se imbusem.
+ * Zdroj: Kennametal „Torque Recommendations". [imbus mm, šrouby, závit, Nm min, Nm max]
+ */
+export const CLAMP_SCREWS = [
+  [2, 'STCM27 / STCM38', 'M4 / M5', 2.1, 2.1],
+  [2.5, 'STCM5 / 9 / 25 / 40', 'M5 / M6', 4.0, 4.2],
+  [3, 'STCM11 / 20 / 26 / 32 / 35', 'M6', 6.0, 7.0],
+  [4, 'STCM4 / STCM8', 'M8', 17, 17],
+];
+
 /** ISO / ANSI označení VBD → vepsaná kružnice IC [mm] a zda je negativní (2. písmeno N). */
 const IC_ISO = {
   C09: 9.525, C12: 12.7, C16: 15.875, C19: 19.05, C25: 25.4,

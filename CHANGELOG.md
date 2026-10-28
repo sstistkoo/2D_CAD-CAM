@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tests/torqueMath.test.js`.
 - **Nm – Kenloc:** tabulka čepů Kennametal Kenloc (imbus 2 / 2,5 / 3 mm →
   1,7 / 3,3 / 5,5 Nm) a automatický návrh v Moje nože podle označení plátku
-  (ISO i ANSI) nebo zadaného imbusu.
+  (ISO i ANSI) nebo zadaného imbusu. Doplněny šrouby upínek shora (imbus
+  2 / 2,5 / 3 / 4 mm → 2,1 / 4,0–4,2 / 6–7 / 17 Nm).
 
 ### Fixed
 

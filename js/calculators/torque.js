@@ -10,7 +10,7 @@
 import { showToast } from '../state.js';
 import { makeOverlay } from '../dialogFactory.js';
 import {
-  INSERT_SCREWS, KENLOC_PINS, insertIC, hexKeyOf, STRENGTH_CLASSES, FRICTION, METRIC_BOLTS, TORQUE_UNITS,
+  INSERT_SCREWS, KENLOC_PINS, CLAMP_SCREWS, insertIC, hexKeyOf, STRENGTH_CLASSES, FRICTION, METRIC_BOLTS, TORQUE_UNITS,
   boltTorque, yieldOf, wrenchSetting, convertTorque,
 } from './torqueMath.js';
 import {
@@ -41,6 +41,9 @@ export function openTorqueCalc() {
     '<tr data-ref="' + i + '"><td>' + th + '</td><td>' + key + '</td><td style="white-space:nowrap"><strong>' + range(lo, hi) + '</strong></td><td>' + use + '</td></tr>').join('');
   const pinRows = KENLOC_PINS.map(([hex, pin, th, v, , use], i) =>
     '<tr data-pin="' + i + '"><td style="white-space:nowrap">' + nm(hex) + ' mm</td><td>' + pin + ' (' + th + ')</td><td style="white-space:nowrap"><strong>' + nm(v) + '</strong></td><td>' + use + '</td></tr>').join('');
+
+  const clampRows = CLAMP_SCREWS.map(([hex, sc, th, lo, hi], i) =>
+    '<tr data-clamp="' + i + '"><td style="white-space:nowrap">' + nm(hex) + ' mm</td><td>' + sc + ' (' + th + ')</td><td style="white-space:nowrap"><strong>' + range(lo, hi) + '</strong></td></tr>').join('');
 
   const body =
     tabsHtml([['tools', 'Moje nože'], ['ref', 'Šrouby VBD'], ['bolt', 'Šroub M'], ['key', 'Klíč']]) +
@@ -74,6 +77,10 @@ export function openTorqueCalc() {
       '<div class="cnc-table-wrap"><table class="cnc-table"><thead><tr>' +
         '<th>Imbus</th><th>Čep</th><th>Nm</th><th>VBD</th>' +
       '</tr></thead><tbody data-id="pinRows">' + pinRows + '</tbody></table></div>' +
+      '<div class="cnc-table-label">Kennametal – šroub upínky shora (imbus) <small>klepni = převzít</small></div>' +
+      '<div class="cnc-table-wrap"><table class="cnc-table"><thead><tr>' +
+        '<th>Imbus</th><th>Šroub upínky</th><th>Nm</th>' +
+      '</tr></thead><tbody data-id="clampRows">' + clampRows + '</tbody></table></div>' +
       '<div class="calc-note">Rozsah podle katalogů Kennametal a Denitool – výrobci se liší až 2× (M3,5: 1,7 vs 3,4 Nm). ' +
         '<strong>Platí hodnota vyražená na držáku, na obalu šroubu nebo v katalogu výrobce.</strong> ' +
         'Šroub VBD utahuj momentovým šroubovákem (ne „od ruky" L-klíčem), závit lehce namaž pastou proti zadření ' +
@@ -148,8 +155,11 @@ export function openTorqueCalc() {
     if (pin && !ref) {
       html += outRow('Kenloc ' + pin[1] + ', imbus ' + nm(pin[0]), nm(pin[3]) + ' Nm');
       if (ins && ins.neg && hex !== null && hex !== pin[0]) html += outWarn('Plátek odpovídá imbusu ' + nm(pin[0]) + ', zadán ' + nm(hex) + ' – jiný upínací systém? Ověř v katalogu držáku.');
-      else html += outHint('Platí pro držáky Kennametal Kenloc (čep s pákovým účinkem). Jiný výrobce / upínka shora → jeho katalog.');
+      else html += outHint('Čep pod plátkem (Kenloc). Jiný výrobce → jeho katalog.');
     }
+    const clamp = !ref && hex !== null && CLAMP_SCREWS.find(c => c[0] === hex);
+    if (clamp) html += outRow('Upínka shora ' + clamp[1].split(' / ')[0] + '…, imbus ' + nm(hex), range(clamp[3], clamp[4]) + ' Nm') +
+      outHint('Rozliš, čím imbus točí: čep pod plátkem, nebo šroub upínky shora.');
     const v = val(f.tNm);
     if (ref && v > 0 && (v > ref[3] * 1.5 || v < ref[2] * 0.6)) html += outWarn('Zadaný moment je daleko od běžného rozsahu – ověř v katalogu.');
     info.innerHTML = html;
@@ -222,6 +232,18 @@ export function openTorqueCalc() {
     overlay.querySelector('.calc-tab[data-tab="tools"]').click();
     showToolInfo();
     showToast('Kenloc čep převzat – ' + nm(v) + ' Nm (Kennametal)');
+  });
+
+  q('clampRows').addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-clamp]');
+    if (!tr) return;
+    const [hex, sc, th, lo, hi] = CLAMP_SCREWS[+tr.dataset.clamp];
+    f.tScrew.value = 'upínka ' + sc.split(' / ')[0] + ' (' + th.split(' / ').pop() + ')';
+    f.tKey.value = 'imbus ' + nm(hex);
+    if (!f.tNm.value.trim()) f.tNm.value = nm(lo);
+    overlay.querySelector('.calc-tab[data-tab="tools"]').click();
+    showToolInfo();
+    showToast('Šroub upínky převzat – ' + range(lo, hi) + ' Nm (Kennametal)');
   });
 
   // ── Výpočty ──
