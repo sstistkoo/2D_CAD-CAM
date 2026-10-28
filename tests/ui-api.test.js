@@ -203,6 +203,8 @@ describe('ui.js — kód při načtení', () => {
         "ui #btnOpenTrig click",
         "ui #btnOpenCutting click",
         "ui #btnOpenTaper click",
+        "ui #btnTopTaper click",
+        "ui #mobileTaperBtn click",
         "ui #btnOpenThread click",
         "ui #btnOpenConvert click",
         "ui #btnOpenWeight click",

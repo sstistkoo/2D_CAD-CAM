@@ -222,6 +222,8 @@
           ><span id="indGrid" class="coord-ind ind-grid" title="Mřížka">#</span
           ><span id="indAngle" class="coord-ind ind-angle" title="Úhlový snap">∠</span
           ><span id="indDims" class="coord-ind ind-dims" title="Kóty">📐</span
+          ><button type="button" id="mobileTaperBtn" class="coord-ind coord-ind-btn" title="Kužel – kalkulačka kuželů (D, d, L, α, tolerance v hloubce)" aria-label="Kužel"
+            >🔺 Kužel</button
           ><span id="mobileSaveFlash" class="mobile-save-flash" aria-hidden="true" hidden
             >💾</span
           ><button
@@ -275,6 +277,13 @@
         disabled
       >
         ↪ Vpřed
+      </button>
+      <button
+        class="tool-btn mobile-hide"
+        id="btnTopTaper"
+        title="Kužel – kalkulačka kuželů: D, d, L, α, 1:x a průměry s tolerancí v hloubce"
+      >
+        🔺 Kužel
       </button>
       <div class="sep sep-header"></div>
       <div class="toolbar-header">

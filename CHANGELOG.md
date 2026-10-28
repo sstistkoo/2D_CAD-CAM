@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Kužel: horní lišta, klikací náčrty, záložky.** Kalkulačka Kužel jde spustit
+  z horní lišty (desktop) i z horního pruhu na mobilu. Hodnoty se zadávají
+  klepnutím na kóty v náčrtu (okénko u místa klepnutí, `svgInlineEdit.js`);
+  v řezu kužele s tolerancí klepnutí do díry přidá měřicí místo. Kalkulačka je
+  rozdělená do záložek (Kužel D·d·L·α / S tolerancí / Morse a ISO), pole
+  seskupená, výsledky nad poli; nová kopie „Do programu" ve stylu komentáře NC.
+
 - **Kužel: kužel s tolerancí – průměry v hloubce.** Z jednoho průměru
   s tolerancí (ISO nebo ručně) v zadané hloubce, kuželovitosti (1:x, α, 2α, C)
   a délky spočítá průměry v libovolných měřicích místech od obou stran

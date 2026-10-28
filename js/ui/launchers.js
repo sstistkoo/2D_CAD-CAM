@@ -21,6 +21,8 @@ export function initLauncherButtons() {
   document.getElementById("btnOpenTrig").addEventListener("click", () => { openTrigCalc(); bridge.extendTrigCalc?.(); }); // záložka Obecný: calculators/trigGeneral.js
   document.getElementById("btnOpenCutting").addEventListener("click", openCuttingCalc);
   document.getElementById("btnOpenTaper").addEventListener("click", openTaperCalc);
+  document.getElementById("btnTopTaper")?.addEventListener("click", openTaperCalc);
+  document.getElementById("mobileTaperBtn")?.addEventListener("click", openTaperCalc);
   document.getElementById("btnOpenThread").addEventListener("click", openThreadCalc);
   document.getElementById("btnOpenConvert").addEventListener("click", openConvertCalc);
   document.getElementById("btnOpenWeight").addEventListener("click", openWeightCalc);

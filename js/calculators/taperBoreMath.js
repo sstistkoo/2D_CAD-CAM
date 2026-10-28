@@ -77,15 +77,15 @@ export function computeTaperBore(p) {
   const zOf = (side, depth) => side === 'B' ? L - depth : depth;
 
   const rows = [];
-  for (const pt of p.points || []) {
-    if (!(pt.depth >= 0)) continue;
+  (p.points || []).forEach((pt, ptIdx) => {
+    if (!(pt.depth >= 0)) return;
     const sides = pt.side === 'AB' ? ['A', 'B'] : [pt.side === 'B' ? 'B' : 'A'];
     for (const side of sides) {
       const z = zOf(side, pt.depth);
       const nom = diaAt(z);
-      rows.push({ side, depth: pt.depth, z, nom, min: nom + ei, max: nom + es, outside: z < 0 || z > L });
+      rows.push({ side, depth: pt.depth, z, nom, min: nom + ei, max: nom + es, outside: z < 0 || z > L, pt: ptIdx });
     }
-  }
+  });
   // Rozdíly B − A ve stejné hloubce
   const diffs = [];
   const seen = new Set();

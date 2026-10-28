@@ -1,7 +1,10 @@
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
-import { makeOverlay } from '../dialogFactory.js';
+import { makeOverlay, onOverlayRemoved } from '../dialogFactory.js';
 import { taperBoreHTML, initTaperBore } from './taperBore.js';
+import { tabsHtml, wireTabs } from './calcKit.js';
+import { drawBasicTaper } from './taperBasicSketch.js';
+import { openInlineEdit, closeInlineEdit, wireSvgEditing, setField } from './svgInlineEdit.js';
 
 export function openTaperCalc() {
   const morseData = [
@@ -43,34 +46,39 @@ export function openTaperCalc() {
       '<td>' + mt.name + '</td><td>1:' + mt.ratio + '</td><td>' + mAng.toFixed(4) + '\u00B0</td></tr>';
   }
 
+  const fld = (id, label, unit, ph) =>
+    '<label class="cnc-field"><span>' + label + ' <small>' + unit + '</small></span><input type="number" data-id="' + id + '" step="any" placeholder="' + ph + '"></label>';
   const body =
-    '<div class="cnc-fields">' +
-      '<label class="cnc-field"><span>D <small>mm</small></span><input type="number" data-id="D" step="any" placeholder="Velký \u00D8"></label>' +
-      '<label class="cnc-field"><span>d <small>mm</small></span><input type="number" data-id="d" step="any" placeholder="Malý \u00D8"></label>' +
-      '<label class="cnc-field"><span>L <small>mm</small></span><input type="number" data-id="L" step="any" placeholder="Délka"></label>' +
-      '<label class="cnc-field"><span>\u03B1 <small>\u00B0</small></span><input type="number" data-id="a" step="any" placeholder="Polo. úhel"></label>' +
-      '<label class="cnc-field"><span>Kuželovitost <small>1 : x</small></span><input type="number" data-id="K" step="any" placeholder="např. 20"></label>' +
-      '<label class="cnc-field"><span>2\u03B1 <small>\u00B0 vrcholový</small></span><input type="number" data-id="a2" step="any" placeholder="Vrchol. úhel"></label>' +
+    tabsHtml([['basic', 'Kužel D · d · L · α'], ['tol', 'S tolerancí'], ['tab', 'Morse / ISO']]) +
+    '<div class="tp-pane" data-pane="basic">' +
+      '<div class="tp-hint">Klikni na kótu v náčrtu nebo vyplň pole – stačí 3 údaje (úhel lze zadat i jako 1:x nebo 2α).</div>' +
+      '<svg class="calc-svg tp-svg" viewBox="0 0 340 214" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
+      '<div class="cnc-fields cnc-fields-3">' +
+        fld('D', 'D', 'mm', 'Velký Ø') + fld('d', 'd', 'mm', 'Malý Ø') + fld('L', 'L', 'mm', 'Délka') +
+        fld('a', 'α', '° polovrch.', 'Úhel') + fld('K', '1 :', 'x', 'např. 20') + fld('a2', '2α', '° vrchol.', 'Úhel') +
+      '</div>' +
+      '<div class="cnc-info" id="taperInfo"></div>' +
+      '<div class="cnc-result" id="taperSlide"></div>' +
+      '<div class="cnc-actions">' +
+        '<button class="cnc-btn cnc-btn-clear tp-clear">🗑 Vymazat</button>' +
+        '<button class="cnc-btn cnc-btn-copy tp-copy">📋 Kopírovat</button>' +
+      '</div>' +
     '</div>' +
-    '<div class="cnc-info" id="taperInfo"></div>' +
-    '<div class="cnc-result" id="taperSlide"></div>' +
-    '<div class="cnc-actions">' +
-      '<button class="cnc-btn cnc-btn-clear">\uD83D\uDDD1 Vymazat</button>' +
-      '<button class="cnc-btn cnc-btn-copy">\uD83D\uDCCB Kopírovat</button>' +
-    '</div>' +
-    taperBoreHTML() +
-    '<details class="calc-details"><summary>Morse kužely <small>(klikni pro vyplnění)</small></summary>' +
-    '<div class="cnc-table-wrap">' +
-      '<table class="cnc-table"><thead><tr><th></th><th>D</th><th>d</th><th>L</th><th>\u03B1</th></tr></thead>' +
-      '<tbody>' + morseRows + '</tbody></table>' +
-    '</div></details>' +
-    '<details class="calc-details"><summary>Metrické a ISO kužely <small>(klikni)</small></summary>' +
-    '<div class="cnc-table-wrap">' +
-      '<table class="cnc-table" id="metricTaperTbl"><thead><tr><th>Kužel</th><th>Poměr</th><th>\u03B1</th></tr></thead>' +
-      '<tbody>' + metricRows + '</tbody></table>' +
-    '</div></details>';
+    '<div class="tp-pane" data-pane="tol" hidden>' + taperBoreHTML() + '</div>' +
+    '<div class="tp-pane" data-pane="tab" hidden>' +
+      '<div class="cnc-table-label">Morse kužely <small>(klikni pro vyplnění)</small></div>' +
+      '<div class="cnc-table-wrap cnc-table-tall">' +
+        '<table class="cnc-table"><thead><tr><th></th><th>D</th><th>d</th><th>L</th><th>α</th></tr></thead>' +
+        '<tbody>' + morseRows + '</tbody></table>' +
+      '</div>' +
+      '<div class="cnc-table-label">Metrické a ISO kužely <small>(klikni)</small></div>' +
+      '<div class="cnc-table-wrap cnc-table-tall">' +
+        '<table class="cnc-table" id="metricTaperTbl"><thead><tr><th>Kužel</th><th>Poměr</th><th>α</th></tr></thead>' +
+        '<tbody>' + metricRows + '</tbody></table>' +
+      '</div>' +
+    '</div>';
 
-  const overlay = makeOverlay("taper", "\uD83D\uDD3A Kužel", body);
+  const overlay = makeOverlay("taper", "\uD83D\uDD3A Kužel", body, "cnc-window taper-window");
   if (!overlay) return;
 
   const inpD = overlay.querySelector('[data-id="D"]');
@@ -83,6 +91,34 @@ export function openTaperCalc() {
   const edited = new Set();
   const infoEl = overlay.querySelector("#taperInfo");
   const slideEl = overlay.querySelector("#taperSlide");
+  const sketch = overlay.querySelector(".tp-svg");
+
+  // Záložky (pamatuje poslední)
+  const TAB_KEY = "skica.taperTab";
+  function showTab(id) {
+    overlay.querySelectorAll(".tp-pane").forEach(p => { p.hidden = p.dataset.pane !== id; });
+    overlay.querySelectorAll(".calc-tab").forEach(b => b.classList.toggle("calc-tab-active", b.dataset.tab === id));
+    closeInlineEdit();
+    try { localStorage.setItem(TAB_KEY, id); } catch (e) { /* nedostupné */ }
+  }
+  wireTabs(overlay, showTab);
+  let lastTab = null;
+  try { lastTab = localStorage.getItem(TAB_KEY); } catch (e) { /* nedostupné */ }
+  if (lastTab && overlay.querySelector('.tp-pane[data-pane="' + lastTab + '"]')) showTab(lastTab);
+  onOverlayRemoved(overlay, closeInlineEdit);
+
+  // Kliknutí na kótu v náčrtu → zadání hodnoty
+  const LABELS = { D: ["Velký průměr D", "mm"], d: ["Malý průměr d", "mm"], L: ["Délka kužele L", "mm"],
+    a: ["Polovrcholový úhel \u03B1", "\u00B0"], K: ["Kuželovitost 1 : x", ""], a2: ["Vrcholový úhel 2\u03B1", "\u00B0"] };
+  wireSvgEditing(sketch, (key, e) => {
+    const inp = overlay.querySelector('[data-id="' + key + '"]');
+    if (!inp || !LABELS[key]) return;
+    openInlineEdit(e, {
+      label: LABELS[key][0], unit: LABELS[key][1], value: inp.value,
+      hint: edited.has(key) ? "Prázdné = smazat zadání" : (inp.value ? "Dopočítáno – zadáním hodnotu zafixuješ" : ""),
+      onCommit: val => setField(inp, val === null ? "" : parseFloat(val.toFixed(6))),
+    });
+  });
 
   function v(inp) { return inp.value !== "" ? safeEvalMath(inp.value) : null; }
   function sc(inp, val) { inp.value = parseFloat(val.toFixed(4)); inp.classList.add("computed"); }
@@ -146,6 +182,9 @@ export function openTaperCalc() {
       }
     }
     slideEl.innerHTML = slideParts.length ? slideParts.join("<br>") : "";
+    const vals = {};
+    allInp.forEach(i => { vals[i.dataset.id] = v(i); });
+    drawBasicTaper(sketch, vals, edited);
   }
 
   allInp.forEach(inp => {
@@ -159,7 +198,7 @@ export function openTaperCalc() {
   });
 
   // Morse table click
-  overlay.querySelectorAll(".calc-body > details .cnc-table tbody tr").forEach(tr => {
+  overlay.querySelectorAll('[data-pane="tab"] .cnc-table tbody tr').forEach(tr => {
     if (!tr.dataset.mD && !tr.dataset.ratio) return;
     tr.addEventListener("click", () => {
       if (tr.dataset.ratio) {
@@ -174,6 +213,7 @@ export function openTaperCalc() {
         edited.delete("d"); edited.delete("L"); edited.delete("K"); edited.delete("a2");
         edited.add("a");
         allInp.forEach(i => i.classList.remove("computed"));
+        showTab("basic");
         solve();
         return;
       }
@@ -183,17 +223,19 @@ export function openTaperCalc() {
       inpA.value = ""; inpK.value = ""; inpA2.value = "";
       edited.clear(); edited.add("D"); edited.add("d"); edited.add("L");
       allInp.forEach(i => i.classList.remove("computed"));
+      showTab("basic");
       solve();
     });
   });
 
   initTaperBore(overlay);
+  solve();
 
-  overlay.querySelector(".calc-body > .cnc-actions .cnc-btn-clear").addEventListener("click", () => {
+  overlay.querySelector(".tp-clear").addEventListener("click", () => {
     allInp.forEach(i => { i.value = ""; i.classList.remove("computed"); });
-    edited.clear(); infoEl.textContent = ""; slideEl.innerHTML = "";
+    edited.clear(); solve();
   });
-  overlay.querySelector(".calc-body > .cnc-actions .cnc-btn-copy").addEventListener("click", () => {
+  overlay.querySelector(".tp-copy").addEventListener("click", () => {
     const p = [];
     if (v(inpD) !== null) p.push("D=" + inpD.value);
     if (v(inpd) !== null) p.push("d=" + inpd.value);
