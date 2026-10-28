@@ -8,7 +8,7 @@
 
 import { safeEvalMath } from '../utils.js';
 import { showToast } from '../state.js';
-import { computeTaperBore, solveTaper, taperC, taperForms, isoTolerance, f3, fmtDev } from './taperBoreMath.js';
+import { computeTaperBore, solveTaper, taperC, taperForms, f3, fmtDev } from './taperBoreMath.js';
 import { drawBoreSketch } from './taperBoreSketch.js';
 import { openInlineEdit, wireSvgEditing, setField } from './svgInlineEdit.js';
 
@@ -18,8 +18,7 @@ const NAMES = {
   vs: { A: 'Spodek', B: 'Vrch', a: 'od spodu', b: 'od vrchu', bigA: 'dole', bigB: 'nahoře' },
   zk: { A: 'Začátek', B: 'Konec', a: 'od začátku', b: 'od konce', bigA: 'na začátku', bigB: 'na konci' },
 };
-const CMODES = [['ratio', '1 : x'], ['half', '\u03B1 sklon \u00B0'], ['full', '2\u03B1 \u00B0']];
-const CF = { ratio: 'K', half: 'a', full: 'a2' };    // tvar kuželovitosti → pole
+const CF = { ratio: 'K', half: 'a' };                 // tvar kuželovitosti → pole (1:x nebo úhel α)
 const SOLVE = ['D', 'd', 'L', 'C'];                     // veličiny, které se navzájem dopočítávají
 
 const fld = (id, label, unit, ph) =>
@@ -34,7 +33,7 @@ const group = (title, inner) => '<fieldset class="tb-group"><legend>' + title + 
 export function taperBoreHTML() {
   return '<div class="tb-sec" id="tbSection">' +
     '<div class="tp-hint">Klepni na kótu a zadej hodnotu – stačí 3 údaje (D, d, délka, kuželovitost), nebo Ø z výkresu v hloubce + délka + kuželovitost. Klepnutím do díry přidáš měřicí místo.</div>' +
-    '<svg class="calc-svg tb-svg" viewBox="0 0 340 412" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
+    '<svg class="calc-svg tb-svg" viewBox="0 0 340 390" role="img" aria-label="Náčrt kužele – klikací kóty"></svg>' +
     '<div class="tb-err"></div>' +
     '<div class="cnc-info tb-forms"></div>' +
     '<div class="cnc-table-wrap cnc-table-tall tb-res"></div>' +
@@ -50,17 +49,15 @@ export function taperBoreHTML() {
       '<label class="cnc-field"><span>Větší Ø je</span><div class="tb-row">' +
         '<select data-tb="big"><option value="A">dole</option><option value="B">nahoře</option></select>' +
         '<button type="button" class="tb-swap" title="Prohodit větší ↔ menší">⇅</button></div></label>' +
-      fld('K', 'Kuželovitost 1 :', 'x', 'např. 300') +
-      fld('a', '\u03B1 sklon k ose', '\u00B0 (náklon suportu)', 'např. 1.43') +
-      fld('a2', '2\u03B1 vrcholový úhel', '\u00B0', 'např. 2.86')) +
+      fld('K', 'Kuželovitost 1:x', 'x =', 'např. 300') +
+      fld('a', 'Úhel \u03B1', '\u00B0 sklon k ose', 'např. 1.43')) +
     group('Ø z výkresu v hloubce <small>(nepovinné)</small>',
       fld('refD', 'Zadaný Ø', 'mm', 'např. 211') +
       fld('ref', 'V hloubce', 'mm', '0 = na hraně') +
       sel('refSide', 'Hloubka měřena', [['A', 'od spodu'], ['B', 'od vrchu']])) +
     group('Tolerance <small>(platí pro všechny průměry)</small>',
-      fld('iso', 'ISO', '', 'H7, h6…') +
-      fld('es', 'Horní úchylka', 'mm', '+0.046') +
-      fld('ei', 'Dolní úchylka', 'mm', '0')) +
+      fld('es', 'Horní úchylka', 'max mm', 'např. +0.046') +
+      fld('ei', 'Dolní úchylka', 'min mm', 'např. 0')) +
     '<fieldset class="tb-group"><legend>Měřicí místa <small>(hloubka od strany)</small></legend>' +
       '<div class="tb-points"></div>' +
       '<div class="cnc-actions tb-pt-actions">' +
@@ -131,17 +128,6 @@ export function initTaperBore(overlay) {
     ptsEl.querySelectorAll('.tb-pt-s').forEach(s => { const v = s.value; s.innerHTML = sideOpts(v); });
   }
 
-  // ISO → úchylky (vyplněné žlutě, dají se přepsat ručně)
-  function applyIso() {
-    const dim = [num($('refD')), num($('D')), num($('d'))].find(x => x > 0) || 0;
-    const t = isoTolerance($('iso').value, dim);
-    $('iso').classList.toggle('tb-bad', !!(t && t.error && $('iso').value.trim() && dim > 0));
-    if (t && !t.error) {
-      esEl.value = trim0(t.es); eiEl.value = trim0(t.ei);
-      esEl.classList.add('computed'); eiEl.classList.add('computed');
-    } else if (esEl.classList.contains('computed')) { esEl.value = ''; eiEl.value = ''; }
-  }
-
   /** Nechá jen tolik ručně zadaných veličin, kolik je potřeba (nejnovější vyhrávají). */
   function trimOrder() {
     if (num($('refD')) > 0) {
@@ -157,7 +143,7 @@ export function initTaperBore(overlay) {
     if (k === 'C') {
       // všechny tvary kromě toho, který uživatel zadal
       const fm = taperForms(val);
-      const txt = { ratio: val > 0 ? fmtN(fm.ratio, 3) : '', half: fmtN(fm.half, 5), full: fmtN(fm.full, 5) };
+      const txt = { ratio: val > 0 ? fmtN(fm.ratio, 3) : '', half: fmtN(fm.half, 5) };
       Object.keys(CF).forEach(f => {
         if (isEdited('C') && f === cform) return;
         const el = $(CF[f]); el.value = txt[f]; el.classList.add('computed');
@@ -177,13 +163,8 @@ export function initTaperBore(overlay) {
   }
 
   function taperLabel(C, st) {
-    if (st === 'empty') return 'kuželovitost ?';
-    return 'kuželovitost ' + (C > 0 ? '1 : ' + fmtN(1 / C, 2) : 'válec');
-  }
-  function tolLabel(es, ei) {
-    const iso = $('iso').value.trim();
-    if (!iso && esEl.value.trim() === '' && eiEl.value.trim() === '') return 'tolerance ?';
-    return 'tolerance ' + (iso && !$('iso').classList.contains('tb-bad') ? iso + ' ' : '') + fmtDev(es, ei);
+    if (st === 'empty') return '1:x = ?';
+    return C > 0 ? '1:x = 1:' + fmtN(1 / C, 2) : 'válec';
   }
 
   function update() {
@@ -219,7 +200,7 @@ export function initTaperBore(overlay) {
     if (okNum(sol.C)) {
       const fm = taperForms(sol.C);
       formsEl.textContent = (fm.C > 0 ? '1:' + fm.ratio.toFixed(fm.ratio < 100 ? 3 : 1) : 'válec') +
-        '  │  α ' + fm.half.toFixed(5) + '°  │  2α ' + fm.full.toFixed(5) + '°  │  C ' + fm.C.toFixed(6) + '/mm';
+        '  \u2502  \u03B1 ' + fm.half.toFixed(5) + '\u00B0  \u2502  změna \u00D8 ' + fm.C.toFixed(6) + ' mm/mm';
     } else formsEl.textContent = '';
     slideEl.innerHTML = done && sol.C > 0
       ? '🔧 <strong>Náklon suportu:</strong> ' + taperForms(sol.C).half.toFixed(4) + '°<br>' +
@@ -284,15 +265,13 @@ export function initTaperBore(overlay) {
       const zRaw = ref.side === 'B' ? Ld - ref.depth : ref.depth;
       refM = { ...ref, depthKnown: $('ref').value.trim() !== '', z: Math.max(0, Math.min(Ld, zRaw)) };
     }
-    const tolTxt = tolLabel(es, ei);
     geo = drawBoreSketch(svg, {
       L: Ld, C: okNum(sol.C) ? sol.C : null, bigSide, names: n, shaft: $('kind').value === 'shaft',
       v: { D: okNum(sol.D) ? sol.D : null, d: okNum(sol.d) ? sol.d : null, L: okNum(sol.L) ? sol.L : null },
       st: { D: stOf('D'), d: stOf('d'), L: stOf('L'), C: stOf('C') },
-      taperTxt: taperLabel(sol.C, stOf('C')), tolTxt,
-      aTxt: '\u03B1 sklon k ose ' + (okNum(sol.C) ? fmtN(taperForms(sol.C).half, 4) + '\u00B0' : '?'),
-      a2Txt: '2\u03B1 vrchol ' + (okNum(sol.C) ? fmtN(taperForms(sol.C).full, 4) + '\u00B0' : '?'),
-      stForm: f => stOf('C') === 'val' ? (f === cform ? 'val' : 'calc') : stOf('C'), tolEmpty: tolTxt === 'tolerance ?',
+      taperTxt: taperLabel(sol.C, stOf('C')),
+      aTxt: '\u03B1 = ' + (okNum(sol.C) ? fmtN(taperForms(sol.C).half, 4) + '\u00B0' : '?'),
+      stForm: f => stOf('C') === 'val' ? (f === cform ? 'val' : 'calc') : stOf('C'),
       ref: refM, rows,
     });
   }
@@ -301,12 +280,12 @@ export function initTaperBore(overlay) {
   const sideChoices = () => { const n = names(); return [{ value: 'A', text: n.a }, { value: 'B', text: n.b }, { value: 'AB', text: 'z obou' }]; };
   const LABELS = { D: 'D – velký průměr', d: 'd – malý průměr', L: 'Délka kužele L' };
   function editSolve(e, key) {
-    if (key === 'C' || key === 'Ca' || key === 'Ca2') {
-      const form = key === 'Ca' ? 'half' : key === 'Ca2' ? 'full' : 'ratio';
+    if (key === 'C' || key === 'Ca') {
+      const el = $(key === 'Ca' ? 'a' : 'K');
       openInlineEdit(e, {
-        label: 'Kuželovitost / úhel', value: $(CF[form]).value, hint: 'Zadej v jednom z tvarů – ostatní se dopočítají (např. 300 pro 1:300)',
-        choices: CMODES.map(c => ({ value: c[0], text: c[1] })), choice: form,
-        onCommit: (v, ch, raw) => setField($(CF[ch]), raw),
+        label: key === 'Ca' ? 'Úhel \u03B1 – sklon k ose' : 'Kuželovitost 1:x', unit: key === 'Ca' ? '\u00B0' : 'x =', value: el.value,
+        hint: key === 'Ca' ? 'Kuželovitost 1:x se dopočítá' : 'např. 300 pro 1:300 – úhel \u03B1 se dopočítá',
+        onCommit: (v, ch, raw) => setField(el, raw),
       });
     } else {
       const el = fieldOf(key);
@@ -319,7 +298,7 @@ export function initTaperBore(overlay) {
   }
   wireSvgEditing(svg, (key, e) => {
     const n = names();
-    if (SOLVE.includes(key) || key === 'Ca' || key === 'Ca2') editSolve(e, key);
+    if (SOLVE.includes(key) || key === 'Ca') editSolve(e, key);
     else if (key === 'refD' || key === 'refAdd') {
       openInlineEdit(e, {
         label: 'Ø z výkresu v hloubce', unit: 'mm', value: $('refD').value, hint: 'Prázdné = bez zadaného Ø. Hloubku pak nastavíš klepnutím na „hloubka Ø".',
@@ -330,22 +309,6 @@ export function initTaperBore(overlay) {
         label: 'Hloubka zadaného průměru', unit: 'mm', value: $('ref').value, hint: '0 = průměr na hraně',
         choices: [{ value: 'A', text: n.a }, { value: 'B', text: n.b }], choice: $('refSide').value,
         onCommit: (v, ch, raw) => { $('refSide').value = ch; setField($('ref'), raw); },
-      });
-    } else if (key === 'tol') {
-      const cur = $('iso').value.trim() || (esEl.value || eiEl.value ? (esEl.value || '0') + ' / ' + (eiEl.value || '0') : '');
-      openInlineEdit(e, {
-        label: 'Tolerance', text: true, value: cur, hint: 'ISO (H7, h6…) nebo úchylky „+0.046 / 0"',
-        onCommit: (v, ch, raw) => {
-          if (!raw) { $('iso').value = ''; esEl.value = ''; eiEl.value = ''; update(); return; }
-          if (/^[a-zA-Z]{1,2}\s*\d{1,2}$/.test(raw)) { setField($('iso'), raw); return; }
-          const parts = raw.replace(/,/g, '.').replace(/−/g, '-').split(/[\s/;]+/).filter(Boolean).map(Number);
-          if (!parts.length || parts.some(x => !Number.isFinite(x))) { showToast('Nerozumím zápisu tolerance'); return; }
-          const [a, b = 0] = parts;
-          $('iso').value = '';
-          esEl.value = String(Math.max(a, b)); eiEl.value = String(Math.min(a, b));
-          esEl.classList.remove('computed'); eiEl.classList.remove('computed');
-          update();
-        },
       });
     } else if (key === 'swap') {
       $('big').value = $('big').value === 'A' ? 'B' : 'A'; update();
@@ -379,7 +342,7 @@ export function initTaperBore(overlay) {
   });
 
   // ── Uložení vstupů (dopočítané hodnoty se neukládají)
-  const IDS = ['kind', 'names', 'refD', 'iso', 'es', 'ei', 'ref', 'refSide', 'big'];
+  const IDS = ['kind', 'names', 'refD', 'es', 'ei', 'ref', 'refSide', 'big'];
   function save() {
     try {
       const o = { order, cform };
@@ -400,11 +363,11 @@ export function initTaperBore(overlay) {
     if (!st) return;
     IDS.forEach(id => { if (st[id] !== undefined && st[id] !== null) $(id).value = st[id]; });
     if (st.cform === 'c' && st.v_C) { const c = safeEvalMath(st.v_C); st.v_C = c > 0 ? String(1 / c) : ''; st.cform = 'ratio'; }
+    if (st.cform === 'full' && st.v_C) { const a2 = safeEvalMath(st.v_C); st.v_C = a2 > 0 ? String(a2 / 2) : ''; st.cform = 'half'; }
     if (CF[st.cform]) cform = st.cform;
     order = Array.isArray(st.order) ? st.order.filter(key => SOLVE.includes(key) && st['v_' + key]) : [];
     order.forEach(key => { fieldOf(key).value = st['v_' + key]; });
     (st.pts || []).forEach(p => addPoint(p[0], p[1]));
-    if ($('iso').value) applyIso();
   }
   restore();
   if (!ptsEl.children.length) addPoint();
@@ -417,15 +380,13 @@ export function initTaperBore(overlay) {
     }
     if (el.value.trim() !== '') { order.push(key); el.classList.remove('computed'); }
     trimOrder();
-    if (key !== 'L') applyIso();
     update();
   };
   ['D', 'd', 'L'].forEach(key => $(key).addEventListener('input', () => onSolveInput(key, $(key))));
   Object.entries(CF).forEach(([form, id]) => $(id).addEventListener('input', () => onSolveInput('C', $(id), form)));
   IDS.forEach(id => {
     $(id).addEventListener('input', () => {
-      if (id === 'iso' || id === 'refD') applyIso();
-      if (id === 'es' || id === 'ei') { $(id).classList.remove('computed'); $('iso').value = ''; $('iso').classList.remove('tb-bad'); }
+      if (id === 'es' || id === 'ei') $(id).classList.remove('computed');
       if (id === 'refD') trimOrder();
       update();
     });

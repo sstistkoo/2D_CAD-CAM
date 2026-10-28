@@ -2,16 +2,16 @@
 // ║  SKICA – Kužel: klikací náčrt řezu (díra i čep)              ║
 // ╚══════════════════════════════════════════════════════════════╝
 // Podélný řez, kuželovitost zveličená. Kóty jsou klikací (data-edit):
-// D, d, L, C, tol, swap, refD, ref, refAdd, pt:<index měřicího místa>.
+// D, d, L, C (1:x), Ca (úhel α), swap, refD, ref, refAdd, pt:<index měřicího místa>.
 // Neznámé hodnoty se kreslí jako „?" – i prázdný náčrt jde vyplnit klikáním.
 
 import { f3 } from './taperBoreMath.js';
 
-const TOP = 106, BOT = 344, CX = 170, OUTER = 126, BASE = 58;
+const TOP = 84, BOT = 322, CX = 170, OUTER = 126, BASE = 58;
 
 const TIPS = {
   D: 'D – velký průměr kužele (na hraně)', d: 'd – malý průměr kužele (na hraně)', L: 'Délka kužele',
-  C: 'Kuželovitost 1:x – na x mm délky se Ø změní o 1 mm', Ca: 'α – sklon povrchu k ose (= náklon suportu)', Ca2: '2α – vrcholový úhel kužele', tol: 'Tolerance – ISO (H7, h6…) nebo úchylky +0.046 / 0',
+  C: 'Kuželovitost 1:x – na x mm délky se Ø změní o 1 mm', Ca: 'Úhel α – sklon povrchu k ose (= náklon suportu)',
   swap: 'Prohodit, na které straně je větší průměr', refD: 'Průměr z výkresu, který platí v určité hloubce',
   ref: 'Hloubka zadaného průměru (od spodu / od vrchu)', refAdd: 'Výkres udává průměr v hloubce – zadat ho',
 };
@@ -25,7 +25,7 @@ const width = s => Math.max(28, s.length * 6.8 + 10);
 /** Klikací popisek; anchor 'start' nebo 'middle'; rot = otočení kolem (x, y). */
 function lbl(x, y, s, key, cls, { anchor = 'middle', rot = 0 } = {}) {
   const w = width(s), h = 19;
-  const rx = anchor === 'start' ? x - 4 : x - w / 2;
+  const rx = anchor === 'start' ? x - 4 : anchor === 'end' ? x - w + 4 : x - w / 2;
   const tr = rot ? ' transform="rotate(' + rot + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')"' : '';
   const tip = TIPS[key] || (key.startsWith('pt:') ? 'Měřicí místo – upravit hloubku / stranu nebo smazat' : '');
   return '<g class="sk-edit" data-edit="' + key + '"' + tr + '>' + (tip ? '<title>' + tip + '</title>' : '') +
@@ -56,7 +56,7 @@ export function drawBoreSketch(svg, m) {
   const yA = y(0), yB = y(L);
   const dir = m.bigSide === 'A' ? -1 : 1;               // Ø roste směrem k větší straně
   const slope = m.C === 0 ? 0 : 1;
-  const hw = z => BASE + slope * dir * ((z - L / 2) / L) * 24;
+  const hw = z => BASE + slope * dir * ((z - L / 2) / L) * 34;
   const n = m.names;
   const shaft = m.shaft;
 
@@ -73,11 +73,21 @@ export function drawBoreSketch(svg, m) {
 
   // Horní řádky: kuželovitost, prohození, tolerance, „+ Ø v hloubce"
   s += lbl(92, 16, m.taperTxt, 'C', CLS[m.stForm('ratio')]);
-  s += lbl(254, 16, m.aTxt, 'Ca', CLS[m.stForm('half')]);
-  s += lbl(92, 40, m.a2Txt, 'Ca2', CLS[m.stForm('full')]);
-  s += lbl(266, 40, '⇅ větší ' + (m.bigSide === 'A' ? n.bigA : n.bigB), 'swap', 'sk-btn');
-  s += lbl(92, 64, m.tolTxt, 'tol', m.tolEmpty ? 'sk-empty' : 'tb-ref-t');
-  if (!m.ref) s += lbl(266, 64, '+ Ø v hloubce', 'refAdd', 'sk-btn');
+  s += lbl(266, 16, '⇅ větší ' + (m.bigSide === 'A' ? n.bigA : n.bigB), 'swap', 'sk-btn');
+  if (!m.ref) s += lbl(266, 42, '+ Ø v hloubce', 'refAdd', 'sk-btn');
+
+  // Úhel α: svislá pomocná čára a oblouk ke stěně v půli délky (vpravo)
+  {
+    const zm = L * 0.5, Wx = CX + hw(zm), Wy = y(zm);
+    const Ux = CX + hw(zm + L * 0.3), Uy = y(zm + L * 0.3);
+    const R = 64, a1 = -Math.PI / 2, a2 = Math.atan2(Uy - Wy, Ux - Wx);
+    s += ln(Wx, Wy, Wx, Wy - R - 14, 'cs-ext');
+    if (slope) {
+      s += '<path class="cs-arc tb-alpha-arc" d="M' + Wx.toFixed(1) + ' ' + (Wy - R).toFixed(1) + ' A' + R + ' ' + R + ' 0 0 ' + (a2 > a1 ? 1 : 0) + ' ' +
+        (Wx + R * Math.cos(a2)).toFixed(1) + ' ' + (Wy + R * Math.sin(a2)).toFixed(1) + '"/>';
+    }
+    s += lbl(Wx - 10, Wy - R + 4, m.aTxt, 'Ca', CLS[m.stForm('half')], { anchor: 'end' });
+  }
 
   // Hrany: velký D a malý d
   const keyOf = side => side === m.bigSide ? 'D' : 'd';
@@ -134,8 +144,8 @@ export function drawBoreSketch(svg, m) {
   });
 
   const lg = (yy, t) => '<text class="sk-legend" x="170" y="' + yy + '" text-anchor="middle">' + t + '</text>';
-  s += lg(388, 'bílá = zadáno · <tspan class="sk-lk-calc">žlutá = dopočítáno</tspan> · ? = chybí');
-  s += lg(403, '<tspan class="sk-lk">1) 2)</tspan> měřicí místa: <tspan class="sk-lk">↓</tspan> ' + n.b + ', <tspan class="sk-lk">↑</tspan> ' + n.a);
+  s += lg(366, 'bílá = zadáno · <tspan class="sk-lk-calc">žlutá = dopočítáno</tspan> · ? = chybí');
+  s += lg(381, '<tspan class="sk-lk">1) 2)</tspan> měřicí místa: <tspan class="sk-lk">↓</tspan> ' + n.b + ', <tspan class="sk-lk">↑</tspan> ' + n.a);
   svg.innerHTML = s;
   return {
     L,
