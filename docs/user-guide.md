@@ -2089,7 +2089,8 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
 - **Kužel** (Taper) – v pravém panelu Kalkulačky. V liště okna je 🔢 Kalkulačka:
   klepni do pole, spočítej a tlačítkem ↓ se výsledek vloží do pole. Dvě záložky:
   - *Kužel* – jeden výpočet pro čep i díru. Náčrt řezu je klikací: klepni na
-    kótu (D velký Ø, d malý Ø, délka L, kuželovitost 1:x / α / 2α / C,
+    kótu (D velký Ø, d malý Ø, délka L, kuželovitost 1:x, úhel α – sklon
+    k ose = náklon suportu, vrcholový úhel 2α,
     tolerance, „⇅ větší" prohodí stranu většího Ø) a zadej hodnotu. Stačí
     3 údaje z D, d, L a kuželovitosti; zadaný údaj je bílý, dopočítaný žlutý,
     chybějící „?". Při zadání čtvrtého se nejstarší zadání uvolní a dopočítá.

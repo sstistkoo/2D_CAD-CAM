@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Kužel: úhel přímo v náčrtu i v polích.** Kuželovitost se zadává ve třech
+  vlastních polích – 1:x, α (sklon k ose) a 2α (vrcholový úhel); zadané pole je
+  bílé, ostatní dva tvary se dopočítají žlutě. V náčrtu jsou všechny tři klikací.
+
 - **Kužel: sjednocený výpočet.** Záložky „Kužel" a „S tolerancí" jsou spojené
   do jedné: stejný klikací náčrt pro čep i díru; kužel ze 3 údajů {D, d, L,
   kuželovitost} nebo z Ø v hloubce + délky a kuželovitosti; tolerance a
