@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Nm – utahovací momenty** (pravý panel → Kalkulačky → 🔧 Nm): vlastní seznam
+  nožů s momentem dotažení plátku (uložený v prohlížeči, hledání, úprava),
+  orientační tabulka šroubů VBD M2–M8, moment šroubu M4–M36 podle VDI 2230
+  (upínky na desce karuselu), nastavení momentového klíče s prodloužením
+  a převod jednotek. Moduly `calculators/torque.js`, `torqueMath.js`, test
+  `tests/torqueMath.test.js`.
+
 ### Fixed
 
 - **Kužel – závěrečná kontrola:** hlášení neplatného zápisu i u úchylek,

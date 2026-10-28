@@ -1805,7 +1805,7 @@
         <div
           class="panel-header"
           data-panel="calcPanel"
-          title="Kalkulačky – nejpoužívanější výpočty a příručky (Trigonometrie, CAM, AI, Tolerance, Závity, VBD, Převodník, Sinumerik, Kužel)."
+          title="Kalkulačky – nejpoužívanější výpočty a příručky (Trigonometrie, CAM, AI, Tolerance, Závity, VBD, Převodník, Sinumerik, Kužel, Nm)."
           role="button"
           tabindex="0"
         >
@@ -1881,6 +1881,14 @@
             <button id="btnOpenTaper" class="calc-launch-btn" title="Kužel – velký a malý průměr, délka, úhel kuželu">
               <span class="calc-launch-icon">🔺</span>
               <span>Kužel</span>
+            </button>
+            <button
+              id="btnOpenTorque"
+              class="calc-launch-btn"
+              title="Nm – utahovací momenty: vlastní seznam nožů (plátek, šroub, klíč, Nm), šrouby VBD, šroub M podle VDI 2230, momentový klíč"
+            >
+              <span class="calc-launch-icon">🔧</span>
+              <span>Nm</span>
             </button>
           </div>
           <div
@@ -4410,6 +4418,23 @@
                     + konec + R</strong>: střed, I/K, úhel a řádek G-kódu pro
                     zvolený smysl a oblouk do/přes 180°. Souřadnice Z a Ø X,
                     G02/G03 podle nastavení stroje jako CNC export výkresu.
+                  </p>
+                </div>
+              </details>
+              <details class="help-tool-item">
+                <summary><span class="tool-icon">🔧</span> Nm – utahovací momenty</summary>
+                <div class="tool-detail">
+                  <p>
+                    <strong>Moje nože</strong>: vlastní seznam nožů a držáků
+                    (plátek, šroub, klíč, moment v Nm, poznámka) uložený
+                    v prohlížeči, s hledáním – klepnutím záznam upravíš.
+                    <strong>Šrouby VBD</strong>: orientační momenty upínacích
+                    šroubů destiček (M2–M8, Torx); klepnutím šroub převezmeš.
+                    <strong>Šroub M</strong>: moment a předpětí metrického
+                    šroubu podle VDI 2230 (upínky a čelisti na desce karuselu).
+                    <strong>Klíč</strong>: nastavení momentového klíče
+                    s prodloužením a převod jednotek (Nm, cNm, kgf·m, lbf·ft…).
+                    Rozhoduje vždy hodnota výrobce na držáku nebo v katalogu.
                   </p>
                 </div>
               </details>

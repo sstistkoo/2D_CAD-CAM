@@ -2086,6 +2086,20 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   - *Rybina*: vnější (čep) M = B + d_v·(1 + cot(α/2)), vnitřní (drážka)
     X = A − d_v·(1 + cot(α/2)); zadá se šířka nebo naměřená míra, druhá se
     dopočítá.
+- **Nm – utahovací momenty** – v pravém panelu Kalkulačky (🔧 Nm). Čtyři záložky:
+  - *Moje nože* – vlastní seznam (nůž / držák, plátek, šroub, klíč, moment Nm,
+    poznámka) uložený v prohlížeči (localStorage `skica-torque-tools`). Klepnutí
+    na řádek záznam načte k úpravě, ✕ smaže, pole Hledat filtruje. U zadaného
+    šroubu (např. „M5") se ukáže orientační rozsah a varování, je-li moment
+    daleko mimo. 📋 Kopírovat zkopíruje celý seznam jako text.
+  - *Šrouby VBD* – orientační momenty upínacích šroubů destiček M2–M8 (Torx)
+    podle katalogů Kennametal a Denitool; klepnutí převezme šroub a klíč do
+    Moje nože. Rozhoduje hodnota výrobce na držáku / obalu šroubu.
+  - *Šroub M* – moment a předpětí metrického šroubu M4–M36 (8.8, 10.9, 12.9,
+    A2-70, A4-80) podle VDI 2230 (90 % meze kluzu, μ 0,10–0,16), např. upínky
+    a čelisti na desce karuselu.
+  - *Klíč* – nastavení momentového klíče s prodloužením M·L/(L+a) a převod
+    jednotek (Nm, cNm, kgf·m, kgf·cm, lbf·ft, lbf·in).
 - **Kužel** (Taper) – v pravém panelu Kalkulačky. V liště okna je 🔢 Kalkulačka:
   klepni do pole, spočítej a tlačítkem ↓ se výsledek vloží do pole; 🗑 Vymazat
   (také v liště) smaže všechny zadané hodnoty a měřicí místa. Bez záložek:
