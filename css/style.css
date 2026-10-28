@@ -8101,3 +8101,32 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
   }
   .calc-overlay-float .calc-basic-window .calc-history { height: 40px; }
 }
+
+/* ── Kužel s tolerancí – průměry v hloubce (taperBore.js) ── */
+.tb-row { display: flex; gap: 6px; }
+.tb-row select { flex: 1; min-width: 0; }
+.tb-swap { background: var(--ctp-surface1); color: var(--ctp-text); border: none; border-radius: 6px; padding: 0 10px; font-size: 16px; cursor: pointer; }
+.tb-swap:hover { background: var(--ctp-surface2); }
+.tb-points { display: flex; flex-direction: column; gap: 6px; }
+.tb-pt { display: grid; grid-template-columns: 1fr 1.3fr auto; gap: 6px; }
+.tb-pt input, .tb-pt select { background: var(--ctp-mantle); border: 1px solid var(--ctp-surface0); color: var(--ctp-text); padding: 5px 7px; border-radius: 6px; font: 14px "Consolas", monospace; min-width: 0; }
+.tb-pt-del { background: var(--ctp-surface0); color: var(--ctp-red); border: none; border-radius: 6px; padding: 0 9px; cursor: pointer; }
+.tb-pt-actions .cnc-btn { background: var(--ctp-surface1); color: var(--ctp-text); }
+.tb-err { color: var(--ctp-red); font-size: 12px; min-height: 0; }
+.tb-err:empty { display: none; }
+.cnc-field input.tb-bad { border-color: var(--ctp-red); }
+.tb-res:empty { display: none; }
+.tb-res .tb-end td { color: var(--ctp-overlay1); }
+.tb-res .tb-out td { color: var(--ctp-red); }
+.tb-res strong { color: var(--ctp-green); }
+.tb-diffs { padding: 6px 8px; font: 12px "Consolas", monospace; color: var(--ctp-subtext1); border-top: 1px solid var(--ctp-surface0); }
+.tb-diffs strong { color: var(--ctp-peach); }
+.tb-svg:empty { display: none; }
+.calc-svg .tb-mat { fill: url(#tbHatch); stroke: var(--ctp-text); stroke-width: 1.5; stroke-linejoin: round; }
+.calc-svg .tb-hatch { stroke: var(--ctp-surface2); stroke-width: 1; }
+.calc-svg .tb-ref { stroke: var(--ctp-blue); stroke-width: 2; }
+.calc-svg .tb-ref-t { fill: var(--ctp-blue); font: bold 11px "Consolas", monospace; }
+.calc-svg .tb-pt-l { stroke: var(--ctp-peach); stroke-width: 1; stroke-dasharray: 4 2; }
+.calc-svg .tb-pt-t { fill: var(--ctp-peach); font: 11px "Consolas", monospace; }
+.calc-svg .tb-ref-lead { stroke: var(--ctp-blue); stroke-width: 1; }
+.calc-svg .tb-pt-t, .calc-svg .tb-ref-t { paint-order: stroke; stroke: var(--ctp-mantle); stroke-width: 4px; stroke-linejoin: round; }

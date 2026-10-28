@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Kužel: kužel s tolerancí – průměry v hloubce.** Z jednoho průměru
+  s tolerancí (ISO nebo ručně) v zadané hloubce, kuželovitosti (1:x, α, 2α, C)
+  a délky spočítá průměry v libovolných měřicích místech od obou stran
+  (např. pro sondu), průměry na hranách a rozdíl stran; náčrt řezu s popisy.
+  Horní kalkulačka má navíc pole 1:x a 2α, tabulky Morse/ISO jsou
+  rozbalovací (`js/calculators/taperBore.js`, `taperBoreMath.js`).
+
 - **Tolerance: volné geometrické tolerance ČSN EN ISO 2768-2** — pod volné míry
   rozměrů přibyla stejně sbalitelná lišta s tabulkami tříd H, K, L (přímost
   a rovinnost, kolmost, souměrnost, kruhové házení) a poznámkou k rovnoběžnosti,

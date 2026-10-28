@@ -1,6 +1,7 @@
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { makeOverlay } from '../dialogFactory.js';
+import { taperBoreHTML, initTaperBore } from './taperBore.js';
 
 export function openTaperCalc() {
   const morseData = [
@@ -48,6 +49,8 @@ export function openTaperCalc() {
       '<label class="cnc-field"><span>d <small>mm</small></span><input type="number" data-id="d" step="any" placeholder="Malý \u00D8"></label>' +
       '<label class="cnc-field"><span>L <small>mm</small></span><input type="number" data-id="L" step="any" placeholder="Délka"></label>' +
       '<label class="cnc-field"><span>\u03B1 <small>\u00B0</small></span><input type="number" data-id="a" step="any" placeholder="Polo. úhel"></label>' +
+      '<label class="cnc-field"><span>Kuželovitost <small>1 : x</small></span><input type="number" data-id="K" step="any" placeholder="např. 20"></label>' +
+      '<label class="cnc-field"><span>2\u03B1 <small>\u00B0 vrcholový</small></span><input type="number" data-id="a2" step="any" placeholder="Vrchol. úhel"></label>' +
     '</div>' +
     '<div class="cnc-info" id="taperInfo"></div>' +
     '<div class="cnc-result" id="taperSlide"></div>' +
@@ -55,16 +58,17 @@ export function openTaperCalc() {
       '<button class="cnc-btn cnc-btn-clear">\uD83D\uDDD1 Vymazat</button>' +
       '<button class="cnc-btn cnc-btn-copy">\uD83D\uDCCB Kopírovat</button>' +
     '</div>' +
-    '<div class="cnc-table-label">Morse kužely <small>(klikni pro vyplnění)</small></div>' +
+    taperBoreHTML() +
+    '<details class="calc-details"><summary>Morse kužely <small>(klikni pro vyplnění)</small></summary>' +
     '<div class="cnc-table-wrap">' +
       '<table class="cnc-table"><thead><tr><th></th><th>D</th><th>d</th><th>L</th><th>\u03B1</th></tr></thead>' +
       '<tbody>' + morseRows + '</tbody></table>' +
-    '</div>' +
-    '<div class="cnc-table-label" style="margin-top:8px">Metrické a ISO kužely <small>(klikni)</small></div>' +
+    '</div></details>' +
+    '<details class="calc-details"><summary>Metrické a ISO kužely <small>(klikni)</small></summary>' +
     '<div class="cnc-table-wrap">' +
       '<table class="cnc-table" id="metricTaperTbl"><thead><tr><th>Kužel</th><th>Poměr</th><th>\u03B1</th></tr></thead>' +
       '<tbody>' + metricRows + '</tbody></table>' +
-    '</div>';
+    '</div></details>';
 
   const overlay = makeOverlay("taper", "\uD83D\uDD3A Kužel", body);
   if (!overlay) return;
@@ -73,7 +77,9 @@ export function openTaperCalc() {
   const inpd = overlay.querySelector('[data-id="d"]');
   const inpL = overlay.querySelector('[data-id="L"]');
   const inpA = overlay.querySelector('[data-id="a"]');
-  const allInp = [inpD, inpd, inpL, inpA];
+  const inpK = overlay.querySelector('[data-id="K"]');
+  const inpA2 = overlay.querySelector('[data-id="a2"]');
+  const allInp = [inpD, inpd, inpL, inpA, inpK, inpA2];
   const edited = new Set();
   const infoEl = overlay.querySelector("#taperInfo");
   const slideEl = overlay.querySelector("#taperSlide");
@@ -83,6 +89,12 @@ export function openTaperCalc() {
 
   function solve() {
     allInp.forEach(inp => { if (!edited.has(inp.dataset.id)) inp.classList.remove("computed"); });
+    // 1:x nebo vrcholový úhel → polovrcholový α
+    if (!edited.has("a")) {
+      const K0 = v(inpK), A20 = v(inpA2);
+      if (edited.has("K") && K0 > 0) sc(inpA, Math.atan(1 / (2 * K0)) * 180 / Math.PI);
+      else if (edited.has("a2") && A20 > 0) sc(inpA, A20 / 2);
+    }
     const D = v(inpD), d = v(inpd), L = v(inpL), a = v(inpA);
     const aRad = a !== null ? a * Math.PI / 180 : null;
 
@@ -98,6 +110,12 @@ export function openTaperCalc() {
     const D2 = v(inpD), d2 = v(inpd), L2 = v(inpL);
     if (D2 !== null && d2 !== null && L2 !== null && !edited.has("a") && v(inpA) === null)
       sc(inpA, Math.atan((D2 - d2) / (2 * L2)) * 180 / Math.PI);
+
+    const aK = v(inpA);
+    if (aK > 0) {
+      if (!edited.has("K")) sc(inpK, 1 / (2 * Math.tan(aK * Math.PI / 180)));
+      if (!edited.has("a2")) sc(inpA2, 2 * aK);
+    }
 
     const parts = [];
     const slideParts = [];
@@ -141,7 +159,7 @@ export function openTaperCalc() {
   });
 
   // Morse table click
-  overlay.querySelectorAll(".cnc-table tbody tr").forEach(tr => {
+  overlay.querySelectorAll(".calc-body > details .cnc-table tbody tr").forEach(tr => {
     if (!tr.dataset.mD && !tr.dataset.ratio) return;
     tr.addEventListener("click", () => {
       if (tr.dataset.ratio) {
@@ -152,8 +170,8 @@ export function openTaperCalc() {
         inpA.value = halfAngle.toFixed(4);
         if (mD > 0) { inpD.value = mD; edited.add("D"); }
         else { inpD.value = ""; edited.delete("D"); }
-        inpd.value = ""; inpL.value = "";
-        edited.delete("d"); edited.delete("L");
+        inpd.value = ""; inpL.value = ""; inpK.value = ""; inpA2.value = "";
+        edited.delete("d"); edited.delete("L"); edited.delete("K"); edited.delete("a2");
         edited.add("a");
         allInp.forEach(i => i.classList.remove("computed"));
         solve();
@@ -162,18 +180,20 @@ export function openTaperCalc() {
       inpD.value = tr.dataset.mD;
       inpd.value = tr.dataset.md;
       inpL.value = tr.dataset.mL;
-      inpA.value = "";
+      inpA.value = ""; inpK.value = ""; inpA2.value = "";
       edited.clear(); edited.add("D"); edited.add("d"); edited.add("L");
       allInp.forEach(i => i.classList.remove("computed"));
       solve();
     });
   });
 
-  overlay.querySelector(".cnc-btn-clear").addEventListener("click", () => {
+  initTaperBore(overlay);
+
+  overlay.querySelector(".calc-body > .cnc-actions .cnc-btn-clear").addEventListener("click", () => {
     allInp.forEach(i => { i.value = ""; i.classList.remove("computed"); });
     edited.clear(); infoEl.textContent = ""; slideEl.innerHTML = "";
   });
-  overlay.querySelector(".cnc-btn-copy").addEventListener("click", () => {
+  overlay.querySelector(".calc-body > .cnc-actions .cnc-btn-copy").addEventListener("click", () => {
     const p = [];
     if (v(inpD) !== null) p.push("D=" + inpD.value);
     if (v(inpd) !== null) p.push("d=" + inpd.value);

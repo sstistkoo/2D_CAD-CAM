@@ -2086,7 +2086,18 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   - *Rybina*: vnější (čep) M = B + d_v·(1 + cot(α/2)), vnitřní (drážka)
     X = A − d_v·(1 + cot(α/2)); zadá se šířka nebo naměřená míra, druhá se
     dopočítá.
-- **Taper** – kuželové zkrácení
+- **Kužel** (Taper) – D, d, L, α dopočítá ze tří údajů; nově i kuželovitost
+  1:x a vrcholový úhel 2α. Tabulky Morse a metrických/ISO kuželů jsou
+  v rozbalovacích sekcích.
+  - *Kužel s tolerancí – průměry v hloubce*: výkres udává jeden průměr
+    s tolerancí (ručně nebo ISO zápisem H7, h6…) v hloubce od jedné strany,
+    kuželovitost (1:x, α, 2α nebo C) a délku kužele (lze výrazem 34+135+25).
+    Volí se, na které straně je větší průměr (⇅ prohodí). Pro libovolný počet
+    měřicích míst (hloubka od spodu / od vrchu / z obou stran, nebo „Po
+    krocích") spočítá jmenovitý, min. a max. průměr, průměry na hranách
+    a rozdíl vrch − spodek ve stejné hloubce. Náčrt řezu (díra nebo čep) se
+    zveličenou kuželovitostí a popsanými průměry. Strany lze pojmenovat
+    Spodek/Vrch nebo Začátek/Konec; vstupy se pamatují.
 - **Závity** – převodné tabulky. U vybraného závitu **rozpis průchodů**:
   hloubky řezů stejné jako v CAM (ubývající přísuv a_k = h·√(k/n), počet řezů
   automaticky jako CAM, nerez +30 %, hliník −20 %, tlačítka − / + mění počet),
