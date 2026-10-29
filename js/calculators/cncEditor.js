@@ -2614,6 +2614,14 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     const pos = Math.min(caret, editor.value.length);
     editor.selectionStart = editor.selectionEnd = pos;
     if (insert) {
+      // Kurzor na konci řádku, který už má kód (typicky konec souboru po otevření
+      // bez kliknutí do textu) → bod na nový řádek, ne k cizím souřadnicím.
+      const v0 = editor.value;
+      const ls0 = v0.lastIndexOf('\n', pos - 1) + 1;
+      const atEol = pos >= v0.length || v0[pos] === '\n';
+      const ci0 = splitComment(v0.slice(ls0, pos));
+      const code0 = (ci0 >= 0 ? v0.slice(ls0, ls0 + ci0) : v0.slice(ls0, pos)).trim();
+      if (atEol && code0 && /[XZ]-?\d/i.test(code0)) insertText('\n', 'Bod z plátna');
       insertText(insert, 'Bod z plátna');
       const line = editor.value.slice(0, editor.selectionStart).split('\n').length - 1;
       editor.scrollTop = Math.max(0, (line - 3) * lineH());

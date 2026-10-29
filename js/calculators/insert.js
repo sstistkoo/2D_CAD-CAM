@@ -442,7 +442,7 @@ export function openInsertCalc(opts) {
   // ── Buttons ──
   var btns = '<div class="cnc-btns"><button class="cnc-btn cnc-btn-clear">Vyčistit</button><button class="cnc-btn cnc-btn-copy">📋 Kopírovat</button></div>';
 
-  const body = searchBar + tabBar + tab1 + tab2 + tab3 + tab4 + btns;
+  const body = searchBar + tabBar + tab1 + tab2 + tab3 + tab4 + tab5 + btns;
   const overlay = makeOverlay('inserts', '🔩 VBD & Držáky – ISO dekodér', body, 'vbd-window');
   if (!overlay) return;
 

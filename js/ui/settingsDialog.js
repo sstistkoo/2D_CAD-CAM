@@ -28,7 +28,7 @@ export function showSettingsDialog() {
         <div style="padding:4px 10px 8px;display:flex;flex-direction:column;gap:6px">
           <div style="display:flex;gap:6px">
             <button class="calc-btn" id="settSave" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)" title="Uložit projekt do prohlížeče">💾 Uložit</button>
-            <button class="calc-btn" id="settLoad" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)" title="Načíst / Uložit (soubory)">📂 Soubor</button>
+            <button class="calc-btn" id="settLoad" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)" title="Načíst / Uložit (soubory)">💾 📂 Soubor</button>
           </div>
           <div style="display:flex;gap:6px">
             <button class="calc-btn" id="settHistory" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)" title="Historie smazaných výkresů">🕓 Historie</button>
@@ -38,6 +38,7 @@ export function showSettingsDialog() {
             <button class="calc-btn" id="settProjects" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)">📁 Projekty</button>
             <button class="calc-btn" id="settCNC" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)">📋 CNC Export</button>
           </div>
+          <button class="calc-btn" id="settClearDrawing" style="width:100%;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;background:var(--ctp-red);color:var(--ctp-base);border:1px solid var(--ctp-red)" title="Smaže všechny objekty aktuálního výkresu (zeptá se; jde vrátit přes Zpět nebo 🕓 Historie)">🗑️ Smazat aktuální výkres</button>
           <button class="calc-btn" id="settDxfJson" style="width:100%;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;background:#a6e3a1;color:#1e1e2e;border:1px solid #a6e3a1">🔄 DXF - JSON konvertor</button>
         </div>
       </details>
@@ -419,6 +420,10 @@ export function showSettingsDialog() {
   });
 
   // ── Historie ──
+  overlay.querySelector('#settClearDrawing').addEventListener('click', () => {
+    overlay.remove();
+    document.getElementById('btnClearAll').click();
+  });
   overlay.querySelector('#settHistory').addEventListener('click', () => {
     overlay.remove();
     showHistoryDialog();
