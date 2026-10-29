@@ -35,6 +35,7 @@ export const LIVE_CSS = `
   flex: 0 0 auto; white-space: nowrap; background: #313244; color: #cdd6f4; border: 1px solid #45475a;
   border-radius: 6px; padding: 3px 8px; font-size: 12px; cursor: pointer;
 }
+.cam-live-bar button[data-cut="start"] { background: #fab387; color: #1e1e2e; border-color: #fab387; font-weight: bold; }
 /* Tělo: náhled + editor operací. S editorem dostane náhled 40 % a formulář
    zbytek; široký panel (cam-live-wide) je dá vedle sebe. */
 .cam-live-body { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
@@ -117,6 +118,8 @@ export const LIVE_CSS = `
 /* Záložka Vrtání: díry mimo osu z výkresu (liveDrillUi.js). */
 .cam-livedrill-h { font-weight: bold; color: #cdd6f4; font-size: 12px; margin: 4px 0 4px; }
 .cam-livedrill-h small { font-weight: normal; color: #a6adc8; }
+.cam-livedrill-pf { margin: -2px 0 6px 26px; }
+.cam-livedrill-pf .cam-sim-row { margin: 2px 0; }
 .cam-livedrill-h.axial { margin-top: 10px; padding-top: 6px; border-top: 1px solid #45475a; }
 .cam-livedrill-row {
   display: flex; gap: 6px; align-items: flex-start; padding: 4px 6px; margin: 3px 0;

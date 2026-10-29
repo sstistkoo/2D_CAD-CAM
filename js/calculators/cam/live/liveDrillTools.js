@@ -4,9 +4,12 @@
 //
 // Vrták v zásobníku = slot `shape: 'drill'`, Ø = 2 · radius, řezné podmínky
 // slotu vc [m/min] a f [mm/ot]. Poháněný vrták: otáčky n = Vc·1000 / (π·Ø),
-// posuv F [mm/min] = f · n. Ze záložky Vrtání se převezme záběr Q, prodleva
-// a bezpečná vzdálenost. Předvyplňuje se jen operace, které uživatel nástroj
-// ani řezné podmínky ručně nezměnil (`autoTool !== false`).
+// posuv F [mm/min] = f · n. Předvyplňuje se jen operace, které uživatel
+// nástroj ani řezné podmínky ručně nezměnil (`autoTool !== false`).
+// Hloubka, Q, tříska, prodleva a bezp. vzdálenost patří operaci (jedno místo:
+// řádek díry v záložce Vrtání = formulář 🛠 Operace). Dřív se Q / prodleva /
+// bezp. vzd. kopírovaly z polí středové díry v ose a přepisovaly ruční
+// zadání, hloubka ne — dvě nesedící nastavení (uživatel 29. 10. 2026).
 import { liveOpOn, liveKindOf } from './liveModel.js';
 import { buildIsoDrill, isoDrillDiameters } from '../../isoDrills.js';
 import { autoMillTools, millToolText } from './liveMillTools.js';
@@ -42,7 +45,7 @@ export function drillCutData(drill) {
  * a nezměněných ručně). Vrací nové pole operací a seznam doplněných
  * { op: index, drill } / chybějících { op, D, near }.
  */
-export function autoDrillTools(ops, magazine, prms = {}) {
+export function autoDrillTools(ops, magazine) {
   const drills = magazineDrills(magazine);
   const filled = [], missing = [];
   const out = ops.map((op, i) => {
@@ -50,37 +53,13 @@ export function autoDrillTools(ops, magazine, prms = {}) {
     const { drill, near } = pickDrill(drills, op.holeD);
     if (!drill) { missing.push({ op: i, D: op.holeD, near }); return op; }
     filled.push({ op: i, drill });
-    return drillTabParams({ ...op, toolNo: drill.slot, toolName: drill.name, ...drillCutData(drill) }, prms);
+    return { ...op, toolNo: drill.slot, toolName: drill.name, ...drillCutData(drill) };
   });
   // Frézovací operace: fréza ze zásobníku (liveMillTools.js, missing s kind 'mill').
   const m = autoMillTools(out, magazine);
   // Navrtání a závity (role 'spot' / 'tap'): navrtávák a závitník (liveTapTools.js).
   const t = autoTapSpotTools(m.ops, magazine);
   return { ops: t.ops, filled: [...filled, ...m.filled, ...t.filled], missing: [...missing, ...m.missing, ...t.missing] };
-}
-
-/**
- * Pole záložky Vrtání do operace vrtání: záběr Q, prodleva, bezpečná
- * vzdálenost a tříska (Vyjíždění × Lámání + Odskok → chipMode / chipBack).
- */
-export function drillTabParams(op, prms = {}) {
-  const o = { ...op };
-  const q = parseFloat(prms.drillPeck), dw = parseFloat(prms.drillDwell), sf = parseFloat(prms.drillClearance), rb = parseFloat(prms.drillRetract);
-  if (Number.isFinite(q) && q >= 0) o.peck = q;
-  if (Number.isFinite(dw) && dw >= 0) o.dwell = dw;
-  if (Number.isFinite(sf) && sf > 0) o.safe = sf;
-  if (prms.drillChipMode) o.chipMode = prms.drillChipMode === 'break' ? 'break' : 'clear';
-  if (Number.isFinite(rb) && rb > 0) o.chipBack = rb;
-  return o;
-}
-
-/**
- * Změna polí záložky Vrtání (Q, prodleva, bezp. vzdálenost, tříska) se
- * propíše do vybraných děr z výkresu, které uživatel ručně nepřepsal —
- * dřív jen při kliknutí na záložku / výběru děr (21. 10. 2026).
- */
-export function syncDrillTabParams(ops, prms) {
-  return ops.map(op => (op.kind === 'drill' && !op.role && liveOpOn(op) && op.autoTool !== false ? drillTabParams(op, prms) : op));
 }
 
 /** Text o vrtáku operace pro záložku Vrtání. */

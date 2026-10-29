@@ -12,6 +12,11 @@ import { getArcParams } from '../camMath.js';
 import { resolvePointsToAbsolute } from '../contourBuild.js';
 import { guidePolyPoints } from '../interferenceGuides.js';
 
+// Kontura jde vždy do vrstvy Kontura, ne do aktivní: s aktivní Konstrukcí
+// (nebo čelem bokorysu) se vracela do ní a 🗑 Konstrukce ji smazal i
+// s konstrukčními čarami (uživatel 29. 10. 2026). Výkres se tu celý nahrazuje.
+const CONTOUR_LAYER_ID = 0;
+
 /**
  * Smaže výkres CAD a vloží do něj konturu/polotovar/konstrukční čáry ze
  * simulátoru, pak simulátor zavře. Ptá se volající (✕ → camCloseConfirm);
@@ -64,7 +69,7 @@ export async function handleSendToCanvas({ S, setOpView, getAllGuideLines, overl
         const id = state.nextId++;
         const obj = {
           type: 'line', x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y,
-          name: `Úsečka ${id}`, id, layer: isStock ? STOCK_LAYER_ID : state.activeLayer,
+          name: `Úsečka ${id}`, id, layer: isStock ? STOCK_LAYER_ID : CONTOUR_LAYER_ID,
         };
         if (isStock) obj.isStock = true;
         state.objects.push(obj);
@@ -92,7 +97,7 @@ export async function handleSendToCanvas({ S, setOpView, getAllGuideLines, overl
           type: 'arc', cx: cc.x, cy: cc.y, r: arc.r,
           startAngle, endAngle,
           ccw: (p2.type === 'G3') !== isKarusel,
-          name: `Oblouk ${id}`, id, layer: isStock ? STOCK_LAYER_ID : state.activeLayer,
+          name: `Oblouk ${id}`, id, layer: isStock ? STOCK_LAYER_ID : CONTOUR_LAYER_ID,
         };
         if (isStock) obj.isStock = true;
         state.objects.push(obj);
@@ -158,7 +163,7 @@ export async function handleSendToCanvas({ S, setOpView, getAllGuideLines, overl
     // I s příznakem ruční úpravy — jinak by se ochrana ztratila cestou
     // přes CAD a první auto-regenerace by úpravy beze slova přepsala.
     gcode: S.manualGCode, gcodeDirty: S.gcodeDirty, gcodeKey: S.gcodeKey,
-    layer: state.activeLayer
+    layer: CONTOUR_LAYER_ID
   });
 
   calculateAllIntersections();

@@ -486,8 +486,13 @@ simulátoru (i přes G-kód), **⤡** ho vrátí. Pohled se ovládá jako nárys
 **kolečko** myši / **dva prsty** = zoom, **tažení** myší / jedním prstem =
 posun; **dvojklik** / dvojí ťuknutí nebo **🎯** v rohu (ukáže se jen
 u přiblíženého či posunutého pohledu) ho vycentruje. **🛠 Operace** otevře editor
-v maximalizovaném pohledu — na výšku náhled nahoře a formulář pod ním, na
-šířku vedle sebe; po zavření editoru se pohled zase zmenší.
+v panelu vedle řezu — řez (nárys) zůstane vidět, aby bylo znát, odkud se
+vrtá (na výšku náhled nahoře a formulář pod ním, na šířku vedle sebe;
+víc místa dá **⤢**). Klepnutí na operaci v editoru posune rovinu řezu na
+její **Z čela**. **⇥ Vrtat odsud** v liště řezu nastaví Z čela (a stranu
+podle směru pohledu ◀ / ▶) operace do čela na rovinu řezu: vybrané
+operaci v editoru, jinak zaškrtnutým dírám. Díry z výkresu (📐) mají Z čela
+z CAD — mění se v CAD (◎ Čelo, posuvník Z) a do CAM se přenesou samy.
 
 Poháněný nástroj stojí v revolveru **nahoře (X+, jako v řezu / nárysu)** —
 žlutá šipka „nástroj"; u karuselu vpravo, jinak v nastavení NC výstupu
@@ -1065,9 +1070,13 @@ SPOS / osa C) — žádné dráhy hrubování ani díra v ose:
   ubírají; **Vybrat vše** vrátí všechny. Nevybrané díry jsou v pohledu
   ztlumené a nevrtají se (nejsou v kódu ani v simulaci).
 - **Vrták se vybere sám:** ze 🔧 Zásobníku vrták na Ø díry (první v pořadí T),
-  otáčky n = Vc·1000/(π·Ø) a posuv F = f·n z jeho Vc a f; záběr Q, prodleva,
-  bezpečná vzdálenost a **tříska** (⇡ Vyjíždění × ↯ Lámání + Odskok) z polí
-  záložky níž — jejich změna se do vybraných děr propíše hned. Lámání
+  otáčky n = Vc·1000/(π·Ø) a posuv F = f·n z jeho Vc a f.
+- **Hloubka, záběr Q, tříska, prodleva, bezp. vzdálenost:** pod každou
+  vybranou skupinou přímo v záložce — jsou to **tatáž pole jako 🛠 Operace**
+  v pohledu na čelo (změna na jednom místě je hned vidět i na druhém).
+  Pole **středové díry v ose** (Vrták, Z čelo, Hloubka, Dno Z…) se při
+  vrtání děr z výkresu nezobrazují — patří jiné operaci; objeví se, když
+  není vybraná žádná díra nebo je zvolena *Středová díra v ose*. Lámání
   třísky: cyklus `CYCLE83 … VARI = 0`, rozepsaně jen odskok o *Odskok*
   a další záběr; Fanuc G83 / G87 volí lámání parametrem stroje (0i: 5101
   bit 2 RTR — poznámka v programu). Jde nastavit i u operace v 🛠 Operace
@@ -1113,7 +1122,7 @@ a Výstup NC (osa C, M-kódy, kalibrace — sdílí ho s vrtáním).
   🔧 Zásobníku proto musí být aspoň jeden vrták. Starší projekty, kde byla
   část Vrtání i s frézováním, zůstanou, dokud se v nich neklikne na Vrtání.
 
-**Vrtání v ose (záložka Vrtání, pod sekcí děr).** Vrtací cyklus v ose (X0) vrtákem — nástroj
+**Vrtání v ose (záložka Vrtání, pod sekcí děr — jen bez vybraných děr z výkresu).** Vrtací cyklus v ose (X0) vrtákem — nástroj
 tvaru **⌀ vrták** (v Nástroj → Tvar destičky i ve 🔧 Zásobníku vedle ⬤ ◼ ▮ ▽).
 Vrták má **⌀**, **vrcholový úhel σ** (HSS 118°, tvrdokov 140°) a **vyložení**
 (od špičky ke sklíčidlu); jeho držák je **pouzdro v ose** za vyložením

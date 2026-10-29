@@ -24,8 +24,13 @@
 //   seznamem děr / frézování: jediné místo nastavení (dřív i pod pohledem
 //   na čelo, uživatel 21. 10. 2026).
 // Výběr = `op.enabled` (liveModel.liveOpOn); nevybrané se nevrtají.
-import { getLiveOps, liveOpOn, liveKindOf, liveOpSummary, liveDrillFromCad, liveSettings } from './liveModel.js';
-import { drillToolText, toggleLiveGroup, autoDrillTools, pickDrill, magazineDrills, addCatalogDrills, catalogDrillD, syncDrillTabParams } from './liveDrillTools.js';
+// • Hloubka, Q, tříska, prodleva a bezp. vzdálenost vybrané skupiny se píšou
+//   přímo do operace (`data-livefield`) — tatáž data jako formulář 🛠 Operace
+//   v pohledu na čelo. Pole středové díry v ose (paramsMachiningHtml.js) se
+//   při vrtání děr z výkresu nezobrazují (uživatel 29. 10. 2026: „dvoje
+//   nastavení … hloubka v jednom 10 a v druhém 20").
+import { getLiveOps, liveOpOn, liveKindOf, liveOpSummary, liveDrillFromCad, liveSettings, normalizeLiveOp } from './liveModel.js';
+import { drillToolText, toggleLiveGroup, autoDrillTools, pickDrill, magazineDrills, addCatalogDrills, catalogDrillD } from './liveDrillTools.js';
 import { settingsHtml, settingsTitle, applySettingChange } from './liveSettingsUi.js';
 import { pickMill, magazineMills, catalogMillD, addCatalogMills } from './liveMillTools.js';
 import { autoTapSpotTools, addCatalogTapsSpots } from './liveTapTools.js';
@@ -162,7 +167,38 @@ export function createDrillUi(d) {
         <span><b>${esc(op.name)}</b> <small>${esc(liveOpSummary(op))}</small><br><small class="t">${esc(drillToolText(op, S.toolMagazine))}</small>${
   op.kind === 'drill' && !op.role && !pickDrill(magazineDrills(S.toolMagazine), op.holeD).drill && d.isoMagSlot && catalogDrillD(op.holeD) != null
     ? `<br><button data-livedrill="addmag" data-d="${op.holeD}" class="cam-sim-btn cam-sim-btn-gray">➕ Přidat vrták Ø${op.holeD} z 📚 do Zásobníku</button>` : ''}${millAddBtn(op)}${tapSpotAddBtn(op, i)}</span>
-      </label>`;
+      </label>${op.kind === 'drill' && !op.role && liveOpOn(op) ? fieldsHtml(op, i) : ''}`;
+  }
+  /** Pole vrtání vybrané skupiny (= formulář 🛠 Operace, píše do operace). */
+  function fieldsHtml(op, i) {
+    const f = (k, t, v, tip) => `<div class="cam-sim-field"><label title="${tip}">${t}</label><input type="text" inputmode="decimal" data-livefield="${k}" data-oi="${i}" value="${esc(v)}"></div>`;
+    let h = `<div class="cam-livedrill-pf"><div class="cam-sim-row">
+      ${f('depth', 'Hloubka', op.depth, 'Hloubka díry od Z čela (stejné pole jako 🛠 Operace v pohledu na čelo)')}
+      ${f('peck', 'Záběr Q', op.peck, 'Hloubka jednoho záběru [mm]; 0 = celá díra naráz')}
+      ${f('dwell', 'Prodleva (s)', op.dwell, 'Prodleva na dně díry [s]')}
+      ${f('safe', 'Bezp. vzdál.', op.safe, 'R rovina — vzdálenost před čelem, odkud jede posuv')}
+    </div>`;
+    if (op.peck > 0) {
+      h += `<div class="cam-sim-row"><div class="cam-sim-field"><label>Tříska mezi záběry</label><select data-livefield="chipMode" data-oi="${i}">
+        <option value="clear"${op.chipMode === 'break' ? '' : ' selected'}>⇡ Vyjíždění (odvod)</option>
+        <option value="break"${op.chipMode === 'break' ? ' selected' : ''}>↯ Lámání (odskok)</option></select></div>${op.chipMode === 'break'
+  ? f('chipBack', 'Odskok', op.chipBack, 'Odskok po každém záběru [mm]') : ''}</div>`;
+    }
+    return h + '</div>';
+  }
+  /** Změna pole skupiny v záložce Vrtání → operace (jako formulář 🛠 Operace). */
+  function setField(el) {
+    const oi = +el.dataset.oi, k = el.dataset.livefield;
+    const cur = ops();
+    if (!cur[oi]) return;
+    let v = el.value;
+    if (k !== 'chipMode') {
+      v = safeEvalMath(v);
+      if (!Number.isFinite(v)) { d.toast('Neplatné číslo'); refresh(); return; }
+    }
+    const next = cur.map((o, j) => (j === oi ? normalizeLiveOp({ ...o, [k]: v }) : o));
+    d.commit(p => { p.liveOps = next; });
+    refresh();
   }
   /** Výstup NC (osa C, M-kódy, kalibrace) — sdílí vrtání i frézování. */
   function ncHtml() {
@@ -193,6 +229,8 @@ export function createDrillUi(d) {
     if (axis) return h + '<div class="cam-livedrill-h axial">Vrtání v ose — středová díra</div>';
     list.forEach(({ op, i }) => { h += rowHtml(op, i); });
     const nOn = list.filter(({ op }) => liveOpOn(op)).length;
+    // Bez vybrané díry vrtá část středovou díru v ose — její pole jsou níž.
+    if (!nOn) return h + '<small class="cam-livedrill-note">Není vybraná žádná díra z výkresu — vrtá se středová díra v ose (pole níž).</small><div class="cam-livedrill-h axial">Vrtání v ose — středová díra</div>';
     const active = partKind() === 'drill' && liveDrillFromCad(S.params);
     // Zápis vrtání: cyklus × rozepsaný ISO kód (= „Vrtací cykly" ve Výstupu NC,
     // tady na očích — uživatel 21. 10. 2026). Heidenhain jen rozepsaně.
@@ -250,6 +288,9 @@ export function createDrillUi(d) {
     const dBox = root.querySelector('.cam-livedrill'), mBox = root.querySelector('.cam-livemill');
     if (!dBox && !mBox) { present = false; return; }
     if (dBox) fillBox(dBox, sectionHtml());
+    // Pole středové díry v ose jen, když se opravdu vrtá v ose.
+    const axisBox = root.querySelector('.cam-drill-axis');
+    if (axisBox) axisBox.hidden = liveDrillFromCad(S.params);
     if (mBox) fillBox(mBox, millSectionHtml());
     if (!present) { present = true; d.openView(); }   // přepnuto na záložku Vrtání / Frézování
   }
@@ -279,20 +320,11 @@ export function createDrillUi(d) {
         if (liveSettings(S.params).cycles !== on) { d.commit(p => { p.live = { ...(p.live || {}), cycles: on }; }); refresh(); }
       }
     });
-    // Pole záložky Vrtání (Q, Odskok, Prodleva, Bezp. vzdál.) a ⇡ Vyjíždění /
-    // ↯ Lámání třísky → do vybraných děr z výkresu. Až po obsluze simulátoru
-    // (ta S.params zapíše a panel překreslí).
-    const TAB_P = new Set(['drillPeck', 'drillRetract', 'drillDwell', 'drillClearance']);
-    const syncTab = () => setTimeout(() => {
-      if (!liveDrillFromCad(S.params)) return;
-      const cur = ops(), next = syncDrillTabParams(cur, S.params);
-      if (JSON.stringify(next) !== JSON.stringify(cur)) { d.commit(p => { p.liveOps = next; }); refresh(); }
-    }, 0);
-    side.addEventListener('change', e => { if (e.target.dataset && TAB_P.has(e.target.dataset.p)) syncTab(); });
-    side.addEventListener('click', e => { if (e.target.closest('[data-drillmode]')) syncTab(); });
     side.addEventListener('change', e => {
       const b = e.target.closest('[data-livedrill="toggle"]');
       if (b) { toggle(+b.dataset.oi, true); return; }
+      const fld = e.target.closest('[data-livefield]');
+      if (fld) { setField(fld); return; }
       const el = e.target.closest('.cam-livedrill-nc [data-g]');
       if (!el) return;
       const ctrl = S.params.controlSystem || 'sinumerik';

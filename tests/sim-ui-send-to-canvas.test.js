@@ -119,6 +119,17 @@ describe('✕ → 📐 Zachovat a přenést: simulátor → plátno CAD', () => 
     `);
   });
 
+  it('kontura jde do vrstvy Kontura, i když je aktivní Konstrukce', async () => {
+    state.activeLayer = 1;
+    try {
+      await sendToCanvas('soustruh', (S) => { S.params.stockMode = 'cylinder'; S.params.stockDiameter = 66; S.params.stockLength = 66; });
+      const layers = (t) => [...new Set(state.objects.filter(t).map(o => o.layer))];
+      expect(layers(o => (o.type === 'line' || o.type === 'arc') && !o.isStock)).toEqual([0]);
+      expect(layers(o => o.isStock)).toEqual([3]);
+      expect(layers(o => o.type === 'constr')).toEqual([1]);
+      expect(layers(o => o.type === 'camNote')).toEqual([0]);
+    } finally { state.activeLayer = 0; }
+  });
   it('karusel: osy prohozené, oblouk opačně, vlastní tvar polotovaru', async () => {
     const objs = await sendToCanvas('karusel', (S) => {
       S.params.stockMode = 'casting';

@@ -10,8 +10,11 @@
 // osa C / TRANSMIT; cykly × rozepsané pohyby; M-kódy stroje), Z↔ schová /
 // ukáže lištu řezu (liveCutBar.js: rovina Z posuvníkem, strana pohledu;
 // značka řezu i v řezu vlevo), ⤢ maximalizuje pohled přes celé okno.
-// Editor operací potřebuje místo — otevře se v maximalizovaném pohledu
-// (náhled nahoře / vlevo, formulář pod ním / vpravo) a po zavření se vrátí.
+// Editor operací se otevře v panelu vedle řezu — řez (nárys) zůstane vidět,
+// aby bylo znát, odkud se vrtá (dřív se pohled maximalizoval přes celé okno,
+// uživatel 29. 10. 2026); ⤢ ho maximalizuje ručně. „⇥ Vrtat odsud" v liště
+// řezu nastaví Z čela (a stranu) operace do čela na rovinu řezu; výběr
+// operace v editoru naopak posune řez na její Z čela.
 //
 // Vrtání děr z výkresu je operace Vrtání (ops/drill.js generuje blok do
 // programu své části, cam/sim/machTabTool.js přepne nástroj a část);
@@ -24,7 +27,7 @@
 import { showToast } from '../../../state.js';
 import { safeEvalMath } from '../../../utils.js';
 import {
-  liveSettings, newLiveOp, normalizeLiveOp, getLiveOps, liveRunOps, liveOpOn,
+  liveSettings, newLiveOp, normalizeLiveOp, getLiveOps, liveRunOps, liveOpOn, isKeyway,
 } from './liveModel.js';
 import { drawFaceView, livePartGeometry, faceViewHit } from './liveFaceView.js';
 import { drawLiveSectionLayer } from './liveSection.js';
@@ -244,8 +247,32 @@ export function initLiveTools(deps) {
       cutChanged();
     },
     toast: showToast,
+    startHere: () => startHere(),
   });
   setBar(st.bar);
+
+  /** Operace do čela, kterým „⇥ Vrtat odsud" nastaví Z čela: vybraná v editoru, jinak zaškrtnuté. */
+  function startTargets(ops) {
+    const face = o => o && !o.role && o.side !== 'radial' && !isKeyway(o);
+    if (st.editor && ops[st.selected]) return face(ops[st.selected]) ? [st.selected] : [];
+    return ops.map((o, i) => i).filter(i => face(ops[i]) && liveOpOn(ops[i]));
+  }
+  // ⇥ Vrtat odsud: Z čela = rovina řezu, strana podle směru pohledu
+  // (◀ zprava = vrtá k −Z). Díry z výkresu mají Z z CAD (při otevření CAM
+  // se přenesou znovu) — u nich jen rada, kde ho změnit.
+  function startHere() {
+    const c = cutState();
+    if (!c) return;
+    const ops = opsCopy(), idx = startTargets(ops);
+    if (!idx.length) { showToast('Není co nastavit — vyberte operaci do čela v 🛠 Operace nebo zaškrtněte díry', 4000); return; }
+    const own = idx.filter(i => !ops[i].fromCad);
+    const cadNote = own.length < idx.length ? ' · díry z výkresu (📐) mají Z čela z CAD — změňte ho v CAD (◎ Čelo, posuvník Z)' : '';
+    if (!own.length) { showToast(`Díry z výkresu: Z čela se bere z CAD — nastavte ho v CAD (◎ Čelo, posuvník Z), při otevření CAM se přenese`, 6000); return; }
+    const faceDir = c.side === 'left' ? -1 : 1, z = +c.z.toFixed(3);
+    own.forEach(i => { ops[i] = normalizeLiveOp({ ...ops[i], zTop: z, faceDir }); });
+    commit(p => { p.liveOps = ops; });
+    showToast(`Vrtá se od Z${z} ${faceDir < 0 ? '▶ zleva (k +Z)' : '◀ zprava (k −Z)'}: ${own.map(i => ops[i].name).join(', ')}${cadNote}`, 5000);
+  }
 
   // ── kreslení ──
   function viewKey() {
@@ -418,9 +445,9 @@ export function initLiveTools(deps) {
       st.editor = !st.editor; ed.hidden = !st.editor; edBtn.classList.toggle('cam-sim-active', st.editor);
       body.classList.toggle('ed-on', st.editor);
       if (st.editor) renderEditor();
-      // Editor potřebuje místo: otevřít v maximalizovaném pohledu, po zavření vrátit.
-      if (st.editor && !st.max) setMax(true, true);
-      else if (!st.editor && st.autoMax) setMax(false);
+      // Řez zůstane vidět (bez maximalizace); starší automatická se při zavření vrátí.
+      if (!st.editor && st.autoMax) setMax(false);
+      bar.update();
       redraw(true);
     } else if (act === 'max') setMax(!st.max);
     else if (act === 'fit') nav.reset();
@@ -458,7 +485,13 @@ export function initLiveTools(deps) {
       showToast(prog.unwrite() ? 'Blok poháněných nástrojů odebrán z programu' : 'Blok v programu není');
       renderEditor();
     } else if (act === 'sel' && oi >= 0) {
-      st.selected = st.selected === oi ? -1 : oi; renderEditor(); redraw(true);
+      st.selected = st.selected === oi ? -1 : oi; renderEditor();
+      // Řez na čelo vybrané operace — v řezu i v pohledu je vidět, odkud se vrtá.
+      const op = getLiveOps(S.params)[st.selected];
+      if (op && op.side !== 'radial' && !isKeyway(op) && Number.isFinite(op.zTop)) {
+        st.cutZ = +op.zTop.toFixed(3); st.cutSide = op.faceDir === -1 ? 'left' : 'right'; st.sideManual = true;
+        cutChanged();
+      } else redraw(true);
     } else if ((act === 'up' || act === 'down') && oi >= 0) {
       const ops = opsCopy(), j = act === 'up' ? oi - 1 : oi + 1;
       if (j < 0 || j >= ops.length) return;

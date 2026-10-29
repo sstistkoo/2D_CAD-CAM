@@ -9,6 +9,7 @@ import { buildStockLoopRaw } from '../materialRemoval.js';
 import { getInsert } from '../inserts/index.js';
 import { computeThreadPassCuts } from '../threadHelpers.js';
 import { drillGeom, drillAutoFaceZ } from '../ops/drill.js';
+import { liveDrillFromCad } from '../live/liveModel.js';
 import { paramsBoreHtml } from './paramsBoreHtml.js';
 import { grooveInnerFieldsHtml, grooveCadRowHtml, grooveOuterCadRowHtml } from './paramsGrooveHtml.js';
 import { SURFACE_TABS, surfaceMode, programInner } from './machSurface.js';
@@ -301,7 +302,9 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
   } else if (_machSubTab === 'vrt') {
     // Díry mimo osu z výkresu (poháněný vrták) — obsah plní cam/live/liveDrillUi.js.
     html += '<div class="cam-livedrill"></div>';
-    // ── Vrtání v ose (ops/drill.js) ──
+    // ── Vrtání v ose (ops/drill.js) ── při vrtání děr z výkresu skryté
+    // (jiná operace; liveDrillUi.js přepíná `hidden` podle výběru děr).
+    html += `<div class="cam-drill-axis"${liveDrillFromCad(prms) ? ' hidden' : ''}>`;
     const _dg = drillGeom(prms, { faceZ: drillAutoFaceZ(S), stockLoop: buildStockLoopRaw(prms, (S._cachedCalc || {}).stockPathSegments) });
     const _isDrill = prms.toolShape === 'drill';
     const _dD = Math.round(_dg.D * 1000) / 1000;
@@ -343,6 +346,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
       html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px;color:#f38ba8">⚠ Aktivní nástroj není vrták — vrtá se jen vrtákem. „Zapnout" ho vybere ze 🔧 Zásobníku (nebo 🧰 Knihovna → 📚 → Vrtáky, Nástroj → Tvar ⌀).</small>`;
     }
     html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">${_dg.targets.length} ${_dg.targets.length === 1 ? 'záběr' : _dg.targets.length < 5 ? 'záběry' : 'záběrů'} · čelo Z${_dg.zFace.toFixed(2)}${_dg.zFaceAuto ? ' (dílu)' : ''}${Math.abs(_dg.zEntry - _dg.zFace) > 0.01 ? ` · materiál v ose od Z${_dg.zEntry.toFixed(2)}` : ''} → dno špičky Z${_dg.zBottom.toFixed(2)} · ${(prms.roughingSide || 'right') === 'left' ? 'zleva (+Z)' : 'zprava (−Z)'} · G97 S${_dg.rpm}${_dg.dwell > 0 ? ` · prodleva ${_dg.dwell} s` : ''}${_isDrill ? '' : ' — vrtá se, až bude nástroj vrták'}. Když kontura dílu díru nemá, simulace ukáže vrtání červeně jako zajetí do hotové kontury.</small>`;
+    html += '</div>';
   } else if (_machSubTab === 'frez') {
     // Frézování z výkresu (kapsy, drážky, pera) — obsah plní cam/live/liveDrillUi.js.
     html += '<div class="cam-livemill"></div>';

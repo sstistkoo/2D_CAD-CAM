@@ -46,6 +46,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM – 🛠 Operace už neschová řez a posuvník řezu nastaví, odkud se vrtá** (`live/livePanel.js`,
+  `live/liveCutBar.js`). Editor operací se otevírá v panelu vedle řezu (dřív maximalizoval pohled přes
+  celé okno a nárys nebyl vidět). Klepnutí na operaci posune rovinu řezu na její Z čela; nové tlačítko
+  **⇥ Vrtat odsud** v liště řezu nastaví Z čela a stranu vybrané operace (jinak zaškrtnutých děr) na
+  rovinu řezu. Díry z výkresu mají Z čela z CAD — tlačítko poradí, kde ho změnit.
+
+- **CAM – vrtání děr z výkresu: jedno nastavení místo dvou.** V záložce Vrtání se pod dírami z výkresu
+  ukazovala i pole středové díry v ose (jiná hloubka než u děr — např. 20 × 10 mm) a z nich se do děr
+  kopírovaly Q, prodleva a bezp. vzdálenost, které přepisovaly hodnoty zadané v 🛠 Operace. Teď má každá
+  vybraná skupina děr v záložce vlastní pole Hloubka / Q / tříska / prodleva / bezp. vzdál. (tatáž data
+  jako formulář v pohledu na čelo) a pole středové díry jsou vidět, jen když se opravdu vrtá v ose
+  (`live/liveDrillUi.js`, `live/liveDrillTools.js`, `sim/paramsMachiningHtml.js`).
+
+- **CAM → CAD: kontura se vracela do aktivní vrstvy** (`cam/sim/sendToCanvas.js`): s aktivní *Konstrukcí*
+  skončila kontura v ní (šedě, a 🗑 Konstrukce by ji smazal). Kontura a poznámka s programem jdou teď vždy do
+  vrstvy *Kontura*, polotovar do *Polotovar*, konstrukční čáry do *Konstrukce*.
 - **CAD: průsečíky skryté vrstvy zmizí** (`geometry/shownIntersections.js`): po skrytí vrstvy (třeba
   *Konstrukce* s vodítky plátku z CAM) se její průsečíky nekreslí, nejsou v seznamu, v CNC Editoru ani pro
   SNAP; ve `state.intersections` zůstávají kvůli exportu CNC. Každý průsečík nese `pairs` (vrstvy dvojice).
