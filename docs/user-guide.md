@@ -1346,6 +1346,11 @@ programů) to nedělá.
   a **📋XZ** (kopírovat koncový bod).
 - **∠ Úsečka úhlem:** úhel (od osy +Z proti směru hodin, 180° = směr −Z) a k tomu
   délka L, nebo cílové X, nebo cílové Z → vloží `G1 X… Z…` za řádek s kurzorem.
+  Za předchozí **úsečkou** (G1) jde úhel zadat i **Od předchozí** (odklon vlevo ↺ /
+  vpravo ↻ od jejího směru). Za **obloukem** (G2/G3) se nabízí jen **Polární**
+  a **⟿ Tečně** – odklon 0°, úsečka plynule navazuje na konec oblouku ve směru
+  tečny (úhel od oblouku nedává smysl). Po G0, na prvním řádku a před prvním
+  pohybem nejsou ani jedno (není směr, ke kterému by se vztahovaly).
 - **📐 Náhled kontury** (pravý panel): malý náhled nad kódem, řádek s kurzorem
   žlutě. Po zavření editoru se objekt z řádku s kurzorem označí na plátně.
 - **Průsečíky na plátně** (pravý panel): klepnutím se souřadnice vloží na kurzor.

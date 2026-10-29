@@ -333,7 +333,7 @@ function quickbarHTML(drawMode) {
     <button class="cne-qb accent cne-qb-big c12" data-ins="G1 " title="G1 – Lineární interpolace (úsečka)"><span>G1</span><small>úsečka</small></button>
     <button class="cne-qb cne-qb-big c12" data-inp="X" title="Osa X (${xWord})"><span>X</span><small>${xWord}</small></button>
     <button class="cne-qb cne-qb-big c12" data-inp="Z" title="Osa Z (délka)"><span>Z</span><small>délka</small></button>
-    <button class="cne-qb accent cne-qb-big c12" data-act="angleLine" title="Úsečka úhlem – polárně od osy Z, nebo od předchozí úsečky"><span>∠</span><small>úhel</small></button>
+    <button class="cne-qb accent cne-qb-big c12" data-act="angleLine" title="Úsečka úhlem – polárně od osy Z, nebo od předchozí úsečky"><span>∠</span><small>úsečka</small></button>
 
     <button class="cne-qb blue c12" data-act="lineG" data-g="G90" title="Napíše G90 (absolutní) na začátek řádku s kurzorem">G90</button>
     <button class="cne-qb blue c12" data-act="lineG" data-g="G91" title="Napíše G91 (přírůstkové) na začátek řádku s kurzorem">G91</button>
@@ -548,7 +548,8 @@ function buildEditorHTML(drawMode = false) {
       <div class="cne-ang-from" data-el="angleFrom"></div>
       <div class="cne-ang-modes" data-el="angModeRow">
         <button class="cne-ang-mode on" data-act="angMode" data-mode="polar" title="Úhel od osy +Z">Polární</button>
-        <button class="cne-ang-mode" data-act="angMode" data-mode="rel" title="Úhel od směru předchozí úsečky / oblouku">Od předchozí</button>
+        <button class="cne-ang-mode" data-el="angRelBtn" data-act="angMode" data-mode="rel" title="Úhel od směru předchozí úsečky">Od předchozí</button>
+        <button class="cne-ang-mode" data-el="angTangentBtn" data-act="angTangent" title="Pokračovat tečně: úsečka přesně ve směru konce předchozí úsečky / oblouku (odklon 0°)">⟿ Tečně</button>
       </div>
       <div class="cne-ang-modes" data-el="angSideRow" hidden>
         <button class="cne-ang-mode on" data-act="angSide" data-side="1" title="Odklon od předchozího směru doleva (proti směru hodin)">↺ vlevo</button>
@@ -2002,22 +2003,20 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   }
 
   // Úsečka úhlem: z konce řádku s kurzorem (nebo poslední polohy před ním).
-  let angleFrom = null, angleLineIdx = 0, anglePrevDir = null;
-  let angIncr = false;                  // v místě kurzoru platí G91 → zapsat přírůstky
-  let angMode = 'polar', angSide = 1;   // polární / od předchozí úsečky; vlevo (+) / vpravo (−)
-  // „Od předchozí" jen když předchozí pohyb má směr: úsečka G1 nebo oblouk G2/G3 ve
-  // stejné části kódu (kontura / polotovar). Po G0, na prvním řádku a po nulovém pohybu
-  // zbývá jen polární úhel.
-  let angRelOk = false, angRelWhy = '';
+  let angleFrom = null, angleLineIdx = 0, anglePrevDir = null, angPrevArc = false;   // angPrevArc: předchozí je oblouk → nabídnout „Tečně"
+  // angIncr: v místě kurzoru platí G91 → zapsat přírůstky; angMode polární / od předchozí; angSide vlevo (+) / vpravo (−)
+  let angIncr = false, angMode = 'polar', angSide = 1, angRelOk = false, angRelWhy = '';
+  // „Od předchozí" a „Tečně" jen když předchozí pohyb má směr: G1 nebo oblouk G2/G3 ve
+  // stejné části kódu (kontura / polotovar). Po G0, na prvním řádku a po nulovém pohybu jen polární.
   function syncAngleUi() {
     if (!angRelOk) angMode = 'polar';
     angleModal.querySelectorAll('[data-act="angMode"]').forEach(b => b.classList.toggle('on', b.dataset.mode === angMode));
     angleModal.querySelectorAll('[data-act="angSide"]').forEach(b => b.classList.toggle('on', Number(b.dataset.side) === angSide));
-    $('angModeRow').hidden = !angRelOk;
-    $('angSideRow').hidden = !(angRelOk && angMode === 'rel');
-    $('angLabel').textContent = angMode === 'rel' ? 'Odklon °' : 'Úhel °';
+    $('angModeRow').hidden = !angRelOk; $('angTangentBtn').hidden = !(angRelOk && angPrevArc); $('angRelBtn').hidden = angPrevArc;   // za obloukem jen Polární + Tečně
+    const tangent = angPrevArc && angMode === 'rel'; $('angTangentBtn').classList.toggle('on', tangent); $('angA').readOnly = tangent; $('angSideRow').hidden = !(angRelOk && angMode === 'rel' && !angPrevArc);   // tečně = odklon pevně 0°
+    $('angLabel').textContent = tangent ? 'Tečně °' : angMode === 'rel' ? 'Odklon °' : 'Úhel °';
     $('angSmall').textContent = angMode === 'rel'
-      ? `(od předchozího směru ${f3(anglePrevDir)}°; 0 = rovně dál, 90 = kolmo)`
+      ? (tangent ? `(tečna na konci oblouku – směr ${f3(anglePrevDir)}° od +Z)` : `(od předchozího směru ${f3(anglePrevDir)}°; 0 = rovně dál, 90 = kolmo)`)
       : '(od osy +Z, proti směru hodin; 180 = směr −Z)' + (angRelWhy ? ' – ' + angRelWhy : '');
     angleModal.dispatchEvent(new Event('input'));
   }
@@ -2109,7 +2108,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     // Pohyb z jiné části kódu (kontura × polotovar) není „předchozí" – začíná se od počátku.
     if (p && !!p.stock !== caretInStock()) p = null;
     angleFrom = p ? p.to : { z: 0, x: 0 };
-    anglePrevDir = null; angRelWhy = '';
+    anglePrevDir = null; angRelWhy = ''; angPrevArc = !!p && (p.g === 2 || p.g === 3); if (angPrevArc) angMode = 'polar';   // „Od předchozí" z minula za obloukem neplatí
     if (!p) angRelWhy = 'předchozí úsečka tu není';
     else if (p.g === 0) angRelWhy = 'předchozí je rychloposuv G0 (start)';
     else {
@@ -2152,7 +2151,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     let pos = 0;
     v.split('\n').slice(0, angleLineIdx + 1).forEach(l => { pos += l.length + 1; });
     editor.selectionStart = editor.selectionEnd = Math.max(0, Math.min(v.length, pos - 1));
-    insertLines(`${g1Text(r)} ; ∠${r.rel ? f3(r.A) + '° od předchozí' : f3(r.A) + '°'}`, 'Úsečka úhlem', `∠${f3(r.abs)}°`);
+    insertLines(`${g1Text(r)} ; ${r.rel && angPrevArc ? '⟿ tečně' : '∠' + f3(r.A) + (r.rel ? '° od předchozí' : '°')}`, 'Úsečka úhlem', `∠${f3(r.abs)}°`);
   }
   if (angleModal) {
     angleModal.addEventListener('input', () => {
@@ -2428,8 +2427,9 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
         case 'chfOk':    confirmChamferAngle(); break;
         case 'chfCancel': chfModal.style.display = 'none'; break;
         case 'cornerJoin': cornerOrJoin(); break;
-        case 'angMode':   angMode = ab.dataset.mode; syncAngleUi(); break;
+        case 'angMode':   if (angPrevArc && angMode === 'rel') $('angA').value = ''; angMode = ab.dataset.mode; syncAngleUi(); break;   // z Tečně zpět: 0 není polární úhel
         case 'angSide':   angSide = Number(ab.dataset.side); syncAngleUi(); break;
+        case 'angTangent': angMode = 'rel'; angSide = 1; $('angA').value = '0'; syncAngleUi(); break;
         case 'angleOk':   confirmAngle(); break;
         case 'angleCancel': angleModal.style.display = 'none'; break;
         case 'copyLine':  copyCaretLine(); break;

@@ -45,6 +45,12 @@ describe('completeMotionLine', () => {
   it('CHF/RND za souřadnicí nevadí', () => {
     expect(C('G0 X0 Z0\n', 'Z-10 CHF=2')).toBe('G1 Z-10 CHF=2');
   });
+  it('první bod polotovaru (za STOCK_START) i první bod za STOCK_END je znovu G0', () => {
+    const contour = 'G0 X0 Z0\nG1 X10 Z-10\n';
+    expect(C(`${contour}; STOCK_START\n`, 'X20 Z5')).toBe('G0 X20 Z5');
+    expect(C(`${contour}; STOCK_START\nG0 X20 Z5\n`, 'X20 Z-30')).toBe('G1 X20 Z-30');
+    expect(C(`${contour}; STOCK_START\nG0 X20 Z5\nG1 X20 Z-30\n; STOCK_END\n`, 'X5 Z0')).toBe('G0 X5 Z0');
+  });
   it('U/W přírůstky se berou jako souřadnice', () => {
     expect(C('', 'U5 W-5')).toBe('G0 U5 W-5');
   });

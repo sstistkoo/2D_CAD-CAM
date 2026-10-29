@@ -7636,7 +7636,7 @@ button.vk-header-btn-green {
 }
 .cne-info-btn:active { background: var(--ctp-surface1); }
 .cne-ang-modes { display: flex; gap: 6px; margin: 4px 0 8px; }
-.cne-ang-modes[hidden] { display: none; }
+.cne-ang-modes[hidden], .cne-ang-mode[hidden] { display: none; }
 .cne-ang-mode {
   all: unset; cursor: pointer; flex: 1; text-align: center; padding: 6px 4px; border-radius: 6px;
   font: 600 13px system-ui, sans-serif; color: var(--ctp-subtext1);

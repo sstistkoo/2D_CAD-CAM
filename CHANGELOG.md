@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CNC Editor – úsečka úhlem: tlačítko ⟿ Tečně.** Nastaví odklon 0° od předchozí úsečky / oblouku, takže
+  nová úsečka tečně naváže na konec oblouku. Tlačítko se ukazuje jen za obloukem a „Od předchozí“ jen za úsečkou. V režimu Tečně je odklon pevně 0° (pole jen pro čtení), komentář řádku „⟿ tečně“; režim „Od předchozí“ z minulého otevření se za obloukem už nepřenese. Test `tests/cnc-tangent-continue.test.js`.
 - **CNC Editor – automatické G0/G1 po Enter** (`calculators/gcodeAutoMotion.js`): první řádek se
   souřadnicemi bez G dostane G0, další G1; řádky s G, R/I/K, komentáře a makra se nemění, platí-li už G1,
   holý řádek zůstane. Test `tests/gcode-auto-motion.test.js`.
@@ -38,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CNC Editor – automatické G0/G1:** první bod polotovaru (za `STOCK_START`) a první bod za `STOCK_END` dostane G0, ne G1 – jinak by vznikla falešná čára od konce kontury.
 - **G-kód → 🔄 Vykreslit** (parser vyjmut z `fileIO.js` do `storage/gcodeParse.js`, `fileIO.js` 1988 → 1811 ř.):
   - `G04 X2.5` (prodleva), `G28/G30/G53` a cykly `G70–G76` už nekreslí falešnou úsečku do bodu X/Z;
   - `G50/G52/G92` (posun nulového bodu) a `G20` (palce) se hlásí;

@@ -62,6 +62,9 @@ export function completeMotionLine(before, line) {
   let hadCoords = false;
   let lastMotion = null;
   for (const prev of String(before).split('\n')) {
+    // Polotovar (STOCK_START … STOCK_END) je samostatný obrys: jeho první bod je
+    // znovu start (G0), ne G1 od konce kontury – jinak by vznikla falešná čára.
+    if (/STOCK_START|STOCK_END/i.test(prev)) { hadCoords = false; lastMotion = null; continue; }
     const pc = codeOf(prev);
     if (!pc.trim()) continue;
     if (COORD_RE.test(pc)) hadCoords = true;
