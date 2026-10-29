@@ -33,10 +33,13 @@ export function renderMirrorPreview(vp) {
       if (bounds && !boundsOverlap(bounds, vp)) return;
     }
 
-    const baseColor = (obj.type === 'constr' && !obj.color) ? COLORS.construction : resolveObjectColor(obj);
+    // Vybraný originál → zrcadlo se zvýrazní stejnou barvou výběru.
+    const isSel = idx === state.selected || state.multiSelected.has(idx);
+    const baseColor = isSel ? COLORS.selected
+      : (obj.type === 'constr' && !obj.color) ? COLORS.construction : resolveObjectColor(obj);
     ctx.strokeStyle = baseColor;
     ctx.fillStyle = baseColor;
-    ctx.lineWidth = (layer?.lineWidth ?? LINE_WIDTH) * objWidthMul(obj);
+    ctx.lineWidth = (layer?.lineWidth ?? LINE_WIDTH) * objWidthMul(obj) * (isSel ? 1.5 : 1);
     ctx.setLineDash(objDash(obj));
 
     switch (mirrored.type) {

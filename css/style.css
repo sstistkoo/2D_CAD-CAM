@@ -204,8 +204,10 @@ body {
     gap: 4px;
     width: 100%;
   }
+  /* Rozbalená tlačítka navazují hned za přepínačem (ne na novém řádku) */
+  .toolbar-more.open,
   .toolbar-mid.open {
-    display: flex;
+    display: contents;
   }
   .toolbar-mid-toggle,
   .toolbar-more-toggle {
@@ -213,6 +215,21 @@ body {
     align-items: center;
     justify-content: center;
     gap: 4px;
+  }
+  /* Rozbalovací přepínače (Úpravy, Více) barevně odlišené od nástrojů */
+  #topbar .toolbar-mid-toggle,
+  #topbar .toolbar-more-toggle {
+    background: color-mix(in srgb, var(--ctp-mauve) 22%, var(--ctp-surface0));
+    border: 1px solid var(--ctp-mauve);
+    color: var(--ctp-mauve);
+    font-weight: 600;
+  }
+  #topbar .toolbar-mid-toggle:hover,
+  #topbar .toolbar-more-toggle:hover,
+  #topbar .toolbar-mid-toggle.open,
+  #topbar .toolbar-more-toggle.open {
+    background: var(--ctp-mauve);
+    color: var(--ctp-crust);
   }
 
   /* Kompaktní tlačítka */

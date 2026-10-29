@@ -6,6 +6,7 @@ import { SNAP_POINT_THRESHOLD, SELECT_THRESHOLD, CONSTRAINT_OFFSET_PX } from '..
 import { getObjectSnapPoints } from '../utils.js';
 import { renderAll, findNumLabelAt } from '../render.js';
 import { bridge } from '../bridge.js';
+import { mirrorable } from '../render/mirrorSnap.js';
 import { distToObject, findSegmentAt } from './hitDistance.js';
 
 // ── Hledání a výběr objektu ──
@@ -71,6 +72,13 @@ export function findConstraintAt(wx, wy) {
  * @returns {number|null}
  */
 export function findObjectAt(wx, wy) {
+  const direct = _findObjectDirect(wx, wy);
+  if (direct !== null || !state.mirrorPreview) return direct;
+  // Zrcadlo kolem osy (⇋) je jen náhled — klik na něj bere původní objekt.
+  return _findObjectDirect(wx, -wy);
+}
+
+function _findObjectDirect(wx, wy) {
   let closest = null,
     closestDist = Infinity;
   state.objects.forEach((obj, idx) => {
@@ -89,6 +97,13 @@ export function findObjectAt(wx, wy) {
   });
   const threshold = SELECT_THRESHOLD / state.zoom;
   return closestDist < threshold ? closest : null;
+}
+
+/** Klik na zrcadlený náhled (⇋) → zrcadlená y, aby segmenty/body seděly na originál. */
+function _mirroredClickY(wx, wy) {
+  if (!state.mirrorPreview || _findObjectDirect(wx, wy) !== null) return wy;
+  const i = _findObjectDirect(wx, -wy);
+  return i !== null && mirrorable(state.objects[i]) ? -wy : wy;
 }
 
 /**
@@ -267,6 +282,7 @@ export function selectObjectAt(wx, wy) {
   }
   state._selectedConstraint = null;
 
+  wy = _mirroredClickY(wx, wy);
   const snapPt = findIntersectionAt(wx, wy);
   const newSel = findObjectAt(wx, wy);
   const threshold = SELECT_THRESHOLD / state.zoom;

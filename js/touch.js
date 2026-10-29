@@ -36,6 +36,7 @@ mobileToolbarToggle.addEventListener("click", (e) => {
 const setToggleArrow = (btn, open) => {
   const arrow = btn.querySelector(".toolbar-toggle-arrow");
   if (arrow) arrow.textContent = open ? "▴" : "▾";
+  btn.classList.toggle("open", open);
 };
 
 // ── Toolbar: rozbalovací sekce "Více nástrojů" ──

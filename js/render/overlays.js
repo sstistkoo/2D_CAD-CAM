@@ -4,7 +4,7 @@
 import { ctx, drawCanvas, screenAngle, screenCCW, worldToScreen } from '../canvas.js';
 import { DIM_MATCH_TOL } from './common.js';
 import { COLORS, LINE_WIDTH } from '../constants.js';
-import { fmtCoordLabel, state } from '../state.js';
+import { fmtCoordLabel, fmtStatusCoords, state } from '../state.js';
 import { bulgeToArc, getRectCorners } from '../utils.js';
 
 // ── Mezery v kontuře (zvýraznění chyb před generováním polotovaru/G-kódu) ──
@@ -177,15 +177,23 @@ export function getSelectionCounterLabel() {
 
 // ── Počítadlo výběru (mobil: canvas overlay; desktop: viz #cursorCoords u kurzoru v events.js) ──
 export function drawSelectionCounter() {
-  if (window.innerWidth > 900) return;
-  const label = getSelectionCounterLabel();
+  const desktop = window.innerWidth > 900;
+  let label = getSelectionCounterLabel();
+  // Desktop: nahoře uprostřed poslední kliknutá souřadnice + počet vybraných (jako na mobilu)
+  if (desktop) {
+    const lc = state.lastClickPoint;
+    const coords = lc && lc.x !== null ? fmtStatusCoords(lc.x, lc.y) : '';
+    label = [coords, label].filter(Boolean).join('   |   ');
+  }
   if (!label) return;
   const fontSize = 14;
   ctx.font = `bold ${fontSize}px Consolas`;
   const w = ctx.measureText(label).width + 16;
   const h = fontSize + 12;
   const x = (drawCanvas.width - w) / 2;
-  const y = 124; // pod #mobileCanvasCoords (X/Z/zoom text nad tím, viz style.css)
+  // desktop: pod plovoucím toolbarem (jeho výška se mění s rozbalením Úprav/Více)
+  const topbar = desktop ? document.getElementById('topbar') : null;
+  const y = desktop ? (topbar ? topbar.getBoundingClientRect().bottom : 0) + 6 : 124; // mobil: pod #mobileCanvasCoords (X/Z/zoom text nad tím, viz style.css)
   ctx.fillStyle = 'rgba(30,30,46,0.85)';
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, 6);
