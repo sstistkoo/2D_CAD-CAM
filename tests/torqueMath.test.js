@@ -89,3 +89,40 @@ describe('torqueMath – upínky shora', () => {
     for (const [, , , lo, hi] of CLAMP_SCREWS) expect(hi).toBeGreaterThanOrEqual(lo);
   });
 });
+
+import { quickTorqueForHex } from '../js/calculators/torqueMath.js';
+describe('quickTorqueForHex', () => {
+  it('vrací odhad pro známé imbusy', () => {
+    expect(quickTorqueForHex(2.5)).toBe(3.5);
+    expect(quickTorqueForHex(4)).toBe(17);
+  });
+  it('neznámá velikost → null', () => {
+    expect(quickTorqueForHex(5)).toBeNull();
+    expect(quickTorqueForHex(null)).toBeNull();
+  });
+});
+
+import { torxOf, insertScrewsForTorx } from '../js/calculators/torqueMath.js';
+describe('torx', () => {
+  it('rozpozná zápis Torxu', () => {
+    expect(torxOf('T20')).toBe(20);
+    expect(torxOf('Torx 8')).toBe(8);
+    expect(torxOf('imbus 2,5')).toBeNull();
+  });
+  it('najde šrouby pro T8', () => {
+    expect(insertScrewsForTorx(8).map(r => r[0])).toEqual(['M2,5', 'M3']);
+    expect(insertScrewsForTorx(99)).toEqual([]);
+  });
+});
+
+import { torxPlusOf, keyKindOf } from '../js/calculators/torqueMath.js';
+describe('keyKindOf', () => {
+  it('rozliší Torx, Torx Plus a imbus', () => {
+    expect(keyKindOf('T20')).toEqual({ kind: 'torx', size: 20 });
+    expect(keyKindOf('IP15')).toEqual({ kind: 'torxplus', size: 15 });
+    expect(keyKindOf('15IP')).toEqual({ kind: 'torxplus', size: 15 });
+    expect(keyKindOf('imbus 2,5')).toEqual({ kind: 'imbus', size: 2.5 });
+    expect(keyKindOf('plochý')).toBeNull();
+    expect(torxPlusOf('T20')).toBeNull();
+  });
+});

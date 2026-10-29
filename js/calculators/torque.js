@@ -10,7 +10,7 @@
 import { showToast } from '../state.js';
 import { makeOverlay } from '../dialogFactory.js';
 import {
-  INSERT_SCREWS, KENLOC_PINS, CLAMP_SCREWS, insertIC, hexKeyOf, STRENGTH_CLASSES, FRICTION, METRIC_BOLTS, TORQUE_UNITS,
+  INSERT_SCREWS, KENLOC_PINS, CLAMP_SCREWS, insertIC, hexKeyOf, quickTorqueForHex, torxOf, torxPlusOf, keyKindOf, insertScrewsForTorx, STRENGTH_CLASSES, FRICTION, METRIC_BOLTS, TORQUE_UNITS,
   boltTorque, yieldOf, wrenchSetting, convertTorque,
 } from './torqueMath.js';
 import {
@@ -53,7 +53,8 @@ export function openTorqueCalc() {
         '<span class="cnc-field-full">' + textField('tName', 'Nůž / držák', 'např. T3 PCLNR 3232P19') + '</span>' +
         textField('tInsert', 'Plátek (VBD)', 'CNMG 190612') +
         textField('tScrew', 'Šroub', 'M5 / páka…') +
-        textField('tKey', 'Klíč', 'T20 / imbus 2,5') +
+        selectField('tKeyType', 'Čím se dotahuje', [['', '— vybrat —'], ['torx', 'Torx (T)'], ['torxplus', 'Torx Plus (IP)'], ['imbus', 'Imbus (šestihran, mm)'], ['other', 'Jiný']]) +
+        textField('tKey', 'Velikost klíče', 'T20 / imbus 2,5') +
         numField('tNm', 'Moment', 'Nm', 'z katalogu') +
         '<span class="cnc-field-full">' + textField('tNote', 'Poznámka', 'podložka, páka, upínka…') + '</span>' +
       '</div>' +
@@ -119,7 +120,7 @@ export function openTorqueCalc() {
 
   const q = (id) => overlay.querySelector('[data-id="' + id + '"]');
   const resultEl = q('result');
-  const toolIds = ['tName', 'tInsert', 'tScrew', 'tKey', 'tNm', 'tNote'];
+  const toolIds = ['tName', 'tInsert', 'tScrew', 'tKeyType', 'tKey', 'tNm', 'tNote'];
   const f = Object.fromEntries(toolIds.map(id => [id, q(id)]));
   let tools = loadTools();
   let editIdx = -1;
@@ -151,6 +152,18 @@ export function openTorqueCalc() {
     if (ref) html += outRow('Orientačně ' + ref[0] + ' ' + ref[1], range(ref[2], ref[3]) + ' Nm');
     // Kenloc: podle plátku (IC, negativní) nebo podle imbusu
     const ins = insertIC(f.tInsert.value), hex = hexKeyOf(f.tKey.value);
+    const tp = torxPlusOf(f.tKey.value);
+    const torx = tp !== null ? tp : torxOf(f.tKey.value);
+    const torxName = tp !== null ? 'Torx Plus IP' : 'Torx T';
+    const torxRows = torx !== null ? insertScrewsForTorx(torx) : [];
+    if (torxRows.length && !(t && Number.isFinite(t.nm))) {
+      const lo = Math.min(...torxRows.map(r => r[2])), hi = Math.max(...torxRows.map(r => r[3]));
+      html += outMain(range(lo, hi) + ' Nm', torxName + torx + ' – šrouby ' + torxRows.map(r => r[0]).join(' / ') + ' (podle katalogů), platí údaj na držáku' + (tp !== null ? ' · Torx Plus nedotahuj klasickým Torxem' : ''));
+    }
+    const quick = hex !== null ? quickTorqueForHex(hex) : null;
+    if (quick !== null && !(t && Number.isFinite(t.nm))) {
+      html += outMain('≈ ' + nm(quick) + ' Nm', 'Rychlý odhad pro imbus ' + nm(hex) + ' mm – spodní hranice katalogů, platí údaj na držáku');
+    }
     const pin = KENLOC_PINS.find(p => (ins && ins.neg && Math.abs(p[4] - ins.ic) < 0.01) || (hex !== null && p[0] === hex));
     if (pin && !ref) {
       html += outRow('Kenloc ' + pin[1] + ', imbus ' + nm(pin[0]), nm(pin[3]) + ' Nm');
@@ -165,10 +178,26 @@ export function openTorqueCalc() {
     info.innerHTML = html;
   }
 
+  const KEY_PREFIX = { torx: 'T', torxplus: 'IP', imbus: 'imbus ' };
+  function syncKeyType() {
+    const k = keyKindOf(f.tKey.value);
+    f.tKeyType.value = k ? k.kind : (f.tKey.value.trim() ? 'other' : '');
+  }
+  f.tKeyType.addEventListener('change', () => {
+    const kind = f.tKeyType.value, prefix = KEY_PREFIX[kind];
+    if (prefix === undefined) { f.tKey.focus(); showToolInfo(); return; }
+    const k = keyKindOf(f.tKey.value);
+    const num = k ? String(k.size).replace('.', ',') : (f.tKey.value.match(/\d+(?:[.,]\d+)?/) || [''])[0];
+    f.tKey.value = num ? prefix + num : prefix.trim();
+    showToolInfo(); solve(); f.tKey.focus();
+  });
+  f.tKey.addEventListener('input', syncKeyType);
+
   function fillForm(t) {
     f.tName.value = t?.name || ''; f.tInsert.value = t?.insert || ''; f.tScrew.value = t?.screw || '';
     f.tKey.value = t?.key || ''; f.tNm.value = Number.isFinite(t?.nm) ? String(t.nm).replace('.', ',') : ''; f.tNote.value = t?.note || '';
     f.tNm.placeholder = 'z katalogu';
+    syncKeyType();
   }
 
   function saveTool() {
@@ -215,7 +244,7 @@ export function openTorqueCalc() {
     const tr = e.target.closest('tr[data-ref]');
     if (!tr) return;
     const [th, key, lo, hi] = INSERT_SCREWS[+tr.dataset.ref];
-    f.tScrew.value = th; f.tKey.value = key.split(' / ')[0];
+    f.tScrew.value = th; f.tKey.value = key.split(' / ')[0]; syncKeyType();
     f.tNm.placeholder = 'typ. ' + range(lo, hi);
     overlay.querySelector('.calc-tab[data-tab="tools"]').click();
     showToolInfo();
@@ -227,7 +256,7 @@ export function openTorqueCalc() {
     if (!tr) return;
     const [hex, pin, th, v] = KENLOC_PINS[+tr.dataset.pin];
     f.tScrew.value = 'Kenloc ' + pin.split(' / ').pop() + ' (' + th + ')';
-    f.tKey.value = 'imbus ' + nm(hex);
+    f.tKey.value = 'imbus ' + nm(hex); syncKeyType();
     if (!f.tNm.value.trim()) f.tNm.value = nm(v);
     overlay.querySelector('.calc-tab[data-tab="tools"]').click();
     showToolInfo();
@@ -239,7 +268,7 @@ export function openTorqueCalc() {
     if (!tr) return;
     const [hex, sc, th, lo, hi] = CLAMP_SCREWS[+tr.dataset.clamp];
     f.tScrew.value = 'upínka ' + sc.split(' / ')[0] + ' (' + th.split(' / ').pop() + ')';
-    f.tKey.value = 'imbus ' + nm(hex);
+    f.tKey.value = 'imbus ' + nm(hex); syncKeyType();
     if (!f.tNm.value.trim()) f.tNm.value = nm(lo);
     overlay.querySelector('.calc-tab[data-tab="tools"]').click();
     showToolInfo();

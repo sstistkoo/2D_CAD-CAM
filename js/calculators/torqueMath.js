@@ -74,6 +74,45 @@ export function hexKeyOf(text) {
   return m ? parseFloat(m[1].replace(',', '.')) : null;
 }
 
+/**
+ * Rychlý odhad momentu jen podle velikosti imbusu (nástrojové šrouby VBD, upínky, čepy).
+ * Konzervativní hodnota u spodní hranice katalogů – platí hodnota na držáku / v katalogu.
+ * [imbus mm, Nm]
+ */
+export const HEX_QUICK = [[2, 2], [2.5, 3.5], [3, 6], [4, 17]];
+
+/** Doporučený moment [Nm] pro imbus daného průměru, nebo null (neznámá velikost). */
+export function quickTorqueForHex(hex) {
+  const r = HEX_QUICK.find(([h]) => h === hex);
+  return r ? r[1] : null;
+}
+
+/** Text klíče → číslo Torxu (např. „T20", „Torx 8", „T-15", „TX10"), imbus → null. */
+export function torxOf(text) {
+  const m = String(text || '').trim().match(/^(?:torx|tx|t)[\s-]*(\d{1,2})$/i);
+  return m ? +m[1] : null;
+}
+
+/** Text klíče → číslo Torx Plus (např. „IP15", „TP15", „15IP", „Torx Plus 20"), jinak null. */
+export function torxPlusOf(text) {
+  const t = String(text || '').trim();
+  const m = t.match(/^(?:ip|tp|torx[\s-]*plus)[\s-]*(\d{1,2})$/i) || t.match(/^(\d{1,2})[\s-]*(?:ip|tp)$/i);
+  return m ? +m[1] : null;
+}
+
+/** Druh hlavy šroubu z textu klíče: 'imbus' | 'torx' | 'torxplus' | null; size = rozměr (mm / číslo T). */
+export function keyKindOf(text) {
+  const p = torxPlusOf(text); if (p !== null) return { kind: 'torxplus', size: p };
+  const t = torxOf(text); if (t !== null) return { kind: 'torx', size: t };
+  const h = hexKeyOf(text); if (h !== null) return { kind: 'imbus', size: h };
+  return null;
+}
+
+/** Šrouby VBD odpovídající Torxu daného čísla (řádky INSERT_SCREWS, kde je klíč „T<n>"). */
+export function insertScrewsForTorx(n) {
+  return INSERT_SCREWS.filter(r => r[1].split('/').some(k => +k.trim().replace(/^T/i, '') === n));
+}
+
 /** Pevnostní třídy: [klíč, název, Rp0,2 MPa do M16, Rp0,2 MPa nad M16]. */
 export const STRENGTH_CLASSES = [
   ['8.8', '8.8', 640, 660],
