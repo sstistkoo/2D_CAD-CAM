@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CNC Editor – Úsečka úhlem: šipky ✛ u polárního úhlu** (`calculators/cncAngleCompass.js`). Mřížka osmi
+  směrů jako v číselném zadání; úhel se počítá podle typu stroje (soustruh / karusel) a zrcadlení os, aby
+  šipka odpovídala směru na obrazovce. Test `tests/cnc-angle-compass.test.js`.
 - **CNC Editor – dialog ⌒ Oblouk** (`calculators/cncArcModal.js`, `cncArcTools.js`): jedna klávesa místo G2, G3 a T; první řádek lišty má pět kláves R, I, K, G (číselník se seznamem G-kódů) a ⌒ oblouk. Smysl G2/G3,
   Netečně / Tečně, konec X+Z, R a **úhel rozevření** (konec + úhel → R, tečně + R + úhel → konec); velký oblouk záporným R,
   G91 přírůstky, živý výsledek a chyby z analýzy editoru. Testy `tests/cnc-arc-tools.test.js`, `tests/cnc-arc-modal.test.js`.

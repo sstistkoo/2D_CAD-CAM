@@ -1347,6 +1347,10 @@ programů) to nedělá.
   a **📋XZ** (kopírovat koncový bod).
 - **∠ Úsečka úhlem:** úhel (od osy +Z proti směru hodin, 180° = směr −Z) a k tomu
   délka L, nebo cílové X, nebo cílové Z → vloží `G1 X… Z…` za řádek s kurzorem.
+  Tlačítko **✛** za polem úhlu otevře mřížku osmi šipek (jako rychlá volba úhlu
+  v číselném zadání): šipka ukazuje směr **na obrazovce** a úhel se dopočte podle typu
+  stroje a zrcadlení os (u soustruhu → = 0°, ↑ = 90°; u karuselu ↑ = 0°, → = 90°).
+  V režimu Od předchozí / Tečně se ✛ schová (tam se zadává odklon, ne směr).
   Za předchozí **úsečkou** (G1) jde úhel zadat i **Od předchozí** (odklon vlevo ↺ /
   vpravo ↻ od jejího směru). Za **obloukem** (G2/G3) se nabízí jen **Polární**
   a **⟿ Tečně** – odklon 0°, úsečka plynule navazuje na konec oblouku ve směru

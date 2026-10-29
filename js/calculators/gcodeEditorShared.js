@@ -307,3 +307,5 @@ export function convertCornersToPaths(code, {
 
 // Automatické G0/G1 po Enter (CNC Editor) – viz gcodeAutoMotion.js
 export { autoCompleteMotionG } from "./gcodeAutoMotion.js";
+// Šipky ✛ u polárního úhlu (CNC Editor, Úsečka úhlem) – viz cncAngleCompass.js
+export { wireAngleCompass } from "./cncAngleCompass.js";

@@ -16,7 +16,7 @@ import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
 import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { autoCompleteMotionG, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave } from './gcodeEditorShared.js';
+import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave } from './gcodeEditorShared.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
 const STORAGE_DATA  = 'skica-cnc-editor-data';
@@ -555,7 +555,7 @@ function buildEditorHTML(drawMode = false) {
         <button class="cne-ang-mode" data-act="angSide" data-side="-1" title="Odklon od předchozího směru doprava (po směru hodin)">↻ vpravo</button>
       </div>
       <label class="cne-ang-row"><span data-el="angLabel">Úhel °</span> <small data-el="angSmall">(od osy +Z, proti směru hodin; 180 = směr −Z)</small>
-        <input class="cne-im-input" data-el="angA" type="text" inputmode="decimal" autocomplete="off"></label>
+        <span class="cne-ang-inrow"><input class="cne-im-input" data-el="angA" type="text" inputmode="decimal" autocomplete="off"><button type="button" class="compass-trigger-btn" data-el="angCompass" title="Rychlá volba směru (šipky podle obrazovky)">✛</button></span></label>
       <div class="cne-ang-hint">a jeden z údajů:</div>
       <div class="cne-ang-grid">
         <label>Délka L<input class="cne-im-input" data-el="angL" type="text" inputmode="decimal" autocomplete="off"></label>
@@ -2012,7 +2012,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     angleModal.querySelectorAll('[data-act="angMode"]').forEach(b => b.classList.toggle('on', b.dataset.mode === angMode));
     angleModal.querySelectorAll('[data-act="angSide"]').forEach(b => b.classList.toggle('on', Number(b.dataset.side) === angSide));
     $('angModeRow').hidden = !angRelOk; $('angTangentBtn').hidden = !(angRelOk && angPrevArc); $('angRelBtn').hidden = angPrevArc;   // za obloukem jen Polární + Tečně
-    const tangent = angPrevArc && angMode === 'rel'; $('angTangentBtn').classList.toggle('on', tangent); $('angA').readOnly = tangent; $('angSideRow').hidden = !(angRelOk && angMode === 'rel' && !angPrevArc);   // tečně = odklon pevně 0°
+    $('angCompass').hidden = angMode === 'rel'; const tangent = angPrevArc && angMode === 'rel'; $('angTangentBtn').classList.toggle('on', tangent); $('angA').readOnly = tangent; $('angSideRow').hidden = !(angRelOk && angMode === 'rel' && !angPrevArc);   // ✛ jen u polárního úhlu; tečně = odklon pevně 0°
     $('angLabel').textContent = tangent ? 'Tečně °' : angMode === 'rel' ? 'Odklon °' : 'Úhel °';
     $('angSmall').textContent = angMode === 'rel'
       ? (tangent ? `(tečna na konci oblouku – směr ${f3(anglePrevDir)}° od +Z)` : `(od předchozího směru ${f3(anglePrevDir)}°; 0 = rovně dál, 90 = kolmo)`)
@@ -2158,7 +2158,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       $('angRes').textContent = r.err ? '' : `→ ${g1Text(r)}` + (r.inc ? ' (G91 – přírůstky)' : '') + (r.rel ? `  (směr ${f3(r.abs)}° od +Z)` : '');
     });
     angleModal.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmAngle(); } });
-    closeOnBackdropClick(angleModal, () => { angleModal.style.display = 'none'; });
+    closeOnBackdropClick(angleModal, () => { angleModal.style.display = 'none'; }); wireAngleCompass($('angCompass'), $('angA'), angleModal, () => ({ karusel: state.machineType === 'karusel', flipX: !!state.flipX, flipZ: !!state.flipZ }));
   }
   const arcModal = createArcModal({ $, editor, getOpts: drawOpts, caretLine, insertLines, closeOnBackdropClick });   // ⌒ Oblouk (cncArcModal.js)
 

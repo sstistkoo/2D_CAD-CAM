@@ -7652,6 +7652,12 @@ button.vk-header-btn-green {
 .cne-chf-grid { grid-template-columns: repeat(2, 1fr); }
 .cne-ang-grid label small { font-size: 10px; }
 .cne-ang-res { min-height: 18px; margin: 8px 0 4px; font: 12px "Consolas","Courier New",monospace; color: var(--ctp-green); }
+/* Úsečka úhlem: pole úhlu + ✛ šipky (cncAngleCompass.js) */
+.cne-ang-inrow { display: flex; gap: 6px; align-items: stretch; }
+.cne-ang-inrow .cne-im-input { flex: 1; min-width: 0; }
+.cne-ang-inrow .compass-trigger-btn { flex: 0 0 auto; font-size: 18px; padding: 0 12px; }
+.cne-ang-inrow .compass-trigger-btn[hidden] { display: none; }
+.cne-ang-compass { position: absolute; z-index: 5; }
 /* Dialog ⌒ Oblouk (cncArcModal.js): čtyři pole ve dvou sloupcích */
 .cne-arc-grid { grid-template-columns: repeat(2, 1fr); }
 .cne-arc-big { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; color: var(--ctp-subtext0); }
