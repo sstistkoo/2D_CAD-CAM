@@ -275,6 +275,7 @@ export function calculateAllIntersections() {
     if (objs[i].isDimension || objs[i].isCoordLabel || objs[i].skipIntersections) continue;
     for (let j = i + 1; j < objs.length; j++) {
       if (objs[j].isDimension || objs[j].isCoordLabel || objs[j].skipIntersections) continue;
+      const pair = [objs[i].layer, objs[j].layer];   // vrstvy průsečíku (shownIntersections.js)
       const lines1 = getLines(objs[i]),
         lines2 = getLines(objs[j]);
       const circs1 = getCircles(objs[i]),
@@ -287,7 +288,7 @@ export function calculateAllIntersections() {
         if (near && near.dist < PT_TOL) {
           objs[i].x = near.x;
           objs[i].y = near.y;
-          pts.push({ x: near.x, y: near.y });
+          pts.push({ x: near.x, y: near.y, pair });
         }
         continue;
       }
@@ -296,7 +297,7 @@ export function calculateAllIntersections() {
         if (near && near.dist < PT_TOL) {
           objs[j].x = near.x;
           objs[j].y = near.y;
-          pts.push({ x: near.x, y: near.y });
+          pts.push({ x: near.x, y: near.y, pair });
         }
         continue;
       }
@@ -312,25 +313,26 @@ export function calculateAllIntersections() {
       for (const l1 of lines1)
         for (const l2 of lines2)
           for (const pt of intersectLineLine(l1, l2))
-            if (!isSharedEndpoint(pt)) pts.push(pt);
+            if (!isSharedEndpoint(pt)) pts.push({ ...pt, pair });
       for (const l of lines1)
         for (const c of circs2)
           for (const pt of intersectLineCircle(l, c))
-            if (!isSharedEndpoint(pt)) pts.push(pt);
+            if (!isSharedEndpoint(pt)) pts.push({ ...pt, pair });
       for (const l of lines2)
         for (const c of circs1)
           for (const pt of intersectLineCircle(l, c))
-            if (!isSharedEndpoint(pt)) pts.push(pt);
+            if (!isSharedEndpoint(pt)) pts.push({ ...pt, pair });
       for (const c1 of circs1)
         for (const c2 of circs2)
           for (const pt of intersectCircleCircle(c1, c2))
-            if (!isSharedEndpoint(pt)) pts.push(pt);
+            if (!isSharedEndpoint(pt)) pts.push({ ...pt, pair });
     }
   }
   const unique = [];
-  for (const pt of pts) {
-    if (!unique.some((u) => Math.hypot(u.x - pt.x, u.y - pt.y) < 1e-4))
-      unique.push(pt);
+  for (const { pair, ...pt } of pts) {
+    const u = unique.find((q) => Math.hypot(q.x - pt.x, q.y - pt.y) < 1e-4);
+    if (u) u.pairs.push(pair);
+    else unique.push({ ...pt, pairs: [pair] });
   }
   state.intersections = unique;
   if (bridge.updateIntersectionList) bridge.updateIntersectionList();

@@ -8,6 +8,7 @@ import { renderAll } from './render.js';
 import { faceSnapPoints, faceSnapEdge } from './faceView/faceReference.js';
 import { refSnapObjects } from './render/mirrorSnap.js';
 import { SNAP_POINT_THRESHOLD, SNAP_EDGE_THRESHOLD, VIBRATE_SNAP_POINT, VIBRATE_SNAP_EDGE, AUTO_CENTER_PADDING, ZOOM_MIN, ZOOM_MAX } from './constants.js';
+import { shownIntersections } from './geometry/shownIntersections.js';
 
 export const wrap = document.getElementById("canvasWrap");
 export const drawCanvas = document.getElementById("drawCanvas");
@@ -224,7 +225,7 @@ export function snapPt(wx, wy) {
       }
     }
     // Průsečíky mají bonus – při stejné vzdálenosti vyhrávají
-    for (const pt of state.intersections) {
+    for (const pt of shownIntersections()) {
       const d = Math.hypot(pt.x - wx, pt.y - wy);
       if (d < threshold && d <= objD) {
         objD = d;

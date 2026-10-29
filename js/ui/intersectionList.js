@@ -11,12 +11,14 @@ import { state, showToast, coordHelpers, fmtNum } from '../state.js';
 import { renderAll } from '../render.js';
 import { autoCenterView } from '../canvas.js';
 import { bridge } from '../bridge.js';
+import { shownIntersections } from '../geometry/shownIntersections.js';
 
 export function updateIntersectionList() {
   const ul = document.getElementById("intersectionList");
   if (!ul) return;
   ul.innerHTML = "";
-  if (state.intersections.length === 0) {
+  const shown = shownIntersections();   // bez průsečíků skrytých vrstev
+  if (shown.length === 0) {
     ul.innerHTML =
       `<li style="color:${COLORS.textMuted};cursor:default">Žádné průsečíky</li>`;
     return;
@@ -43,18 +45,18 @@ export function updateIntersectionList() {
   selectAllCb.type = "checkbox";
   selectAllCb.className = "int-checkbox";
   selectAllCb.title = "Vybrat vše";
-  const allChecked = state.intersections.every(pt => _isPtSel(pt.x, pt.y));
+  const allChecked = shown.every(pt => _isPtSel(pt.x, pt.y));
   selectAllCb.checked = allChecked;
   selectAllCb.addEventListener("change", () => {
     if (selectAllCb.checked) {
-      state.intersections.forEach(pt => {
+      shown.forEach(pt => {
         if (!_isPtSel(pt.x, pt.y)) {
           if (!state.selectedPoint) state.selectedPoint = [];
           state.selectedPoint.push({ x: pt.x, y: pt.y });
         }
       });
     } else {
-      state.intersections.forEach(pt => {
+      shown.forEach(pt => {
         _togglePt(pt.x, pt.y, false);
       });
     }
@@ -95,7 +97,7 @@ export function updateIntersectionList() {
 
   // ── Jednotlivé průsečíky ──
   const { H: _iH, V: _iV, Hp: _Hp, Vp: _Vp, fH, fV } = coordHelpers();
-  state.intersections.forEach((pt, i) => {
+  shown.forEach((pt, i) => {
     const li = document.createElement("li");
     const isSel = _isPtSel(pt.x, pt.y);
     li.className = isSel ? "selected" : "";

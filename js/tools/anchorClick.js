@@ -6,6 +6,7 @@ import { SNAP_POINT_THRESHOLD } from '../constants.js';
 import { state, pushUndo, showToast } from '../state.js';
 import { renderAll } from '../render.js';
 import { getObjectSnapPoints } from '../utils.js';
+import { shownIntersections } from '../geometry/shownIntersections.js';
 
 const ANCHOR_TOL = 0.01;
 
@@ -33,7 +34,7 @@ function findNearestSnapPoint(wx, wy) {
   }
 
   // Průsečíky
-  for (const pt of state.intersections) {
+  for (const pt of shownIntersections()) {
     const d = Math.hypot(pt.x - wx, pt.y - wy);
     if (d < threshold && (!best || d <= best.dist)) {
       best = { x: pt.x, y: pt.y, dist: d };

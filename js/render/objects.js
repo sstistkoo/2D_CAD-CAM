@@ -21,6 +21,7 @@ import { drawFaceReference, inFaceDisc } from '../faceView/faceReference.js';
 import { drawFrontView } from '../faceView/faceFrontView.js';
 import { drawShellHoles, drawViewCut } from '../faceView/shellHoleView.js';
 import { faceViewMode } from '../faceView/faceLayer.js';
+import { shownIntersections } from '../geometry/shownIntersections.js';
 
 // ── Vykreslení objektů ──
 export function renderObjects() {
@@ -141,7 +142,7 @@ export function renderObjects() {
     // „Jen bokorys": profil je skrytý, jeho průsečíky s popisky souřadnic taky
     // (průsečíky se počítají ze všech objektů — export CNC je potřebuje).
     const faceSolo = faceViewMode() === 'solo';
-    state.intersections.forEach((pt) => {
+    shownIntersections().forEach((pt) => {
       if (faceSolo && !inFaceDisc(pt.x, pt.y)) return;
       const [sx, sy] = worldToScreen(pt.x, pt.y);
       const isSelPt = state.selectedPoint != null

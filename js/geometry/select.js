@@ -8,6 +8,7 @@ import { renderAll, findNumLabelAt } from '../render.js';
 import { bridge } from '../bridge.js';
 import { mirrorable } from '../render/mirrorSnap.js';
 import { distToObject, findSegmentAt } from './hitDistance.js';
+import { shownIntersections } from './shownIntersections.js';
 
 // ── Hledání a výběr objektu ──
 
@@ -135,7 +136,7 @@ export function findIntersectionAt(wx, wy) {
   // Průsečíky (bonus – při stejné vzdálenosti vyhrávají).
   // Snap funguje i v režimu 'dimensions' (průsečíky skryté, ale lze na ně kótovat).
   if (state.showDimensions !== 'none') {
-    for (const pt of state.intersections) {
+    for (const pt of shownIntersections()) {
       const d = Math.hypot(pt.x - wx, pt.y - wy);
       if (d <= bestDist) { bestDist = d; best = pt; }
     }

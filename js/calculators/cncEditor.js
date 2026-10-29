@@ -17,6 +17,7 @@ import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
 import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave } from './gcodeEditorShared.js';
+import { shownIntersections } from '../geometry/shownIntersections.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
 const STORAGE_DATA  = 'skica-cnc-editor-data';
@@ -2179,7 +2180,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   // Průsečíky z plátna – klik vloží souřadnici na kurzor.
   function renderIntersections() {
     if (!isectListEl) return;
-    const list = (state.intersections || []).map(p => {
+    const list = shownIntersections().map(p => {
       const fmt = bridge.formatAbsCoord ? bridge.formatAbsCoord(p.x, p.y) : `X${p.y.toFixed(3)} Z${p.x.toFixed(3)}`;
       return fmt.replace(/([XZ])(-?\d+\.\d+)/g, (_, a, n) => a + String(Number(n)));
     });

@@ -257,6 +257,7 @@ export function showSettingsDialog() {
     const mBtn = overlay.querySelector('#settMirrorPreview');
     mBtn.style.cssText = `${btnBase}${state.mirrorPreview ? activeStyle : inactiveStyle}`;
     mBtn.textContent = `⇋ Zrcadlit kolem osy: ${state.mirrorPreview ? 'ON' : 'OFF'}`;
+    if (bridge.updateLayerList) bridge.updateLayerList();   // řádek Hrany přes osu
     renderAll();
     persistSettings();
     showToast(state.mirrorPreview ? 'Náhled zrcadlení: ON' : 'Náhled zrcadlení: OFF');

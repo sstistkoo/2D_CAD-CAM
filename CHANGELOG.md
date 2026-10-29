@@ -46,6 +46,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAD: průsečíky skryté vrstvy zmizí** (`geometry/shownIntersections.js`): po skrytí vrstvy (třeba
+  *Konstrukce* s vodítky plátku z CAM) se její průsečíky nekreslí, nejsou v seznamu, v CNC Editoru ani pro
+  SNAP; ve `state.intersections` zůstávají kvůli exportu CNC. Každý průsečík nese `pairs` (vrstvy dvojice).
+  Nově **🗑 v řádku vrstvy** smaže všechny objekty vrstvy (vrstva zůstane, ↩ Zpět). Test
+  `tests/shown-intersections.test.js`, `tests/ui-layer-row-actions.test.js`.
+- **CAD ⇋ Zrcadlit kolem osy – hrany přes osu jako na výkrese** (`render/mirrorEdges.js`): spojí se i tečné
+  přechody zaoblení (konce oblouků R), všechny hrany jednotně tenkou plnou čarou (½ tloušťky vrstvy), zakryté
+  tence čárkovaně; dřív měly hrany tloušťku i čárkování objektu, takže se kontura a polotovar lišily.
+  Roh na začátku strmého zkosení vycházel jako zakrytý (čárkovaně) — viditelnost se teď bere z nižší strany.
+  Ve Vrstvách je při zrcadlení řádek **Hrany přes osu** s okem (`state.mirrorEdges`, ukládá se v nastavení).
 - **G-kód → 🔄 Vykreslit na karuselu v G91:** přírůstek se přičítal na prohozenou osu – `G91 G01 Z-10` se
   nepohnul a `X10` posunul Z (podmínka „x ⇔ Z" platí jen pro soustruh). Nalezeno maticovým testem tečných
   oblouků `tests/cnc-arc-tangent-matrix.test.js`.

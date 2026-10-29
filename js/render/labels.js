@@ -6,6 +6,7 @@ import { ARROW_ANGLE, ARROW_LENGTH, COLORS } from '../constants.js';
 import { fmtNum, state } from '../state.js';
 import { bulgeToArc, getRectCorners } from '../utils.js';
 import { _dimLabelRects, _ink, _tv } from './view.js';
+import { shownIntersections } from '../geometry/shownIntersections.js';
 
 // ── Šipka kóty ──
 export function drawDimArrow(fromX, fromY, toX, toY) {
@@ -211,11 +212,12 @@ export function drawObjectNumbers() {
 
 /** Vykreslí čísla průsečíků (P1, P2, …) na výkrese. */
 export function drawIntersectionNumbers() {
-  if (state.intersections.length === 0) return;
+  const shown = shownIntersections();
+  if (shown.length === 0) return;
   const fontSize = Math.round(Math.min(20, Math.max(13, 10 + state.zoom * 5)));
   ctx.font = `bold ${fontSize}px Consolas`;
 
-  state.intersections.forEach((pt, i) => {
+  shown.forEach((pt, i) => {
     const [scx, scy] = worldToScreen(pt.x, pt.y);
     const label = `P${i + 1}`;
     const tw = ctx.measureText(label).width;

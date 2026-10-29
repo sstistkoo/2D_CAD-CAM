@@ -12,6 +12,7 @@ import {
   showMeasurePointToLineResult, showMeasurePointToCircleResult,
   showMeasureTwoObjectsResult, showMeasureMultiObjectResult,
 } from '../dialogs.js';
+import { shownIntersections } from '../geometry/shownIntersections.js';
 
 /**
  * @param {number} wx
@@ -33,7 +34,7 @@ export function handleMeasureClick(wx, wy) {
 
     // 2) Průsečíky – měření od průsečíku
     let isOnIntersection = false;
-    for (const pt of state.intersections) {
+    for (const pt of shownIntersections()) {
       if (Math.hypot(pt.x - wx, pt.y - wy) < snapThreshold) {
         isOnIntersection = true;
         break;

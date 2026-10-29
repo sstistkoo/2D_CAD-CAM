@@ -29,7 +29,7 @@ import { holeFrontLines, frontHoles } from '../js/faceView/faceFrontView.js';
 import { viewRadii, profileAtZ, drawFaceReference, faceCutGeom } from '../js/faceView/faceReference.js';
 import { drawHolesToFace } from '../js/faceView/facePattern.js';
 import { materialSpan, materialDepth } from '../js/faceView/faceDepth.js';
-import { axisEdgeLines } from '../js/render/mirrorEdges.js';
+import { axisEdgeLines, drawAxisEdges, axisEdgeSnapLines } from '../js/render/mirrorEdges.js';
 import { refSnapObjects } from '../js/render/mirrorSnap.js';
 import { drawFrontView } from '../js/faceView/faceFrontView.js';
 
@@ -165,14 +165,15 @@ describe('hrany přes osu (mirrorEdges.axisEdgeLines)', () => {
     expect(at(lines, 0)).toEqual([]);
     expect(at(lines, 340)).toEqual([]);
   });
-  it('sražení = hrana přes celý průměr, tečný přechod zaoblení se nekreslí', () => {
+  it('sražení = hrana přes celý průměr, tečný přechod zaoblení také', () => {
     const objs = [L(0, 0, 0, 18), L(0, 18, 2, 20), L(2, 20, 95, 20),
       { type: 'arc', layer: 0, cx: 95, cy: 25, r: 5, startAngle: -Math.PI / 2, endAngle: 0 },
       L(100, 25, 100, 30), L(100, 30, 150, 30), L(150, 30, 150, 0)];
     const lines = axisEdgeLines(objs);
     expect(at(lines, 2)).toEqual([[-20, 20, false]]);
-    expect(at(lines, 95)).toEqual([]);
+    expect(at(lines, 95)).toEqual([[-20, 20, false]]);
     expect(at(lines, 100)).toEqual([[-25, 25, false]]);
+    expect(at(lines, 50)).toEqual([]);                         // úsečky v jedné přímce hranu nedělají
   });
   it('dno vývrtu uvnitř dílu je zakryté → tenká čárkovaná', () => {
     const objs = [L(0, 0, 0, 30), L(0, 30, 100, 30), L(100, 30, 100, 10), L(100, 10, 60, 10), L(60, 10, 60, 0)];
@@ -180,6 +181,26 @@ describe('hrany přes osu (mirrorEdges.axisEdgeLines)', () => {
     expect(at(lines, 60)).toEqual([]);                        // celé dno je nakreslené (svislá + zrcadlo)
     const notch = [L(0, 0, 0, 30), L(0, 30, 100, 30), L(100, 30, 100, 10), L(100, 10, 60, 10), L(60, 10, 55, 0)];
     expect(at(axisEdgeLines(notch), 60)).toEqual([[-10, 10, true]]);   // hrana vývrtu bez svislé čáry
+  });
+  it('roh na začátku strmého zkosení je viditelný, ne zakrytý', () => {
+    const objs = [L(0, 0, 0, 20), L(0, 20, 10, 20), L(10, 20, 15, 45), L(15, 45, 30, 45),
+      L(30, 45, 38, 9), L(38, 9, 60, 9), L(60, 9, 60, 0)];
+    const lines = axisEdgeLines(objs);
+    expect(at(lines, 10)).toEqual([[-20, 20, false]]);
+    expect(at(lines, 38)).toEqual([[-9, 9, false]]);
+  });
+  it('oko „Hrany přes osu" ve Vrstvách je skryje i pro SNAP (state.mirrorEdges)', () => {
+    state.objects = profile(); state.layers = [{ id: 0, visible: true }];
+    let n = 0;
+    const g = { save() {}, restore() {}, beginPath() {}, moveTo() {}, lineTo() {}, setLineDash() {}, stroke() { n++; } };
+    drawAxisEdges(g, (x, y) => [x, -y]);
+    expect(n).toBeGreaterThan(0);
+    expect(axisEdgeSnapLines().length).toBeGreaterThan(0);
+    state.mirrorEdges = false; n = 0;
+    drawAxisEdges(g, (x, y) => [x, -y]);
+    expect(n).toBe(0);
+    expect(axisEdgeSnapLines()).toEqual([]);
+    state.mirrorEdges = true;
   });
   it('polotovar zvlášť: jeho osazení přes osu', () => {
     const lines = axisEdgeLines(stock());

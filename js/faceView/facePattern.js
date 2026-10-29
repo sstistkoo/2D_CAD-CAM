@@ -17,6 +17,7 @@ import { renderAll } from '../render.js';
 import { getFaceLayer, getFaceLayers, faceLabel } from './faceLayer.js';
 import { holeDepthLabel, resolveFaceHole } from './faceDepth.js';
 import { saveSettings } from '../storage/settingsStore.js';
+import { bridge } from '../bridge.js';
 import { faceSlotPolyline, faceSlotForCam, stadiumOf } from './faceSlots.js';
 
 const r3 = v => +(+v).toFixed(3);
@@ -72,7 +73,7 @@ export function drawHolesToFace(spec) {
   // Díry pod osou se v nárysu kreslí skrytou čarou (faceFrontView.js) — spodní
   // polovinu nárysu dokreslí ⇋ Zrcadlit kolem osy (uživatel 20. 10. 2026).
   const mirrorOn = state.machineType !== 'karusel' && !state.mirrorPreview;
-  if (mirrorOn) { state.mirrorPreview = true; saveSettings(); }
+  if (mirrorOn) { state.mirrorPreview = true; saveSettings(); if (bridge.updateLayerList) bridge.updateLayerList(); }
   state.selected = null; state.multiSelected.clear();
   calculateAllIntersections();
   updateObjectList();

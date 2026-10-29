@@ -5,15 +5,17 @@
 // přes osu i hrany a přechody (uživatel 20. 10. 2026). Hrana = kružnice v místě
 // zlomu profilu (osazení, sražení, zápich); v pohledu je to úsečka přes celý
 // průměr. Podle ISO 128:
-//   viditelná hrana (na vnějším povrchu)  → čarou jako obrys,
+//   viditelná hrana (na vnějším povrchu)  → tenká plná,
 //   zakrytá (uvnitř — dno vývrtu apod.)   → tenká čárkovaná,
-//   tečný přechod (konec zaoblení)        → nekreslí se.
-// Díl a polotovar zvlášť (každý svou čarou, polotovar díl nezakrývá). Kreslí
+//   tečný přechod (konec zaoblení)        → tenká plná také (uživatel
+//                                            29. 10. 2026: spojit všechny hrany).
+// Všechny hrany jednotně poloviční tloušťkou čáry vrstvy, bez čárkování
+// objektu — jinak by se hrana kontury, polotovaru a čárkované čáry lišily.
+// Díl a polotovar zvlášť (každý svou barvou, polotovar díl nezakrývá). Kreslí
 // se jen chybějící kus — svislé čáry profilu a jejich zrcadlo už nakreslené jsou.
 // Jen soustruh: zrcadlí se kolem y = 0 (osa vřetena).
 import { state } from '../state.js';
 import { LINE_WIDTH } from '../constants.js';
-import { objDash, objWidthMul } from '../lineStyles.js';
 import { bulgeToArc, getRectCorners } from '../utils.js';
 import { resolveObjectColor } from './common.js';
 import { isFeatureObject } from '../faceView/faceLayer.js';
@@ -22,8 +24,9 @@ import { materialAt, objectsHash } from '../faceView/faceReference.js';
 const TYPES = new Set(['line', 'arc', 'rect', 'polyline']);
 const TAN_TOL = Math.sin(2 * Math.PI / 180);   // tečný přechod = do 2°
 const R_TOL = 0.1;                             // [mm] hrana na vnějším povrchu
-const SIDE = 0.05;                             // [mm] vzorek materiálu vedle hrany
+const SIDE = 0.01;                            // [mm] vzorek materiálu vedle hrany
 const HIDDEN_DASH = [5, 3];
+const EDGE_WIDTH = 0.5;                        // hrana = poloviční čára vrstvy
 
 /** Úseky prvku: [{ a, b, ta, tb, straight }] — konce a tečny v nich. */
 function pieces(o) {
@@ -84,7 +87,7 @@ export function axisEdgeLines(objects) {
       if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
       const k = `${key3(p.x)},${key3(p.y)}`;
       if (!groups.has(k)) groups.set(k, { p, list: [] });
-      groups.get(k).list.push({ t, o });
+      groups.get(k).list.push({ t, o, straight: pc.straight });
     });
     if (pc.straight && Math.abs(pc.a.x - pc.b.x) < 1e-6) {
       verticals.push({ z: pc.a.x, a: Math.min(pc.a.y, pc.b.y), b: Math.max(pc.a.y, pc.b.y) });
@@ -92,17 +95,21 @@ export function axisEdgeLines(objects) {
   }));
   // Materiál skupiny (polotovar jako „díl", ať ho materialAt nevyřadí).
   const mat = objects.map(o => (o.isStock ? { ...o, isStock: false } : o));
+  // Hrana je vidět, leží-li na povrchu aspoň z jedné strany → menší z obou stran
+  // (s větší vycházel roh na začátku strmého zkosení jako zakrytý).
   const outerMemo = new Map();   // víc rohů ve stejném Z (osazení) → materiál jednou
   const outerAt = z => {
     const k = key3(z);
-    if (!outerMemo.has(k)) outerMemo.set(k, Math.max(maxEnd(materialAt(mat, 'soustruh', z - SIDE)), maxEnd(materialAt(mat, 'soustruh', z + SIDE))));
+    if (!outerMemo.has(k)) outerMemo.set(k, Math.min(maxEnd(materialAt(mat, 'soustruh', z - SIDE)), maxEnd(materialAt(mat, 'soustruh', z + SIDE))));
     return outerMemo.get(k);
   };
   const byZ = new Map();      // z → { z, vis: {r, o}, hid: {r, o} }
   groups.forEach(({ p, list }) => {
     const r = Math.abs(p.y);
     if (r < 0.05) return;
-    const corner = list.length === 1 || list.some((e, i) => list.some((f, j) => j > i
+    // Hrana = konec, zlom, nebo přechod na oblouk (i tečný); dvě rovné úsečky
+    // v jedné přímce hranu nedělají.
+    const corner = list.length === 1 || list.some(e => !e.straight) || list.some((e, i) => list.some((f, j) => j > i
       && Math.abs(e.t.x * f.t.y - e.t.y * f.t.x) > TAN_TOL));
     if (!corner) return;
     const zk = key3(p.x);
@@ -126,7 +133,7 @@ let _cache = null;
 
 /** Hrany přes osu z posledního vykreslení jako úsečky pro SNAP (mirrorSnap.js). */
 export function axisEdgeSnapLines() {
-  if (!_cache || state.machineType === 'karusel') return [];
+  if (!_cache || state.machineType === 'karusel' || state.mirrorEdges === false) return [];
   return _cache.lines.map(({ z, a, b, o }) => ({ type: 'line', layer: o.layer, x1: z, y1: a, x2: z, y2: b }));
 }
 
@@ -136,7 +143,7 @@ export function axisEdgeSnapLines() {
  * @param w2s worldToScreen → [sx, sy]
  */
 export function drawAxisEdges(g, w2s) {
-  if (state.machineType === 'karusel') return;
+  if (state.machineType === 'karusel' || state.mirrorEdges === false) return;   // skryté okem ve Vrstvách
   const off = new Set((state.layers || []).filter(l => !l.visible).map(l => l.id));
   const objs = state.objects.filter(o => o && TYPES.has(o.type) && !o.isDimension && !o.isCoordLabel
     && !o.isCamPathNote && !off.has(o.layer) && !isFeatureObject(o));
@@ -148,8 +155,8 @@ export function drawAxisEdges(g, w2s) {
   _cache.lines.forEach(({ z, a, b, hidden, o }) => {
     const layer = (state.layers || []).find(l => l.id === o.layer);
     g.strokeStyle = resolveObjectColor(o);
-    g.lineWidth = hidden ? 1 : (layer?.lineWidth ?? LINE_WIDTH) * objWidthMul(o);
-    g.setLineDash(hidden ? HIDDEN_DASH : objDash(o));
+    g.lineWidth = (layer?.lineWidth ?? LINE_WIDTH) * EDGE_WIDTH;
+    g.setLineDash(hidden ? HIDDEN_DASH : []);
     const p = w2s(z, a), q = w2s(z, b);
     g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke();
   });

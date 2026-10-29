@@ -267,6 +267,8 @@ export const state = {
   flipZ: false,
   // Náhled zrcadlení kontury kolem osy rotace (y=0) – jen vizuální, neukládá objekty
   mirrorPreview: false,
+  // Hrany přes osu při zrcadlení (render/mirrorEdges.js) — oko v panelu Vrstvy
+  mirrorEdges: true,
   // Aktivní režim „📐 Kreslit držák na CAD plátně" z CAM Simulátoru.
   // Objekt se zálohou původního výkresu + kontextem režimu (viz
   // js/calculators/camSimulator.js → startHolderCadDraw), nebo null.

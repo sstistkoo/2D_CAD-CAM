@@ -48,6 +48,7 @@ const SCHEMA = {
   flipX: isBool,
   flipZ: isBool,
   mirrorPreview: isBool,
+  mirrorEdges: isBool,
   showContourGaps: isBool,
   displayDecimals: (v) => Number.isInteger(v) && v >= 0 && v <= 6,
   theme: oneOf('dark', 'light'),

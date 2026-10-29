@@ -55,8 +55,10 @@ Herní nástroje seskupené do sekcí:
 
 ### Boční panel (pravý)
 - **Objekty** – seznam všech objektů, výběr, mazání, zobrazení čísel
-- **Průsečíky** – automaticky vypočítané průsečíky
-- **Vrstvy** – správa vrstev
+- **Průsečíky** – automaticky vypočítané průsečíky (průsečíky skryté vrstvy se nezobrazují a SNAP je nechytá)
+- **Vrstvy** – správa vrstev; 🗑 v řádku vrstvy smaže všechny její objekty (vrstva zůstane, ↩ Zpět je vrátí),
+  třeba konstrukční čáry plátku z CAM ve vrstvě *Konstrukce*; při ⇋ Zrcadlit kolem osy je tu i řádek
+  *Hrany přes osu* — okem skryjete čáry přechodů, které spojují obě poloviny dílu
 - **Vlastnosti** – barva, tloušťka, styl čáry, čárkovaná
 - **Nastavení** – mřížka, úhlové snap, kóty, okraje, autom. středy, číslování, osa Y
 - **Bubliny s popisem** – hlavičky panelů (Objekty, Průsečíky, Vlastnosti, Vrstvy, CNC Kód,
