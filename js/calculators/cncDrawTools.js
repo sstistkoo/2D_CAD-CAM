@@ -153,7 +153,7 @@ export function analyzeDrawCode(code, opts = {}) {
         mv.tangent = true;
         if (tArc.end) { to = tArc.end; mv.to = to; pos = to; }   // konec dopočtený z R a jedné souřadnice
       } else if (I !== null || K !== null) {
-        const cen = { x: from.x + (I ?? 0) / xs, z: from.z + (K ?? 0) };
+        const cen = { x: from.x + (I ?? 0), z: from.z + (K ?? 0) };   // I = poloměr i v průměrovém režimu (Fanuc/Sinumerik)
         const r = Math.hypot(from.x - cen.x, from.z - cen.z);
         const r2 = Math.hypot(to.x - cen.x, to.z - cen.z);
         mv.arc = { cx: cen.x, cz: cen.z, r, ccw };
@@ -215,7 +215,7 @@ export function moveInfo(mv, an) {
   if (a.err) return [`Oblouk G${mv.g}`, a.err];
   const deg = a.sweep * 180 / Math.PI;
   return [`Oblouk G${mv.g}${mv.tangent ? ' T (tečný)' : ''}`, ...(a.warn ? ['⚠ ' + a.warn] : []), `R ${f3(a.r)}`, `střed X${f3(a.cx * xs)} Z${f3(a.cz)}`,
-    `I${f3((a.cx - mv.from.x) * xs)} K${f3(a.cz - mv.from.z)}`, `výseč ${f3(deg)}°`,
+    `I${f3(a.cx - mv.from.x)} K${f3(a.cz - mv.from.z)}`, `výseč ${f3(deg)}°`,
     `délka ${f3(a.r * a.sweep)}`, end];
 }
 
@@ -434,7 +434,7 @@ export function tangentToIK(code, opts = {}) {
     const rest = c.replace(/\bG\s*0*[23](?!\d)/g, ' ').replace(/(?:^|\s)T(?=\s|$)/g, ' ')
       .replace(/(?<![A-Z])(?:X|Z|I|K|R|CR)\s*=?\s*[-+]?(?:\d+\.?\d*|\.\d+)/g, ' ').replace(/\s+/g, ' ').trim();
     const x = f3(inc ? (mv.to.x - mv.from.x) * xs : mv.to.x * xs), z = f3(inc ? mv.to.z - mv.from.z : mv.to.z);
-    const ik = `I${f3((mv.arc.cx - mv.from.x) * xs)} K${f3(mv.arc.cz - mv.from.z)}`;
+    const ik = `I${f3(mv.arc.cx - mv.from.x)} K${f3(mv.arc.cz - mv.from.z)}`;   // I v poloměru
     lines[mv.line] = (n + [g, rest, `X${x}`, `Z${z}`, ik].filter(Boolean).join(' ')).trim() + (com ? ' ' + com : '');
     converted++;
   }

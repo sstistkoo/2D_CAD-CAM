@@ -23,7 +23,7 @@ function wordHelp(w, num, o) {
       }
     case 'X': return `cíl v ose X (${x}); chybí-li, X se nemění`;
     case 'Z': return 'cíl v ose Z (délka); chybí-li, Z se nemění';
-    case 'I': return `střed oblouku: vzdálenost od začátku v X (${x}), jen u G2/G3`;
+    case 'I': return 'střed oblouku: vzdálenost od začátku v X (vždy poloměr, i když je X v průměru), jen u G2/G3';
     case 'K': return 'střed oblouku: vzdálenost od začátku v Z, jen u G2/G3';
     case 'R': return 'poloměr oblouku (alternativa k I, K); záporný = delší oblouk';
     case 'CR': return 'poloměr oblouku (Sinumerik); záporný = delší oblouk';
@@ -176,6 +176,7 @@ G1 X50 Z50
 Z200`),
       p('PU/L se před přenosem do výkresu samy přepíšou na X, Z.')),
     sec('Tečný oblouk (T)',
+      p('Oblouk se nejsnáz zadá tlačítkem <b>⌒ oblouk</b> v rychlé liště: dialog nabídne G2 / G3, <b>Netečně / Tečně</b>, konec X Z, R a <b>úhel rozevření</b> a sám napíše řádek (u tečného oblouku i s T).'),
       row('G2/G3 … T', 'oblouk, který <b>tečně naváže</b> na předchozí úsečku nebo oblouk. Zadáte jen koncový bod X, Z – střed i poloměr se dopočtou. Nesmí následovat hned po G0.'),
       pre(`G1 Z10
 G3 X10 Z20 T      ; tečný oblouk R10`),

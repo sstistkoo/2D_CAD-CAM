@@ -263,7 +263,7 @@ export function convertCornersToPaths(code, {
       // musí prohodit .x/.z oproti tomu, jak jsou pojmenované v G-kódu.
       const cross = (tp1.z - cz) * (tp2.x - cx) - (tp1.x - cx) * (tp2.z - cz);
       // I/K = střed oblouku relativně k jeho začátku (tp1): I v ose X, K v ose Z.
-      const ikStr = ik ? ` I${fmt((cx - tp1.x) * xs)} K${fmt(cz - tp1.z)}` : '';
+      const ikStr = ik ? ` I${fmt(cx - tp1.x)} K${fmt(cz - tp1.z)}` : '';   // I v poloměru i v průměrovém režimu
       connectorLine = `${gWord(cross)} X${fmt(tp2.x * xs)} Z${fmt(tp2.z)}${ikStr} R${fmt(r)}`;
     } else {
       const res = chamferTwoLines(lineA, lineB, mk.value, mk.value);

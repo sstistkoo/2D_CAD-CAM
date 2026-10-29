@@ -12,6 +12,7 @@ import { analyzeDrawCode, moveInfo, moveAtOrBefore, moveDirDeg, modeAtLine, pola
 import { drawPreview } from './cncDrawPreview.js';
 import { lineHint, helpHTML } from './cncHints.js';
 import { joinAtIntersection, chamferByAngle } from './cncJoin.js';
+import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
 import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
@@ -322,12 +323,10 @@ function quickbarHTML(drawMode) {
   const xWord = state.xDisplayMode === 'diameter' ? 'průměr' : 'poloměr';
   if (drawMode) return `
   <div class="cne-quickbar cne-quickbar--draw">
-    <button class="cne-qb c10" data-inp="R" title="R – poloměr / parametr">R</button>
-    <button class="cne-qb c10" data-inp="I" title="I &ndash; st&#345;ed oblouku (posun v X, ${xWord} jako X)">I<small class="cne-qb-axis">(x)</small></button>
-    <button class="cne-qb c10" data-inp="K" title="K &ndash; st&#345;ed oblouku (posun v Z)">K<small class="cne-qb-axis">(z)</small></button>
-    <button class="cne-qb accent cne-qb-arc c10" data-ins="G2 " title="G2 &ndash; kruhov&aacute; interpolace po sm&#283;ru hodinov&yacute;ch ru&#269;i&#269;ek"><span>G2</span><small>&#8635; oblouk</small></button>
-    <button class="cne-qb accent cne-qb-arc c10" data-ins="G3 " title="G3 &ndash; kruhov&aacute; interpolace proti sm&#283;ru hodinov&yacute;ch ru&#269;i&#269;ek"><span>G3</span><small>&#8634; oblouk</small></button>
-    <button class="cne-qb accent c10" data-ins=" T" title="T – tečné napojení na předchozí prvek (u G2 / G3)">T</button>
+    <button class="cne-qb c12" data-inp="R" title="R – poloměr / parametr">R</button>
+    <button class="cne-qb c12" data-inp="I" title="I &ndash; st&#345;ed oblouku (posun v X, v&#382;dy polom&#283;r)">I<small class="cne-qb-axis">(x)</small></button>
+    <button class="cne-qb c12" data-inp="K" title="K &ndash; st&#345;ed oblouku (posun v Z)">K<small class="cne-qb-axis">(z)</small></button><button class="cne-qb blue c12" data-inp="G" title="G-kód – otevře číselník se seznamem G-kódů">G</button>
+    <button class="cne-qb accent cne-qb-arc c12" data-act="arcModal" title="Oblouk – G2 / G3, tečné napojení, úhel rozevření"><span>⌒</span><small>oblouk</small></button>
 
     <button class="cne-qb accent cne-qb-big c12" data-ins="G0 " title="G0 – Rychloposuv na počáteční bod"><span>G0</span><small>start</small></button>
     <button class="cne-qb accent cne-qb-big c12" data-ins="G1 " title="G1 – Lineární interpolace (úsečka)"><span>G1</span><small>úsečka</small></button>
@@ -569,7 +568,7 @@ function buildEditorHTML(drawMode = false) {
         <button class="cne-im-btn ok" data-act="angleOk">Vložit G1</button>
       </div>
     </div>
-  </div>` : ''}
+  </div>` : ''}${drawMode ? ARC_MODAL_HTML : ''}
 
   ${drawMode ? `<!-- Sražení úhel × délka -->
   <div class="cne-inner-modal" data-el="chfModal" style="display:none">
@@ -2161,6 +2160,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     angleModal.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmAngle(); } });
     closeOnBackdropClick(angleModal, () => { angleModal.style.display = 'none'; });
   }
+  const arcModal = createArcModal({ $, editor, getOpts: drawOpts, caretLine, insertLines, closeOnBackdropClick });   // ⌒ Oblouk (cncArcModal.js)
 
   function copyText(t, what) {
     if (!t) return;
@@ -2420,7 +2420,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
           else toggleCoordMode();
           closeMenu(); break;
         case 'togglePreview': setPreview(previewEl?.hidden); break;
-        case 'angleLine': openAngleLine(); break;
+        case 'angleLine': openAngleLine(); break; case 'arcModal': arcModal.open(); break;
         case 'joinLines': joinLines(); break;
         case 'chfAngle': openChamferAngle(); break;
         case 'chfAlong': chfAlong = ab.dataset.along; syncChf(); break;

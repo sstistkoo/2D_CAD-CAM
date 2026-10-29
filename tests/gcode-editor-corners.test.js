@@ -29,9 +29,9 @@ describe('convertCornersToPaths', () => {
     });
   });
 
-  it('CNC Editor: X jako průměr, oblouk s I/K, čísla bez zbytečných nul', () => {
+  it('CNC Editor: X jako průměr, oblouk s I/K (I v poloměru), čísla bez zbytečných nul', () => {
     expect(convertCornersToPaths(PROG, cncOpts)).toEqual({
-      code: 'G0 X0 Z5\nG1 X36.97 Z0.379 F0.2\nG3 X40 Z-1.562 I-0.97 K-1.94 R2\nG1 X40 Z-30\n'
+      code: 'G0 X0 Z5\nG1 X36.97 Z0.379 F0.2\nG3 X40 Z-1.562 I-0.485 K-1.94 R2\nG1 X40 Z-30\n'
         + 'G1 X57 Z-30\nG1 X60 Z-31.5\nG1 X60 Z-50\nM30',
       converted: 2, skipped: 0,
     });

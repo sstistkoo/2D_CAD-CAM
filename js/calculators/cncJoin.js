@@ -133,7 +133,7 @@ export function joinAtIntersection(code, ln, opts = {}) {
     }
     const ccw = rev ? !seg.worldCcw : seg.worldCcw;
     const x = f3(inc ? (to.x - from.x) * xs : to.x * xs), z = f3(inc ? to.z - from.z : to.z);
-    return `${gArc(ccw)} X${x} Z${z} I${f3((seg.C.x - from.x) * xs)} K${f3(seg.C.z - from.z)}`;
+    return `${gArc(ccw)} X${x} Z${z} I${f3(seg.C.x - from.x)} K${f3(seg.C.z - from.z)}`;
   };
   const textA = moveText(sa, sa.a, P, false, false);
   if (!textA) return { err: 'Průsečík leží v počátku prvního prvku – není co spojit.' };

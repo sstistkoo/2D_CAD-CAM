@@ -59,6 +59,18 @@ describe('zápis čísel a přírůstků', () => {
     const r = P('G90 G00 X0 Z0\nG01 X20 Z-10\nG01 U10');
     expect(lines(r)[1].y2 - lines(r)[1].y1).toBeCloseTo(5, 9);
   });
+  it('G91 na karuselu: Z-10 jde po ose Z, X10 po ose X (dřív se Z nepohnulo a X šlo do Z)', () => {
+    state.machineType = 'karusel';
+    const r = P('G90 G00 X0 Z0\nG91\nG01 Z-10\nG01 X10');
+    // karusel: svět x = X (poloměr), y = Z
+    expect(lines(r)[0]).toMatchObject({ x1: 0, y1: 0, x2: 0, y2: -10 });
+    expect(lines(r)[1]).toMatchObject({ x1: 0, y1: -10, x2: 10, y2: -10 });
+  });
+  it('G91 na soustruhu beze změny', () => {
+    const r = P('G90 G00 X0 Z0\nG91\nG01 Z-10\nG01 X10');
+    expect(lines(r)[0]).toMatchObject({ x2: -10, y2: 0 });
+    expect(lines(r)[1]).toMatchObject({ x2: -10, y2: 10 });
+  });
   it('U/W při G91 je to samé jako X/Z', () => {
     const r = P('G90 G00 X0 Z0\nG91\nG01 U5 W-5');
     expect(lines(r)[0]).toMatchObject({ x2: -5, y2: 5 });
@@ -82,6 +94,23 @@ describe('oblouky: nic se nezahazuje potichu', () => {
     const r = P('G90 G00 X0 Z0\nG03 X0 Z-10 I0 K-5');
     expect(arcs(r)).toHaveLength(1);
     expect(r.warnings).toEqual([]);
+  });
+  it('I je poloměr i v průměrovém režimu (Fanuc/Sinumerik): X20 → X40, I5 = střed na poloměru 15', () => {
+    state.xDisplayMode = 'diameter';
+    const r = P('G90 G00 X20 Z0\nG02 X40 Z0 I5 K0');
+    expect(r.warnings).toEqual([]);              // dřív I/2 → „I/K nesedí"
+    const a = arcs(r)[0];
+    expect(a.r).toBeCloseTo(5, 9);
+    expect(a.cx).toBeCloseTo(0, 9);              // soustruh: svět x = Z
+    expect(a.cy).toBeCloseTo(15, 9);             // svět y = poloměr
+  });
+  it('I v poloměru platí i na karuselu', () => {
+    state.xDisplayMode = 'diameter';
+    state.machineType = 'karusel';
+    const a = arcs(P('G90 G00 X20 Z0\nG02 X40 Z0 I5 K0'))[0];
+    expect(a.r).toBeCloseTo(5, 9);
+    expect(a.cx).toBeCloseTo(15, 9);             // karusel: svět x = poloměr
+    expect(a.cy).toBeCloseTo(0, 9);
   });
   it('kružnice G02 I5 bez X/Z se ohlásí místo tichého zahození', () => {
     const r = P('G90 G00 X0 Z0\nG02 I5');

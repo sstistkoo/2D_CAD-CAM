@@ -144,10 +144,12 @@ export function parseGcodeToObjects(code) {
     // Výpočet cílového bodu v canvas souřadnicích
     let tx, ty;
     if (gMode === 91) {
-      // Inkrementální: přičti zadané osy, nezadané zůstanou
+      // Inkrementální: přičti zadané osy, nezadaná osa má přírůstek 0. Dřív se
+      // přičítání podmiňovalo „x ⇔ Z, y ⇔ X" – to platí jen pro soustruh; na
+      // karuselu (x = X, y = Z) se tím G91 Z-10 vůbec nepohnulo a X šlo do Z.
       const dPt = toCanvas(gZval ?? 0, gXval ?? 0);
-      tx = cx + (gZval !== null ? dPt.x : 0);
-      ty = cy + (gXval !== null ? dPt.y : 0);
+      tx = cx + dPt.x;
+      ty = cy + dPt.y;
     } else {
       // Absolutní: nezadaná osa zůstane na aktuální poloze
       const absPt = toCanvas(gZval ?? curGZ, gXval ?? curGX);
@@ -181,7 +183,8 @@ export function parseGcodeToObjects(code) {
 
       if (gIval !== null || gKval !== null) {
         // Formát I/K: střed = aktuální poloha + (I=ΔX, K=ΔZ)
-        const off = toCanvas(gKval ?? 0, gIval ?? 0);
+        // I je vždy POLOMĚR (Fanuc/Sinumerik), i když je X v průměru – proto ne toCanvas (ten X půlí).
+        const off = isKarusel ? { x: gIval ?? 0, y: gKval ?? 0 } : { x: gKval ?? 0, y: gIval ?? 0 };
         acx = cx + off.x;
         acy = cy + off.y;
       } else if (gRval !== null) {

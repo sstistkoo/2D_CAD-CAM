@@ -7652,6 +7652,12 @@ button.vk-header-btn-green {
 .cne-chf-grid { grid-template-columns: repeat(2, 1fr); }
 .cne-ang-grid label small { font-size: 10px; }
 .cne-ang-res { min-height: 18px; margin: 8px 0 4px; font: 12px "Consolas","Courier New",monospace; color: var(--ctp-green); }
+/* Dialog ⌒ Oblouk (cncArcModal.js): čtyři pole ve dvou sloupcích */
+.cne-arc-grid { grid-template-columns: repeat(2, 1fr); }
+.cne-arc-big { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; color: var(--ctp-subtext0); }
+.cne-arc-big[hidden] { display: none; }
+.cne-arc-info { min-height: 16px; margin: 2px 0 4px; font-size: 11px; color: var(--ctp-subtext0); }
+.cne-arc-info.cne-arc-err { color: var(--ctp-red); }
 .cne-isect-list { display: flex; flex-direction: column; gap: 2px; padding: 2px 6px 10px; min-width: 238px; box-sizing: border-box; }
 .cne-isect {
   all: unset; cursor: pointer; padding: 6px 8px; border-radius: 6px;

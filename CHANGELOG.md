@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CNC Editor – dialog ⌒ Oblouk** (`calculators/cncArcModal.js`, `cncArcTools.js`): jedna klávesa místo G2, G3 a T; první řádek lišty má pět kláves R, I, K, G (číselník se seznamem G-kódů) a ⌒ oblouk. Smysl G2/G3,
+  Netečně / Tečně, konec X+Z, R a **úhel rozevření** (konec + úhel → R, tečně + R + úhel → konec); velký oblouk záporným R,
+  G91 přírůstky, živý výsledek a chyby z analýzy editoru. Testy `tests/cnc-arc-tools.test.js`, `tests/cnc-arc-modal.test.js`.
 - **CNC Editor – úsečka úhlem: tlačítko ⟿ Tečně.** Nastaví odklon 0° od předchozí úsečky / oblouku, takže
   nová úsečka tečně naváže na konec oblouku. Tlačítko se ukazuje jen za obloukem a „Od předchozí“ jen za úsečkou. V režimu Tečně je odklon pevně 0° (pole jen pro čtení), komentář řádku „⟿ tečně“; režim „Od předchozí“ z minulého otevření se za obloukem už nepřenese. Test `tests/cnc-tangent-continue.test.js`.
 - **CNC Editor – automatické G0/G1 po Enter** (`calculators/gcodeAutoMotion.js`): první řádek se
@@ -40,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **G-kód → 🔄 Vykreslit na karuselu v G91:** přírůstek se přičítal na prohozenou osu – `G91 G01 Z-10` se
+  nepohnul a `X10` posunul Z (podmínka „x ⇔ Z" platí jen pro soustruh). Nalezeno maticovým testem tečných
+  oblouků `tests/cnc-arc-tangent-matrix.test.js`.
 - **CNC Editor – automatické G0/G1:** první bod polotovaru (za `STOCK_START`) a první bod za `STOCK_END` dostane G0, ne G1 – jinak by vznikla falešná čára od konce kontury.
 - **G-kód → 🔄 Vykreslit** (parser vyjmut z `fileIO.js` do `storage/gcodeParse.js`, `fileIO.js` 1988 → 1811 ř.):
   - `G04 X2.5` (prodleva), `G28/G30/G53` a cykly `G70–G76` už nekreslí falešnou úsečku do bodu X/Z;
@@ -422,6 +428,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **G-kód: `I` je vždy poloměr, i v průměrovém režimu** (jako Fanuc / Sinumerik a jako už CAM parser).
+  Dřív CNC Editor, 🔄 Vykreslit, převod T → I/K, spojení v průsečíku, sražení/zaoblení → dráha
+  i obkreslení profilu brali `I` jako průměr (`I10` = 5 mm). Ručně psaný program s `I` podle stroje se
+  teď nakreslí správně. Pozor: starý program psaný v aplikaci s `I` v průměru se nakreslí jinak
+  (editor ohlásí „konec neleží na kružnici"). Výstup do stroje z výkresu se nemění (píše `R`).
 - **CAM: lámání třísky i u děr z výkresu.** ⇡ Vyjíždění × ↯ Lámání třísky
   a Odskok ze záložky Vrtání (nebo *Tříska mezi záběry* u operace):
   Sinumerik `CYCLE83 … VARI = 0`, rozepsaně jen odskok a další záběr,

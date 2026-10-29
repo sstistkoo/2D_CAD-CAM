@@ -3,7 +3,7 @@
 // ║  Multi-click nástroj pro sběr souřadnic po kontuře         ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, showToast, toDisplayCoords, displayX, inputX, coordHelpers, pushUndo } from '../state.js';
+import { state, showToast, toDisplayCoords, inputX, coordHelpers, pushUndo } from '../state.js';
 import { renderAll } from '../render.js';
 import { vSign } from '../canvas.js';
 import { resetHint, setHint, updateObjectList } from '../ui.js';
@@ -291,9 +291,9 @@ function _calcIK(segIdx) {
   const dcx = seg.centerX - start.x; // delta ve world X (vodorovná)
   const dcy = seg.centerY - start.y; // delta ve world Y (svislá)
   if (isKarusel) {
-    return { I: displayX(dcx), K: dcy };
+    return { I: dcx, K: dcy };   // I = poloměr i v průměrovém režimu
   } else {
-    return { I: displayX(dcy), K: dcx };
+    return { I: dcy, K: dcx };
   }
 }
 

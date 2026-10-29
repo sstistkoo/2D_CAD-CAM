@@ -1342,7 +1342,8 @@ programů) to nedělá.
 **Údaje a pomůcky pro zjišťování rozměrů (CNC Editor – kreslení):**
 - **Řádek s údaji** nad klávesnicí ukazuje k řádku s kurzorem: u úsečky délku L,
   úhel od osy +Z, ΔX/ΔZ a konec; u oblouku R, absolutní střed, I/K, úhel výseče
-  a délku oblouku. Tlačítka **∠** (úsečka úhlem), **📋ř** (kopírovat řádek)
+  a délku oblouku. **`I` je vždy poloměr** (posun středu v X od začátku oblouku),
+  i když je X zobrazené v průměru – stejně jako na stroji (Fanuc, Sinumerik). Tlačítka **∠** (úsečka úhlem), **📋ř** (kopírovat řádek)
   a **📋XZ** (kopírovat koncový bod).
 - **∠ Úsečka úhlem:** úhel (od osy +Z proti směru hodin, 180° = směr −Z) a k tomu
   délka L, nebo cílové X, nebo cílové Z → vloží `G1 X… Z…` za řádek s kurzorem.
@@ -1351,6 +1352,19 @@ programů) to nedělá.
   a **⟿ Tečně** – odklon 0°, úsečka plynule navazuje na konec oblouku ve směru
   tečny (úhel od oblouku nedává smysl). Po G0, na prvním řádku a před prvním
   pohybem nejsou ani jedno (není směr, ke kterému by se vztahovaly).
+- **⌒ Oblouk** (tlačítko v rychlé liště místo kláves G2, G3 a T): dialog vloží řádek
+  `G2/G3` za řádek s kurzorem. Volíš **↻ G2 / ↺ G3** a **Netečně / ⟿ Tečně**
+  (Tečně jen za G1 nebo obloukem, stejně jako u úsečky úhlem). Zadáváš:
+  - netečně: **konec X+Z a R** (zaškrtávátko „velký oblouk" zapíše záporné R),
+    nebo **konec X+Z a úhel rozevření** (R se dopočte);
+  - tečně: **konec X+Z** (smysl G2/G3 určí napojení), nebo **R + X či Z**, nebo
+    **R + úhel rozevření** (konec se dopočte); do kódu se zapíše `T`.
+
+  Pod poli je živý výsledek (`→ G3 X10 Z-30 T`) a údaje R, úhel a konec; chybu
+  (třeba R menší než půlka tětivy, oblouk „nedosáhne") ohlásí hned. V G91 se zapisují
+  přírůstky, v průměrovém režimu je X průměr. V prvním řádku rychlé lišty je vedle
+  **R**, **I**, **K** a **⌒ oblouk** i klávesa **G**: otevře číselník se seznamem G-kódů, takže jde
+  ručně napsat třeba G2/G3 při úpravě stávajícího oblouku nebo G4, G33 apod.
 - **📐 Náhled kontury** (pravý panel): malý náhled nad kódem, řádek s kurzorem
   žlutě. Po zavření editoru se objekt z řádku s kurzorem označí na plátně.
 - **Průsečíky na plátně** (pravý panel): klepnutím se souřadnice vloží na kurzor.
