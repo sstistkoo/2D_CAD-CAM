@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **VK – záporné R = oblouk větší než půlkruh** (`G3 X0 Z-10 R-6`, jako v ISO): náhled i 📥 Vložit do výkresu ho kreslí se středem na druhé straně tětivy. U dopočtu (`?`) a u `T` se záporné R opraví na kladné s oznámením (tvar určuje tečnost). `R0` se odmítne.
+- **VK – srovnání zápisu a ochrana proti překlepům** (`calculators/vkNormalize.js`): parser VK teď
+  rozumí lidskému zápisu (`g01 x10,5 z -3`, `G02`, `.5`, `X10+5`, `X=10`, `G1X10Z-5`, číslo bloku)
+  a po opuštění pole ho srovná na kanonický tvar. Řádky, kterým nerozumí (neznámý příkaz, `I/J/K`,
+  `X10 -5`, oblouk bez R, záporné/nulové R, dvakrát stejná adresa, `T1`, VPOL3…), se hlásí pod polem
+  místo tichého zahození; **📥 Vložit** a **⇄ Konvertovat** s chybou nic neudělají. Test `tests/vk-normalize.test.js`.
 - **Drsnost – cílová hodnota → převod:** zvolená nebo zadaná cílová Ra/Rz se rovnou vyplní do převodu Ra ↔ Rz (text v závorce zrušen); pole f max zvětšeno jako hlavní výsledek.
 - **Drsnost – popisky:** nad radiusy plátku popisek „Radius plátku“; zpětný výpočet bez nadpisu, pole cílové Ra vlevo a nad tlačítky „Drsnost Ra/Rz“ (stejné uspořádání jako rε), f max pod tím.
 - **Drsnost – kompaktnější okno:** přepínač Ra/Rz nahoře, materiály obrobku a nástroje vedle sebe, rε na jednom řádku s běžnými radiusy, odstraněna nápověda „Zadejte posuv a radius“, korekční faktory a třída drsnosti přesunuty dolů pod převod Ra ↔ Rz.
@@ -28,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   2 / 2,5 / 3 / 4 mm → 2,1 / 4,0–4,2 / 6–7 / 17 Nm).
 
 ### Fixed
+
+- **VK parser:** řádky `G01/G02/G03/G00`, malými písmeny nebo s desetinnou čárkou se dřív tiše ignorovaly
+  (kontura se vykreslila bez nich). Tlačítko ⇄ Konvertovat nově používá stejný parser jako náhled
+  (zrušena jeho vlastní kopie).
 
 - **Drsnost:** „f max" (zpětný výpočet) se přepočítá i bez zadaného posuvu při změně rádiusu, Vc, materiálu nebo nástroje; neplatný zápis (NaN) se bere jako nezadaný místo zobrazení „NaN"; Kopírovat skládá čitelný řádek (Ra / Rz / třída) místo slepeného textu tabulky.
 - **Kužel – závěrečná kontrola:** hlášení neplatného zápisu i u úchylek,

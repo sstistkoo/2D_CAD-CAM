@@ -17,6 +17,7 @@ import { state, showToast, displayX, inputX } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { bridge } from '../bridge.js';
 import { showVkHelpModal } from './vkHelp.js';
+import { normalizeVkLine, normalizeVkText, vkErrorSummary, renderVkIssues, bindVkAutoNormalize } from './vkNormalize.js';
 import { lineContinuationProps } from '../lineStyles.js';
 import {
   elementRay, solveCornerLineLine, solveLineArcJunctionCandidates, chooseSolution,
@@ -180,7 +181,7 @@ export function worldToVk(wx, wy) {
  * @returns {{cx: number, cy: number, r: number, startAngle: number, endAngle: number, ccw: boolean}|null}
  */
 export function vkArcInWorld(start, end, radius, direction) {
-  if (!Number.isFinite(radius) || radius <= 0) return null;
+  if (!Number.isFinite(radius) || radius === 0) return null;   // záporné R = oblouk > 180°
   const [x1, y1] = vkToWorld(start);
   const [x2, y2] = vkToWorld(end);
   const dx = x2 - x1;
@@ -191,11 +192,11 @@ export function vkArcInWorld(start, end, radius, direction) {
   const h = Math.sqrt(Math.max(0, radius * radius - dist2 / 4));
   const nx = -dy / dist;
   const ny = dx / dist;
-  const sign = direction === 'G2' ? -1 : 1;
+  const sign = (direction === 'G2' ? -1 : 1) * (radius < 0 ? -1 : 1);
   const cx = (x1 + x2) / 2 + sign * h * nx;
   const cy = (y1 + y2) / 2 + sign * h * ny;
   return {
-    cx, cy, r: radius,
+    cx, cy, r: Math.abs(radius),
     startAngle: Math.atan2(y1 - cy, x1 - cx),
     endAngle: Math.atan2(y2 - cy, x2 - cx),
     ccw: direction === 'G3',
@@ -300,7 +301,7 @@ export function dropLastVkElementLine(code) {
  * @returns {boolean}
  */
 export function vkChainHasElements(code) {
-  return /^(G0|G11|G1|G2|G3)\s+/m.test(String(code || ''));
+  return String(code || '').split(/\r?\n/).some((l) => /^(G0|G11|G1|G2|G3)\s+/.test(normalizeVkLine(l).line));
 }
 
 /**
@@ -330,7 +331,8 @@ export function replaceVkLine(code, oldLine, newLine) {
 }
 
 export function parseVkLine(text) {
-  const trimmed = String(text || '').trim();
+  // Lidský zápis (`g01 x10,5`) se srovná na kanonický – viz vkNormalize.js.
+  const trimmed = normalizeVkLine(text).line.trim();
   if (!trimmed) return null;
   // `G1` je tu kvůli VÝSTUPU vlastní konverze na ISO (G11→G1, G0→G1) a kvůli
   // přechodovým úsečkám z insertTangentTransitions. Bez něj byl zkonvertovaný
@@ -363,7 +365,7 @@ export function parseVkLine(text) {
 }
 
 export function resolveVkArcGeometry(start, end, radius, direction) {
-  if (!start || !end || !Number.isFinite(radius) || radius <= 0) return null;
+  if (!start || !end || !Number.isFinite(radius) || radius === 0) return null;
   const dx = end.x - start.x;
   const dz = end.z - start.z;
   const chordLen = Math.hypot(dx, dz);
@@ -372,7 +374,7 @@ export function resolveVkArcGeometry(start, end, radius, direction) {
   const sagitta = Math.sqrt(Math.max(radius * radius - halfLen * halfLen, 0));
   const perpX = -(end.z - start.z) / chordLen;
   const perpZ = (end.x - start.x) / chordLen;
-  const sign = direction === 'G3' ? 1 : -1;
+  const sign = (direction === 'G3' ? 1 : -1) * (radius < 0 ? -1 : 1);
   const center = {
     x: (start.x + end.x) / 2 + sign * perpX * sagitta,
     z: (start.z + end.z) / 2 + sign * perpZ * sagitta,
@@ -831,6 +833,7 @@ export function renderVkTab() {
     <div class="vk-gcode-box">
       <span class="vk-gcode-label">Generovaná VK syntaxe (lze upravit nebo smazat ručně):</span>
       <textarea class="vk-gcode-textarea" data-id="gcode">${DEFAULT_GCODE}</textarea>
+      <div class="vk-syntax-issues" data-syntax-issues hidden></div>
     </div>
     </div>
   `;
@@ -1034,6 +1037,7 @@ export function initVkTab(container, { picker = null } = {}) {
    */
   function updateVkPreview() {
     const value = gcodeEl ? gcodeEl.value : '';
+    renderVkIssues(container.querySelector('[data-syntax-issues]'), value);
     const draftSegment = getDraftSegment();
     const previewData = buildVkPreviewData(value, draftSegment);
     previewData.ambiguousSolutions = buildAmbiguousSolutionPreview(previewData, draftSegment);
@@ -1797,7 +1801,7 @@ export function initVkTab(container, { picker = null } = {}) {
     // varování. Omezeno na prázdnou frontu – s nedořešenými prvky v ní by
     // `refPoint()` ukazoval na bod PŘED jejich dopočtem, ne na skutečný
     // začátek tohoto oblouku (ten teprve vzejde ze společného řešení).
-    if (el.isArc && isKnown && el.r > 0 && pendingQueue.length === 0) {
+    if (el.isArc && isKnown && el.r && pendingQueue.length === 0) {
       // X/Z + PA/PR zároveň: X/Z je počátek oblouku (ne cíl, viz `lastPoint`
       // níž) – tětiva je pak přímo |PR|, ne vzdálenost od předchozího bodu.
       const comboStart = el.pa != null && prVal != null;
@@ -1805,7 +1809,7 @@ export function initVkTab(container, { picker = null } = {}) {
       if (start) {
         const chord = comboStart ? Math.abs(prVal) : Math.hypot(el.z - start.z, el.x - start.x);
         const minR = chord / 2;
-        if (el.r < minR - 1e-6) {
+        if (Math.abs(el.r) < minR - 1e-6) {
           solveInfo.textContent = `⚠ Poloměr R${fmt(el.r)} je moc malý pro tuto vzdálenost bodů (${fmt(chord)} mm) – potřeba aspoň R${fmt(minR)}.`;
           return;
         }
@@ -2071,6 +2075,7 @@ export function initVkTab(container, { picker = null } = {}) {
     commitResetTimer = setTimeout(() => { commitBtn.textContent = COMMIT_ICON; }, 1800);
   });
 
+  bindVkAutoNormalize(gcodeEl, (msg) => { if (msg) showToast(msg); vkSave(); scheduleRender(); });
   gcodeEl.addEventListener('input', () => {
     scheduleRender();
     vkSave();
@@ -2089,27 +2094,11 @@ export function initVkTab(container, { picker = null } = {}) {
         showToast('Obnoveno původní VK syntaxe');
         return;
       }
+      const normalizedInput = normalizeVkText(gcodeEl.value);
+      const inputErrors = vkErrorSummary(normalizedInput.issues);
+      if (inputErrors) { showToast(inputErrors); return; }
       conversionBackup = gcodeEl.value;
       setConvertState('restore');
-
-    function parseVkLine(text) {
-      // Stejná sada příkazů jako u modulového parseru (viz komentář tam) –
-      // `G1` musí projít, jinak by druhá konverze zahodila už převedené řádky.
-      const cmdMatch = text.trim().match(/^(G0|G111|G11|G1|G2|G3)\b/);
-      if (!cmdMatch) return null;
-      const data = { cmd: cmdMatch[1], text, isArc: cmdMatch[1] === 'G2' || cmdMatch[1] === 'G3' };
-      const re = /([A-Z]{1,4})(-?\d+(?:\.\d+)?|\?)/g;
-      let m;
-      while ((m = re.exec(text)) !== null) {
-        const key = m[1].toLowerCase();
-        const val = m[2];
-        data[key] = val === '?' ? null : parseFloat(val);
-      }
-      data.isT = /\bT\b/.test(text);
-      if (/\bVPOL1\b/.test(text)) data.vpolTag = 'VPOL1';
-      else if (/\bVPOL2\b/.test(text)) data.vpolTag = 'VPOL2';
-      return data;
-    }
 
     function normalizeAngle(deg) {
       return ((deg % 360) + 360) % 360;
@@ -2211,7 +2200,7 @@ export function initVkTab(container, { picker = null } = {}) {
       return parsed;
     }
 
-    const rawLines = gcodeEl.value.split('\n');
+    const rawLines = normalizedInput.text.split('\n');
     let updated = insertTangentTransitions([...rawLines]);
     let progress = true;
     while (progress) {

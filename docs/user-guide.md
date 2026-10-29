@@ -2281,6 +2281,19 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   > Když je v syntaxi ještě `?`, vložení se odmítne – nejdřív použij
   > **Konvertovat na ISO G-kód**, který neznámé dopočítá.
 
+  **Psaní VK syntaxe ručně:** nemusí být úhledné – `g01 x10,5 z -3`, `G02`,
+  `X.5`, `X10+5`, `X=10` i `G1X10Z-5` projde a po opuštění pole se zápis
+  srovná (`G1 X10.5 Z-3`). Řádek, kterému VK nerozumí, se **nezahodí
+  potichu**: pod polem se objeví ⛔ chyba (červeně) nebo ⚠️ varování (žlutě)
+  s číslem řádku a řádek se nepřepíše. Hlídá se neznámý příkaz (`G90`),
+  chybějící příkaz, `I/J/K` (střed oblouku – použij `R`), číslo s mezerou
+  (`X10 -5` – nejednoznačné), oblouk bez `R`, `R0`, dvakrát stejná adresa,
+  `T` s číslem a `VPOL` jiný než 1/2. Varování (hodnota nad 100 000 mm, `PA`
+  mimo ±360°, `PR` bez `PA`) nic neblokují. Dokud je v zápisu **chyba**,
+  **📥 Vložit do výkresu** i **⇄ Konvertovat** nic neudělají a řeknou proč.
+
+  **Velký oblouk (záporné R):** `G3 X0 Z-10 R-6` je oblouk **větší než půlkruh** (stejně jako v ISO). Kladné `R` dá kratší oblouk mezi dvěma body, záporné ten delší, střed je na druhé straně tětivy. Smysl má jen u oblouku se zadaným `X` i `Z` bez tečnosti `T`. U dopočtu (`?`) a u `T` tvar oblouku určuje tečnost a směr G2/G3, takže se záporné R po opuštění pole opraví na kladné a VK to oznámí.
+
   **Tečné napojení (T)** – u oblouku s příznakem `T` dotáhne VK předchozí
   úsečku nebo kužel přesně do bodu dotyku, takže přechod je hladký.
   Kam se kontura posune, je vidět **na výkrese už při psaní** – fialově

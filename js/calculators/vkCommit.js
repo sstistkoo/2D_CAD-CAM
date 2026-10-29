@@ -19,6 +19,7 @@
 import { state, pushUndo, showToast, STOCK_LAYER_ID } from '../state.js';
 import { bridge } from '../bridge.js';
 import { buildVkPreviewData, vkToWorld, vkArcInWorld } from './vkContour.js';
+import { normalizeVkText, vkErrorSummary } from './vkNormalize.js';
 
 /** Kratší segment už není geometrie, ale poziční skok (G0) nebo šum. */
 const MIN_SEG_LEN = 1e-4;
@@ -84,7 +85,15 @@ export function vkSegmentsToDrawObjects(segments) {
  * @returns {number} počet vložených objektů (0 = nic se nevložilo)
  */
 export function commitVkToDrawing(code, styleProps = null) {
-  const text = String(code || '');
+  // Lidský zápis se srovná; řádek s chybou (neznámý příkaz, oblouk bez R…)
+  // by jinak z výkresu tiše zmizel a vložila by se jen půlka kontury.
+  const normalized = normalizeVkText(code);
+  const errors = vkErrorSummary(normalized.issues);
+  if (errors) {
+    showToast(`VK zápis má chyby, nic se nevložilo:\n${errors}`);
+    return 0;
+  }
+  const text = normalized.text;
   if (!text.trim()) {
     showToast('VK syntaxe je prázdná – není co vložit');
     return 0;

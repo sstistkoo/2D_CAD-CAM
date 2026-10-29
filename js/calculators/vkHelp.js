@@ -92,6 +92,7 @@ const nonTangentSection = {
   icon: '⚡', color: 'red',
   title: '4. Netečná napojení',
   items: [
+    { title: 'Velký oblouk (záporné R)', syntax: 'G3 X0 Z-10 R-6', desc: 'Záporné R = oblouk větší než půlkruh. Smysl má se zadaným X i Z bez T; u ? a T se R opraví na kladné.' },
     { title: 'Úsečka (?) ➔ Oblouk (netečný)', badge: 'VPOL', syntax: 'G11 X30.0 Z?\nG2 X50.0 Z-20.0 R10.0 VPOL2' },
     { title: 'Oblouk (?) ➔ Kužel (netečný)', badge: 'VPOL', syntax: 'G3 X? Z? R12.0\nG11 X70.0 Z-35.0 PA120 VPOL1' },
   ],
