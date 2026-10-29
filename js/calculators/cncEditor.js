@@ -15,7 +15,7 @@ import { joinAtIntersection, chamferByAngle } from './cncJoin.js';
 import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave } from './gcodeEditorShared.js';
+import { autoCompleteMotionG, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave } from './gcodeEditorShared.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
 const STORAGE_DATA  = 'skica-cnc-editor-data';
@@ -1109,7 +1109,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     // vkládání za sebou (např. RND=5 pak Z5) způsobovalo skok na začátek.
     // Vrácením focusu se stav ustálí pro další čtení.
     editor.focus({ preventScroll: true });
-    onInput();
+    onInput(actual === '\n' ? { inputType: 'insertLineBreak' } : undefined);
   }
 
   function doBackspace() {
@@ -1752,8 +1752,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   }
 
   // ── Editor input handler ───────────────────────────────────
-  function onInput() {
-    programs[currentFile] = editor.value;
+  function onInput(ev) {
+    programs[currentFile] = autoCompleteMotionG(editor, ev);   // Enter: doplní G0/G1 (gcodeAutoMotion.js)
     updateEntryMode();
     updateInfo();
     // Historie se počítá i z aktuálního textu (velikost smazání) → po změně překreslit.

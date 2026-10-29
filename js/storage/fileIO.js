@@ -6,11 +6,12 @@ import { state, showToast, pushUndo, displayX, ensureStockLayer, STOCK_LAYER_ID 
 import { COLORS } from '../constants.js';
 import { updateObjectList, updateProperties, updateLayerList, updateMachineTypeBtn, updateXDisplayBtn } from '../ui.js';
 import { calculateAllIntersections } from '../geometry.js';
-import { bulgeToArc, arcFromEndpointsRadius, exportFileName, expandPolylineObjects, safeEvalMath } from '../utils.js';
+import { bulgeToArc, exportFileName, expandPolylineObjects } from '../utils.js';
 import { parseDXF, exportDXF, exportDXFMaker } from '../dxf.js';
 import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { autoCenterView } from '../canvas.js';
 import { bridge } from '../bridge.js';
+import { parseGcodeToObjects } from './gcodeParse.js';
 import { compactCncModal } from './cncCompact.js';
 import { openCncEditor } from '../calculators/cncEditor.js';
 import { loadProject } from './projectManager.js';
@@ -1598,7 +1599,7 @@ function renderCncCodeToCanvas(code, { append = false } = {}) {
       console.warn('G-kód – geometricky nemožné řádky:', warnings);
       const first = warnings[0];
       const rest = warnings.length > 1 ? ` (+${warnings.length - 1} další)` : '';
-      showToast(`${verb} ${objs.length} objektů – řádek ${first.line} přeskočen: ${first.reason}${rest}`);
+      showToast(`${verb} ${objs.length} objektů – řádek ${first.line} ${first.kept ? "– pozor" : "přeskočen"}: ${first.reason}${rest}`);
     } else {
       showToast(`${verb} ${objs.length} objektů z CNC kódu`);
     }
@@ -1739,7 +1740,7 @@ function importCncFile() {
         runCncExport();
         if (warnings.length > 0) {
           console.warn('G-kód – geometricky nemožné řádky:', warnings);
-          showToast(`Načteno ${objs.length} objektů – řádek ${warnings[0].line} přeskočen: ${warnings[0].reason}`);
+          showToast(`Načteno ${objs.length} objektů – řádek ${warnings[0].line} ${warnings[0].kept ? "– pozor" : "přeskočen"}: ${warnings[0].reason}`);
         } else {
           showToast(`Načteno ${objs.length} objektů z G-kódu`);
         }
@@ -1750,184 +1751,6 @@ function importCncFile() {
     reader.readAsText(file);
   };
   input.click();
-}
-
-function parseGcodeToObjects(code) {
-  const isKarusel = state.machineType === 'karusel';
-  const isDiam = state.xDisplayMode === 'diameter';
-  // soustruh: Z = canvas x, X = canvas y (poloměr)
-  // karusel:  X = canvas x, Z = canvas y
-  function toCanvas(gZ, gX) {
-    // X je v průměru u soustruhu i karuselu (export: displayX na osu X v obou
-    // případech) – dřív se u karuselu nepůlilo a překreslení zdvojnásobilo X.
-    const xRaw = isDiam ? gX / 2 : gX;
-    return isKarusel ? { x: xRaw, y: gZ } : { x: gZ, y: xRaw };
-  }
-
-  // Bezpečné vyhodnocení aritmetického výrazu (CSP-safe, bez eval/new Function)
-  function evalExpr(s) {
-    if (s == null) return null;
-    s = String(s).replace(/[\[\]]/g, '').trim();
-    if (!s) return null;
-    const v = safeEvalMath(s);
-    return isFinite(v) ? v : null;
-  }
-
-  // Extrakce číselné hodnoty adresy (X, Z, R, I, K…) z řádku.
-  // Podporuje: čísla, znaménka, výrazy (X10+5, X10/2), mezery (X 10), rovnítko (X=10).
-  function getAddr(line, letter) {
-    const re = new RegExp(
-      '(?:^|[^A-Za-z])' + letter +
-      '\\s*=?\\s*([+\\-]?\\s*(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+\\-]?\\d+)?' +
-      '(?:\\s*[+\\-\\*\\/]\\s*(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+\\-]?\\d+)?)*)',
-      'i'
-    );
-    const m = re.exec(line);
-    return m ? evalExpr(m[1]) : null;
-  }
-
-  const objs = [];
-  // Řádky, které appka geometricky nedovede sestrojit (typicky R menší než
-  // půlka tětivy) – vrací se volajícímu, aby o nich šlo uživatele
-  // informovat. Dřív se takový řádek tiše zahodil a poloha „teleportovala"
-  // na cíl bez viditelné čáry, beze stopy po tom, že se něco nepovedlo.
-  const warnings = [];
-  let lineNo = 0;
-  let cx = 0, cy = 0;     // aktuální poloha v canvas souřadnicích
-  let gMode = 90;          // 90=absolutní, 91=inkrementální (modální – platí dokud není změněno)
-  let motionCode = 0;      // poslední pohybový kód (modální G0/1/2/3)
-  let inStock = false;
-  let lastComment = '';    // poslední komentářový řádek (pro pojmenování objektů)
-
-  // Extrakce prvního čísla z komentáře (pro číslo objektu)
-  function commentNum() {
-    const m = lastComment.match(/\b(\d+)\b/);
-    return m ? m[1] : null;
-  }
-
-  for (const rawLine of code.split('\n')) {
-    lineNo += 1;
-    // Detekce STOCK markerů před odstraněním komentářů
-    if (/STOCK_START/i.test(rawLine)) { inStock = true; continue; }
-    if (/STOCK_END/i.test(rawLine))   { inStock = false; continue; }
-
-    // Ulož čistý komentářový řádek pro pojmenování dalšího objektu
-    const rtrim = rawLine.trim();
-    if (rtrim.startsWith(';')) lastComment = rtrim;
-
-    // Odstraň komentáře: (text) Fanuc styl, ; do konce řádku
-    let line = rawLine
-      .replace(/\([^)]*\)/g, ' ')
-      .replace(/;.*$/, '')
-      .trim();
-
-    if (!line || line === '%') continue;         // oddělovač programu
-    if (/#\d/.test(line)) continue;              // Fanuc makro proměnné #1, #100 …
-    line = line.replace(/\[([^\]]*)\]/g, '$1');  // [výraz] → výraz (aritmetika)
-    line = line.replace(/^\s*N\s*\d+\s*/i, '').trim(); // číslo bloku N10, N0020
-
-    // Zpracuj G-slova na řádku (G0=G00, G1=G01 atd.)
-    const gs = [];
-    const reG = /\bG\s*(0*\d{1,2})(?!\d)/gi;
-    let gm;
-    while ((gm = reG.exec(line)) !== null) gs.push(parseInt(gm[1], 10));
-
-    // Aktualizace modálních stavů (platí dokud nejsou přepsány)
-    if (gs.includes(90)) gMode = 90;
-    if (gs.includes(91)) gMode = 91;
-    if (gs.some(g => g === 0)) motionCode = 0;
-    if (gs.some(g => g === 1)) motionCode = 1;
-    if (gs.some(g => g === 2)) motionCode = 2;
-    if (gs.some(g => g === 3)) motionCode = 3;
-
-    // Zjisti souřadnice na řádku
-    const gZval = getAddr(line, 'Z');
-    const gXval = getAddr(line, 'X');
-    if (gZval === null && gXval === null) continue;
-
-    // Efektivní pohybový G-kód: explicitní na tomto řádku nebo poslední modální
-    const thisMotion = gs.find(g => g <= 3) ?? motionCode;
-
-    // Výpočet cílového bodu v canvas souřadnicích
-    let tx, ty;
-    if (gMode === 91) {
-      // Inkrementální: přičti zadané osy, nezadané zůstanou
-      const dPt = toCanvas(gZval ?? 0, gXval ?? 0);
-      tx = cx + (gZval !== null ? dPt.x : 0);
-      ty = cy + (gXval !== null ? dPt.y : 0);
-    } else {
-      // Absolutní: nezadaná osa zůstane na aktuální poloze
-      // Aktuální poloha zpět v jednotkách kódu (X v průměru u soustruhu i karuselu,
-      // toCanvas ho pak zase půlí).
-      const curGZ = isKarusel ? cy : cx;
-      const curXr = isKarusel ? cx : cy;
-      const curGX = isDiam ? curXr * 2 : curXr;
-      const absPt = toCanvas(gZval ?? curGZ, gXval ?? curGX);
-      tx = absPt.x;
-      ty = absPt.y;
-    }
-
-    if (thisMotion === 0) { cx = tx; cy = ty; continue; } // G00 rapid
-
-    if (thisMotion === 1) {
-      const len = Math.hypot(tx - cx, ty - cy);
-      if (len > 1e-4) {
-        const num = commentNum();
-        const name = num ? `Úsečka ${num}` : 'Úsečka';
-        objs.push({ type: 'line', id: state.nextId++, name, x1: cx, y1: cy, x2: tx, y2: ty, isStock: inStock });
-      }
-      lastComment = '';
-      cx = tx; cy = ty;
-      continue;
-    }
-
-    if (thisMotion === 2 || thisMotion === 3) {
-      const gRval = getAddr(line, 'R');
-      const gIval = getAddr(line, 'I');  // offset středu v X od aktuální polohy
-      const gKval = getAddr(line, 'K');  // offset středu v Z od aktuální polohy
-      // Smysl oblouku ve světě: G2/G3 v textu jsou při zrcadlení jedné osy
-      // prohozené (flipArc v runCncExport, numerické zadání) – zpět se otočí,
-      // jinak by se oblouk po „Vykreslit" vrátil na plátno zrcadlově.
-      const arcCcw = (thisMotion === 3) !== (state.flipX !== state.flipZ);
-      let acx, acy;
-
-      if (gIval !== null || gKval !== null) {
-        // Formát I/K: střed = aktuální poloha + (I=ΔX, K=ΔZ)
-        const off = toCanvas(gKval ?? 0, gIval ?? 0);
-        acx = cx + off.x;
-        acy = cy + off.y;
-      } else if (gRval !== null) {
-        // Formát R: R<0 = velký oblouk (>180°), R>0 = malý oblouk
-        const rArc = arcFromEndpointsRadius(
-          { x: cx, y: cy }, { x: tx, y: ty },
-          Math.abs(gRval), arcCcw, { longArc: gRval < 0 },
-        );
-        if (!rArc) {
-          const chord = Math.hypot(tx - cx, ty - cy);
-          warnings.push({
-            line: lineNo, text: rtrim,
-            reason: `R${Math.abs(gRval).toFixed(3)} je moc malý pro tuto vzdálenost bodů (${chord.toFixed(3)} mm) – potřeba aspoň R${(chord / 2).toFixed(3)}`,
-          });
-          lastComment = ''; cx = tx; cy = ty; continue;
-        }
-        acx = rArc.cx;
-        acy = rArc.cy;
-      } else { lastComment = ''; cx = tx; cy = ty; continue; }
-
-      const R = Math.hypot(cx - acx, cy - acy);
-      if (R < 1e-6) { lastComment = ''; cx = tx; cy = ty; continue; }
-      const startA = Math.atan2(cy - acy, cx - acx);
-      const endA   = Math.atan2(ty - acy, tx - acx);
-      const arcNum = commentNum();
-      const arcName = arcNum ? `Oblouk ${arcNum}` : 'Oblouk';
-      objs.push({ type: 'arc', id: state.nextId++, name: arcName,
-        cx: acx, cy: acy, r: R, startAngle: startA, endAngle: endA,
-        ccw: arcCcw, isStock: inStock });
-      lastComment = '';
-      cx = tx; cy = ty;
-    }
-  }
-  return { objs, warnings };
 }
 
 /**

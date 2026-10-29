@@ -1327,6 +1327,18 @@ validace…). Spodní **G90 / G91** jen zapíše značku na začátek řádku. �
 (30 kroků). Validace navíc hlásí souřadnice bez G po G0 („chybí G1?"), oblouk
 bez R/I,K a osu dvakrát v bloku – každé pravidlo jde vypnout v Nastavení validace.
 
+**Automatické G0 / G1 po Enter (CNC Editor – kreslení):** stačí psát jen
+souřadnice. Po stisku **Enter** (nebo tlačítka **↵**) se řádek nad kurzorem
+dokončí: **první** řádek se souřadnicemi bez G dostane **G0** (najetí na
+start), **další** řádky bez G dostanou **G1** (přímka). `X0 Z346` → `G0 X0 Z346`,
+potom `X10 Z-5` → `G1 X10 Z-5`. Řádek, který už nějaké G má (G0–G3, G4, G28,
+G33…), řádek s `R`/`I`/`K` (oblouk se nehádá), řádky bez souřadnic, komentáře
+a Sinumerik příkazy (`IF`, `DEF`, `R1=…`) se nemění. Když už platí G1
+(předchozí pohyb byl G1), zůstane holý řádek `Z-20` beze změny – je to platný
+modální zápis. Enter uprostřed řádku nic nedopisuje a **Ctrl+Z** vrátí zalomení
+i doplněné G jedním krokem. Jen CNC Editor – CAM Editor (úprava vygenerovaných
+programů) to nedělá.
+
 **Údaje a pomůcky pro zjišťování rozměrů (CNC Editor – kreslení):**
 - **Řádek s údaji** nad klávesnicí ukazuje k řádku s kurzorem: u úsečky délku L,
   úhel od osy +Z, ΔX/ΔZ a konec; u oblouku R, absolutní střed, I/K, úhel výseče
@@ -2231,6 +2243,14 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   po **🔄** to appka řekne – s číslem řádku, důvodem i tím, jaké R by
   stačilo (zbytek programu se vykreslí normálně). Totéž hlídá i **📐 VK**
   na sousední záložce u prvku se zcela známými souřadnicemi cíle.
+
+  Stejně se po **🔄** hlásí i další řádky, které by jinak zmizely nebo
+  nakreslily špatnou geometrii: oblouk bez `R` i `I/K`, `I/K` nesedící ke
+  koncovému bodu, kružnice `G02 I5` bez `X/Z`, posun nulového bodu
+  (`G50/G52/G92`) a `G20` (palce). **Nekreslí se** prodleva `G04 X..`,
+  reference `G28/G30`, strojní souřadnice `G53` ani cykly `G70–G76`
+  (nejsou pohybem po kontuře). Rozumí i desetinné čárce (`X10,5`)
+  a přírůstkům Fanuc **`U`/`W`** (`G01 U5 W-5`).
 
   Okno se otevírá na této záložce s typem **Bod** – má nejmíň polí, takže je
   pole na zápis kódu vidět celé. Po každém **OK** se navíc plátno

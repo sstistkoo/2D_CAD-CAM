@@ -304,3 +304,6 @@ export function convertCornersToPaths(code, {
 
   return { code: out.join('\n'), converted, skipped };
 }
+
+// Automatické G0/G1 po Enter (CNC Editor) – viz gcodeAutoMotion.js
+export { autoCompleteMotionG } from "./gcodeAutoMotion.js";

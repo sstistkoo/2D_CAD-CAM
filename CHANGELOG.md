@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CNC Editor – automatické G0/G1 po Enter** (`calculators/gcodeAutoMotion.js`): první řádek se
+  souřadnicemi bez G dostane G0, další G1; řádky s G, R/I/K, komentáře a makra se nemění, platí-li už G1,
+  holý řádek zůstane. Test `tests/gcode-auto-motion.test.js`.
 - **VK – záporné R = oblouk větší než půlkruh** (`G3 X0 Z-10 R-6`, jako v ISO): náhled i 📥 Vložit do výkresu ho kreslí se středem na druhé straně tětivy. U dopočtu (`?`) a u `T` se záporné R opraví na kladné s oznámením (tvar určuje tečnost). `R0` se odmítne.
 - **VK – srovnání zápisu a ochrana proti překlepům** (`calculators/vkNormalize.js`): parser VK teď
   rozumí lidskému zápisu (`g01 x10,5 z -3`, `G02`, `.5`, `X10+5`, `X=10`, `G1X10Z-5`, číslo bloku)
@@ -35,6 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **G-kód → 🔄 Vykreslit** (parser vyjmut z `fileIO.js` do `storage/gcodeParse.js`, `fileIO.js` 1988 → 1811 ř.):
+  - `G04 X2.5` (prodleva), `G28/G30/G53` a cykly `G70–G76` už nekreslí falešnou úsečku do bodu X/Z;
+  - `G50/G52/G92` (posun nulového bodu) a `G20` (palce) se hlásí;
+  - desetinná čárka `X10,5` se četla jako `X10` (půlmilimetr se tiše ztratil);
+  - přírůstky Fanuc `U`/`W` (`G01 U5 W-5`) se dřív celé zahodily;
+  - oblouk bez `R` i `I/K`, `I/K` nesedící ke koncovému bodu a kružnice `G02 I5` bez X/Z se hlásí
+    místo tichého zahození/nakreslení špatného oblouku (hláška „pozor" u těch, které se nakreslily).
+  Test `tests/gcode-parse-guards.test.js`.
 - **VK parser:** řádky `G01/G02/G03/G00`, malými písmeny nebo s desetinnou čárkou se dřív tiše ignorovaly
   (kontura se vykreslila bez nich). Tlačítko ⇄ Konvertovat nově používá stejný parser jako náhled
   (zrušena jeho vlastní kopie).
