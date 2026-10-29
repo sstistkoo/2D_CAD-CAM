@@ -1706,7 +1706,7 @@
           role="button"
           tabindex="0"
         >
-          ▾ Vlastnosti
+          ▸ Vlastnosti <span id="propHint" class="prop-hint">– Není vybrán objekt</span>
         </div>
         <div
           class="panel-body"
@@ -1805,7 +1805,7 @@
         <div
           class="panel-header"
           data-panel="calcPanel"
-          title="Kalkulačky – nejpoužívanější výpočty a příručky (Trigonometrie, CAM, AI, Tolerance, Závity, VBD, Převodník, Sinumerik, Kužel, Nm)."
+          title="Kalkulačky – nejpoužívanější výpočty a příručky (Trigonometrie, CAM, AI, Tolerance, Závity, VBD, Převodník, Sinumerik, Kužel, Nm, Drsnost, Řezné podmínky)."
           role="button"
           tabindex="0"
         >
@@ -1890,11 +1890,27 @@
               <span class="calc-launch-icon">🔧</span>
               <span>Nm</span>
             </button>
+            <button
+              id="btnOpenRoughness"
+              class="calc-launch-btn"
+              title="Drsnost povrchu – Ra z posuvu a rádiusu špičky (a naopak)"
+            >
+              <span class="calc-launch-icon">🔬</span>
+              <span>Drsnost</span>
+            </button>
+            <button
+              id="btnOpenCutting"
+              class="calc-launch-btn"
+              title="Řezné podmínky – otáčky, posuv, výkon, G96 a strojní čas"
+            >
+              <span class="calc-launch-icon">⚙️</span>
+              <span>Řezné podm.</span>
+            </button>
           </div>
           <div
             class="panel-header calc-subheader"
             data-panel="calcMorePanel"
-            title="Další kalkulačky – méně častá okna: kalkulačka, řezné podmínky, hmotnost, drsnost, vrták, rozmístění děr, příručky Fanuc a Heidenhain, poznámky…"
+            title="Další kalkulačky – méně častá okna: kalkulačka, vrták, hmotnost, rozmístění děr, příručky Fanuc a Heidenhain, poznámky…"
             role="button"
             tabindex="0"
           >
@@ -1913,32 +1929,16 @@
                 <span>Kalkulačka</span>
               </button>
               <button
-                id="btnOpenCutting"
-                class="calc-launch-btn"
-                title="Řezné podmínky – otáčky, posuv, výkon, G96 a strojní čas"
-              >
-                <span class="calc-launch-icon">⚙️</span>
-                <span>Řezné podm.</span>
-              </button>
-              <button id="btnOpenWeight" class="calc-launch-btn" title="Hmotnost – tyče a trubky podle průřezu, délky a materiálu">
-                <span class="calc-launch-icon">⚖️</span>
-                <span>Hmotnost</span>
-              </button>
-              <button
-                id="btnOpenRoughness"
-                class="calc-launch-btn"
-                title="Drsnost povrchu – Ra z posuvu a rádiusu špičky (a naopak)"
-              >
-                <span class="calc-launch-icon">🔬</span>
-                <span>Drsnost</span>
-              </button>
-              <button
                 id="btnOpenDrill"
                 class="calc-launch-btn"
                 title="Vrták – úhel špičky a délka špičky k plnému průměru"
               >
                 <span class="calc-launch-icon">⬇️</span>
                 <span>Vrták</span>
+              </button>
+              <button id="btnOpenWeight" class="calc-launch-btn" title="Hmotnost – tyče a trubky podle průřezu, délky a materiálu">
+                <span class="calc-launch-icon">⚖️</span>
+                <span>Hmotnost</span>
               </button>
               <button
                 id="btnOpenNoseRadius"

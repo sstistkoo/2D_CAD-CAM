@@ -517,6 +517,17 @@ body {
   font-size: 13px;
 }
 
+/* Vlastnosti: bez vybraného objektu sbalené (hint v hlavičce), s výběrem se otevře */
+#propPanel {
+  display: none;
+}
+
+.prop-hint {
+  color: var(--ctp-overlay1, #7f849c);
+  font-weight: normal;
+  font-size: 0.9em;
+}
+
 #layerPanel {
   display: none;
 }
@@ -4809,6 +4820,41 @@ body.notify-open #mobileCoordBar {
   margin-bottom: 10px;
   min-height: 40px;
 }
+.rough-result:empty { display: none; }
+/* Materiály vedle sebe */
+.rough-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.rough-pair .cnc-field select {
+  font-size: 13px;
+  padding: 6px 4px;
+  text-overflow: ellipsis;
+}
+/* rε pole + běžné radiusy na jednom řádku */
+.rough-re-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.rough-re-field { flex: 0 0 76px; }
+.rough-preset-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.rough-col-lbl { font-size: 12px; color: var(--ctp-subtext0); font-weight: 600; }
+.rough-fmax-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 10px; }
+.rough-fmax-field { flex: 1; }
+.rough-fmax-field > span { font-size: 13px; text-align: center; }
+.rough-fmax-field input {
+  font-size: 24px;
+  font-weight: 700;
+  padding: 8px 10px;
+  text-align: center;
+  border-color: var(--ctp-yellow);
+}
+.rough-re-row .rough-radius-row { flex: 1; margin-bottom: 0; min-width: 0; }
+.rough-re-row .rough-r-btn { min-width: 0; padding: 7px 0 !important; }
 .rough-result-hint {
   color: var(--ctp-overlay0);
   font-size: 12px;

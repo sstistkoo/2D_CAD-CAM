@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Drsnost – cílová hodnota → převod:** zvolená nebo zadaná cílová Ra/Rz se rovnou vyplní do převodu Ra ↔ Rz (text v závorce zrušen); pole f max zvětšeno jako hlavní výsledek.
+- **Drsnost – popisky:** nad radiusy plátku popisek „Radius plátku“; zpětný výpočet bez nadpisu, pole cílové Ra vlevo a nad tlačítky „Drsnost Ra/Rz“ (stejné uspořádání jako rε), f max pod tím.
+- **Drsnost – kompaktnější okno:** přepínač Ra/Rz nahoře, materiály obrobku a nástroje vedle sebe, rε na jednom řádku s běžnými radiusy, odstraněna nápověda „Zadejte posuv a radius“, korekční faktory a třída drsnosti přesunuty dolů pod převod Ra ↔ Rz.
+- **Drsnost – Ra ↔ Rz:** sekce převodu Ra ↔ Rz s poměrem ×4 brus. / ×5 fréz. / ×6 soustr. (stejně jako v Převodníku) a u cílové hodnoty v závorce přepočet (Ra 0,8 µm (Rz ≈ 3,2 µm)).
+- **Kalkulačky:** Řezné podmínky přesunuty do hlavní mřížky (místo Vrtáku), Vrták je v Další kalkulačky.
+- **Drsnost – rychlá volba cíle:** tlačítka základních hodnot Ra (0,2 / 0,4 / 0,8 / 1,6 / 3,2 / 6,3 / 12,5) nad zpětným výpočtem; v režimu Rz řada Rz (0,8–50). Klik vyplní cílovou hodnotu a hned spočítá max posuv.
+- **Panel Vlastnosti:** bez vybraného objektu je sbalený a v hlavičce hlásí „Není vybrán objekt"; po výběru se sám rozbalí.
 - **Nm – utahovací momenty** (pravý panel → Kalkulačky → 🔧 Nm): vlastní seznam
   nožů s momentem dotažení plátku (uložený v prohlížeči, hledání, úprava),
   orientační tabulka šroubů VBD M2–M8, moment šroubu M4–M36 podle VDI 2230
@@ -22,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Drsnost:** „f max" (zpětný výpočet) se přepočítá i bez zadaného posuvu při změně rádiusu, Vc, materiálu nebo nástroje; neplatný zápis (NaN) se bere jako nezadaný místo zobrazení „NaN"; Kopírovat skládá čitelný řádek (Ra / Rz / třída) místo slepeného textu tabulky.
 - **Kužel – závěrečná kontrola:** hlášení neplatného zápisu i u úchylek,
   hloubky zadaného Ø a měřicích míst (dřív se tiše braly jako 0); úhel α mimo
   0–90° se hlásí; měřicí místo za délkou kužele je v tabulce označené „mimo

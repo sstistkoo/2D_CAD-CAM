@@ -38,9 +38,28 @@ export function _afterGeomEdit() {
   else renderAll();
 }
 
+/** Auto-otevře/sbalí panel Vlastnosti podle výběru; hint „Není vybrán objekt“ je v hlavičce. */
+function _syncPropPanel(hasSelection) {
+  const panel = document.getElementById("propPanel");
+  if (!panel) return;
+  panel.style.display = hasSelection ? "block" : "none";
+  const header = panel.previousElementSibling;
+  if (!header) return;
+  for (const n of header.childNodes) {
+    if (n.nodeType === 3 && /[▾▸]/.test(n.textContent)) {
+      n.textContent = n.textContent.replace(/[▾▸]/, hasSelection ? "▾" : "▸");
+      break;
+    }
+  }
+  const hint = header.querySelector("#propHint");
+  if (hint) hint.style.display = hasSelection ? "none" : "";
+}
+
 export function updateProperties() {
   const tbody = document.querySelector("#propTable tbody");
   tbody.innerHTML = "";
+
+  _syncPropPanel(state.selected !== null);
 
   if (state.selected === null) {
     tbody.innerHTML =

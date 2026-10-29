@@ -42,6 +42,10 @@ export function openRoughnessCalc() {
   // Běžné radiusy špičky plátku [mm]
   var commonRadii = [0.2, 0.4, 0.8, 1.2, 1.6, 2.4];
 
+  // Základní (normalizované) hodnoty pro rychlou volbu cílové drsnosti [µm]
+  var raPresets = [0.2, 0.4, 0.8, 1.6, 3.2, 6.3, 12.5];
+  var rzPresets = [0.8, 1.6, 3.2, 6.3, 12.5, 25, 50];
+
   // k_vc (vliv řezné rychlosti)
   function getKvc(vc) {
     if (vc <= 0) return 1.0;
@@ -51,6 +55,16 @@ export function openRoughnessCalc() {
     if (vc < 300) return 0.95;
     return 0.9;
   }
+
+  // Načte číslo z pole: prázdné nebo neplatné (NaN, ∞) → null
+  function readNum(inp) {
+    if (inp.value === '') return null;
+    var v = safeEvalMath(inp.value);
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  }
+
+  // Poslední platný výsledek (pro kopírování)
+  var lastResult = null;
 
   // Najdi třídu drsnosti pro danou Ra
   function getRaClass(ra) {
@@ -86,52 +100,73 @@ export function openRoughnessCalc() {
   }
 
   var body =
-    // Materiál obrobku
-    '<div class="cnc-table-label">Materi\u00E1l obrobku</div>' +
-    '<select class="cnc-filter" data-id="rMat">' + matOptions + '</select>' +
-    // Materiál nástroje
-    '<div class="cnc-table-label">Materi\u00E1l n\u00E1stroje</div>' +
-    '<select class="cnc-filter" data-id="rTool">' + toolOptions + '</select>' +
-    // Vstupní pole
-    '<div class="cnc-fields" style="margin-top:10px">' +
-      '<label class="cnc-field"><span>f <small>mm/ot</small></span>' +
-        '<input type="number" data-id="rF" step="any" placeholder="Posuv"></label>' +
-      '<label class="cnc-field"><span>r\u03B5 <small>mm</small></span>' +
-        '<input type="number" data-id="rRe" step="any" placeholder="Radius"></label>' +
-      '<label class="cnc-field"><span>Vc <small>m/min</small></span>' +
-        '<input type="number" data-id="rVc" step="any" placeholder="\u0158ezn\u00E1 rychl."></label>' +
-    '</div>' +
-    // Radiusy tlačítka
-    '<div class="cnc-table-label">B\u011B\u017En\u00E9 radiusy r\u03B5 <small>mm</small></div>' +
-    '<div class="rough-radius-row">' + radiusBtns + '</div>' +
-    // Korekční faktory info
-    '<div class="cnc-mat-hint" id="roughFactors"></div>' +
-    // Přepínač Ra / Rz
+    // Přepínač Ra / Rz (nahoře, hned na očích)
     '<div class="rough-mode-row">' +
       '<button class="rough-mode-btn rough-mode-active" data-mode="Ra">Ra</button>' +
       '<button class="rough-mode-btn" data-mode="Rz">Rz</button>' +
     '</div>' +
-    // Výsledek
-    '<div class="rough-result" id="roughResult">' +
-      '<div class="rough-result-hint">Zadejte posuv a radius\u2026</div>' +
+    // Materiály vedle sebe
+    '<div class="rough-pair">' +
+      '<label class="cnc-field"><span>Materiál obrobku</span>' +
+        '<select data-id="rMat">' + matOptions + '</select></label>' +
+      '<label class="cnc-field"><span>Materiál nástroje</span>' +
+        '<select data-id="rTool">' + toolOptions + '</select></label>' +
     '</div>' +
-    // Třída drsnosti
-    '<div class="cnc-table-label">T\u0159\u00EDda drsnosti <small>ISO 1302 (Ra \u00B5m)</small></div>' +
-    '<div class="rough-class-bar" id="roughClassBar">' + classBar + '</div>' +
-    // Zpětný výpočet
+    // Posuv a řezná rychlost
+    '<div class="cnc-fields">' +
+      '<label class="cnc-field"><span>f <small>mm/ot</small></span>' +
+        '<input type="number" data-id="rF" step="any" placeholder="Posuv"></label>' +
+      '<label class="cnc-field"><span>Vc <small>m/min</small></span>' +
+        '<input type="number" data-id="rVc" step="any" placeholder="Řezná rychl."></label>' +
+    '</div>' +
+    // Radius: pole + běžné radiusy na jednom řádku
+    '<div class="rough-re-row">' +
+      '<label class="cnc-field rough-re-field"><span>rε <small>mm</small></span>' +
+        '<input type="number" data-id="rRe" step="any" placeholder="Radius"></label>' +
+      '<div class="rough-preset-col">' +
+        '<span class="rough-col-lbl">Radius pl\u00E1tku</span>' +
+        '<div class="rough-radius-row">' + radiusBtns + '</div>' +
+      '</div>' +
+    '</div>' +
+    // Výsledek (prázdný = skrytý)
+    '<div class="rough-result" id="roughResult"></div>' +
+    // Zpětný výpočet: cílová drsnost + výběr, pod tím max posuv
     '<div class="rough-reverse">' +
-      '<div class="cnc-table-label" style="margin-top:10px" id="roughRevLabel">\u2B05 Zp\u011Btn\u00FD v\u00FDpo\u010Det: max posuv pro danou Ra</div>' +
-      '<div class="cnc-fields">' +
-        '<label class="cnc-field" id="roughRevFieldLbl"><span>Ra c\u00EDl <small>\u00B5m</small></span>' +
-          '<input type="number" data-id="rRaTarget" step="any" placeholder="Po\u017Eadovan\u00E1 Ra"></label>' +
-        '<label class="cnc-field"><span>f max <small>mm/ot</small></span>' +
+      '<div class="rough-re-row">' +
+        '<label class="cnc-field rough-re-field" id="roughRevFieldLbl"><span>Ra c\u00EDl <small>\u00B5m</small></span>' +
+          '<input type="number" data-id="rRaTarget" step="any" placeholder="Ra"></label>' +
+        '<div class="rough-preset-col">' +
+          '<span class="rough-col-lbl" id="roughRevLabel">Drsnost Ra</span>' +
+          '<div class="rough-radius-row" id="roughTargetBtns"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="rough-fmax-row">' +
+        '<label class="cnc-field rough-fmax-field"><span>f max <small>mm/ot \u2013 posuv pro zadanou drsnost</small></span>' +
           '<input type="number" data-id="rFmax" readonly tabindex="-1" class="computed"></label>' +
       '</div>' +
     '</div>' +
+    // Převod Ra <-> Rz
+    '<div class="cnc-table-label" style="margin-top:10px">Převod Ra ↔ Rz <small>(poměr Rz/Ra)</small></div>' +
+    '<div class="cnc-fields">' +
+      '<label class="cnc-field"><span>Ra <small>µm</small></span>' +
+        '<input type="number" data-id="rcRa" step="any" placeholder="Ra"></label>' +
+      '<label class="cnc-field"><span>Rz <small>µm</small></span>' +
+        '<input type="number" data-id="rcRz" step="any" placeholder="Rz"></label>' +
+    '</div>' +
+    '<div class="rough-radius-row" id="roughRatioBtns">' +
+      '<button class="rough-ratio-btn tol-g-btn tol-g-active" data-ratio="4">×4 brus.</button>' +
+      '<button class="rough-ratio-btn tol-g-btn" data-ratio="5">×5 fréz.</button>' +
+      '<button class="rough-ratio-btn tol-g-btn" data-ratio="6">×6 soustr.</button>' +
+    '</div>' +
+    // Korekční faktory (dole)
+    '<div class="cnc-mat-hint" id="roughFactors"></div>' +
+    // Třída drsnosti (dole)
+    '<div class="cnc-table-label">Třída drsnosti <small>ISO 1302 (Ra µm)</small></div>' +
+    '<div class="rough-class-bar" id="roughClassBar">' + classBar + '</div>' +
     // Tlačítka
     '<div class="cnc-actions">' +
-      '<button class="cnc-btn cnc-btn-clear">\uD83D\uDDD1 Vy\u010Distit</button>' +
-      '<button class="cnc-btn cnc-btn-copy">\uD83D\uDCCB Kop\u00EDrovat</button>' +
+      '<button class="cnc-btn cnc-btn-clear">🗑 Vyčistit</button>' +
+      '<button class="cnc-btn cnc-btn-copy">📋 Kopírovat</button>' +
     '</div>';
 
   var overlay = makeOverlay("roughness", "\uD83D\uDD2C Drsnost povrchu", body);
@@ -149,25 +184,106 @@ export function openRoughnessCalc() {
   var inpFmax    = overlay.querySelector('[data-id="rFmax"]');
   var revLabel   = overlay.querySelector('#roughRevLabel');
   var revFieldLbl= overlay.querySelector('#roughRevFieldLbl');
+  var targetBtnsEl = overlay.querySelector('#roughTargetBtns');
+  var inpConvRa    = overlay.querySelector('[data-id="rcRa"]');
+  var inpConvRz    = overlay.querySelector('[data-id="rcRz"]');
+  var ratioBtnsEl  = overlay.querySelector('#roughRatioBtns');
+  var raRzRatio    = 4; // Rz = Ra × poměr (brus 4, fréz. 5, soustr. 6)
+  var lastConvEdit = 'ra';
+
+  // Cílová hodnota se rovnou promítne do převodu Ra <-> Rz
+  var convAuto = false; // pole převodu jsou vyplněná automaticky z cíle
+  function syncConvFromTarget() {
+    var v = readNum(inpRaTarget);
+    if (v === null || v <= 0) {
+      if (convAuto) { inpConvRa.value = ''; inpConvRz.value = ''; convAuto = false; }
+      return;
+    }
+    convAuto = true;
+    if (roughMode === 'Rz') {
+      lastConvEdit = 'rz';
+      inpConvRz.value = parseFloat(v.toFixed(6));
+      convFromRz();
+    } else {
+      lastConvEdit = 'ra';
+      inpConvRa.value = parseFloat(v.toFixed(6));
+      convFromRa();
+    }
+  }
+
+  // Samostatný převod Ra <-> Rz
+  function convFromRa() {
+    var ra = readNum(inpConvRa);
+    inpConvRz.value = ra === null ? '' : parseFloat((ra * raRzRatio).toFixed(6));
+  }
+  function convFromRz() {
+    var rz = readNum(inpConvRz);
+    inpConvRa.value = rz === null ? '' : parseFloat((rz / raRzRatio).toFixed(6));
+  }
+  inpConvRa.addEventListener('input', function() { convAuto = false; lastConvEdit = 'ra'; convFromRa(); });
+  inpConvRz.addEventListener('input', function() { convAuto = false; lastConvEdit = 'rz'; convFromRz(); });
+  ratioBtnsEl.addEventListener('click', function(e) {
+    var b = e.target.closest('.rough-ratio-btn');
+    if (!b) return;
+    raRzRatio = parseFloat(b.dataset.ratio);
+    var all = ratioBtnsEl.querySelectorAll('.rough-ratio-btn');
+    for (var i = 0; i < all.length; i++) all[i].classList.toggle('tol-g-active', all[i] === b);
+    if (convAuto) syncConvFromTarget();
+    else if (lastConvEdit === 'rz') convFromRz(); else convFromRa();
+  });
   var roughMode  = 'Ra'; // aktuální režim: 'Ra' nebo 'Rz'
+
+  // ── Tlačítka základních hodnot cílové Ra / Rz ──
+  function renderTargetBtns() {
+    var vals = roughMode === 'Rz' ? rzPresets : raPresets;
+    var html = '';
+    for (var i = 0; i < vals.length; i++) {
+      html += '<button class="rough-t-btn tol-g-btn" data-v="' + vals[i] + '">' + vals[i] + '</button>';
+    }
+    targetBtnsEl.innerHTML = html;
+    markTargetBtn();
+  }
+  function markTargetBtn() {
+    var cur = readNum(inpRaTarget);
+    var btns = targetBtnsEl.querySelectorAll('.rough-t-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('tol-g-active', cur !== null && parseFloat(btns[i].dataset.v) === cur);
+    }
+  }
+  targetBtnsEl.addEventListener('click', function(e) {
+    var b = e.target.closest('.rough-t-btn');
+    if (!b) return;
+    inpRaTarget.value = b.dataset.v;
+    markTargetBtn();
+    syncConvFromTarget();
+    calcReverse();
+  });
 
   // ── Přepínač Ra / Rz ──
   var modeBtns = overlay.querySelectorAll('.rough-mode-btn');
   for (var mi = 0; mi < modeBtns.length; mi++) {
     modeBtns[mi].addEventListener('click', function() {
+      var prevMode = roughMode;
       roughMode = this.dataset.mode;
+      // Zadaný cíl se při přepnutí převede (geometrický poměr Rz = 4·Ra), ať zůstane stejný požadavek
+      var tv = readNum(inpRaTarget);
+      if (tv !== null && tv > 0 && prevMode !== roughMode) {
+        inpRaTarget.value = parseFloat((roughMode === 'Rz' ? tv * 4 : tv / 4).toFixed(4));
+      }
       for (var mj = 0; mj < modeBtns.length; mj++) modeBtns[mj].classList.remove('rough-mode-active');
       this.classList.add('rough-mode-active');
       // Aktualizace labelu zpětného výpočtu
       if (roughMode === 'Rz') {
-        revLabel.textContent = '\u2B05 Zpětný výpočet: max posuv pro danou Rz';
+        revLabel.textContent = 'Drsnost Rz';
         revFieldLbl.querySelector('span').innerHTML = 'Rz cíl <small>µm</small>';
-        inpRaTarget.placeholder = 'Požadovaná Rz';
+        inpRaTarget.placeholder = 'Rz';
       } else {
-        revLabel.textContent = '\u2B05 Zpětný výpočet: max posuv pro danou Ra';
+        revLabel.textContent = 'Drsnost Ra';
         revFieldLbl.querySelector('span').innerHTML = 'Ra cíl <small>µm</small>';
-        inpRaTarget.placeholder = 'Požadovaná Ra';
+        inpRaTarget.placeholder = 'Ra';
       }
+      renderTargetBtns();
+      syncConvFromTarget();
       calc();
     });
   }
@@ -186,9 +302,9 @@ export function openRoughnessCalc() {
 
   // ── Hlavní výpočet ──
   function calc() {
-    var f  = inpF.value !== '' ? safeEvalMath(inpF.value) : null;
-    var re = inpRe.value !== '' ? safeEvalMath(inpRe.value) : null;
-    var vc = inpVc.value !== '' ? safeEvalMath(inpVc.value) : null;
+    var f  = readNum(inpF);
+    var re = readNum(inpRe);
+    var vc = readNum(inpVc);
     var kMat  = workMaterials[parseInt(selMat.value)].k;
     var kTool = toolMaterials[parseInt(selTool.value)].k;
     var kVc   = vc !== null && vc > 0 ? getKvc(vc) : 1.0;
@@ -205,7 +321,10 @@ export function openRoughnessCalc() {
     for (var i = 0; i < cells.length; i++) cells[i].classList.remove('rough-class-active');
 
     if (f === null || re === null || f <= 0 || re <= 0) {
-      resultEl.innerHTML = '<div class="rough-result-hint">Zadejte posuv a radius\u2026</div>';
+      lastResult = null;
+      resultEl.innerHTML = '';
+      // Zpětný výpočet nezávisí na posuvu → přepočítat i bez něj
+      calcReverse();
       return;
     }
 
@@ -221,6 +340,9 @@ export function openRoughnessCalc() {
     // Třída drsnosti
     var clsTheo  = getRaClass(ra_theo);
     var clsPract = getRaClass(ra_pract);
+
+    lastResult = { raTheo: ra_theo, rzTheo: rz_theo, raPract: ra_pract, rzPract: rz_pract,
+                   clsTheo: clsTheo, clsPract: clsPract };
 
     var isRz = roughMode === 'Rz';
     resultEl.innerHTML =
@@ -258,15 +380,15 @@ export function openRoughnessCalc() {
 
   // ── Zpětný výpočet ──
   function calcReverse() {
-    var raTarget = inpRaTarget.value !== '' ? safeEvalMath(inpRaTarget.value) : null;
-    var re       = inpRe.value !== '' ? safeEvalMath(inpRe.value) : null;
+    var raTarget = readNum(inpRaTarget);
+    var re       = readNum(inpRe);
     if (raTarget === null || re === null || raTarget <= 0 || re <= 0) {
       inpFmax.value = '';
       return;
     }
     var kMat  = workMaterials[parseInt(selMat.value)].k;
     var kTool = toolMaterials[parseInt(selTool.value)].k;
-    var vc    = inpVc.value !== '' ? safeEvalMath(inpVc.value) : null;
+    var vc    = readNum(inpVc);
     var kVc   = vc !== null && vc > 0 ? getKvc(vc) : 1.0;
     var kTotal = kMat * kTool * kVc;
 
@@ -288,19 +410,26 @@ export function openRoughnessCalc() {
   inpVc.addEventListener('input', calc);
   selMat.addEventListener('change', calc);
   selTool.addEventListener('change', calc);
-  inpRaTarget.addEventListener('input', calcReverse);
+  inpRaTarget.addEventListener('input', function() { markTargetBtn(); syncConvFromTarget(); calcReverse(); });
 
   // ── Vyčistit ──
   overlay.querySelector('.cnc-btn-clear').addEventListener('click', function() {
     inpF.value = ''; inpRe.value = ''; inpVc.value = ''; inpRaTarget.value = ''; inpFmax.value = '';
+    inpConvRa.value = ''; inpConvRz.value = ''; lastConvEdit = 'ra';
+    raRzRatio = 4;
+    var rb = ratioBtnsEl.querySelectorAll('.rough-ratio-btn');
+    for (var ri = 0; ri < rb.length; ri++) rb[ri].classList.toggle('tol-g-active', rb[ri].dataset.ratio === '4');
+    convAuto = false;
     selMat.selectedIndex = 0; selTool.selectedIndex = 0;
     roughMode = 'Ra';
     for (var mi = 0; mi < modeBtns.length; mi++) modeBtns[mi].classList.toggle('rough-mode-active', modeBtns[mi].dataset.mode === 'Ra');
-    revLabel.textContent = '\u2B05 Zpětný výpočet: max posuv pro danou Ra';
+    revLabel.textContent = 'Drsnost Ra';
     revFieldLbl.querySelector('span').innerHTML = 'Ra cíl <small>µm</small>';
-    inpRaTarget.placeholder = 'Požadovaná Ra';
+    inpRaTarget.placeholder = 'Ra';
+    renderTargetBtns();
     for (var j = 0; j < rBtns.length; j++) rBtns[j].classList.remove('tol-g-active');
-    resultEl.innerHTML = '<div class="rough-result-hint">Zadejte posuv a radius\u2026</div>';
+    lastResult = null;
+    resultEl.innerHTML = '';
     factorsEl.innerHTML = '';
     var cells = classBarEl.querySelectorAll('.rough-class-cell');
     for (var i = 0; i < cells.length; i++) cells[i].classList.remove('rough-class-active');
@@ -308,20 +437,23 @@ export function openRoughnessCalc() {
 
   // ── Kopírovat ──
   overlay.querySelector('.cnc-btn-copy').addEventListener('click', function() {
-    var txt = resultEl.textContent;
-    if (txt && txt.indexOf('Zadejte') < 0) {
-      var parts = ['Drsnost povrchu'];
-      if (inpF.value) parts.push('f=' + inpF.value + ' mm/ot');
-      if (inpRe.value) parts.push('r\u03B5=' + inpRe.value + ' mm');
-      if (inpVc.value) parts.push('Vc=' + inpVc.value + ' m/min');
-      parts.push(workMaterials[parseInt(selMat.value)].n);
-      parts.push(toolMaterials[parseInt(selTool.value)].n);
-      parts.push(txt);
-      navigator.clipboard.writeText(parts.join(' | ')).then(function() { showToast("Zkop\u00EDrov\u00E1no"); });
-    }
+    if (!lastResult) return;
+    var r = lastResult;
+    var fmt = function(x) { return x.toFixed(3).replace('.', ','); };
+    var parts = ['Drsnost povrchu'];
+    if (inpF.value) parts.push('f=' + inpF.value + ' mm/ot');
+    if (inpRe.value) parts.push('r\u03B5=' + inpRe.value + ' mm');
+    if (inpVc.value) parts.push('Vc=' + inpVc.value + ' m/min');
+    parts.push(workMaterials[parseInt(selMat.value)].n);
+    parts.push(toolMaterials[parseInt(selTool.value)].n);
+    parts.push('teoretick\u00E1 Ra ' + fmt(r.raTheo) + ' / Rz ' + fmt(r.rzTheo) + ' \u00B5m (' + r.clsTheo + ')');
+    parts.push('praktick\u00E1 Ra ' + fmt(r.raPract) + ' / Rz ' + fmt(r.rzPract) + ' \u00B5m (' + r.clsPract + ')');
+    if (!navigator.clipboard) { showToast("Schr\u00E1nka nen\u00ED dostupn\u00E1"); return; }
+    navigator.clipboard.writeText(parts.join(' | ')).then(function() { showToast("Zkop\u00EDrov\u00E1no"); });
   });
 
   // Počáteční výpočet faktorů
+  renderTargetBtns();
   calc();
 }
 
