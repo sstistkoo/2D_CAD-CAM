@@ -120,12 +120,13 @@ export function openToleranceCalc() {
   if (!overlay) return;
   // Naležato se obsah rozbalené tabulky ukazuje vlevo místo výsledku – naráz jen jedna
   var freeDetails = overlay.querySelectorAll('.tol-free');
+  var landscapeLow = function() { return window.matchMedia('(orientation: landscape) and (max-height: 500px)').matches; };
   overlay.querySelectorAll('.tol-toggle[data-src]').forEach(function(b) {
-    b.addEventListener('click', function() { freeDetails.forEach(function(o) { o.open = false; }); });
+    b.addEventListener('click', function() { if (landscapeLow()) freeDetails.forEach(function(o) { o.open = false; }); });
   });
   freeDetails.forEach(function(d) {
     d.addEventListener('toggle', function() {
-      if (d.open) freeDetails.forEach(function(o) { if (o !== d) o.open = false; });
+      if (d.open && landscapeLow()) freeDetails.forEach(function(o) { if (o !== d) o.open = false; });
     });
   });
 

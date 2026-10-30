@@ -98,6 +98,12 @@ html.fs-cam-right { --safe-r: max(env(safe-area-inset-right, 0px), 48px); }
     background: var(--ctp-surface2); border-radius: 1px;
   }
   .cne-quickbar--draw .cne-qb-digit { display: flex; min-height: 24px; font-size: 14px; padding: 2px; }
+  /* Pravý sloupec se přizpůsobí výšce displeje: 9 řádků (jeden vyšší) bez posouvání */
+  .cne-layout > .cne-quickbar--draw .cne-qb {
+    min-height: 0; padding-top: 0; padding-bottom: 0;
+    height: clamp(18px, calc((100dvh - 66px) / 9.4), 40px);
+  }
+  .cne-layout > .cne-quickbar--draw .cne-qb-big { height: clamp(26px, calc((100dvh - 66px) / 9.4 * 1.4), 56px); }
 
   /* Vnitřní dialogy editoru (úhel, sražení, číslo…) – celá výška */
   .cne-im-card,
@@ -223,7 +229,6 @@ html.fs-cam-right { --safe-r: max(env(safe-area-inset-right, 0px), 48px); }
     height: calc(100dvh - max(4px, env(safe-area-inset-top)) - 4px);
     max-height: none;
   }
-  .calc-basic-window .calc-body > * { flex-shrink: 0; }
   .calc-overlay-float .calc-basic-window .calc-history {
     flex: 1 1 0; height: auto; min-height: 0; max-height: none;
   }
@@ -235,6 +240,17 @@ html.fs-cam-right { --safe-r: max(env(safe-area-inset-right, 0px), 48px); }
   .calc-overlay-float .calc-basic-window .calc-buttons,
   .calc-overlay-float .calc-basic-window .calc-fn-row,
   .calc-overlay-float .calc-basic-window .calc-num-grid { gap: 3px; margin-bottom: 3px; }
+  .calc-basic-window .calc-body > * { flex-shrink: 0; }
+  /* Tlačítka se vždy vejdou: řádky si dělí zbylou výšku okna */
+  .calc-overlay-float .calc-basic-window .calc-history {
+    flex: 0 1 34px; min-height: 0; overflow: hidden;
+  }
+  .calc-overlay-float .calc-basic-window .calc-buttons { flex: 1 1 0; min-height: 0; }
+  .calc-overlay-float .calc-basic-window .calc-fn-row { flex: 1 1 0; min-height: 0; margin-bottom: 0; }
+  .calc-overlay-float .calc-basic-window .calc-num-grid {
+    flex: 4 1 0; min-height: 0; margin-bottom: 0; grid-template-rows: repeat(4, minmax(0, 1fr));
+  }
+  .calc-overlay-float .calc-basic-window .calc-buttons .calc-btn { min-height: 0; height: 100%; padding-top: 0; padding-bottom: 0; }
 
   /* ── Okraje (kamera / zaoblení): okna a plovoucí panely nesmí zajet pod výřez ── */
   .calc-overlay { padding-left: var(--safe-l); padding-right: var(--safe-r); }

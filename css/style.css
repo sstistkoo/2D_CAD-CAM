@@ -3296,11 +3296,11 @@ body.notify-open #mobileCoordBar {
      tlačítka (roztažená až ke krajům) nesmí zajet pod něj. */
   #topbar {
     border-top: none;
-    padding-left: max(4px, var(--safe-l));
-    padding-right: max(4px, var(--safe-r));
+    padding-left: max(4px, var(--safe-l, 0px));
+    padding-right: max(4px, var(--safe-r, 0px));
   }
   #mobileCoordBar {
-    padding-left: max(8px, var(--safe-l));
+    padding-left: max(8px, var(--safe-l, 0px));
   }
 
   /* Zruší vlastní box .toolbar-header – Výběr/Kóta/Tlustá/Smaž se stanou
@@ -3474,23 +3474,23 @@ body.notify-open #mobileCoordBar {
     inset: -5px -2px -7px;
   }
   #mobileAutoCenter {
-    right: calc(8px + var(--safe-r));
+    right: calc(8px + var(--safe-r, 0px));
   }
   #mobileSnap {
-    right: calc(44px + var(--safe-r));
+    right: calc(44px + var(--safe-r, 0px));
   }
   #canvasCalcBtn {
-    right: calc(80px + var(--safe-r));
+    right: calc(80px + var(--safe-r, 0px));
   }
   #mobileRedo {
-    right: calc(124px + var(--safe-r));
+    right: calc(124px + var(--safe-r, 0px));
   }
   #mobileUndo {
-    right: calc(160px + var(--safe-r));
+    right: calc(160px + var(--safe-r, 0px));
   }
   /* „Dvojklik" na jeden řádek – na dva se do výšky lišty nevejde čitelně. */
   #mobileRectArm {
-    right: calc(196px + var(--safe-r));
+    right: calc(196px + var(--safe-r, 0px));
     width: auto;
     padding: 0 8px;
     font-size: 11px;
@@ -3504,7 +3504,7 @@ body.notify-open #mobileCoordBar {
      Viditelnost dál řídí JS přes inline display ("" / "none"). */
   #canvasClipBtn {
     display: block;
-    right: calc(264px + var(--safe-r));
+    right: calc(264px + var(--safe-r, 0px));
     width: auto;
     max-width: 72px;
     padding: 0 6px;
@@ -3525,7 +3525,7 @@ body.notify-open #mobileCoordBar {
      viditelná plocha začíná hned pod souřadnicemi. */
   #mobileCancel {
     top: calc(max(5px, env(safe-area-inset-top)) + 36px);
-    left: calc(8px + var(--safe-l));
+    left: calc(8px + var(--safe-l, 0px));
     width: 32px;
     height: 26px;
     line-height: 26px;

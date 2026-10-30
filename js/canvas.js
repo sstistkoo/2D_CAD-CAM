@@ -453,12 +453,13 @@ export function visibleCanvasRect() {
 
   // Okno ukotvené vpravo přes celou výšku (telefon naležato) ubírá šířku, ne výšku.
   let right = cssW;
+  const landscapeLow = !!window.matchMedia?.('(orientation: landscape) and (max-height: 500px)').matches;
   for (const selector of VIEW_OBSTRUCTIONS) {
     const el = document.querySelector(selector);
     if (!el) continue;
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) continue;
-    if (rect.height >= cssH * 0.7 && rect.left > canvasRect.left + cssW * 0.3) {
+    if (landscapeLow && rect.height >= cssH * 0.7 && rect.left > canvasRect.left + cssW * 0.3) {
       right = Math.min(right, Math.max(cssW * 0.3, rect.left - canvasRect.left - OBSTRUCTION_GAP));
       continue;
     }

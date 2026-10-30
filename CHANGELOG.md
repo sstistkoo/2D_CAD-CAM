@@ -63,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Kužel naležato** – velký náčrt vlevo (při rolování zůstává na místě), údaje vpravo; poznámka „Klepni na kótu…“ se naležato skrývá.
 - **Základní kalkulačka naležato** – okno začíná u horního okraje a jde až dolů (bez prázdného pruhu nad ní), tlačítka jsou nižší, takže se vejde celá klávesnice; historie dostane zbylé místo.
 - **Ostatní kalkulačky naležato** (Závity, Vrtání, Řezné podmínky, Oblouk…) – širší okno, pole ve třech sloupcích a náčrty nejvýš 55 % výšky displeje, takže se míň rolují.
+- **Kontrola celé obrazovky a naležato** – zavírání tabulek v Toleranci a přerámování plátna kolem pravého okna VK platí jen na nízkém displeji naležato (na výšku a na počítači beze změny); proměnné `--safe-l/--safe-r` mají v `style.css` záložní hodnotu; test `tests/fullscreen.test.js`.
 - **Naležato: přeskládání CNC Editoru a Tolerance** – v editoru je oranžová lišta se ✕ vlevo nahoře, vpravo dole klávesnice s číselnými klávesami 0–9 nad ní (`digitKeysHTML`) a číselník (zadání X, Z…) se otevírá v pravém sloupci místo klávesnice. V Toleranci je vpravo zadání s rozbalovátky Volné míry / Geometrie, vlevo výsledek; po rozbalení je vlevo místo něj tabulka (otevřená vždy jen jedna) a přepnutí „Třída a stupeň ISO / Vlastní úchylky“ tabulky sbalí.
 - **CAD – Centr (Ctrl+0 / Home / start)** rámuje při zapnutém bokorysu i jeho kruh, ne jen nárys.
 - **CAD – 🗑 Smazat aktuální výkres** vypne bokorys; zůstane prázdný nárys.
