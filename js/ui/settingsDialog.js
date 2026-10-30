@@ -12,6 +12,7 @@ import { renderAll } from '../render.js';
 import { bridge } from '../bridge.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { showHistoryDialog } from './drawingHistory.js';
+import { fullscreenButtonHTML, wireFullscreenButton } from '../fullscreen.js';
 import { applyTheme, persistSettings, toggleAngleSnap, toggleSnapGrid, updateCoordModeBtn, updateDimsBtn, updateMachineTypeBtn, updateXDisplayBtn } from '../ui.js';
 
 export function showSettingsDialog() {
@@ -39,6 +40,7 @@ export function showSettingsDialog() {
             <button class="calc-btn" id="settCNC" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)">📋 CNC Export</button>
           </div>
           <button class="calc-btn" id="settClearDrawing" style="width:100%;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;background:var(--ctp-red);color:var(--ctp-base);border:1px solid var(--ctp-red)" title="Smaže všechny objekty aktuálního výkresu (zeptá se; jde vrátit přes Zpět nebo 🕓 Historie)">🗑️ Smazat aktuální výkres</button>
+          ${fullscreenButtonHTML('width:100%;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;background:var(--ctp-surface0);color:var(--ctp-text);border:1px solid var(--ctp-surface1)')}
           <button class="calc-btn" id="settDxfJson" style="width:100%;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;background:#a6e3a1;color:#1e1e2e;border:1px solid #a6e3a1">🔄 DXF - JSON konvertor</button>
         </div>
       </details>
@@ -421,6 +423,7 @@ export function showSettingsDialog() {
   });
 
   // ── Historie ──
+  wireFullscreenButton(overlay);
   overlay.querySelector('#settClearDrawing').addEventListener('click', () => {
     overlay.remove();
     document.getElementById('btnClearAll').click();

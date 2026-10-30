@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **PWA přes celý displej** – `manifest.json`: `display: fullscreen` (s `display_override` a zálohou `standalone`); v záložce prohlížeče je v Nastavení tlačítko ⛶ Celá obrazovka (`fullscreen.js`). Nainstalovanou PWA je po změně potřeba odinstalovat a nainstalovat znovu. Dvojklep na mobilní ↩ celou obrazovku ukončí (první klep se vrátí přes redo).
 - **CAD – šrafy řezu ve Vybarvit** (`render/hatch.js`): výplň může mít místo barvy šrafy 45° / 135° / křížem
   s roztečí v mm výkresu (výchozí podle velikosti plochy, při malém zoomu se ředí). Kreslí plátno i export PNG.
 - **CAD – pomocné vrstvy** (`helperLayer.js`): přepínač v řádku vrstvy; objekty se kreslí tlumeně a nejdou do

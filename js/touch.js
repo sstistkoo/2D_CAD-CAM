@@ -15,6 +15,7 @@ import { showBulgeDialog } from './dialogs/bulge.js';
 import { findObjectAt } from './geometry.js';
 
 import { bridge } from './bridge.js';
+import { undoDoubleTapExitsFullscreen } from './fullscreen.js';
 
 // ── Mobile: detekce ──
 /** @returns {boolean} */
@@ -305,6 +306,8 @@ polylineCloseBtn.addEventListener("click", (e) => {
 // ── Mobile: Undo tlačítko ──
 document.getElementById("mobileUndo").addEventListener("click", (e) => {
   e.stopPropagation();
+  // Dvojklep v celé obrazovce = ji ukončit; první klep už undo provedl → zpět
+  if (undoDoubleTapExitsFullscreen()) { redo(); updateMobileRedoBtn(); return; }
   undo();
   updateMobileRedoBtn();
 });
