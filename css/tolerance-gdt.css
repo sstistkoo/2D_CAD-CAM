@@ -1,0 +1,45 @@
+/* ── Tolerance: značky geometrických tolerancí ISO 1101 (toleranceGdt.js) ── */
+.gdt { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--ctp-text); }
+.gdt-group {
+  margin-top: 6px; padding-bottom: 2px; font-size: 12px; font-weight: 700;
+  color: var(--ctp-blue); border-bottom: 1px solid var(--ctp-surface0);
+}
+.gdt-item, .gdt-mrow { display: flex; gap: 8px; align-items: flex-start; }
+.gdt-ico {
+  flex: 0 0 auto; width: 28px; height: 28px; padding: 3px; box-sizing: border-box;
+  border: 1px solid var(--ctp-surface1); border-radius: 4px; background: var(--ctp-mantle);
+  fill: none; stroke: var(--ctp-text); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.gdt-ico .gdt-fill { fill: var(--ctp-text); stroke: none; }
+.gdt-txt { flex: 1 1 auto; min-width: 0; }
+.gdt-name { font-weight: 600; }
+.gdt-zone { color: var(--ctp-subtext0); line-height: 1.35; }
+.gdt-check { color: var(--ctp-text); line-height: 1.35; margin-top: 2px; }
+.gdt-check b { color: var(--ctp-green); font-weight: 600; }
+.gdt-base { font-size: 10px; font-weight: 600; padding: 0 5px; border-radius: 8px; white-space: nowrap; }
+.gdt-base-yes { color: var(--ctp-base); background: var(--ctp-peach); }
+.gdt-base-no { color: var(--ctp-base); background: var(--ctp-green); }
+.gdt-base-opt { color: var(--ctp-base); background: var(--ctp-overlay2); }
+.gdt-msym { flex: 0 0 auto; width: 40px; text-align: center; padding-top: 1px; }
+/* Doplňkové značky kreslené CSS – kroužkovaná písmena (Ⓜ, Ⓔ…) chybí v části písem */
+.gdt-mod { display: inline-block; min-width: 14px; font-weight: 700; text-align: center; line-height: 14px; }
+.gdt-circ { width: 14px; height: 14px; font-size: 9px; border: 1.5px solid currentColor; border-radius: 50%; vertical-align: middle; }
+.gdt-ted { display: inline-block; padding: 0 4px; border: 1.5px solid var(--ctp-text); font-weight: 600; }
+.gdt-datum {
+  display: inline-block; padding: 0 5px; border: 1.5px solid var(--ctp-text); font-weight: 700;
+  border-bottom-width: 4px;
+}
+/* Toleranční rámeček */
+.gdt-ex { display: flex; flex-direction: column; gap: 3px; }
+.gdt-frame { display: inline-flex; align-self: flex-start; border: 1.5px solid var(--ctp-text); background: var(--ctp-mantle); }
+.gdt-frame > span {
+  display: inline-flex; align-items: center; gap: 3px; min-height: 26px; padding: 0 7px;
+  font-weight: 600; font-family: "Consolas", monospace;
+}
+.gdt-frame > span + span { border-left: 1.5px solid var(--ctp-text); }
+.gdt-frame .gdt-ico { width: 22px; height: 22px; padding: 1px; border: none; background: none; }
+.gdt-note {
+  padding: 5px 7px; border-left: 3px solid var(--ctp-blue); background: var(--ctp-mantle);
+  color: var(--ctp-subtext0); line-height: 1.35;
+}
+.gdt-note b { color: var(--ctp-text); }

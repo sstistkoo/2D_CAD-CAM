@@ -97,6 +97,6 @@ describe('ISO 286 – uložení', () => {
     expect(itValue(0.5, 7)).toBe(10);
     expect(itValue(30, 7)).toBe(21);
     expect(itValue(30.01, 7)).toBe(25);
-    expect(deviations('H', 7, 600).error).toBeTruthy();
+    expect(deviations('H', 7, 3151).error).toBeTruthy();
   });
 });

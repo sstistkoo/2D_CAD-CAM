@@ -2,6 +2,7 @@ import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { makeOverlay, isTouchDevice, onOverlayRemoved } from '../dialogFactory.js';
 import { deviations, SHAFT_LETTERS, HOLE_LETTERS } from './iso286.js';
+import { gdtSectionHTML } from './toleranceGdt.js';
 
 export function openToleranceCalc() {
   // ── ISO 2768-1 : volné míry ──
@@ -113,6 +114,7 @@ export function openToleranceCalc() {
     '<div class="cnc-table-wrap">' + freeHTML + '</div></details>' +
     '<details class="tol-free"><summary>Volné geometrické tolerance – ČSN EN ISO 2768-2 <small>(třídy H, K, L)</small></summary>' +
     '<div class="tol-geo">' + geoHTML + '</div></details>' +
+    gdtSectionHTML() +
     '<div class="cnc-actions"><button class="cnc-btn cnc-btn-copy">📋 Kopírovat</button></div></div>';
 
   // Nezavírat klepnutím mimo okno (jen křížkem / Esc) – rozdělané zadání by se snadno ztratilo
@@ -271,7 +273,7 @@ export function openToleranceCalc() {
     var dim = inpDim.value !== "" ? safeEvalMath(inpDim.value) : null;
     if (dim === null) { resultEl.textContent = "Zadejte rozměr…"; return; }
     if (!isFinite(dim) || dim <= 0) { resultEl.textContent = "Neplatný rozměr"; return; }
-    if (!isCustom && dim > 500) { resultEl.textContent = "Rozměr mimo rozsah ISO 286 (0–500 mm)"; return; }
+    if (!isCustom && dim > 3150) { resultEl.textContent = "Rozměr mimo rozsah ISO 286 (0–3150 mm)"; return; }
     var r, tolLabel;
     if (isCustom) {
       if (inpUp.value === "" || inpLo.value === "") { resultEl.textContent = "Zadejte horní i dolní úchylku…"; return; }

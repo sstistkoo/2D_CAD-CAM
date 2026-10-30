@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tolerance ISO 286 nad 500 do 3150 mm** (`calculators/iso286Large.js`) – pro velké průměry na karuselu.
+  IT1–IT18 a základní úchylky d–s / D–S opsané z tabulek ISO 286-2:2010 (r, s v jemných podrozsazích),
+  každá hodnota zkontrolovaná rozdílem = IT. Nad 500 mm: a, b, c, j nedefinováno, díry K–S bez Δ.
+  Test `tests/iso286-large.test.js` (hodnoty přímo z tištěných tabulek normy).
+- **Tolerance – značky geometrických tolerancí ISO 1101** (`calculators/toleranceGdt.js`, `css/tolerance-gdt.css`):
+  sbalitelná sekce se 14 značkami (SVG – znaky ⌭ ⌯ ⌰ chybí v části písem), tolerančním polem, kontrolou
+  u stroje, doplňkovými značkami (Ⓜ, Ⓔ, Ⓟ…), vzorovými rámečky a poznámkou o měření v upnutí. Test `tests/tolerance-gdt.test.js`.
 - **PWA přes celý displej** – `manifest.json`: `display: fullscreen` (s `display_override` a zálohou `standalone`); v záložce prohlížeče je v Nastavení tlačítko ⛶ Celá obrazovka (`fullscreen.js`). Nainstalovanou PWA je po změně potřeba odinstalovat a nainstalovat znovu. Dvojklep na mobilní ↩ celou obrazovku ukončí (první klep se vrátí přes redo). V celé obrazovce se naležato nechává pevný okraj (48 px) na straně kamery (`fs-cam-left/right` podle natočení), boční tlačítka a okna se řídí proměnnými `--safe-l/--safe-r`; ⛶ je i v horní liště bočního panelu a ta lišta zůstává nahoře při rolování.
 - **CAD – šrafy řezu ve Vybarvit** (`render/hatch.js`): výplň může mít místo barvy šrafy 45° / 135° / křížem
   s roztečí v mm výkresu (výchozí podle velikosti plochy, při malém zoomu se ředí). Kreslí plátno i export PNG.
@@ -54,6 +61,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Chybějící barvy palety** (`css/style.css`): `--ctp-subtext1`, `--ctp-overlay1`, `--ctp-teal`, `--ctp-flamingo`
+  a `--ctp-lavender` se používaly (18 míst), ale nebyly definované – aktivní štítek v Příkazech / Příkladech
+  neměl pozadí, zvýraznění syntaxe a nadpisy sekcí neměly barvu. Doplněny hodnoty Catppuccin Mocha a Latte.
 - **Mobil naležato – modální okna** (`css/landscape-mobile.css`, nízký displej ≤ 500 px na šířku): okna
   využijí celou výšku a tělo se posouvá. CNC Editor jde přes celý displej, kód je vlevo a klávesnice vpravo
   ve vlastním posuvném sloupci (dřív zabrala celou výšku a kód nebyl vidět). Vnitřní dialogy editoru mají

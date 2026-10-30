@@ -2092,7 +2092,12 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   strojní čas s G96 (u čelení bez omezení t = π·(D₁² − D₂²) / (4000·vc·f))
   a srovnání s G97 při stálých otáčkách z většího průměru.
 - **Zkrácení / prodleva** – doba obrábění
-- **Tolerance** – tolerance dle DIN ISO 286 (třída + stupeň, nebo vlastní horní/dolní úchylka v mm)
+- **Tolerance** – tolerance dle DIN ISO 286 (třída + stupeň, nebo vlastní horní/dolní úchylka v mm),
+  rozměry 0–3150 mm. Nad 500 mm podle tabulek ISO 286-2:2010: pole a, b, c, j (A, B, C, J) tam norma
+  nedefinuje; díry K–S jsou bez korekce Δ (ES = −ei hřídele).
+  Sbalitelná sekce **Geometrické tolerance – značky ČSN EN ISO 1101**: 14 značek (tvar, profil, orientace,
+  poloha, házení) s tolerančním polem a kontrolou u stroje, doplňkové značky (⌀, Ⓜ, Ⓛ, Ⓔ, Ⓟ, Ⓕ, CZ,
+  teoreticky přesný rozměr, základna), vzorové rámečky a poznámka k měření v upnutí a ISO 8015.
 - **Hmotnost** – hmotnost prutů
 - **Vrták** (Další kalkulačky) – geometrie špičky vrtáku s náčrtem: tabulka
   základních vrtáků a úhlů špičky σ (ocel 118°, legovaná ocel 130°, nerez 135°,

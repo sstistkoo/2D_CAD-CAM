@@ -7,7 +7,9 @@
 //          K, M, N (do IT8) a P–S (do IT7) → ES = −ei + Δ, Δ = ITn − IT(n−1)
 //          (pro rozměry nad 3 mm), jinak ES = −ei (K a N nad IT8: ES = 0).
 //          J – vlastní tabulka (J6, J7, J8), JS/js = ±IT/2.
-// Hodnoty v µm podle ISO 286-2. Rozsah 0–500 mm.
+// Hodnoty v µm podle ISO 286-2. Rozsah 0–500 mm zde, nad 500 do 3150 mm v iso286Large.js.
+
+import { deviationsLarge, itValueLarge } from './iso286Large.js';
 
 /** Hlavní rozsahy jmenovitých rozměrů (horní meze, mm). */
 const MAIN = [3, 6, 10, 18, 30, 50, 80, 120, 180, 250, 315, 400, 500];
@@ -80,6 +82,7 @@ function rangeIndex(bounds, dim) {
 
 /** Základní tolerance ITn [µm] pro rozměr; null mimo rozsah. */
 export function itValue(dim, grade) {
+  if (dim > 500) return itValueLarge(dim, grade);
   const ri = dim > 0 ? rangeIndex(MAIN, dim) : -1;
   if (ri < 0 || !(grade >= 1 && grade <= 18)) return null;
   return IT[ri][grade - 1];
@@ -98,17 +101,18 @@ function shaftFundamental(letter, ri, fi, grade) {
  * Mezní úchylky pole tolerance.
  * @param {string} letter - písmeno (malé = hřídel, velké = díra), např. 'H', 'g', 'js', 'JS'
  * @param {number} grade - stupeň IT 1–18
- * @param {number} dim - jmenovitý rozměr (0, 500] mm
+ * @param {number} dim - jmenovitý rozměr (0, 3150] mm
  * @returns {{upper:number, lower:number, tol:number}|{error:string}} úchylky v µm
  */
 export function deviations(letter, grade, dim) {
-  if (!(dim > 0 && dim <= 500)) return { error: 'Rozměr mimo rozsah 0–500 mm' };
+  if (!(dim > 0 && dim <= 3150)) return { error: 'Rozměr mimo rozsah 0–3150 mm' };
   if (!Number.isInteger(grade) || grade < 1 || grade > 18) return { error: 'Stupeň IT musí být 1–18' };
-  const ri = rangeIndex(MAIN, dim), fi = rangeIndex(FINE, dim);
-  const tol = IT[ri][grade - 1];
   const hole = letter !== letter.toLowerCase();
   const l = letter.toLowerCase();
   if (!SHAFT_LETTERS.includes(l)) return { error: 'Neznámé písmeno ' + letter };
+  if (dim > 500) return deviationsLarge(letter, grade, dim);
+  const ri = rangeIndex(MAIN, dim), fi = rangeIndex(FINE, dim);
+  const tol = IT[ri][grade - 1];
   if ((l === 'a' || l === 'b') && dim <= 1) return { error: 'Pole a, b, A, B se podle ISO 286 pro rozměry do 1 mm nepoužívají' };
 
   if (l === 'js') {

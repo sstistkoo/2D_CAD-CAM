@@ -2,13 +2,14 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v654';
+const CACHE_NAME = 'skica-v657';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './css/landscape-mobile.css',
   './css/style.css',
+  './css/tolerance-gdt.css',
   './js/ai/aiPanel.js',
   './js/ai/aiSettings.js',
   './js/app.js',
@@ -240,6 +241,7 @@ const ASSETS = [
   './js/calculators/holePatternMath.js',
   './js/calculators/insert.js',
   './js/calculators/iso286.js',
+  './js/calculators/iso286Large.js',
   './js/calculators/iso965.js',
   './js/calculators/iso965Data.js',
   './js/calculators/isoCatalogPanel.js',
@@ -277,6 +279,7 @@ const ASSETS = [
   './js/calculators/threadData.js',
   './js/calculators/threadPassesMath.js',
   './js/calculators/tolerance.js',
+  './js/calculators/toleranceGdt.js',
   './js/calculators/torque.js',
   './js/calculators/torqueMath.js',
   './js/calculators/trigGeneral.js',
