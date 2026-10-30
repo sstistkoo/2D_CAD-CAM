@@ -88,7 +88,9 @@ async function check(file) {
   const { offsetXAt } = makePassHelpers(r.calc.offsetPath || []);
   // Přídavek se měří KOLMO od dílu (jako offset), ne svisle — na šikmé
   // stěně je svislá vzdálenost k přídavkové čáře mnohem větší než Přídavek X.
-  const allow = Math.max(allowX, parseFloat(P.allowanceZ) || 0);
+  // + Přídavek na hotovo: hrubování ho nechává vždy (calculatePipeline), a kde
+  // dokončení nejede (rozsah úseku, nedosažitelný kus), zůstane stát.
+  const allow = Math.max(allowX, parseFloat(P.allowanceZ) || 0) + (parseFloat(P.finishAllowance) || 0);
   let allowLoop = part;
   try { const o = polyOffset([part], allow); if (o && o[0]) allowLoop = o.sort((u, v) => v.length - u.length)[0]; } catch { /* bez offsetu */ }
   const dir = P.roughingSide === 'left' ? -1 : 1;

@@ -208,6 +208,9 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
     [...(calc.finishOffsetPath || []), ...(calc.finishUnreachablePath || [])], z);
   const finAlw = Math.max(parseFloat(prms.allowanceX) || 0, parseFloat(prms.allowanceZ) || 0)
     + (parseFloat(prms.finishAllowance) || 0);
+  // Kolik smí stát na začátku řetězu (víc → začátek se posune, viz níž
+  // „ŘETĚZ NEZAČÍNÁ VE ZBYTKU"); totéž smí vzít nájezdová rampa.
+  const finStartCut = finAlw + 0.2;
   // „Stojí před nástrojem na téhle Z-souřadnici ještě materiál?"
   // Měřeno z HOTOVNÍ KONTURY + PŘÍDAVKU, tedy z toho, co tam po hrubování
   // být MÁ — ne ze zbytkového modelu. Ten se u průchodů sledujících
@@ -228,7 +231,7 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   // POZOR na cílový bod (t = 1): ten LEŽÍ na kontuře, takže materiál v jeho
   // Z-rovině je z definice — u čela k ose dokonce celé tělo dílu. Testovat
   // ho nemá smysl a zablokovalo by to úplně každý nájezd na čelo.
-  const finRampClear = (x0, z0, x1, z1) => {
+  const finRampClear = (x0, z0, x1, z1, cut) => {
     if (!rapidStock) return false;
     const N = 16;
     for (let k = 0; k < N; k++) {
@@ -237,7 +240,7 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
       const prof = finProfileXAt(zMid);
       if (prof !== null && prof > xMid + 0.02) return false;
       const top = residualTopXAtZ(zMid);
-      if (top !== null && top > xMid - finTipR + finRampCut) return false;
+      if (top !== null && top > xMid - finTipR + cut) return false;
     }
     return true;
   };
@@ -324,7 +327,12 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   const finLeadInRamp = (tx, tz, withFeed) => {
     const zApp = clipZGc(tz - finDirZ * finishRampDz);
     const xApp = tx + finishApproachDx;
-    if (finRampClear(xApp, zApp, tx, tz)) {
+    // Náhradou za rampu je SVISLÝ sjezd do cíle, a ten smí vzít až
+    // `finStartCut` (začátek řetězu se posouvá až nad tím). Rampa se proto
+    // nezahazuje kvůli slupce, kterou by svislý sjezd vzal stejně — jen
+    // kolmo (pravidlo 15). Nález uživatele 30. 10. 2026, Ú2 zleva:
+    // hrubovací rampa 15° nechala v koridoru ~0,4 mm → `G1 X14.489` kolmo.
+    if (finRampClear(xApp, zApp, tx, tz, finStartCut)) {
       // Nájezd na přibližovací bod s kontrolou kolize — přímá diagonála
       // z bezpečné polohy může u členité kontury proříznout offset.
       const p = finRampShort ? finRampStart(xApp, zApp, tx, tz) : null;
@@ -451,7 +459,7 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   // totéž, s čím měří test. Přísnější mez rampy (`finRampCut`, +0,05) tu
   // posouvala začátek i kvůli zbytku 0,12 mm (díl uživatele 2026-07-07 (3)).
   if (rapidStock) {
-    const startCut = finAlw + 0.2;
+    const startCut = finStartCut;
     const deepAt = (x, z) => {
       const top = residualTopXAtZ(z);
       return top !== null && top > x - finTipR + startCut;

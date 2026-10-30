@@ -888,9 +888,9 @@ N2310 G1 X53.788 Z161.069 F0.25
 N2320 G1 X53.788 Z151.118
 N2330 G1 X53.788 Z150.618 ; Rovný průměr (zbytek nejde dokončit celý)
 N2340 G0 X54.660 ; Výjezd nad konturu
-N2350 G0 Z102.622
-N2360 G0 X13.843
-N2370 G1 X12.043 F0.25
+N2350 G0 Z110.086
+N2360 G0 X14.043
+N2370 G1 X12.043 Z102.622
 N2380 G1 X41.048 Z94.851
 N2390 G3 X43.123 Z92.083 CR=2.800
 N2400 G1 X42.705 Z73.546
@@ -5240,6 +5240,180 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
     "face{contourLeadOut,blocked}",
     "face{contourLeadOut,blocked}",
     "face{contourLeadOut,blocked}",
+  ],
+}
+`;
+
+exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-24-zleva-finish-ramp.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
+"; Vygenerovaný kód SINUMERIK 840D
+; Datum: <normalized>
+N10 G18 ; Rovina ZX
+N20 G90 ; Absolutní programování
+N30 G54 ; Posunutí počátku
+N40 G95 ; Posuv na otáčku
+N50 G75 X150 ; Nájezd do ref. bodu
+N60 G75 Z5
+N70 LIMS=2000 ; Limit otáček
+N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
+N90 DIAMOF ; Programování poloměru
+N100 T="PSBNR2525M12" D1 M6 ; Výměna nástroje
+N110 M3 ; Vřeteno CW
+N120 M8 ; Chlazení ZAP
+N130 G0 X150 Z5 ; Rychloposuv
+; --- HRUBOVANI (PODELNE ZLEVA) ---
+; Průchod 1
+N140 G0 Z112.065
+N150 G0 X45.230
+N160 G1 Z142.961 F0.24
+N170 G1 X47.230 Z140.961
+; Průchod 2
+N180 G0 Z108.190
+N190 G0 X41.230
+N200 G1 Z143.214 F0.24
+N210 G1 X43.230 Z141.214
+; Průchod 3 (bez schodků)
+N220 G0 Z105.990
+N230 G0 X37.230
+N240 G1 Z117.080 F0.24
+N250 G1 X37.240 F0.24
+N260 G2 X41.118 Z125.462 CR=11.000 F0.24
+N270 G1 X41.118 Z128.949 F0.24
+N280 G1 X39.550 Z137.730 F0.24
+N290 G1 X37.971 Z143.623 F0.24
+N300 G1 X39.971 Z141.623
+; Průchod 4 (bez schodků)
+N310 G0 X42.120 ; Výjezd nad konturu
+N320 G0 Z104.547
+N330 G0 X33.230
+N340 G1 Z114.898 F0.24
+N350 G1 X33.240 F0.24
+N360 G1 X33.813 Z115.102 F0.24
+N370 G2 X37.261 Z117.098 CR=11.000 F0.24
+N380 G1 X39.261 Z115.098
+; Průchod 5 (bez schodků)
+N390 G0 Z103.120
+N400 G0 X29.230
+N410 G1 Z113.470 F0.24
+N420 G1 X29.238 F0.24
+N430 G1 X33.303 Z114.920 F0.24
+N440 G1 X35.303 Z112.920
+; Průchod 6 (bez schodků)
+N450 G0 Z101.694
+N460 G0 X25.230
+N470 G1 Z112.042 F0.24
+N480 G1 X25.235 F0.24
+N490 G1 X29.300 Z113.492 F0.24
+N500 G1 X31.300 Z111.492
+; Průchod 7 (bez schodků)
+N510 G0 Z100.267
+N520 G0 X21.230
+N530 G1 Z110.615 F0.24
+N540 G1 X21.233 F0.24
+N550 G1 X25.298 Z112.065 F0.24
+N560 G1 X27.298 Z110.065
+; Průchod 8 (oblouk G3)
+N570 G0 Z98.831
+N580 G0 X19.229
+N590 G1 X17.429 F0.24
+N600 G1 X17.230 Z99.574 ; Rampa 15.0°
+N610 G1 Z109.187 F0.24
+N620 G1 X21.295 Z110.637 F0.24
+N630 G1 X23.295 Z108.637
+; Průchod 9 (oblouk G3)
+N640 G0 Z99.574
+N650 G0 X19.030
+N660 G1 X17.230 F0.24
+N670 G1 X14.878 Z108.352 ; Rampa 15.0°
+N680 G1 X14.888 F0.24
+N690 G1 X17.271 Z109.202 F0.24
+N700 G1 X19.271 Z107.202
+N710 G0 X150.000 ; Výjezd nad konturu
+N720 G0 Z5.000
+; --- DOKONCOVANI ---
+N730 G0 Z100.957
+N740 G0 X16.489
+N750 G1 X14.489 Z108.421 F0.24
+N760 G1 X33.746 Z115.290
+N770 G2 X40.918 Z125.462 CR=10.800
+N780 G1 X40.918 Z128.931
+N790 G1 X39.362 Z137.650
+N800 G1 X39.362 Z138.650 ; Rovný průměr (zbytek nejde dokončit celý)
+N810 G0 X150.000 ; Výjezd nad konturu
+N820 G0 Z5.000
+N830 M30 ; Konec programu
+; --- KONTURA (Pro referenci) ---
+; G0 X0 Z346.371
+; G1 X9.117 Z345.397
+; G1 X9.117 Z243.123
+; G1 X50.081 Z234.99
+; G1 X50.081 Z221.135
+; G1 X30.156 Z213.667
+; G1 X30.156 Z205.009
+; G1 X6.744 Z205.009
+; G1 X6.744 Z165.945
+; G1 X8.743 Z163.945
+; G1 X8.743 Z149.544
+; G1 X8.743 Z138.253
+; G1 X38.574 Z137.509
+; G1 X40.118 Z128.86
+; G1 X40.118 Z125.462
+; G3 X33.477 Z116.044 CR=10.000
+; G1 X14.22 Z109.175
+; G2 X7.579 Z99.757 CR=10.000
+; G1 X7.579 Z84.177
+; G2 X15.585 Z74.378 CR=10.000
+; G1 X22.252 Z73.021
+; G3 X27.056 Z67.142 CR=6.000
+; G1 X27.056 Z55.47
+; G3 X25.516 Z51.456 CR=6.000
+; G2 X27.279 Z16.913 CR=24.495
+; G3 X30.566 Z9.502 CR=10.000
+; G1 X30.566 Z0
+; G1 X0 Z0"
+`;
+
+exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-24-zleva-finish-ramp.camprog → stabilní booleovský G-kód > pipeline-bool 1`] = `
+{
+  "machinableContour": [
+    "L (2.61,369.68)->(9.12,345.40) {ins}",
+    "L (9.12,345.40)->(9.12,265.41)",
+    "L (41.93,265.41)->(50.08,234.99) {ins}",
+    "L (50.08,234.99)->(50.08,221.13)",
+    "L (50.08,221.13)->(30.16,213.67)",
+    "L (30.16,213.67)->(30.16,205.01)",
+    "L (30.16,205.01)->(6.74,198.74) {ins}",
+    "L (6.74,198.74)->(6.74,171.41)",
+    "L (6.74,171.41)->(8.74,163.94) {ins}",
+    "L (8.74,163.94)->(8.74,149.54)",
+    "L (8.74,149.54)->(8.74,143.69)",
+    "L (36.92,143.69)->(38.57,137.51) {ins}",
+    "L (38.57,137.51)->(40.12,128.86)",
+    "L (40.12,128.86)->(40.12,125.46)",
+    "A r=10.00 G3",
+    "L (33.48,116.04)->(14.22,109.17)",
+    "A r=10.00 G2",
+    "L (7.58,99.76)->(7.58,84.18)",
+    "A r=10.00 G2",
+    "L (23.26,82.03)->(26.71,69.16) {ins}",
+    "L (27.06,67.14)->(27.06,55.47)",
+    "A r=6.00 G3",
+    "A r=24.50 G2",
+    "L (21.38,45.10)->(30.18,12.25) {ins}",
+    "A r=10.00 G3",
+    "L (30.57,9.50)->(30.57,0.00)",
+    "L (30.57,0.00)->(0.52,-8.05) {ins}",
+  ],
+  "passCount": 9,
+  "passTags": [
+    "long{backside}",
+    "long{backside}",
+    "long{contourLeadOut,backside,blocked}",
+    "long{contourLeadOut,backside,blocked}",
+    "long{contourLeadOut,backside,blocked}",
+    "long{contourLeadOut,backside,blocked}",
+    "long{contourLeadOut,backside,blocked}",
+    "long{ramp,contourLeadOut,backside,blocked}",
+    "long{ramp,contourLeadOut,backside,blocked}",
   ],
 }
 `;

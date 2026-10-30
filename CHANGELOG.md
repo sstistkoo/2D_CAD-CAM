@@ -61,6 +61,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM – kolmý nájezd dokončování po hrubovací rampě** (`cam/ops/roughEmit.js`, `cam/ops/finishEmit.js`):
+  hrubovací rampa průchodu s nulovým dnem se nezapisovala do zbytkového modelu emise, takže dokončování
+  v koridoru své nájezdové rampy „vidělo“ materiál, rampu zahodilo a sjelo kolmo (nález uživatele, Ú2 zleva:
+  `G0 X16.289` → `G1 X14.489`, pravidlo 15). Vydané řezy rampy se teď do modelu zapisují a nájezdová rampa
+  smí vzít tolik, kolik by vzal náhradní svislý sjezd (přídavek + 0,2 mm). Výjezdy, které model dřív držel
+  „materiálem posuvem“, jdou kde je vzduch rychloposuvem; kolize 0. Fixture `part-24-zleva-finish-ramp`,
+  test `tests/cam-finish-ramp-after-rough-ramp.test.js`.
+- **CAM – komentáře ve výstupu pro Fanuc** (`cam/controlDialect.js`, `cam/ops/roughEmit.js`): hlavička
+  `( --- HRUBOVANI (CELNI) --- )` měla vnořené závorky (první `)` ukončí komentář, zbytek řízení četlo jako kód)
+  a přejezd materiálem posuvem psal natvrdo `; …` i do Fanucu. Teď se závorky v textu komentáře u Fanucu vypustí
+  a přejezd jde přes `note()`. Sinumerik a Heidenhain beze změny. Test `tests/cam-fanuc-comments.test.js`.
 - **Chybějící barvy palety** (`css/style.css`): `--ctp-subtext1`, `--ctp-overlay1`, `--ctp-teal`, `--ctp-flamingo`
   a `--ctp-lavender` se používaly (18 míst), ale nebyly definované – aktivní štítek v Příkazech / Příkladech
   neměl pozadí, zvýraznění syntaxe a nadpisy sekcí neměly barvu. Doplněny hodnoty Catppuccin Mocha a Latte.

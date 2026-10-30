@@ -17,8 +17,10 @@
 // Function declaration (ne const) — musí být hoistnutá i přes early-return
 // capture v headless test harnessu (tests/helpers/camHeadless.mjs), který
 // vrací hned po zachycení referencí, ještě před vykonáním const inicializací.
+// Fanuc: závorky uvnitř textu se zahodí — první `)` komentář ukončí a zbytek
+// by řízení četlo jako kód (např. „HRUBOVANI (CELNI)" → alarm).
 export function ctrlCmt(ctrl) {
-  return (text) => ctrl === 'fanuc' ? `( ${text} )` : `; ${text}`;
+  return (text) => ctrl === 'fanuc' ? `( ${String(text).replace(/[()]/g, '')} )` : `; ${text}`;
 }
 
 // PRŮMĚR × POLOMĚR U SYSTÉMŮ BEZ DIAMON/DIAMOF.

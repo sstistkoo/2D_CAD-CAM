@@ -66,7 +66,7 @@ export function emitRoughing(E) {
     }
     merged.forEach((r, k) => {
       if (k > 0) simCounter += 1;
-      addN(r.hit ? `G1 Z${r.z.toFixed(3)} F${prms.feed} ; Přejezd materiálem posuvem` : `G0 Z${r.z.toFixed(3)}`, simCounter);
+      addN(r.hit ? `G1 Z${r.z.toFixed(3)} F${prms.feed}${note('', 'Přejezd materiálem posuvem')}` : `G0 Z${r.z.toFixed(3)}`, simCounter);
       setPos(X, r.z);
     });
   };
@@ -357,7 +357,8 @@ calc.passes.forEach((pass, i) => {
       const rampDeg = Math.abs(Math.atan2(Math.abs(x1 - x0), Math.abs(z1 - z0)) * 180 / Math.PI);
       const rampNote = `Rampa ${(Math.abs(rampDeg - entryAngleDegGc) < 0.05 ? entryAngleDegGc : rampDeg).toFixed(1)}°`;
       if (Math.abs(z1 - z0) < 1e-6) {
-        simCounter += 1; addN(`G1 X${xDia(x1)} Z${z1.toFixed(3)}${note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`)}`, simCounter); setPos(x1, z1);
+        simCounter += 1; addN(`G1 X${xDia(x1)} Z${z1.toFixed(3)}${note('', `Rampa ${entryAngleDegGc.toFixed(1)}°`)}`, simCounter);
+        noteCutMove(x0, z0, x1, z1); setPos(x1, z1);
       } else {
         const steps = Math.max(4, Math.ceil(Math.abs(z1 - z0) / 0.2));
         const pts = [];
@@ -409,6 +410,7 @@ calc.passes.forEach((pass, i) => {
             addN(s.kind === 'G0'
               ? `G0 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`
               : `G1 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`, simCounter);
+            if (s.kind === 'G1') noteCutMove(cur.x, cur.z, s.pt.x, s.pt.z);
             setPos(s.pt.x, s.pt.z);
           });
           safeRapidTo(x1, z1, true, true);
@@ -454,6 +456,12 @@ calc.passes.forEach((pass, i) => {
             addN(s.kind === 'G0'
               ? `G0 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`
               : `G1 X${xDia(s.pt.x)} Z${s.pt.z.toFixed(3)}${cmt}`, simCounter);
+            // VYDANÝ řez rampy do zbytkového modelu. Z plánu (`noteCutPass`) se
+            // rampa zapisuje jen u průchodu s dnem — rampa průchodu s nulovým
+            // dnem v modelu chyběla celá a dokončování pak v jejím koridoru
+            // „vidělo" materiál: nájezdovou rampu zahodilo a sjelo kolmo
+            // (nález uživatele 30. 10. 2026, Ú2 zleva `G1 X14.489`).
+            if (s.kind === 'G1') noteCutMove(cur.x, cur.z, s.pt.x, s.pt.z);
             setPos(s.pt.x, s.pt.z);
           });
         }
@@ -522,7 +530,7 @@ calc.passes.forEach((pass, i) => {
           && (rapidHitsStock(bodyX, cur.z, bodyX, s.z) || rapidHitsPlan(bodyX, cur.z, bodyX, s.z));
         addN(s.kind === 'G0' && !hitsStock
           ? `G0 Z${s.z.toFixed(3)}`
-          : `G1 Z${s.z.toFixed(3)} F${prms.feed}${hitsStock ? ' ; Přejezd materiálem posuvem' : ''}`, simCounter);
+          : `G1 Z${s.z.toFixed(3)} F${prms.feed}${hitsStock ? note('', 'Přejezd materiálem posuvem') : ''}`, simCounter);
         setPos(bodyX, s.z);
       }
     }
@@ -701,7 +709,7 @@ calc.passes.forEach((pass, i) => {
         && (rapidHitsStock(pass.x, cur.z, pass.x, s.z) || rapidHitsPlan(pass.x, cur.z, pass.x, s.z));
       addN(s.kind === 'G0' && !hitsStock
         ? `G0 Z${s.z.toFixed(3)}`
-        : `G1 Z${s.z.toFixed(3)} F${prms.feed}${hitsStock ? ' ; Přejezd materiálem posuvem' : ''}`, simCounter);
+        : `G1 Z${s.z.toFixed(3)} F${prms.feed}${hitsStock ? note('', 'Přejezd materiálem posuvem') : ''}`, simCounter);
       setPos(pass.x, s.z);
     }
     // Fáze 4: výjezd z materiálu do vzduchu — posuvem ještě o Vůli Z
