@@ -243,7 +243,7 @@ html.fs-cam-right { --safe-r: max(env(safe-area-inset-right, 0px), 48px); }
   .calc-basic-window .calc-body > * { flex-shrink: 0; }
   /* Tlačítka se vždy vejdou: řádky si dělí zbylou výšku okna */
   .calc-overlay-float .calc-basic-window .calc-history {
-    flex: 0 1 34px; min-height: 0; overflow: hidden;
+    flex: 0 1 34px; min-height: 0; overflow-y: auto;
   }
   .calc-overlay-float .calc-basic-window .calc-buttons { flex: 1 1 0; min-height: 0; }
   .calc-overlay-float .calc-basic-window .calc-fn-row { flex: 1 1 0; min-height: 0; margin-bottom: 0; }
