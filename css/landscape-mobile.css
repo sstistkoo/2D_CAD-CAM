@@ -5,6 +5,16 @@
    editoru zabrala celou výšku a samotný kód nebyl vidět vůbec.
    Načítá se ZA style.css (stejná specifičnost → přebíjí).
    ══════════════════════════════════════════════════════════════ */
+
+/* Okraje kvůli výřezu kamery / zaoblení displeje. env() jen když je prohlížeč hlásí,
+   v celé obrazovce navíc pevná rezerva na straně kamery (viz js/fullscreen.js). */
+:root {
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+}
+html.fs-cam-left  { --safe-l: max(env(safe-area-inset-left, 0px), 48px); }
+html.fs-cam-right { --safe-r: max(env(safe-area-inset-right, 0px), 48px); }
+
 /* Číselné klávesy editoru: jen naležato (jinak je to zbytečný řádek) */
 .cne-qb-digit, .cne-digit-sep { display: none; }
 
@@ -42,7 +52,7 @@
   .cne-sn-bar,
   .cne-overlay-draw .cne-sn-bar {
     min-height: 28px;
-    padding: 2px 40px 2px max(8px, env(safe-area-inset-left));
+    padding: 2px 40px 2px max(8px, var(--safe-l));
   }
   .cne-overlay-draw .cne-sn-close {
     width: 28px; height: 28px; top: 50%;
@@ -67,7 +77,7 @@
     overflow-y: auto;
     border-top: none;
     border-left: 1px solid var(--ctp-surface0);
-    padding: 4px max(4px, env(safe-area-inset-right))
+    padding: 4px max(4px, var(--safe-r))
              max(4px, env(safe-area-inset-bottom)) 4px;
   }
   .cne-toolbar { padding: 3px 6px; gap: 4px; }
@@ -137,7 +147,7 @@
     width: clamp(300px, 46vw, 440px); max-width: 60vw;
     height: auto; max-height: none;
     border-radius: 12px 0 0 0;
-    padding-right: env(safe-area-inset-right);
+    padding-right: var(--safe-r);
   }
   /* Obsah se musí vejít do šířky panelu (jinak ho okno ořízne zprava) */
   .vk-combined-window .tab-content.active,
@@ -225,4 +235,12 @@
   .calc-overlay-float .calc-basic-window .calc-buttons,
   .calc-overlay-float .calc-basic-window .calc-fn-row,
   .calc-overlay-float .calc-basic-window .calc-num-grid { gap: 3px; margin-bottom: 3px; }
+
+  /* ── Okraje (kamera / zaoblení): okna a plovoucí panely nesmí zajet pod výřez ── */
+  .calc-overlay { padding-left: var(--safe-l); padding-right: var(--safe-r); }
+  .calc-overlay:has(> .cnc-editor-window) { padding-left: var(--safe-l); padding-right: var(--safe-r); }
+  .cnc-editor-window,
+  .calc-overlay.cne-overlay-draw .cnc-editor-window { width: 100%; max-width: 100%; }
+  .calc-overlay-float .vk-combined-window,
+  .calc-overlay-float .vk-combined-window:has(.num-corner-inline-row) { right: var(--safe-r); }
 }

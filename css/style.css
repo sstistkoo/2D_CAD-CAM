@@ -3209,7 +3209,13 @@ body.notify-open #mobileCoordBar {
 
   .sidebar-top-bar {
     display: flex;
+    /* Lišta s Menu / ⛶ / ✕ zůstává nahoře i při rolování obsahu panelu */
+    position: sticky;
+    top: 0;
+    z-index: 3;
   }
+  .sidebar-top-bar .sidebar-fs-btn { position: absolute; top: 8px; right: 134px; font-size: 15px; }
+  .sidebar-fs-btn[hidden] { display: none; }
 
   #sidebarOverlay {
     display: none;
@@ -3290,11 +3296,11 @@ body.notify-open #mobileCoordBar {
      tlačítka (roztažená až ke krajům) nesmí zajet pod něj. */
   #topbar {
     border-top: none;
-    padding-left: max(4px, env(safe-area-inset-left));
-    padding-right: max(4px, env(safe-area-inset-right));
+    padding-left: max(4px, var(--safe-l));
+    padding-right: max(4px, var(--safe-r));
   }
   #mobileCoordBar {
-    padding-left: max(8px, env(safe-area-inset-left));
+    padding-left: max(8px, var(--safe-l));
   }
 
   /* Zruší vlastní box .toolbar-header – Výběr/Kóta/Tlustá/Smaž se stanou
@@ -3468,23 +3474,23 @@ body.notify-open #mobileCoordBar {
     inset: -5px -2px -7px;
   }
   #mobileAutoCenter {
-    right: calc(8px + env(safe-area-inset-right, 0px));
+    right: calc(8px + var(--safe-r));
   }
   #mobileSnap {
-    right: calc(44px + env(safe-area-inset-right, 0px));
+    right: calc(44px + var(--safe-r));
   }
   #canvasCalcBtn {
-    right: calc(80px + env(safe-area-inset-right, 0px));
+    right: calc(80px + var(--safe-r));
   }
   #mobileRedo {
-    right: calc(124px + env(safe-area-inset-right, 0px));
+    right: calc(124px + var(--safe-r));
   }
   #mobileUndo {
-    right: calc(160px + env(safe-area-inset-right, 0px));
+    right: calc(160px + var(--safe-r));
   }
   /* „Dvojklik" na jeden řádek – na dva se do výšky lišty nevejde čitelně. */
   #mobileRectArm {
-    right: calc(196px + env(safe-area-inset-right, 0px));
+    right: calc(196px + var(--safe-r));
     width: auto;
     padding: 0 8px;
     font-size: 11px;
@@ -3498,7 +3504,7 @@ body.notify-open #mobileCoordBar {
      Viditelnost dál řídí JS přes inline display ("" / "none"). */
   #canvasClipBtn {
     display: block;
-    right: calc(264px + env(safe-area-inset-right, 0px));
+    right: calc(264px + var(--safe-r));
     width: auto;
     max-width: 72px;
     padding: 0 6px;
@@ -3519,7 +3525,7 @@ body.notify-open #mobileCoordBar {
      viditelná plocha začíná hned pod souřadnicemi. */
   #mobileCancel {
     top: calc(max(5px, env(safe-area-inset-top)) + 36px);
-    left: calc(8px + env(safe-area-inset-left, 0px));
+    left: calc(8px + var(--safe-l));
     width: 32px;
     height: 26px;
     line-height: 26px;

@@ -38,6 +38,8 @@ import './dialogs.js';
 import './dialogs/contourCheck.js'; // zdvojené čáry + jen hlavní profil do CAM (bridge)
 import './faceView/faceView.js'; // ◎ bokorys (pohled na čelo) pro poháněné nástroje
 import './calculators/calcLaunchers.js'; // tlačítka novějších kalkulaček (Oblouk, Roztažnost, Objem)
+import { initFullscreen } from './fullscreen.js'; // ⛶ celá obrazovka + okraje kolem výřezu kamery
+initFullscreen();
 
 // ── Panel toggle via data-panel attributes ──
 document.querySelectorAll('.panel-header[data-panel]').forEach(header => {
