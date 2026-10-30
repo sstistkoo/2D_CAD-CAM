@@ -4,7 +4,8 @@ import { buildLiveTimeline, liveStateAt } from '../js/calculators/cam/live/liveM
 import { newLiveOp, normalizeLiveOp } from '../js/calculators/cam/live/liveModel.js';
 
 const geo = { faceZ: 0, outerD: 100 };
-const op = (kind, over) => normalizeLiveOp({ ...newLiveOp(kind, geo, 1), ...over });
+// depthAtTip: hloubka = špička (plný Ø + 0,3·Ø → tests/live-drill-depth.test.js).
+const op = (kind, over) => normalizeLiveOp({ ...newLiveOp(kind, geo, 1), depthAtTip: true, ...over });
 const prms = { rapidFeed: 6000 };
 
 describe('časová osa obrábění', () => {

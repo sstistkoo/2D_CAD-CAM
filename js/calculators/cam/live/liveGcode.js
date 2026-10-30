@@ -13,7 +13,7 @@
 // M-kódy osy C a poháněného nástroje jsou strojní — bere se je z nastavení
 // (`liveSettings().m`), výchozí hodnoty jsou jen příklad (viz liveModel.js).
 import { LIVE_BEGIN, LIVE_END } from './liveMarkers.js';
-import { liveRunOps, liveOpOn, liveSettings, livePositions, depthLevels, millMoves, liveOpSummary, liveOpProblems, faceOut, isKeyway, keywayPath, rampPossible, RAMP_DEG } from './liveModel.js';
+import { liveRunOps, liveOpOn, liveSettings, livePositions, millMoves, liveOpSummary, liveOpProblems, faceOut, isKeyway, keywayPath, rampPossible, RAMP_DEG, drillDepth, drillLevels } from './liveModel.js';
 
 const f3 = v => String(+(+v).toFixed(3));
 const pad2 = n => String(Math.max(0, Math.round(n))).padStart(2, '0');
@@ -77,7 +77,9 @@ export function buildLiveBlock(prms) {
     if (ctrl === 'sinumerik') add(`T="${String(op.toolName).replace(/"/g, '')}" D1 M6`);
     else if (ctrl === 'fanuc') add(`T${pad2(op.toolNo)}${pad2(op.toolNo)}${note(op.toolName)}`);
     else add(`T${op.toolNo} M6${note(op.toolName)}`);
-    const ctx = { ctrl, set, m, op, add, cmt, note, xo, dia, sWord, prms };
+    // Vrtání: NC jede špičkou o 0,3·Ø za hloubku plného Ø (liveModel.drillDepth).
+    const run = op.kind === 'drill' && !op.role ? { ...op, depth: drillDepth(op) } : op;
+    const ctx = { ctrl, set, m, op: run, add, cmt, note, xo, dia, sWord, prms };
     if (op.role === 'tap') emitTap(ctx);
     else if (isKeyway(op)) emitKeyway(ctx);
     else if (op.kind === 'mill') emitMill(ctx);
@@ -133,7 +135,7 @@ function explicitDrill(ctx, ax, w, rfp, op, out = 1) {
   // `out` = směr odjezdu od plochy (+1: do kladných hodnot, vrtá se k záporným).
   const { add } = ctx;
   add(`G0 ${ax}${w(rfp + out * op.safe)}`);
-  const lv = depthLevels(op.depth, op.peck);
+  const lv = drillLevels(op, op.depth);   // op.depth = špička (buildLiveBlock), případně s úbytkem kroku
   lv.forEach((d, k) => {
     add(`G1 ${ax}${w(rfp - out * d)} F${f3(op.feed)}`);
     if (k < lv.length - 1) {
@@ -158,16 +160,30 @@ function fanucChipNote({ add, cmt, op }) {
   add(cmt(`Tříska: ${op.chipMode === 'break' ? 'lámání' : 'vyjíždění'} — u G83/G87 ho volí parametr stroje (Fanuc 0i: 5101 bit 2 RTR) — ověřte, případně Zápis vrtání Rozepsaně`));
 }
 
+/**
+ * Vrtat cyklem? Heidenhain vždy rozepsaně; Fanuc G83 / G87 ubývající krok
+ * (op.peckDegr) neumí — taková díra rozepsaně s poznámkou.
+ */
+function cyclesFor(ctx) {
+  const { ctrl, set, op } = ctx;
+  if (!set.cycles || ctrl === 'heidenhain') return false;
+  if (ctrl === 'fanuc' && op.peck > 0 && op.peck < op.depth && op.peckDegr > 0) {
+    ctx.add(ctx.cmt(`Úbytek kroku ${f3(op.peckDegr)} mm: G83/G87 ho neumí — vrtání rozepsané`));
+    return false;
+  }
+  return true;
+}
+
 /** Sinumerik CYCLE82 / CYCLE83 (klasické pořadí parametrů). */
 function sinCycle(op, rfp, w, out = 1) {
   // Směr vrtání si cyklus určí z pořadí RTP → RFP → DP (čelo zleva: DP > RFP).
   const rtp = w(rfp + out * op.retract), rf = w(rfp), sd = f3(op.safe), dp = w(rfp - out * op.depth);
   if (op.peck > 0 && op.peck < op.depth)
     // CYCLE83(RTP, RFP, SDIS, DP, DPR, FDEP, FDPR, DAM, DTB, DTS, FRF, VARI):
-    // FDEP = 1. záběr (absolutně), DAM = 0 → všechny záběry stejné (DAM > 0
-    // by je zkracovalo), VARI = 1 → vyjetí z díry, 0 → lámání třísky (op.chipMode;
+    // FDEP = 1. záběr (absolutně), DAM = úbytek kroku (op.peckDegr; 0 → všechny
+    // záběry stejné), VARI = 1 → vyjetí z díry, 0 → lámání třísky (op.chipMode;
     // velikost odskoku u VARI = 0 dává strojní data cyklu).
-    return `CYCLE83(${rtp}, ${rf}, ${sd}, ${dp}, , ${w(rfp - out * op.peck)}, , 0, ${f3(op.dwell)}, 0, 1, ${op.chipMode === 'break' ? 0 : 1})`;
+    return `CYCLE83(${rtp}, ${rf}, ${sd}, ${dp}, , ${w(rfp - out * op.peck)}, , ${f3(op.peckDegr > 0 ? op.peckDegr : 0)}, ${f3(op.dwell)}, 0, 1, ${op.chipMode === 'break' ? 0 : 1})`;
   return `CYCLE82(${rtp}, ${rf}, ${sd}, ${dp}, , ${f3(op.dwell)})`;
 }
 
@@ -176,7 +192,7 @@ function emitFaceDrill(ctx) {
   const { ctrl, set, op, add, note, xo } = ctx;
   const pos = livePositions(op);
   const zw = v => f3(v);
-  const cyc = set.cycles && ctrl !== 'heidenhain';
+  const cyc = cyclesFor(ctx);
   const out = faceOut(op);
   const rtp = op.zTop + out * op.retract;
   if (out < 0) add(ctx.cmt('Čelo zleva: nástroj stojí vlevo od čela, vrtá se ve směru +Z'));
@@ -228,7 +244,7 @@ function emitRadialDrill(ctx) {
   const { ctrl, set, op, add, note, xo } = ctx;
   const pos = livePositions(op);
   const rX = op.xTop / 2;
-  const cyc = set.cycles && ctrl !== 'heidenhain';
+  const cyc = cyclesFor(ctx);
   // TRANSMIT na plášti nemá smysl — díry se polohují osou C / SPOS.
   const c2 = { ...ctx, set: { ...set, mode: set.mode === 'transmit' ? 'caxis' : set.mode } };
   cOn(c2);

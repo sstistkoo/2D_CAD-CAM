@@ -14,11 +14,16 @@
 //      náraz do vývrtu / výjezd z obvodu),
 //   3. plášť: Ø pláště op.xTop = Ø dílu v Z díry (± 0,1 mm), díra neleží na
 //      přechodu průměrů, hloubka nevede do vývrtu (osu hlídá liveOpProblems),
-//   4. bezpečná vzdálenost a odjezd nevedou do materiálu (bližší osazení).
+//   4. bezpečná vzdálenost a odjezd nevedou do materiálu (bližší osazení),
+//   5. vrták ze zásobníku dosáhne: hloubka špičky ≤ vyložení (jinak upínač
+//      v dílu), ≤ šroubovice (jinak tříska nemá kudy ven — upozornění),
+//   6. hluboká díra (> 3·Ø) ne naráz a ne jen s lámáním třísky (upozornění).
+// Hloubka = kam jede špička (liveModel.drillDepth), ne hloubka plného Ø.
 // Nález: { sev: 'error' | 'warn', text } — 'warn' = může být záměr (díra
 // skrz, radiální díra do vývrtu, díra na přechodu průměrů).
 import { materialAt, objectPoints } from '../../../faceView/faceReference.js';
-import { livePositions, liveOpProblems, faceOut, isKeyway, keywaySpan, slotWidth, rampPossible } from './liveModel.js';
+import { livePositions, liveOpProblems, faceOut, isKeyway, keywaySpan, slotWidth, rampPossible, drillDepth } from './liveModel.js';
+import { DRILL_FLUTE_GAP } from '../../isoDrills.js';
 
 const LATHE = 'soustruh';
 const SECT = 0.3;      // [mm] řez za rovinou čela (jako sectionAt v pohledu)
@@ -88,6 +93,11 @@ function scan(probe, z0, dir, t0, len, pred) {
 }
 
 const fmt = v => String(+(+v).toFixed(2)).replace('.', ',');
+/** „hloubka 100 mm (špička 102,4)" — špička jen když jede dál než hloubka. */
+const depthText = op => {
+  const tip = drillDepth(op);
+  return `hloubka ${fmt(op.depth)} mm${tip > op.depth + TOL ? ` (špička ${fmt(tip)})` : ''}`;
+};
 const dia = r => `Ø${fmt(2 * r)}`;
 const ring = ([a, b]) => (a > 0.05 ? `${dia(a)}–${dia(b)}` : `plné ${dia(b)}`);
 
@@ -133,14 +143,15 @@ function faceChecks(probe, prof, op, found) {
         : `zásah do zápichu na ${onFace} – stopa od ${dia(lo)}, materiál od ${dia(m[0])}.`);
       return;
     }
-    // 2. Hloubka: stopa celá v materiálu až do plné hloubky.
-    const t = scan(probe, op.zTop, into, SECT, op.depth, iv => !holding(iv, lo, hi));
-    if (t != null && t < op.depth - TOL) {
+    // 2. Hloubka: stopa celá v materiálu až kam dojede špička (liveModel.drillDepth).
+    const tip = drillDepth(op);
+    const t = scan(probe, op.zTop, into, SECT, tip, iv => !holding(iv, lo, hi));
+    if (t != null && t < tip - TOL) {
       const zz = op.zTop + into * t, iv = probe.at(zz);
       const where = `v hloubce ${fmt(t)} mm (Z${fmt(zz)})`;
       const m = overlapping(iv, lo, hi).length ? (around(iv, mid) || overlapping(iv, lo, hi)[0]) : null;
       if (!m) {
-        found.push({ i, sev: 'warn', text: `skrz – materiál končí ${where}, hloubka ${fmt(op.depth)} mm. Ověřte, co je za dílem (upínač).` });
+        found.push({ i, sev: 'warn', text: `skrz – materiál končí ${where}, ${depthText(op)}. Ověřte, co je za dílem (upínač).` });
       } else {
         if (lo < m[0] - TOL) err(`náraz do ${m === iv[0] ? 'vývrtu' : 'zápichu'} ${dia(m[0])} ${where}.`);
         if (hi > m[1] + TOL) err(m === iv[iv.length - 1] ? `výjezd z obvodu ${dia(m[1])} ${where}.` : `náraz do zápichu ${dia(m[1])} ${where}.`);
@@ -207,8 +218,8 @@ function radialChecks(probe, op, found) {
     // 3. Hloubka do vývrtu (přejetí osy hlídá liveOpProblems).
     const m = around(ivc, R0 - 0.01) || ivc[ivc.length - 1];
     // Díra skrz stěnu z výkresu (op.throughWall) má do vývrtu vést.
-    if (m[0] > 0.05 && R0 - op.depth < m[0] - TOL && !op.throughWall)
-      err(`skrz stěnu do vývrtu ${dia(m[0])} – stěna ${fmt(m[1] - m[0])} mm, hloubka ${fmt(op.depth)} mm.`, 'warn');
+    if (m[0] > 0.05 && R0 - drillDepth(op) < m[0] - TOL && !op.throughWall)
+      err(`skrz stěnu do vývrtu ${dia(m[0])} – stěna ${fmt(m[1] - m[0])} mm, ${depthText(op)}.`, 'warn');
   });
 }
 
@@ -231,12 +242,56 @@ function label(op, ix) {
   return `${ix.length > 1 ? many : one} ${idxList(ix)}`;
 }
 
+/** Slot vrtáku operace ve 🔧 Zásobníku (T = op.toolNo), jinak null. */
+export function drillSlotOf(op, magazine) {
+  if (!op || op.kind !== 'drill' || op.role) return null;
+  return (magazine || []).find(s => s && s.shape === 'drill' && s.slot === op.toolNo) || null;
+}
+
 /**
- * Kontrola jedné operace proti dílu.
+ * 5. Vrták dosáhne: vyložení slotu (`toolLength` = šroubovice + 5 mm,
+ * isoDrills.DRILL_FLUTE_GAP) proti hloubce špičky. Za vyložením narazí
+ * upínač do dílu (chyba), za šroubovicí nemá tříska kudy ven (upozornění).
+ * @returns {{ sev, text }|null}
+ */
+export function drillReachIssue(op, slot) {
+  const L = slot ? parseFloat(slot.toolLength) : NaN;
+  if (!(L > 0)) return null;
+  const tip = drillDepth(op), flute = L - DRILL_FLUTE_GAP;
+  const T = `T${slot.slot} ${slot.name || ''}`.trim();
+  if (tip > L + TOL)
+    return { sev: 'error', text: `špička jede ${fmt(tip)} mm do materiálu, ${T} má vyložení jen ${fmt(L)} mm – upínač narazí do dílu. Dlouhý vrták (DIN 340) nebo vrtat z obou stran.` };
+  if (flute > 0 && tip > flute + TOL)
+    return { sev: 'warn', text: `špička jede ${fmt(tip)} mm do materiálu, šroubovice ${T} je asi ${fmt(flute)} mm – tříska nemá kudy ven. Dlouhý vrták (DIN 340).` };
+  return null;
+}
+
+/** Hloubka, od které je díra „hluboká" (×Ø): tříska se musí vyvážet z díry. */
+export const DEEP_HOLE_D = 3;
+
+/**
+ * 6. Hluboká díra (špička > 3·Ø) naráz nebo jen s lámáním třísky —
+ * tříska se v díře hromadí a vrták se zadře (upozornění).
+ * @returns {{ sev, text }|null}
+ */
+export function deepHoleIssue(op) {
+  if (!op || op.kind !== 'drill' || op.role || !(op.holeD > 0)) return null;
+  const tip = drillDepth(op), ratio = tip / op.holeD;
+  if (!(ratio > DEEP_HOLE_D + 1e-9)) return null;
+  const xd = `${fmt(ratio)}×Ø`;
+  if (!(op.peck > 0) || op.peck >= tip)
+    return { sev: 'warn', text: `hluboká díra (${xd}) naráz – tříska nemá kudy ven. Zadejte krok vrtání (asi 1×Ø) s vyjížděním.` };
+  if (op.chipMode === 'break')
+    return { sev: 'warn', text: `hluboká díra (${xd}) jen s lámáním třísky – tříska zůstává v díře. Nad ${DEEP_HOLE_D}×Ø vyjíždění (odvod), případně úbytek kroku.` };
+  return null;
+}
+
+/**
+ * Kontrola jedné operace proti dílu (a vrtáku `slot` ze zásobníku, drillSlotOf).
  * @returns {{ issues: {sev, text}[], marks: Map<number, 'error'|'warn'>, sev: 'error'|'warn'|null }}
  *   marks = index díry (drážka 0) → nejhorší nález
  */
-export function checkLiveOp(prof, op, probe) {
+export function checkLiveOp(prof, op, probe, slot = null) {
   const res = { issues: [], marks: new Map(), sev: null };
   // Bez kontury není s čím porovnat; chybné zadání hlásí liveOpProblems.
   if (!prof || prof.empty || liveOpProblems(op).length) return res;
@@ -249,6 +304,9 @@ export function checkLiveOp(prof, op, probe) {
   // (kapsa ≈ Ø frézy), zanořuje se kolmo → varovat.
   if (op.kind === 'mill' && op.toolCenterCut === false && !rampPossible(op))
     found.push({ i: 0, sev: 'warn', text: 'fréza neřeže středem a rampou se zanořit nedá (málo místa) — zanoří kolmo; zvolte frézu řezající středem nebo předvrtejte.' });
+  [drillReachIssue(op, slot), deepHoleIssue(op)].forEach(x => {
+    if (x) livePositions(op).forEach((_, i) => found.push({ i, ...x }));
+  });
   const groups = new Map();
   found.forEach(f => {
     const k = f.sev + '|' + f.text;
@@ -267,16 +325,18 @@ export function checkLiveOp(prof, op, probe) {
 let _memo = { prof: null, key: '', v: null };
 /**
  * Kontroly všech operací (pole jako `ops`), null = bez kontury dílu.
+ * `magazine` = 🔧 Zásobník (vyložení vrtáku, kontrola 5).
  * Pamatuje si poslední výsledek (profil se porovná identitou, operace
- * obsahem) — pohled se překresluje při každém snímku obrábění.
+ * a jejich vrtáky obsahem) — pohled se překresluje při každém snímku obrábění.
  */
-export function checkLiveOps(prof, ops) {
+export function checkLiveOps(prof, ops, magazine = null) {
   if (!prof || prof.empty) return null;
-  const key = JSON.stringify(ops);
+  const slots = ops.map(op => drillSlotOf(op, magazine));
+  const key = JSON.stringify([ops, slots.map(s => (s ? [s.slot, s.name, s.toolLength] : null))]);
   if (_memo.prof === prof && _memo.key === key) return _memo.v;
   const probe = materialProbe(prof);
   let probeS = null;   // díl + polotovar, jen když je potřeba
-  const v = ops.map(op => checkLiveOp(prof, op, op.throughStock ? (probeS || (probeS = materialProbe(prof, true))) : probe));
+  const v = ops.map((op, i) => checkLiveOp(prof, op, op.throughStock ? (probeS || (probeS = materialProbe(prof, true))) : probe, slots[i]));
   _memo = { prof, key, v };
   return v;
 }

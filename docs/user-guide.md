@@ -559,6 +559,30 @@ nálezy) a v pohledu na čelo mají problémové díry, kapsy a drážky **červ
   nad dírou blíž, než je odjezd (*odjezd 5 mm narazí do osazení Ø80 – je jen
   3 mm nad čelem*), u pláště osazení vedle díry vyšší než bezpečná rovina;
   Z čela uvnitř materiálu ukáže, kde je skutečný povrch.
+- **Vrták dosáhne** — hloubka špičky proti vrtáku operace ve 🔧 Zásobníku
+  (slot T operace, jeho **vyložení**; u vrtáků z 📚 katalogu = šroubovice
+  + 5 mm). Za vyložením je **chyba** (upínač narazí do dílu), za šroubovicí
+  **upozornění** (tříska nemá kudy ven) — např. Ø8 hl. 100 s vrtákem
+  DIN 338 (šroubovice 75): použijte dlouhý vrták (DIN 340) nebo vrtejte
+  z obou stran. Vrták, který v zásobníku není, se nekontroluje.
+- **Hluboká díra** (špička > 3×Ø) vrtaná naráz nebo jen s lámáním třísky —
+  **upozornění**: tříska se v díře hromadí; zadejte krok (asi 1×Ø)
+  s vyjížděním, případně **úbytek kroku**.
+
+**Úbytek kroku** (pole u kroku vrtání, 0 = stálý krok): každý další záběr je
+o úbytek kratší, nejméně však úbytek — dole v díře, kde se tříska odvádí
+nejhůř, menší záběry (krok 8, úbytek 2 → 8, 6, 4, 2, 2…). Sinumerik ho píše
+jako **DAM** do CYCLE83; Fanuc G83 / G87 ho neumí, taková díra se zapíše
+rozepsaně (G0/G1) s poznámkou v programu; Heidenhain vrtá rozepsaně vždy.
+Simulace jede stejné záběry; poslední záběry může řízení v cyklu rozdělit
+po svém.
+
+**Hloubka vrtání** je hloubka **plného Ø** jako kóta na výkrese (*Do
+hloubky*, *Do Z*, ruční operace) — špička vrtáku 118° jede o **0,3·Ø** dál
+(Ø8 hl. 100 → špička 102,4; formulář ukazuje „Hloubka plného Ø", popis
+operace „hl. 100 (špička 102.4)"). Díra *Skrz* z výkresu má v hloubce už
+přesah na špičku, ta se nepřičítá znovu („Hloubka špičky"). Navrtání a závit
+mají hloubku svou. Všechny kontroly, simulace i NC počítají se špičkou.
 
 Kontrola NC program nemění — operace s nálezem se do bloku zapíše dál, opravte
 ji podle hlášky.
@@ -627,7 +651,7 @@ je v CAM samostatná operace a kontroluje se i proti polotovaru). Stojí-li
 čelo uvnitř polotovaru (např. na konci hotové kontury), díra *I polotovar*
 začne na **povrchu polotovaru** na straně nástroje, ne v něm;
 *Do hloubky* — od roviny čela; *Do Z* — absolutní Z konce díry (Z na straně
-nástroje se odmítne). Hloubka se počítá až při 📥 Z CAD z aktuálního profilu
+nástroje se odmítne); obojí je hloubka plného Ø, špička vrtáku jde o 0,3·Ø dál. Hloubka se počítá až při 📥 Z CAD z aktuálního profilu
 a Z čela, takže po posunu čela sedí; hláška po nakreslení ji ukáže hned. Klepnutí na už nakreslenou díru otevře dialog
 kruhového pole se středem v **ose čela** (ne v 0,0 výkresu).
 **Jedna díra:** nástroj **Díra** (Více, vedle Kr.pole) — klepněte do

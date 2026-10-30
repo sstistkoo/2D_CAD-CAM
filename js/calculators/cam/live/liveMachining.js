@@ -14,7 +14,7 @@
 // k němu natáčí osou C. Stav proto nese `rot` = natočení kusu [°] tak, aby
 // bod pod nástrojem ležel na úhlu toolAt; přejezd mezi dírami je natočení C
 // (polární interpolace), ne přímka napříč čelem.
-import { livePositions, millMoves, depthLevels, faceOut, liveSettings, liveOpProblems, isKeyway, keywayPath } from './liveModel.js';
+import { livePositions, millMoves, drillLevels, faceOut, liveSettings, liveOpProblems, isKeyway, keywayPath, drillDepth } from './liveModel.js';
 import { rapidFeedMmMin } from '../feedRates.js';
 
 const C_POS_SEC = 0.4;        // natočení osy C / přejezd mezi dírami (orientačně)
@@ -69,7 +69,8 @@ export function buildLiveTimeline(ops, prms) {
         };
         at(P(-op.retract), rapid, true);
         at(P(-op.safe), rapid);
-        const levels = depthLevels(op.depth, op.peck > 0 ? op.peck : op.depth);
+        // Špička o 0,3·Ø za hloubku plného Ø, záběry i s úbytkem kroku jako NC (liveModel).
+        const levels = drillLevels(op, drillDepth(op));
         levels.forEach((L, i) => {
           at(P(L), feed);
           // Jako NC (liveGcode.explicitDrill): lámání = odskok o chipBack,

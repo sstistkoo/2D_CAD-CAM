@@ -35,6 +35,8 @@ const HSS_FLUTE = {
 };
 const HM_DIAMETERS = [3, 4, 4.2, 5, 6, 6.8, 8, 8.5, 9, 10, 10.2, 11, 12, 13, 14, 15, 16, 17.5, 18, 19, 20];
 const SPOT_DIAMETERS = [3, 4, 5, 6, 8, 10, 12, 16, 20];
+/** Vyložení vrtáku = šroubovice + tolik [mm] k upínači (kontrola hloubky — cam/live/liveChecks.js). */
+export const DRILL_FLUTE_GAP = 5;
 /** Navrtávák je krátký a tuhý: šroubovice ≈ 2×⌀ + 6 mm. */
 const spotFlute = (d) => Math.round(2 * d + 6);
 
@@ -93,7 +95,7 @@ export function buildIsoDrill(opts = {}) {
   const ds = isoDrillDiameters(kind.id);
   const dDef = kind.spot ? 10 : 20;
   const d = ds.includes(Number(opts.diameter)) ? Number(opts.diameter) : (ds.includes(dDef) ? dDef : ds[ds.length - 1]);
-  const L = kind.id === 'hm' ? Math.round(5.5 * d + 12) : (kind.spot ? spotFlute(d) : HSS_FLUTE[d]) + 5;
+  const L = kind.id === 'hm' ? Math.round(5.5 * d + 12) : (kind.spot ? spotFlute(d) : HSS_FLUTE[d]) + DRILL_FLUTE_GAP;
   const h = holderFor(kind.id, d);
   const f = kind.spot
     ? Math.min(0.2, Math.max(0.04, r2(0.008 * d + 0.02)))

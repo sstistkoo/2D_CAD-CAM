@@ -17,7 +17,7 @@
 // úhlu liveSettings.toolAt (soustruh NAHOŘE = X+ jako v řezu) a při obrábění
 // se k němu natáčí KUS (mach.rot) — nástroj kus neobjíždí.
 import { resolvePointsToAbsolute } from '../contourBuild.js';
-import { livePositions, liveSettings, isKeyway, slotWidth } from './liveModel.js';
+import { livePositions, liveSettings, isKeyway, slotWidth, drillDepth } from './liveModel.js';
 import { faceRadius } from '../../../faceView/faceReference.js';
 
 const COL = {
@@ -149,7 +149,7 @@ export function drawFaceView(canvas, d) {
     else if (op.side === 'radial') {
       livePositions(op).forEach((p, i) => {
         const r = op.xTop / 2;
-        rotRect(p.a, r - op.depth, r, op.holeD / 2, 'rgba(148,226,213,0.30)', COL.radial);
+        rotRect(p.a, r - drillDepth(op), r, op.holeD / 2, 'rgba(148,226,213,0.30)', COL.radial);
         label(ctx, P(...polar(r + 4 + 8 / sc, p.a)), String(i + 1), COL.radial);
       });
     } else {
@@ -238,7 +238,7 @@ export function faceViewHit(t, ops, sx, sy) {
     livePositions(op).forEach(p => {
       let x = p.x, y = p.y;
       if (op.side === 'radial') {
-        const r = op.xTop / 2 - op.depth / 2, a = p.a * Math.PI / 180;
+        const r = op.xTop / 2 - drillDepth(op) / 2, a = p.a * Math.PI / 180;
         x = r * Math.cos(a); y = r * Math.sin(a);
       }
       if (near(x, y, op.holeD / 2 * t.sc)) { const [px, py] = S(x, y); take(Math.hypot(px - sx, py - sy)); }
@@ -276,7 +276,7 @@ function drawCheckMarks(ctx, ops, checks, cut, P, sc, rotRect) {
       ctx.strokeStyle = CHK[sev];
       if (op.side === 'radial') {
         const r = op.xTop / 2;
-        rotRect(p.a, r - op.depth - 2 / sc, r + 2 / sc, op.holeD / 2 + 2 / sc, null, null);
+        rotRect(p.a, r - drillDepth(op) - 2 / sc, r + 2 / sc, op.holeD / 2 + 2 / sc, null, null);
         ctx.stroke();
         return;
       }
@@ -304,6 +304,7 @@ function capsulePath(ctx, P, x1, y1, x2, y2, r) {
 function drawMachOp(ctx, op, oi, m, P, sc, sel, rotRect) {
   const done = m.done.has(oi);
   const dep = i => m.depth.get(`${oi}:${i}`) || 0;
+  const full = drillDepth(op);   // kam dojede špička (liveMachining)
   const edge = (planned, col) => {
     ctx.setLineDash(planned ? [4, 3] : []);
     ctx.strokeStyle = sel ? '#fff' : (done ? COL.done : col); ctx.lineWidth = sel ? 1.6 : 1.2;
@@ -336,16 +337,16 @@ function drawMachOp(ctx, op, oi, m, P, sc, sel, rotRect) {
     const R = op.xTop / 2;
     livePositions(op).forEach((p, i) => {
       const d = dep(i);
-      ctx.setLineDash([4, 3]); rotRect(p.a, R - op.depth, R, op.holeD / 2, null, COL.radial); ctx.setLineDash([]);
-      if (d > 0) rotRect(p.a, R - d, R, op.holeD / 2, voidFill(d / op.depth), done ? COL.done : COL.radial);
+      ctx.setLineDash([4, 3]); rotRect(p.a, R - full, R, op.holeD / 2, null, COL.radial); ctx.setLineDash([]);
+      if (d > 0) rotRect(p.a, R - d, R, op.holeD / 2, voidFill(d / full), done ? COL.done : COL.radial);
       label(ctx, P(...polar(R + 4 + 8 / sc, p.a)), String(i + 1), COL.radial);
     });
   } else {
     livePositions(op).forEach((p, i) => {
       const d = dep(i), [sx, sy] = P(p.x, p.y), r = Math.max(2, op.holeD / 2 * sc);
       ctx.beginPath(); ctx.arc(sx, sy, r, 0, 2 * Math.PI);
-      if (d > 0) { ctx.fillStyle = voidFill(d / op.depth); ctx.fill(); }
-      edge(!(d > 0), d >= op.depth - 1e-6 ? COL.done : COL.drill); ctx.stroke();
+      if (d > 0) { ctx.fillStyle = voidFill(d / full); ctx.fill(); }
+      edge(!(d > 0), d >= full - 1e-6 ? COL.done : COL.drill); ctx.stroke();
       label(ctx, [sx + r + 3, sy - 3], String(i + 1), COL.drill);
     });
   }
@@ -381,7 +382,7 @@ function drawMachStatus(ctx, ops, m) {
   const what = isKeyway(op) ? `drážka ${m.tool.hole + 1}/${n}` : op.kind === 'mill' ? (op.millType === 'slot' ? 'drážka' : `kapsa ${m.tool.hole + 1}/${n}`) : `díra ${m.tool.hole + 1}/${n}`;
   const d = Math.max(0, m.tool.d);
   ctx.fillStyle = COL.tool;
-  ctx.fillText(`${m.paused ? '⏸ ' : ''}${op.name} · ${what} · hloubka ${fmt(d)} / ${fmt(op.depth)} mm`, 8, 16);
+  ctx.fillText(`${m.paused ? '⏸ ' : ''}${op.name} · ${what} · hloubka ${fmt(d)} / ${fmt(drillDepth(op))} mm`, 8, 16);
   ctx.fillStyle = COL.text;
   ctx.fillText(`${time}  ·  T${op.toolNo} ${op.toolName || ''}`.trim(), 8, 30);
 }

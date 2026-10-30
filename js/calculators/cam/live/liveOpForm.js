@@ -51,11 +51,13 @@ export function opForm(op, chk) {
   h += radial ? f('xTop', 'Ø pláště', op.xTop) : f('zTop', 'Z čela', op.zTop);
   if (!radial) h += sel('faceDir', 'Strana čela', String(op.faceDir === -1 ? -1 : 1), [['1', '◀ zprava (vrtá k −Z)'], ['-1', '▶ zleva (vrtá k +Z)']]);
   if (op.kind === 'drill') {
-    h += f('holeD', 'Ø díry', op.holeD) + f('depth', 'Hloubka', op.depth);
+    // Hloubka plného Ø (kóta výkresu), špička jede o 0,3·Ø dál; díra skrz z výkresu = špička (liveModel.drillDepth).
+    h += f('holeD', 'Ø díry', op.holeD) + f('depth', op.role ? 'Hloubka' : (op.depthAtTip ? 'Hloubka špičky' : 'Hloubka plného Ø'), op.depth);
     h += f('peck', 'Krok vrtání (0 = naráz)', op.peck) + f('dwell', 'Prodleva dole [s]', op.dwell);
     if (op.peck > 0) {
       h += sel('chipMode', 'Tříska mezi záběry', op.chipMode, [['clear', '⇡ Vyjíždění (odvod)'], ['break', '↯ Lámání (odskok)']]);
       if (op.chipMode === 'break') h += f('chipBack', 'Odskok [mm]', op.chipBack);
+      h += f('peckDegr', 'Úbytek kroku (0 = stálý)', op.peckDegr);
     }
   } else {
     if (!slot && !kw) h += f('holeD', 'Ø kapsy', op.holeD);

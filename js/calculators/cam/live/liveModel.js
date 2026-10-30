@@ -91,6 +91,7 @@ export function newLiveOp(kind, geo, n) {
     holeD: kind === 'mill' ? 20 : 8,
     depth: 10,
     peck: kind === 'mill' ? 0 : 3,   // vrtání: krok (0 = na jeden záběr)
+    peckDegr: 0,              // úbytek kroku na záběr (0 = stálý krok; drillLevels)
     // Tříska mezi záběry: 'clear' = vyjetí z díry (odvod), 'break' = jen
     // odskok o chipBack mm (lámání) — jako záložka Vrtání (drillChipMode).
     chipMode: 'clear', chipBack: 1,
@@ -118,7 +119,7 @@ export function newLiveOp(kind, geo, n) {
 export function normalizeLiveOp(op) {
   const d = newLiveOp(op && op.kind === 'mill' ? 'mill' : 'drill');
   const o = { ...d, ...(op || {}) };
-  for (const k of ['pcd', 'count', 'startAngle', 'zTop', 'xTop', 'zPos', 'holeD', 'depth', 'peck',
+  for (const k of ['pcd', 'count', 'startAngle', 'zTop', 'xTop', 'zPos', 'holeD', 'depth', 'peck', 'peckDegr',
     'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'faceDir', 'chipBack', 'kz1', 'kz2']) o[k] = num(o[k], d[k]);
   o.faceDir = o.faceDir < 0 ? -1 : 1;
   // Odvozené operace děr z výkresu (liveHoleExtras.js): 'spot' navrtání, 'tap' závit.
@@ -226,6 +227,39 @@ export function livePositions(op) {
  * hledět kterýmkoli směrem (bokorys v CAD, js/faceView/).
  */
 export function faceOut(op) { return op.faceDir === -1 ? -1 : 1; }
+
+/** Délka špičky vrtáku 118° = 0,3·Ø (jako faceView/faceFrontView.js). */
+export const DRILL_TIP = 0.3;
+
+/**
+ * Kam jede ŠPIČKA nástroje (NC, simulace, kontroly). Vrtání: `depth` = hloubka
+ * PLNÉHO Ø jako kóta na výkrese, špička jede o 0,3·Ø dál (uživatel
+ * 30. 10. 2026 — dřív jela špička jen na `depth` a díra „hl. 100" měla plný
+ * Ø 97,6). Díra skrz z výkresu (`depthAtTip`) přesah na špičku už má
+ * (faceDepth.throughOverrun), navrtání a závit (role) mají hloubku svou.
+ */
+export function drillDepth(op) {
+  if (!op || op.kind !== 'drill' || op.role || op.depthAtTip) return op ? op.depth : 0;
+  return +(op.depth + DRILL_TIP * op.holeD).toFixed(3);
+}
+
+/**
+ * Záběry vrtání (hloubky špičky): krok `peck`; s úbytkem `peckDegr` je každý
+ * další záběr o úbytek kratší, nejméně však úbytek (jako DAM v CYCLE83 —
+ * hluboká díra: dole se tříska hůř odvádí, uživatel 30. 10. 2026). Řízení
+ * může poslední záběry rozdělit po svém; simulace je orientační.
+ * @param tip hloubka špičky (výchozí drillDepth)
+ */
+export function drillLevels(op, tip = drillDepth(op)) {
+  const step = op.peck > 0 ? op.peck : tip;
+  const dam = op.peck > 0 && op.peckDegr > 0 ? op.peckDegr : 0;
+  if (!dam) return depthLevels(tip, step);
+  const out = [];
+  let d = 0, s = step;
+  while (d + s < tip - 1e-6) { d = +(d + s).toFixed(4); out.push(d); s = Math.max(s - dam, dam); }
+  out.push(tip);
+  return out;
+}
 
 /** Hloubkové hladiny od čela dolů (krok `step`, poslední = plná hloubka). */
 export function depthLevels(depth, step) {
@@ -444,6 +478,7 @@ export function liveOpProblems(op) {
   if (op.kind === 'drill' && !(op.holeD > 0)) out.push('Zadejte Ø díry.');
   if (op.role === 'tap' && !(op.pitch > 0)) out.push('Zadejte stoupání závitu.');
   if (op.kind === 'drill' && op.chipMode === 'break' && op.peck > 0 && !(op.chipBack > 0)) out.push('Odskok pro lámání třísky musí být větší než 0.');
+  if (op.kind === 'drill' && op.peckDegr < 0) out.push('Úbytek kroku nesmí být záporný.');
   if (op.kind === 'mill') {
     if (!(op.toolD > 0)) out.push('Zadejte Ø frézy.');
     if (op.millType === 'pocket' && op.holeD < op.toolD) out.push('Kapsa je menší než fréza.');
@@ -484,6 +519,9 @@ export function liveOpSummary(op) {
   const where = op.side === 'radial' ? 'radiálně' : (op.faceDir === -1 ? 'čelo zleva' : 'čelo');
   if (op.role === 'tap') return `Závit ${op.thread ? op.thread.name : 'Ø' + op.holeD}×${op.pitch} hl. ${op.depth} (${where}) – ${pos}`;
   if (op.role === 'spot') return `Navrtání Ø${op.spotD} ${op.spotAngle}° hl. ${op.depth} (${where}) – ${pos}`;
-  const chip = op.peck > 0 && op.peck < op.depth && op.chipMode === 'break' ? ', lámání třísky' : '';
-  return `${op.side === 'radial' ? 'Radiálně' : face} Ø${op.holeD} hl. ${op.depth}${chip} – ${pos}`;
+  const tip = drillDepth(op);
+  const chip = (op.peck > 0 && op.peck < tip && op.peckDegr > 0 ? `, krok ${op.peck} −${op.peckDegr}` : '')
+    + (op.peck > 0 && op.peck < tip && op.chipMode === 'break' ? ', lámání třísky' : '');
+  const hl = op.depthAtTip ? `hl. ${op.depth} (špička)` : `hl. ${op.depth} (špička ${tip})`;
+  return `${op.side === 'radial' ? 'Radiálně' : face} Ø${op.holeD} ${hl}${chip} – ${pos}`;
 }

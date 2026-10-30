@@ -26,7 +26,8 @@ const collar = liveProfile(S([
   { x: 60, z: -26, type: 'G1' }, { x: 100, z: -26, type: 'G1' }, { x: 100, z: -60, type: 'G1' },
 ]));
 
-const drill = o => normalizeLiveOp({ ...newLiveOp('drill'), safe: 2, retract: 5, ...o });
+// depthAtTip: hloubka = špička (plný Ø + 0,3·Ø → tests/live-drill-depth.test.js).
+const drill = o => normalizeLiveOp({ ...newLiveOp('drill'), safe: 2, retract: 5, depthAtTip: true, ...o });
 const face = o => drill({ side: 'face', pattern: 'pcd', count: 4, startAngle: 0, faceDir: 1, ...o });
 const radial = o => drill({ side: 'radial', pattern: 'pcd', count: 4, startAngle: 0, ...o });
 const texts = r => r.issues.map(x => `${x.sev}: ${x.text}`);

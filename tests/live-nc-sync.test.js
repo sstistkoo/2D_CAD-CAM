@@ -9,7 +9,8 @@ import { newLiveOp } from '../js/calculators/cam/live/liveModel.js';
 import { buildLiveTimeline, liveStateAt } from '../js/calculators/cam/live/liveMachining.js';
 
 const geo = { faceZ: 0, outerD: 100 };
-const drill = o => ({ ...newLiveOp('drill', geo, 1), pcd: 60, count: 2, depth: 10, peck: 0, dwell: 0, ...o });
+// depthAtTip: hloubka = špička (plný Ø + 0,3·Ø → tests/live-drill-depth.test.js).
+const drill = o => ({ ...newLiveOp('drill', geo, 1), pcd: 60, count: 2, depth: 10, peck: 0, dwell: 0, depthAtTip: true, ...o });
 const prms = o => ({ controlSystem: 'sinumerik', mode: 'DIAMON', safeX: 150, safeZ: 5, ...o });
 
 describe('řádek G-kódu při přehrávání', () => {

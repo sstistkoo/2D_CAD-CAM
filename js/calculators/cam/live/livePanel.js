@@ -293,7 +293,7 @@ export function initLiveTools(deps) {
     st.view = drawFaceView(cv, {
       prms: S.params, geo: livePartGeometry(S), ops,
       selected: st.editor && ops.length ? st.selected : null,
-      mach, cut: c ? cutView(c) : null, nav: st.nav, checks: checkLiveOps(profile(), ops),
+      mach, cut: c ? cutView(c) : null, nav: st.nav, checks: checkLiveOps(profile(), ops, S.toolMagazine),
     });
     fitBtn.hidden = isDefaultNav(st.nav);
     bar.update();
@@ -506,7 +506,7 @@ export function initLiveTools(deps) {
   });
 
   const NUM_KEYS = new Set(['faceDir', 'pcd', 'count', 'startAngle', 'zTop', 'xTop', 'zPos', 'holeD', 'depth', 'peck',
-    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'chipBack', 'slot.x1', 'slot.y1', 'slot.x2', 'slot.y2', 'kz1', 'kz2', 'slotW']);
+    'dwell', 'safe', 'retract', 'toolD', 'stepDown', 'toolNo', 'rpm', 'feed', 'chipBack', 'peckDegr', 'slot.x1', 'slot.y1', 'slot.x2', 'slot.y2', 'kz1', 'kz2', 'slotW']);
   ed.addEventListener('change', e => {
     const el = e.target;
     const k = el.dataset.k;
@@ -545,7 +545,7 @@ export function initLiveTools(deps) {
       </div>
       <div class="cam-live-status ${bs.cls}">${bs.text}</div>`;
     if (!ops.length) h += '<div class="cam-live-note">Zatím žádné operace. Přidejte vrtání nebo frézování.</div>';
-    const chk = checkLiveOps(profile(), ops);   // kontrola proti tvaru dílu
+    const chk = checkLiveOps(profile(), ops, S.toolMagazine);   // kontrola proti tvaru dílu a vrtáku
     ops.forEach((op, i) => { h += opCard(op, i, i === st.selected, chk && chk[i]); });
     ed.innerHTML = h;
     st.edKey = edKey();

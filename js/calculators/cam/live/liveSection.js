@@ -16,7 +16,7 @@
 // nárys CAD — faceFrontView bere u karuselu vodorovnou souřadnici bokorysu),
 // takže výška v řezu = r·cos C; nástroj vpravo (0°) je na poloměru díry.
 // Dřív r·sin C i u karuselu — vrták se kreslil na ose (21. 10. 2026).
-import { getLiveOps, livePositions, faceOut, isKeyway, keywaySpan, slotWidth } from './liveModel.js';
+import { getLiveOps, livePositions, faceOut, isKeyway, keywaySpan, slotWidth, drillDepth, DRILL_TIP } from './liveModel.js';
 
 const COLS = { drill: ['rgba(250,179,135,0.22)', '#fab387'], radial: ['rgba(148,226,213,0.22)', '#94e2d5'], mill: ['rgba(203,166,247,0.22)', '#cba6f7'] };
 const EPS = 1e-6;
@@ -101,28 +101,37 @@ export function drawLiveSectionLayer(f, mach = null) {
         .map(it => ({ ...it, key: `${it.s}|${it.z.toFixed(2)}` }));
       // Drážka pro pero: v Z celá délka drážky, ne jen Ø nástroje.
       const kw = isKeyway(op) ? keywaySpan(op) : null;
+      const full = drillDepth(op);   // vrták: hloubka špičky
       merged(items, oi).forEach(({ s, z, d }) => {
         const z0 = kw ? kw.zMin : z - hd, z1 = kw ? kw.zMax : z + hd;
-        plan(s * (rX - op.depth), s * rX, z0, z1, kw ? 'mill' : 'radial');
-        if (d > 0) cut(s * (rX - Math.min(d, op.depth)), s * rX, z0, z1, kw ? 'mill' : 'radial');
+        plan(s * (rX - full), s * rX, z0, z1, kw ? 'mill' : 'radial');
+        if (d > 0) cut(s * (rX - Math.min(d, full)), s * rX, z0, z1, kw ? 'mill' : 'radial');
       });
       return;
     }
     const kind = op.kind === 'mill' ? 'mill' : 'drill';
     const items = faceSpans(op, rot, base).map(sp => ({ ...sp, key: `${sp.y0.toFixed(2)}|${sp.y1.toFixed(2)}` }));
     merged(items, oi).forEach(({ y0, y1, d }) => {
-      plan(y0, y1, op.zTop, zAt(op.depth), kind);
-      if (d > 0) cut(y0, y1, op.zTop, zAt(Math.min(d, op.depth)), kind);
-      if (kind !== 'drill') return;
-      // Špička vrtáku 118° (na dně plánu, při obrábění na dosažené hloubce).
-      const hd = (y1 - y0) / 2, c = (y0 + y1) / 2;
-      const dTip = mach ? Math.min(Math.max(d, 0), op.depth) : op.depth;
-      if (mach && !(d > 0)) return;
-      const zEnd = zAt(dTip);
-      const tip = toScreen(c, zEnd - out * hd * 0.6);
-      const a = toScreen(y0, zEnd), b = toScreen(y1, zEnd);
+      if (kind !== 'drill') {
+        plan(y0, y1, op.zTop, zAt(op.depth), kind);
+        if (d > 0) cut(y0, y1, op.zTop, zAt(Math.min(d, op.depth)), kind);
+        return;
+      }
+      // Vrták: `d` = poloha ŠPIČKY (NC i časová osa jedou špičkou na
+      // drillDepth, drawSectionTool ji kreslí na tl.z). Plný Ø končí o délku
+      // špičky 118° (0,3·Ø) dřív — dřív byl plný Ø až do `d` a špička za
+      // ní, úběr tak předbíhal vrták o 0,3·Ø (uživatel 30. 10. 2026).
+      const hd = (y1 - y0) / 2, c = (y0 + y1) / 2, cone = DRILL_TIP * 2 * hd, tipEnd = drillDepth(op);
+      const dTip = mach ? Math.min(Math.max(d, 0), tipEnd) : tipEnd;
+      plan(y0, y1, op.zTop, zAt(Math.max(0, tipEnd - cone)), kind);
+      if (mach && !(dTip > 0)) return;
+      const dBody = Math.max(0, dTip - cone);
+      if (mach && dBody > 0) cut(y0, y1, op.zTop, zAt(dBody), kind);
+      // Mělčeji než špička: na čele je díra jen tak široká, kam kužel dosáhl.
+      const w = hd * Math.min(1, dTip / cone);
+      const a = toScreen(c - w, zAt(dBody)), b = toScreen(c + w, zAt(dBody)), tip = toScreen(c, zAt(dTip));
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(tip.x, tip.y); ctx.lineTo(b.x, b.y);
-      if (mach) { ctx.fillStyle = voidCol; ctx.fill(); }
+      if (mach) { ctx.closePath(); ctx.fillStyle = voidCol; ctx.fill(); }
       ctx.strokeStyle = COLS.drill[1]; ctx.lineWidth = 1; ctx.stroke();
     });
   });
@@ -150,7 +159,7 @@ function drawSectionTool(ctx, toScreen, op, tl, rot, base = 90) {
     return;
   }
   const y = sectHeight(ang, rr, base), out = faceOut(op);
-  const cone = op.kind === 'drill' ? 0.3 * dia : 0;   // špička 118°
+  const cone = op.kind === 'drill' ? DRILL_TIP * dia : 0;   // špička 118°
   box(y - hd, y + hd, tl.z + out * cone, tl.z + out * L);
   if (!cone) return;
   const a = toScreen(y - hd, tl.z + out * cone), b = toScreen(y + hd, tl.z + out * cone), t = toScreen(y, tl.z);

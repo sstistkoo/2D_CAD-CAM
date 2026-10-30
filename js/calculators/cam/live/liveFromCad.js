@@ -26,7 +26,7 @@ const threadOf = t => {
   return m && t.depth > 0 ? { name: m.name, pitch: +t.pitch || m.pitch, d: m.d, depth: r3(t.depth) } : null;
 };
 
-const KEEP = ['name', 'depth', 'peck', 'dwell', 'safe', 'retract', 'toolD', 'stepDown',
+const KEEP = ['name', 'depth', 'peck', 'peckDegr', 'dwell', 'safe', 'retract', 'toolD', 'stepDown',
   'toolName', 'toolNo', 'rpm', 'feed', 'kind', 'millType', 'enabled', 'autoTool', 'chipMode', 'chipBack'];
 const r3 = v => +(+v).toFixed(3);
 const norm360 = a => ((a % 360) + 360) % 360;
@@ -115,6 +115,8 @@ export function liveOpsFromCad(input, geo, prevOps, opts = {}) {
       // throughStock: díra skrz vč. polotovaru — kontrola i proti polotovaru (liveChecks).
       Object.assign(op, { holeD: d, side: 'face', zTop: g.zTop, faceDir, fromCad: true, ...(g.stock ? { throughStock: true } : {}) });
       if (g.depth != null) op.depth = g.depth;
+      // Skrz: hloubka už nese přesah na špičku (faceDepth.throughOverrun) — liveModel.drillDepth.
+      if (g.depth != null && /^skrz/.test(g.tag)) op.depthAtTip = true; else delete op.depthAtTip;
       if (g.thread) op.thread = g.thread; else delete op.thread;
       const pcd = detectPcd(pts);
       if (pcd) Object.assign(op, { pattern: 'pcd' }, pcd);
@@ -222,8 +224,9 @@ function radialOps(holes, geo, prev, nextN, carry) {
     Object.assign(op, { kind: 'drill', side: 'radial', holeD: g.d, depth: g.depth, xTop: g.xTop, fromCad: true });
     if (g.thread) op.thread = g.thread; else delete op.thread;
     // Skrz stěnu do vývrtu zadané ve výkresu = záměr (kontrola to nehlásí).
-    if (g.tag === 'skrz') op.throughWall = true;
-    else delete op.throughWall;
+    // Hloubka skrz stěnu už nese přesah na špičku (shellHoles) — liveModel.drillDepth.
+    if (g.tag === 'skrz') { op.throughWall = true; op.depthAtTip = true; }
+    else { delete op.throughWall; delete op.depthAtTip; }
     const oneZ = pts.every(p => Math.abs(p.z - pts[0].z) < 1e-6);
     const pcd = oneZ ? detectPcd(pts.map(p => ({ a: p.a, r: 1 }))) : null;
     if (oneZ && (pcd || pts.length === 1)) {

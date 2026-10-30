@@ -173,7 +173,9 @@ export function createDrillUi(d) {
   function fieldsHtml(op, i) {
     const f = (k, t, v, tip) => `<div class="cam-sim-field"><label title="${tip}">${t}</label><input type="text" inputmode="decimal" data-livefield="${k}" data-oi="${i}" value="${esc(v)}"></div>`;
     let h = `<div class="cam-livedrill-pf"><div class="cam-sim-row">
-      ${f('depth', 'Hloubka', op.depth, 'Hloubka díry od Z čela (stejné pole jako 🛠 Operace v pohledu na čelo)')}
+      ${op.depthAtTip
+    ? f('depth', 'Hloubka špičky', op.depth, 'Díra skrz z výkresu: hloubka už nese přesah špičky za materiál (stejné pole jako 🛠 Operace v pohledu na čelo)')
+    : f('depth', 'Hloubka plného Ø', op.depth, 'Hloubka plného Ø díry od Z čela jako kóta na výkrese — špička vrtáku 118° jede o 0,3·Ø dál (stejné pole jako 🛠 Operace v pohledu na čelo)')}
       ${f('peck', 'Záběr Q', op.peck, 'Hloubka jednoho záběru [mm]; 0 = celá díra naráz')}
       ${f('dwell', 'Prodleva (s)', op.dwell, 'Prodleva na dně díry [s]')}
       ${f('safe', 'Bezp. vzdál.', op.safe, 'R rovina — vzdálenost před čelem, odkud jede posuv')}
@@ -182,7 +184,8 @@ export function createDrillUi(d) {
       h += `<div class="cam-sim-row"><div class="cam-sim-field"><label>Tříska mezi záběry</label><select data-livefield="chipMode" data-oi="${i}">
         <option value="clear"${op.chipMode === 'break' ? '' : ' selected'}>⇡ Vyjíždění (odvod)</option>
         <option value="break"${op.chipMode === 'break' ? ' selected' : ''}>↯ Lámání (odskok)</option></select></div>${op.chipMode === 'break'
-  ? f('chipBack', 'Odskok', op.chipBack, 'Odskok po každém záběru [mm]') : ''}</div>`;
+  ? f('chipBack', 'Odskok', op.chipBack, 'Odskok po každém záběru [mm]') : ''}
+      ${f('peckDegr', 'Úbytek kroku', op.peckDegr, 'O kolik mm je každý další záběr kratší (nejméně úbytek) — hluboká díra: dole menší záběry. Sinumerik DAM v CYCLE83; Fanuc G83 ho neumí → rozepsaně. 0 = stálý krok')}</div>`;
     }
     return h + '</div>';
   }

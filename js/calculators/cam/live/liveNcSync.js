@@ -12,7 +12,7 @@
 // Poháněný nástroj stojí nahoře (X+, liveSettings.toolAt) a díry se k němu
 // natáčejí osou C — dráha v řezu proto leží na poloměru díry nad osou.
 import { findLiveBlock } from './liveMarkers.js';
-import { livePositions, faceOut, liveOpProblems, liveOpOn, liveSettings, isKeyway, keywaySpan, keywayPath, slotWidth } from './liveModel.js';
+import { livePositions, faceOut, liveOpProblems, liveOpOn, liveSettings, isKeyway, keywaySpan, keywayPath, slotWidth, drillDepth } from './liveModel.js';
 import { sectBase, sectHeight } from './liveSection.js';
 
 const HEAD = /^[;(]\s*\[(\d+)\] /;   // „; [2] Díry Ø8: …" / „( [2] … )"
@@ -139,11 +139,11 @@ export function livePathSegments(ops, prms) {
       livePositions(op).forEach(p => {
         // Jako NC: jiná výška = ven na bezpečnou X, Z, k plášti; stejná = jen natočení C.
         if (zPrev == null || Math.abs(p.z - zPrev) > 1e-6) { go(safeR, cur.z, true); go(safeR, p.z, true); go(sg * (rX + op.retract), p.z, true); }
-        go(sg * (rX + op.safe), p.z, true); go(sg * (rX - op.depth), p.z, false); go(sg * (rX + op.retract), p.z, true);
+        go(sg * (rX + op.safe), p.z, true); go(sg * (rX - drillDepth(op)), p.z, false); go(sg * (rX + op.retract), p.z, true);
         zPrev = p.z;
       });
     } else {
-      const out = faceOut(op), rtp = op.zTop + out * op.retract, sdis = op.zTop + out * op.safe, zEnd = op.zTop - out * op.depth;
+      const out = faceOut(op), rtp = op.zTop + out * op.retract, sdis = op.zTop + out * op.safe, zEnd = op.zTop - out * drillDepth(op);
       go(safeR, rtp, true);
       radiiOf(op).forEach(([r0, r1]) => {
         go(k * r0, rtp, true); go(k * r0, sdis, true); go(k * r0, zEnd, false);

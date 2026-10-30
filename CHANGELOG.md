@@ -46,6 +46,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM – úbytek kroku vrtání a kontrola hluboké díry** (`live/liveModel.drillLevels`, `liveChecks.deepHoleIssue`).
+  Pole „Úbytek kroku" (0 = stálý): každý další záběr o úbytek kratší, nejméně úbytek. Sinumerik DAM
+  v CYCLE83 (dřív pevně 0), Fanuc G83/G87 ho neumí → díra rozepsaně s poznámkou; simulace stejné záběry.
+  Kontrola: špička > 3×Ø naráz nebo jen s lámáním třísky ⚠ (tříska nemá kudy ven).
+- **CAM – hloubka díry poháněným vrtákem = hloubka plného Ø** (`live/liveModel.drillDepth`). Jako kóta
+  na výkrese a nárys v CAD: špička 118° jede o 0,3·Ø dál (Ø8 hl. 100 → NC na 102,4). Dřív jela špička jen
+  na hloubku, plný Ø byl o 0,3·Ø mělčí. **Mění G-kód** slepých děr (CYCLE82/83, G83/G87, rozepsaně);
+  díra skrz z výkresu (`depthAtTip`, přesah už na špičku), navrtání a závit beze změny. Simulace, řez,
+  pohled na čelo i kontroly počítají se špičkou; formulář „Hloubka plného Ø", popis „hl. 100 (špička 102.4)".
+  Test `tests/live-drill-depth.test.js`.
+- **CAM – kontrola: vrták dosáhne** (`live/liveChecks.drillReachIssue`). Hloubka špičky proti vyložení
+  vrtáku ze 🔧 Zásobníku (slot T operace): za vyložením ⛔ upínač narazí do dílu, za šroubovicí
+  (vyložení − 5 mm, `isoDrills.DRILL_FLUTE_GAP`) ⚠ tříska nemá kudy ven — dlouhý vrták DIN 340.
+- **CAM – úběr vrtání v řezu už nepředbíhá vrták** (`live/liveSection.js`). Úběr kreslí plný Ø do
+  hloubky špičky − 0,3·Ø a špičku na ní (tak jede NC i vrták v simulaci); dřív byl plný Ø až do hloubky
+  špičky a kužel za ní, vyvrtaný materiál byl o 0,3·Ø před vrtákem.
 - **CAM – 🛠 Operace už neschová řez a posuvník řezu nastaví, odkud se vrtá** (`live/livePanel.js`,
   `live/liveCutBar.js`). Editor operací se otevírá v panelu vedle řezu (dřív maximalizoval pohled přes
   celé okno a nárys nebyl vidět). Klepnutí na operaci posune rovinu řezu na její Z čela; nové tlačítko

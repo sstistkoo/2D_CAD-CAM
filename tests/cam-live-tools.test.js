@@ -12,7 +12,8 @@ import { insertLiveBlock, removeLiveBlock, findLiveBlock } from '../js/calculato
 import { parseManualGCodeToPath } from '../js/calculators/cam/gcodeParser.js';
 import { pathInputsKey } from '../js/calculators/cam/gcodeSync.js';
 
-const drill = (o = {}) => ({ ...newLiveOp('drill', { faceZ: 0, outerD: 100 }, 1), pcd: 60, count: 3, ...o });
+// depthAtTip: hloubka = špička (testuje se zápis cyklů; plný Ø + 0,3·Ø → tests/live-drill-depth.test.js).
+const drill = (o = {}) => ({ ...newLiveOp('drill', { faceZ: 0, outerD: 100 }, 1), pcd: 60, count: 3, depthAtTip: true, ...o });
 // Testy NC výstupu počítají s nástrojem VPRAVO (toolAt 0 — úhel v NC = úhel
 // díry); výchozí poloha nahoře (soustruh, 90°) má vlastní test níž.
 const prms = (o = {}) => ({ controlSystem: 'sinumerik', mode: 'DIAMON', safeX: 150, safeZ: 5, liveOps: [drill()], ...o, live: { toolAt: 0, ...(o.live || {}) } });

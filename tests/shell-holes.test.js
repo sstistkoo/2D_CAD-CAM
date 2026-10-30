@@ -168,18 +168,19 @@ describe('NC výstup vrtání do pláště', () => {
     const i19 = L.findIndex(l => /^G19/.test(l));
     expect(i19).toBeGreaterThan(-1);
     expect(L[i19 + 1]).toMatch(/^DIAMOF/);
-    expect(L.filter(l => /^CYCLE83\(25, 20, 2, 8,/.test(l))).toHaveLength(2);   // RTP 20+5, RFP 20, DP 20−12
+    // RTP 20+5, RFP 20, DP 20 − 12 − 2,4 (hl. 12 = plný Ø, špička 0,3·Ø dál — liveModel.drillDepth)
+    expect(L.filter(l => /^CYCLE83\(25, 20, 2, 5\.6,/.test(l))).toHaveLength(2);
     expect(L.indexOf('DIAMON')).toBeGreaterThan(L.findIndex(l => /^CYCLE83/.test(l)));
   });
   it('Fanuc: G87 Z C X(Ø dna) R Q', () => {
     const L = nc('fanuc', true, op());
-    expect(L.some(l => /^G87 Z50 C\d+ X16 R-3 Q4000 F/.test(l))).toBe(true);
+    expect(L.some(l => /^G87 Z50 C\d+ X11\.2 R-3 Q4000 F/.test(l))).toBe(true);   // Ø dna 2·(20 − 14,4)
     expect(L).toContain('G80');
   });
   it('Heidenhain: rozepsaně, dno v Ø', () => {
     const L = nc('heidenhain', true, op());
     expect(L.some(l => /CYCLE|G87/.test(l))).toBe(false);
-    expect(L.filter(l => l === 'G1 X16 F120')).toHaveLength(2);
+    expect(L.filter(l => l === 'G1 X11.2 F120')).toHaveLength(2);   // dno = špička (hl. 12 + 2,4)
   });
 });
 
