@@ -85,11 +85,8 @@ export function openToleranceCalc() {
   }
 
   var body =
-    '<details class="tol-free"><summary>Volné míry – ČSN EN ISO 2768-1 <small>(■ m = střední třída)</small></summary>' +
-    '<div class="cnc-table-wrap">' + freeHTML + '</div></details>' +
-    '<details class="tol-free"><summary>Volné geometrické tolerance – ČSN EN ISO 2768-2 <small>(třídy H, K, L)</small></summary>' +
-    geoHTML + '</details>' +
-    '<div class="cnc-table-label" style="margin-top:12px">Tolerované rozměry – ČSN EN ISO 286-1</div>' +
+    '<div class="tol-cols"><div class="tol-in">' +
+    '<div class="cnc-table-label">Tolerované rozměry – ČSN EN ISO 286-1</div>' +
     '<div class="tol-toggle-row">' +
       '<button class="tol-toggle tol-active" data-src="iso">Třída a stupeň ISO</button>' +
       '<button class="tol-toggle" data-src="custom">Vlastní úchylky</button>' +
@@ -110,12 +107,28 @@ export function openToleranceCalc() {
       '<div class="tol-grid tol-class-grid" data-id="tolClass">' + holeBtns + '</div></div>' +
     '<div class="cnc-field cnc-field-full" data-id="tolIsoIT"><span>Stupeň</span>' +
       '<div class="tol-grid tol-it-grid" data-id="tolIT">' + itBtns + '</div></div>' +
+    '</div>' +
     '<div class="cnc-result tol-res" id="tolResult">Zadejte rozměr…</div>' +
-    '<div class="cnc-actions"><button class="cnc-btn cnc-btn-copy">📋 Kopírovat</button></div>';
+    '<details class="tol-free"><summary>Volné míry – ČSN EN ISO 2768-1 <small>(■ m = střední třída)</small></summary>' +
+    '<div class="cnc-table-wrap">' + freeHTML + '</div></details>' +
+    '<details class="tol-free"><summary>Volné geometrické tolerance – ČSN EN ISO 2768-2 <small>(třídy H, K, L)</small></summary>' +
+    '<div class="tol-geo">' + geoHTML + '</div></details>' +
+    '<div class="cnc-actions"><button class="cnc-btn cnc-btn-copy">📋 Kopírovat</button></div></div>';
 
   // Nezavírat klepnutím mimo okno (jen křížkem / Esc) – rozdělané zadání by se snadno ztratilo
   var overlay = makeOverlay("tolerance", "📏 Tolerance", body, null, { closeOnBackdrop: false });
   if (!overlay) return;
+  // Naležato se obsah rozbalené tabulky ukazuje vlevo místo výsledku – naráz jen jedna
+  var freeDetails = overlay.querySelectorAll('.tol-free');
+  overlay.querySelectorAll('.tol-toggle[data-src]').forEach(function(b) {
+    b.addEventListener('click', function() { freeDetails.forEach(function(o) { o.open = false; }); });
+  });
+  freeDetails.forEach(function(d) {
+    d.addEventListener('toggle', function() {
+      if (d.open) freeDetails.forEach(function(o) { if (o !== d) o.open = false; });
+    });
+  });
+
 
   // Mobil: okno se drží nad softwarovou klávesnicí (visualViewport) a zadávané pole
   // se po vysunutí klávesnice odroluje do viditelné části
@@ -127,9 +140,10 @@ export function openToleranceCalc() {
       overlay.style.height = vv.height + "px";
       // Klávesnice nahoře → okno úplně nahoru (překryje i pravý panel), ať je vidět výsledek
       var kbOpen = vv.height < baseH - 120;
+      var landLow = window.matchMedia('(orientation: landscape) and (max-height: 500px)').matches;
       overlay.style.paddingTop = kbOpen ? "4px" : "";
       var w = overlay.querySelector(".calc-window");
-      if (w) w.style.maxHeight = Math.max(200, vv.height - (kbOpen ? 8 : 48)) + "px";
+      if (w) w.style.maxHeight = Math.max(200, vv.height - (kbOpen || landLow ? 8 : 48)) + "px";
     };
     vv.addEventListener("resize", fitWin);
     vv.addEventListener("scroll", fitWin);

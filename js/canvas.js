@@ -428,7 +428,7 @@ const MOBILE_TOP_LABEL_ALLOWANCE = 56;
 
 /**
  * Viditelná část plátna v px (bez oblasti pod ukotvenými panely).
- * @returns {{width: number, top: number, height: number, centerY: number}}
+ * @returns {{width: number, top: number, height: number, centerX: number, centerY: number}}
  */
 export function visibleCanvasRect() {
   const canvasRect = drawCanvas.getBoundingClientRect();
@@ -451,11 +451,17 @@ export function visibleCanvasRect() {
   let top = Math.max(0, Math.min(cssH, vvTop - canvasRect.top));
   let bottom = Math.max(top, Math.min(cssH, vvBottom - canvasRect.top));
 
+  // Okno ukotvené vpravo přes celou výšku (telefon naležato) ubírá šířku, ne výšku.
+  let right = cssW;
   for (const selector of VIEW_OBSTRUCTIONS) {
     const el = document.querySelector(selector);
     if (!el) continue;
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) continue;
+    if (rect.height >= cssH * 0.7 && rect.left > canvasRect.left + cssW * 0.3) {
+      right = Math.min(right, Math.max(cssW * 0.3, rect.left - canvasRect.left - OBSTRUCTION_GAP));
+      continue;
+    }
     // Výřez zmenšují jen panely přes (skoro) celou šířku plátna. Úzké
     // plovoucí okno u kraje (desktop) kresbu nezakrývá, takže se ignoruje.
     const overlap = Math.min(rect.right, canvasRect.right) - Math.max(rect.left, canvasRect.left);
@@ -495,7 +501,9 @@ export function visibleCanvasRect() {
   const scaleY = cssH ? drawCanvas.height / cssH : 1;
   const topPx = top * scaleY;
   const heightPx = Math.max(MIN_BAND, (bottom - top) * scaleY);
-  return { width: drawCanvas.width, top: topPx, height: heightPx, centerY: topPx + heightPx / 2 };
+  const scaleX = cssW ? drawCanvas.width / cssW : 1;
+  const widthPx = right * scaleX;
+  return { width: widthPx, top: topPx, height: heightPx, centerX: widthPx / 2, centerY: topPx + heightPx / 2 };
 }
 
 // Výřez zkrácený zespodu po horní hranu elementu (úzké okno dole přes plátno,
@@ -526,7 +534,7 @@ export function fitViewToWorldBounds(bounds, { padding = AUTO_CENTER_PADDING, mi
   const zoomX = (view.width * (1 - 2 * padding)) / bboxW;
   const zoomY = (view.height * (1 - 2 * padding)) / bboxH;
   state.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min(zoomX, zoomY)));
-  state.panX = view.width / 2 - hSign() * ((bounds.minX + bounds.maxX) / 2) * state.zoom;
+  state.panX = view.centerX - hSign() * ((bounds.minX + bounds.maxX) / 2) * state.zoom;
   state.panY = view.centerY - vSign() * ((bounds.minY + bounds.maxY) / 2) * state.zoom;
   const zoomEl = document.getElementById("statusZoom");
   if (zoomEl) zoomEl.textContent = `Zoom: ${(state.zoom * 100).toFixed(0)}%`;
@@ -545,7 +553,7 @@ export function autoCenterView(quiet = false) {
     // Nic nakresleno – reset na výchozí pozici (střed viditelné části plátna)
     const view = visibleCanvasRect();
     state.zoom = 1;
-    state.panX = view.width / 2;
+    state.panX = view.centerX;
     state.panY = view.centerY;
     const zoomEl = document.getElementById("statusZoom");
     if (zoomEl) zoomEl.textContent = `Zoom: ${(state.zoom * 100).toFixed(0)}%`;

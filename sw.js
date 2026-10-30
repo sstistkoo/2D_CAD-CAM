@@ -2,11 +2,12 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v631';
+const CACHE_NAME = 'skica-v644';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './css/landscape-mobile.css',
   './css/style.css',
   './js/ai/aiPanel.js',
   './js/ai/aiSettings.js',

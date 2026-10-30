@@ -16,7 +16,7 @@ import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
 import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave } from './gcodeEditorShared.js';
+import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML } from './gcodeEditorShared.js';
 import { shownIntersections } from '../geometry/shownIntersections.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
@@ -323,7 +323,7 @@ function quickbarHTML(drawMode) {
   // X se zapisuje podle nastavení „X displej" (Radius / Průměr) – stejně jako export.
   const xWord = state.xDisplayMode === 'diameter' ? 'průměr' : 'poloměr';
   if (drawMode) return `
-  <div class="cne-quickbar cne-quickbar--draw">
+  <div class="cne-quickbar cne-quickbar--draw">${digitKeysHTML()}
     <button class="cne-qb c12" data-inp="R" title="R – poloměr / parametr">R</button>
     <button class="cne-qb c12" data-inp="I" title="I &ndash; st&#345;ed oblouku (posun v X, v&#382;dy polom&#283;r)">I<small class="cne-qb-axis">(x)</small></button>
     <button class="cne-qb c12" data-inp="K" title="K &ndash; st&#345;ed oblouku (posun v Z)">K<small class="cne-qb-axis">(z)</small></button><button class="cne-qb blue c12" data-inp="G" title="G-kód – otevře číselník se seznamem G-kódů">G</button>

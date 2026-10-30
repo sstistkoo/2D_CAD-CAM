@@ -30,7 +30,7 @@ const group = (title, inner) => '<fieldset class="tb-group"><legend>' + title + 
 
 /** HTML záložky Kužel. */
 export function taperBoreHTML() {
-  return '<div class="tb-sec" id="tbSection">' +
+  return '<div class="tb-sec" id="tbSection"><div class="tb-col tb-col-a">' +
     group('Zobrazení',
       sel('kind', 'Typ', [['hole', 'Díra'], ['shaft', 'Čep / hřídel']]) +
       '<label class="cnc-field"><span>Větší Ø je</span><div class="tb-row">' +
@@ -46,6 +46,7 @@ export function taperBoreHTML() {
       '<button type="button" class="cnc-btn cnc-btn-copy tb-copy" title="Čitelný přehled">📋 Kopírovat</button>' +
       '<button type="button" class="cnc-btn cnc-btn-copy tb-copy-nc" title="VELKÁ PÍSMENA BEZ DIAKRITIKY – jako komentář v programu">📝 Do programu</button>' +
     '</div>' +
+    '</div><div class="tb-col tb-col-b">' +
     group('Kužel <small>(stačí 3 údaje)</small>',
       fld('D', 'D', 'velký Ø mm', 'např. 40') +
       fld('d', 'd', 'malý Ø mm', 'např. 37') +
@@ -65,7 +66,7 @@ export function taperBoreHTML() {
         '<button type="button" class="cnc-btn tb-add">➕ Místo</button>' +
         '<button type="button" class="cnc-btn tb-step" title="Rozepsat rovnoměrně po celé délce">≡ Po krocích</button>' +
       '</div></fieldset>' +
-  '</div>';
+  '</div></div>';
 }
 
 /** Text bez diakritiky velkými písmeny (komentář do NC programu). */

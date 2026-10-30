@@ -53,6 +53,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Mobil naležato – modální okna** (`css/landscape-mobile.css`, nízký displej ≤ 500 px na šířku): okna
+  využijí celou výšku a tělo se posouvá. CNC Editor jde přes celý displej, kód je vlevo a klávesnice vpravo
+  ve vlastním posuvném sloupci (dřív zabrala celou výšku a kód nebyl vidět). Vnitřní dialogy editoru mají
+  strop podle výšky displeje.
+- **VK „Zadání objektu“ naležato** – okno je ukotvené vpravo přes celou výšku a plátno zůstává vlevo (`visibleCanvasRect` v `canvas.js` teď umí zúžit výřez i zprava, centrování a „přizpůsobit“ se řídí `centerX`).
+- **Tolerance / Kužel** – volné míry a volné geometrické tolerance jsou dole pod výsledkem. Naležato jsou Tolerance i Kužel ve dvou sloupcích vedle sebe (vstupy | výsledek, resp. náčrt | údaje). Tolerance už naležato nenechává prázdný pruh dole (inline `max-height` v `tolerance.js` bral 48 px navíc).
+- **Kužel naležato** – velký náčrt vlevo (při rolování zůstává na místě), údaje vpravo; poznámka „Klepni na kótu…“ se naležato skrývá.
+- **Základní kalkulačka naležato** – okno začíná u horního okraje a jde až dolů (bez prázdného pruhu nad ní), tlačítka jsou nižší, takže se vejde celá klávesnice; historie dostane zbylé místo.
+- **Ostatní kalkulačky naležato** (Závity, Vrtání, Řezné podmínky, Oblouk…) – širší okno, pole ve třech sloupcích a náčrty nejvýš 55 % výšky displeje, takže se míň rolují.
+- **Naležato: přeskládání CNC Editoru a Tolerance** – v editoru je oranžová lišta se ✕ vlevo nahoře, vpravo dole klávesnice s číselnými klávesami 0–9 nad ní (`digitKeysHTML`) a číselník (zadání X, Z…) se otevírá v pravém sloupci místo klávesnice. V Toleranci je vpravo zadání s rozbalovátky Volné míry / Geometrie, vlevo výsledek; po rozbalení je vlevo místo něj tabulka (otevřená vždy jen jedna) a přepnutí „Třída a stupeň ISO / Vlastní úchylky“ tabulky sbalí.
 - **CAD – Centr (Ctrl+0 / Home / start)** rámuje při zapnutém bokorysu i jeho kruh, ne jen nárys.
 - **CAD – 🗑 Smazat aktuální výkres** vypne bokorys; zůstane prázdný nárys.
 - **CAM – úbytek kroku vrtání a kontrola hluboké díry** (`live/liveModel.drillLevels`, `liveChecks.deepHoleIssue`).

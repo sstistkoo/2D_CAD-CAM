@@ -1,0 +1,228 @@
+/* ══════════════════════════════════════════════════════════════
+   Telefon NALEŽATO (nízký displej) – modální okna
+   Na šířku má telefon ~320–430 px výšky. Okna navržená na výšku
+   (CNC Editor, dialogy kalkulaček) se pak nevešla: klávesnice
+   editoru zabrala celou výšku a samotný kód nebyl vidět vůbec.
+   Načítá se ZA style.css (stejná specifičnost → přebíjí).
+   ══════════════════════════════════════════════════════════════ */
+/* Číselné klávesy editoru: jen naležato (jinak je to zbytečný řádek) */
+.cne-qb-digit, .cne-digit-sep { display: none; }
+
+@media (orientation: landscape) and (max-height: 500px) {
+
+  /* ── Obecná okna: využít celou výšku, tělo se posouvá ── */
+  .calc-overlay {
+    align-items: flex-start;
+    padding-top: max(4px, env(safe-area-inset-top));
+  }
+  .calc-window {
+    max-height: calc(100dvh - 8px - env(safe-area-inset-bottom));
+  }
+  .calc-overlay-float .calc-window {
+    max-height: calc(100dvh - 76px);
+  }
+  .calc-titlebar { padding: 6px 12px; }
+  .calc-body { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+
+  /* ── CNC Editor: celý displej, kód vlevo, klávesnice vpravo ── */
+  .calc-overlay:has(> .cnc-editor-window) {
+    padding: 0;
+    align-items: stretch;
+    background: var(--ctp-base);
+  }
+  .cnc-editor-window,
+  .calc-overlay.cne-overlay-draw .cnc-editor-window {
+    width: 100vw; max-width: 100vw;
+    height: 100dvh; max-height: 100dvh;
+    border-radius: 0; border: none; box-shadow: none;
+  }
+  /* Titulek nahrazuje oranžová lišta se ✕ (jako na mobilu na výšku) */
+  .cnc-editor-window .calc-titlebar { display: none; }
+  .cne-sn-close { display: flex; }
+  .cne-sn-bar,
+  .cne-overlay-draw .cne-sn-bar {
+    min-height: 28px;
+    padding: 2px 40px 2px max(8px, env(safe-area-inset-left));
+  }
+  .cne-overlay-draw .cne-sn-close {
+    width: 28px; height: 28px; top: 50%;
+  }
+
+  /* Dva sloupce: řádky vlevo mají pevné pořadí (vyhledávání je
+     většinou skryté – bez pevných řádků by kód spadl do „auto"). */
+  .cne-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(240px, 40vw, 380px);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  }
+  /* Vlevo lišta se ✕, vpravo dole číslice + klávesnice */
+  .cne-layout > .cne-sn-bar     { grid-column: 1; grid-row: 1; }
+  .cne-layout > .cne-toolbar    { grid-column: 1; grid-row: 2; }
+  .cne-layout > .cne-search-bar { grid-column: 1; grid-row: 3; }
+  .cne-layout > .cne-main       { grid-column: 1; grid-row: 4; }
+  .cne-layout > .cne-info       { grid-column: 1; grid-row: 5; }
+  .cne-layout > .cne-quickbar {
+    grid-column: 2; grid-row: 1 / -1;
+    align-content: end;
+    overflow-y: auto;
+    border-top: none;
+    border-left: 1px solid var(--ctp-surface0);
+    padding: 4px max(4px, env(safe-area-inset-right))
+             max(4px, env(safe-area-inset-bottom)) 4px;
+  }
+  .cne-toolbar { padding: 3px 6px; gap: 4px; }
+  .cne-toolbar .cne-tb-btn { padding: 4px 6px; }
+  .cne-info-body { max-height: 30dvh; }
+
+  /* Nižší tlačítka klávesnice, ať se vejde bez posouvání */
+  .cne-qb,
+  .cne-overlay-draw .cne-qb { min-height: 28px; padding: 3px 2px; font-size: 12px; }
+  .cne-quickbar--draw .cne-qb-big,
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-big { min-height: 40px; font-size: 16px; gap: 1px; }
+  .cne-quickbar--draw .cne-qb-arc,
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-arc { min-height: 28px; font-size: 13px; gap: 0; }
+  .cne-quickbar--draw .cne-qb-wide { min-height: 28px; }
+  .cne-quickbar.cne-hidden-by-sidebar { display: grid; }
+  .cne-quickbar--draw .cne-digit-sep {
+    display: block; grid-column: 1 / -1; height: 2px; margin: 4px 0;
+    background: var(--ctp-surface2); border-radius: 1px;
+  }
+  .cne-quickbar--draw .cne-qb-digit { display: flex; min-height: 24px; font-size: 14px; padding: 2px; }
+
+  /* Vnitřní dialogy editoru (úhel, sražení, číslo…) – celá výška */
+  .cne-im-card,
+  .cne-val-card,
+  .cne-menu-card {
+    max-height: calc(100dvh - 12px);
+    padding: 10px;
+  }
+  .cne-help-body { max-height: calc(100dvh - 110px); }
+  .cne-val-list { max-height: calc(100dvh - 90px); }
+
+  /* ── Tolerance a Kužel: dva sloupce vedle sebe, širší okno ── */
+  .calc-window:has(.tol-cols),
+  .calc-window.taper-window {
+    width: min(98vw, 900px); max-width: 98vw; min-width: 0;
+  }
+  .tol-cols,
+  .tb-sec {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 4px 14px;
+    align-items: start;
+  }
+  /* Kužel: velký náčrt vlevo (zůstává na místě při rolování), údaje vpravo.
+     Poznámka „Klepni na kótu…“ se naležato skrývá – jen zabírá místo. */
+  .tb-sec { gap: 0 14px; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+  .tb-col { display: contents; }
+  .tb-sec .tp-hint { display: none; }
+  .tb-sec .tb-svg {
+    grid-column: 1; grid-row: 1 / span 12;
+    position: sticky; top: 0; align-self: start;
+    width: 100%; height: calc(100dvh - 100px); max-height: none;
+  }
+  .tb-sec .tb-group, .tb-sec .tb-err, .tb-sec .tb-forms, .tb-sec .tb-res,
+  .tb-sec .tb-slide, .tb-sec > .tb-col > .cnc-actions { grid-column: 2; min-width: 0; }
+  .tb-sec .tb-group:first-child { order: 0; }
+  .tb-sec .tb-col-b .tb-group { order: 1; }
+  .tb-sec .tb-err, .tb-sec .tb-forms, .tb-sec .tb-res, .tb-sec .tb-slide,
+  .tb-sec > .tb-col > .cnc-actions { order: 2; }
+
+  /* ── VK „Zadání objektu": vpravo ukotvený panel, plátno zůstane vlevo ──
+     Dole by okno zabralo skoro celou výšku displeje. Plátno se kvůli panelu
+     přerámuje (viz visibleCanvasRect v canvas.js). Horní lišta (SOU/ABS…) zůstává. */
+  .calc-overlay-float .vk-combined-window,
+  .calc-overlay-float .vk-combined-window:has(.num-corner-inline-row) {
+    top: 44px; bottom: 0; right: 0; left: auto;
+    width: clamp(300px, 46vw, 440px); max-width: 60vw;
+    height: auto; max-height: none;
+    border-radius: 12px 0 0 0;
+    padding-right: env(safe-area-inset-right);
+  }
+  /* Obsah se musí vejít do šířky panelu (jinak ho okno ořízne zprava) */
+  .vk-combined-window .tab-content.active,
+  .vk-combined-window .input-dialog,
+  .vk-combined-window .tab-scroll {
+    width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;
+  }
+  .vk-combined-window .input-dialog .input-row > div { min-width: 0; }
+  .vk-combined-window .num-type-row { gap: 3px; }
+  .vk-combined-window .calc-body { padding: 6px 8px; }
+
+  /* Tolerance: vpravo zadání + rozbalovátka, vlevo výsledek (nebo rozbalená tabulka) */
+  .tol-cols { grid-template-rows: auto auto auto 1fr; }
+  .tol-in { grid-column: 2; grid-row: 1; min-width: 0; }
+  .tol-cols > #tolResult { grid-column: 1; grid-row: 1 / span 4; margin: 0; min-width: 0; }
+  .tol-cols > .tol-free { display: contents; }
+  .tol-cols > .tol-free > summary { grid-column: 2; padding: 4px 0; }
+  .tol-cols > .tol-free > :not(summary) {
+    grid-column: 1; grid-row: 1 / span 4; min-width: 0; overflow: auto;
+    max-height: calc(100dvh - 90px); margin: 0;
+  }
+  .tol-cols > .tol-free::details-content { content-visibility: visible; display: contents; }
+  .tol-cols > .tol-free:not([open]) > :not(summary) { display: none; }
+  .tol-cols:has(.tol-free[open]) > #tolResult { display: none; }
+  .tol-cols > .cnc-actions { grid-column: 2; margin-top: 4px; align-self: end; }
+  .tol-in .tol-class-grid { grid-template-columns: repeat(8, 1fr); }
+  .tol-in .tol-it-grid { grid-template-columns: repeat(9, 1fr); }
+  .tol-in .tol-g-btn { padding: 4px 0; font-size: 12px; }
+  .tol-in .cnc-field-full { margin-bottom: 4px; }
+
+  /* Číselník editoru: místo klávesnice v pravém sloupci (vše pod palcem) */
+  .cne-inner-modal[data-el="numModal"] {
+    inset: 0 0 0 auto;
+    width: clamp(240px, 40vw, 380px);
+    align-items: stretch;
+    background: var(--ctp-mantle);
+    border-left: 1px solid var(--ctp-surface0);
+  }
+  .cne-inner-modal[data-el="numModal"] .cne-im-card {
+    width: 100%; min-width: 0; max-width: none; max-height: none;
+    border: none; border-radius: 0; background: none; box-shadow: none;
+    padding: 6px 8px max(6px, env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; justify-content: flex-end;
+    box-sizing: border-box; overflow-y: auto;
+  }
+  .cne-inner-modal[data-el="numModal"] .cne-im-title { margin-bottom: 4px; }
+  .cne-inner-modal[data-el="numModal"] .cne-im-input { margin-bottom: 4px; }
+  .cne-inner-modal[data-el="numModal"] .cne-numpad { gap: 3px; margin-bottom: 5px; }
+  .cne-inner-modal[data-el="numModal"] .cne-np { padding: 7px; }
+
+  /* ── Ostatní kalkulačky (Závity, Vrtání, Řezné podmínky…): širší okno,
+     pole ve třech sloupcích, náčrty nižší než displej → míň rolování ── */
+  .calc-window.cnc-window:not(.taper-window):not(:has(.tol-cols)) {
+    width: min(96vw, 760px); max-width: 96vw; min-width: 0;
+  }
+  .cnc-window:not(.taper-window) .cnc-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .cnc-window .cnc-field input,
+  .cnc-window .cnc-field select { padding: 4px 8px; }
+  .cnc-window:not(.taper-window) .calc-svg {
+    display: block; margin: 0 auto;
+    max-height: 55dvh; width: auto; max-width: 100%;
+  }
+  .cnc-window .cnc-result { padding: 6px 10px; }
+
+  /* ── Základní kalkulačka: od horního okraje až dolů, bez prázdného pruhu
+     nad ní; přebytečnou výšku dostane historie ── */
+  .calc-overlay-float .calc-window.calc-basic-window {
+    top: max(4px, env(safe-area-inset-top));
+    height: calc(100dvh - max(4px, env(safe-area-inset-top)) - 4px);
+    max-height: none;
+  }
+  .calc-basic-window .calc-body > * { flex-shrink: 0; }
+  .calc-overlay-float .calc-basic-window .calc-history {
+    flex: 1 1 0; height: auto; min-height: 0; max-height: none;
+  }
+  .calc-overlay-float .calc-basic-window .calc-body { padding: 4px 8px; gap: 3px; }
+  .calc-overlay-float .calc-basic-window #calcDisplay { font-size: 24px; min-height: 36px; padding-top: 2px; padding-bottom: 2px; }
+  .calc-overlay-float .calc-basic-window .calc-num-grid .calc-btn { padding: 3px 0; font-size: 17px; }
+  .calc-overlay-float .calc-basic-window .calc-fn,
+  .calc-overlay-float .calc-basic-window .calc-fn-row-3 .calc-btn { padding: 3px 0; font-size: 15px; min-height: 0; }
+  .calc-overlay-float .calc-basic-window .calc-buttons,
+  .calc-overlay-float .calc-basic-window .calc-fn-row,
+  .calc-overlay-float .calc-basic-window .calc-num-grid { gap: 3px; margin-bottom: 3px; }
+}
