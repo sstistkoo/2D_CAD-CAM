@@ -13,6 +13,7 @@ import { state, showToast } from '../state.js';
 import { addObject } from '../objects.js';
 import { bulgeToArc } from '../utils.js';
 import { renderAll } from '../render.js';
+import { isHelperLayer } from '../helperLayer.js';
 
 const LOOP_EPS = 0.02;   // world units – tolerance shody koncových bodů
 const ARC_STEP_DEG = 6;  // krok vzorkování oblouků na body (jemnost výplně)
@@ -193,7 +194,7 @@ function fillableObjects() {
     if (o.type === 'constr' || o.type === 'text' || o.type === 'point' || o.type === 'fill') return false;
     const layer = state.layers.find((l) => l.id === o.layer);
     if (layer && !layer.visible) return false;
-    return true;
+    return !isHelperLayer(layer);   // pomocná vrstva hranici plochy netvoří
   });
 }
 

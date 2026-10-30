@@ -5,7 +5,8 @@
 import { state, showToast } from './state.js';
 import { getObjectSnapPoints, isAngleBetween, bulgeToArc, getNearestPointOnObject } from './utils.js';
 import { renderAll } from './render.js';
-import { faceSnapPoints, faceSnapEdge } from './faceView/faceReference.js';
+import { faceSnapPoints, faceSnapEdge, computeFaceOrigin } from './faceView/faceReference.js';
+import { faceViewMode, getFaceLayer, profileObjects } from './faceView/faceLayer.js';
 import { refSnapObjects } from './render/mirrorSnap.js';
 import { SNAP_POINT_THRESHOLD, SNAP_EDGE_THRESHOLD, VIBRATE_SNAP_POINT, VIBRATE_SNAP_EDGE, AUTO_CENTER_PADDING, ZOOM_MIN, ZOOM_MAX } from './constants.js';
 import { shownIntersections } from './geometry/shownIntersections.js';
@@ -619,6 +620,16 @@ export function autoCenterView(quiet = false) {
         }
         break;
       }
+    }
+  }
+
+  // Zapnutý bokorys (◎ profil + bokorys): do rámu patří i jeho kruh, ne jen objekty.
+  if (faceViewMode() === 'both') {
+    const O = getFaceLayer().origin;
+    const R = computeFaceOrigin(profileObjects(), state.machineType).R;
+    if (O && Number.isFinite(R)) {
+      minX = Math.min(minX, O.x - R); maxX = Math.max(maxX, O.x + R);
+      minY = Math.min(minY, O.y - R); maxY = Math.max(maxY, O.y + R);
     }
   }
 

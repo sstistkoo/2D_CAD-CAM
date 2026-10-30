@@ -20,6 +20,7 @@
 
 import { state, pushUndo, showToast, STOCK_LAYER_ID } from './state.js';
 import { isFeatureLayerId } from './faceView/faceLayer.js';
+import { isHelperObject } from './helperLayer.js';
 import { calculateAllIntersections } from './geometry.js';
 import { updateObjectList } from './ui.js';
 import { renderAll } from './render.js';
@@ -91,7 +92,8 @@ function _contourObjects() {
   return state.objects.filter(o =>
     !o.isStock && !o.isDimension && !o.isCoordLabel &&
     o.type !== 'constr' && o.type !== 'text' && o.type !== 'point' &&
-    !isFeatureLayerId(o.layer) && !o.shellHole && !o.shellSlot
+    !isFeatureLayerId(o.layer) && !o.shellHole && !o.shellSlot &&
+    !isHelperObject(o)   // pomocná vrstva: nesmí „vytlačit" čáru kontury jako zdvojenou
   );
 }
 

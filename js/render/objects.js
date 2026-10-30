@@ -22,6 +22,7 @@ import { drawFrontView } from '../faceView/faceFrontView.js';
 import { drawShellHoles, drawViewCut } from '../faceView/shellHoleView.js';
 import { faceViewMode } from '../faceView/faceLayer.js';
 import { shownIntersections } from '../geometry/shownIntersections.js';
+import { isHelperLayer, HELPER_ALPHA } from '../helperLayer.js';
 
 // ── Vykreslení objektů ──
 export function renderObjects() {
@@ -82,6 +83,8 @@ export function renderObjects() {
     const baseWidth = (layer?.lineWidth ?? LINE_WIDTH) * objWidthMul(obj);
     ctx.lineWidth = (isSel || isConnectedDim) ? baseWidth + (LINE_WIDTH_SELECTED - LINE_WIDTH) : baseWidth;
     ctx.setLineDash(objDash(obj));
+    // Pomocná vrstva (helperLayer.js) — tlumeně, ať je vidět, že nejde do CAM/DXF.
+    ctx.globalAlpha = isHelperLayer(layer) && !isSel ? HELPER_ALPHA : 1;
 
     switch (obj.type) {
       case "point":
@@ -118,6 +121,7 @@ export function renderObjects() {
     if ((state.showDimensions === 'all' || state.showDimensions === 'dimensions')
       && !isConstr && !state.showObjectNumbers) drawDimension(obj);
   });
+  ctx.globalAlpha = 1;
 
   // ── Náhled zrcadlení kontury kolem osy rotace (y=0) ──
   if (state.mirrorPreview) {

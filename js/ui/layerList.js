@@ -14,12 +14,15 @@ import { openLayerColorPicker } from './colorPicker.js';
 import { updateObjectList, deleteObjectsByIndices } from '../ui.js';
 import { bridge } from '../bridge.js';
 import { saveSettings } from '../storage/settingsStore.js';
+import { canBeHelperLayer, isHelperLayer } from '../helperLayer.js';
 
 // ── Vrstvy ──
 // Vlastní SVG ikony (místo emoji 👁/👁‍🗨, které se na některých systémech
 // vykreslují monochromně černou barvou a splývají s tmavým pozadím panelu).
 const ICON_EYE_OPEN = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
 const ICON_TRASH = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>';
+// Pomocná vrstva: čárkovaná čára s pravítkem (kreslí se, ale nevyrábí).
+const ICON_HELPER = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 21 21 3" stroke-dasharray="3 3"/><path d="M3 12h4M12 3v4"/></svg>';
 const ICON_EYE_OFF = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a19.4 19.4 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a19.5 19.5 0 0 1-2.29 3.44M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 
 /** Aktualizuje seznam vrstev v panelu. */
@@ -112,6 +115,9 @@ export function updateLayerList() {
     li.appendChild(nameSpan);
     li.appendChild(visBtn);
     li.appendChild(lockBtn);
+    const helperBtn = layerHelperButton(layer);
+    if (helperBtn) li.appendChild(helperBtn);
+    if (isHelperLayer(layer)) nameSpan.style.fontStyle = "italic";
     const clearBtn = layerClearButton(layer);
     if (clearBtn) li.appendChild(clearBtn);
     ul.appendChild(li);
@@ -157,6 +163,30 @@ function mirrorEdgesRow() {
   });
   li.append(spacer, dot, name, visBtn);
   return li;
+}
+
+/**
+ * Přepínač „pomocná vrstva" (helperLayer.js): objekty se kreslí tlumeně a
+ * nejdou do CAM, CNC kódu ani DXF. Ne u Kontury a vrstev bokorysu / pláště.
+ */
+function layerHelperButton(layer) {
+  if (!canBeHelperLayer(layer)) return null;
+  const on = isHelperLayer(layer);
+  const btn = document.createElement("button");
+  btn.className = "layer-icon-btn" + (on ? " on" : " off");
+  btn.innerHTML = ICON_HELPER;
+  btn.title = on
+    ? "Pomocná vrstva — nejde do CAM, CNC kódu ani DXF (klik = běžná vrstva)"
+    : "Udělat z vrstvy pomocnou (nepůjde do CAM, CNC kódu ani DXF)";
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (on) delete layer.helper; else layer.helper = true;
+    updateLayerList();
+    if (bridge.runCncExport) bridge.runCncExport();   // CNC KÓD bez / s jejími objekty
+    renderAll();
+    showToast(on ? `Vrstva ${layer.name} je zase běžná` : `Vrstva ${layer.name} je pomocná — nejde do CAM ani DXF`);
+  });
+  return btn;
 }
 
 /**

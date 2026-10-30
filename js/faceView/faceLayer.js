@@ -18,6 +18,7 @@
 // Modul je bez UI; importuje jen stav a typy čar (čte ho i vykreslování).
 import { state } from '../state.js';
 import { objDash } from '../lineStyles.js';
+import { isHelperLayer } from '../helperLayer.js';
 
 export const FACE_LAYER_NAME = 'Čelo (bokorys)';
 
@@ -111,7 +112,8 @@ export function isFeatureObject(o) {
 
 /** Objekty profilu (vše kromě vrstev čel a děr v plášti). */
 export function profileObjects() {
-  const ids = new Set((state.layers || []).filter(l => l && (l.isFace || l.isShell)).map(l => l.id));
+  // Bez čel, děr v plášti i pomocných vrstev (helperLayer.js) — ty tvar dílu neurčují.
+  const ids = new Set((state.layers || []).filter(l => l && (l.isFace || l.isShell || isHelperLayer(l))).map(l => l.id));
   // Bez čeho vyřazovat stejné pole (vykreslení / cache porovnávají identitou).
   if (!ids.size && !state.objects.some(o => o.shellHole || o.shellSlot)) return state.objects;
   return state.objects.filter(o => !ids.has(o.layer) && !o.shellHole && !o.shellSlot);

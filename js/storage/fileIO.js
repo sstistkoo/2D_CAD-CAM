@@ -18,6 +18,7 @@ import { loadProject } from './projectManager.js';
 import { showExportImageDialog } from './exportImage.js';
 import { findContourGaps, findContourBranches, findContourDuplicates, jumpToContourGaps } from '../stockTools.js';
 import { renderAll } from '../render.js';
+import { withoutHelperObjects } from '../helperLayer.js';
 
 // ── Export / Import ──
 
@@ -213,13 +214,15 @@ export function importDXFFile() {
 
 /** Exportuje projekt jako DXF soubor (Maker.js → validní formát pro Fusion 360). */
 export async function exportDXFFile() {
-  if (state.objects.length === 0) {
+  // Pomocné vrstvy se do DXF neexportují (helperLayer.js).
+  const objects = withoutHelperObjects(state.objects);
+  if (objects.length === 0) {
     showToast('Žádné objekty k exportu');
     return;
   }
   // Pokud projekt obsahuje text a font ještě není načtený, počkáme na něj –
   // text se pak v DXF vygeneruje jako vektorové cesty místo TEXT entity.
-  const hasText = state.objects.some(o => o && o.type === 'text');
+  const hasText = objects.some(o => o && o.type === 'text');
   if (hasText && !isVectorTextAvailable()) {
     try { await loadFont(); } catch (e) { /* nepodstatné – fallback uvnitř */ }
   }
@@ -227,11 +230,11 @@ export async function exportDXFFile() {
   // Primárně robustní export přes Maker.js; fallback na manuální generátor.
   let dxfText = null;
   try {
-    dxfText = exportDXFMaker(state.objects, state.layers);
+    dxfText = exportDXFMaker(objects, state.layers);
   } catch (err) {
     console.error('Maker.js DXF export selhal, použiji fallback:', err);
   }
-  if (!dxfText) dxfText = exportDXF(state.objects, state.layers);
+  if (!dxfText) dxfText = exportDXF(objects, state.layers);
 
   const blob = new Blob([dxfText], { type: 'application/dxf' });
   const a = document.createElement('a');
@@ -240,7 +243,7 @@ export async function exportDXFFile() {
   a.click();
   URL.revokeObjectURL(a.href);
   const note = hasText && isVectorTextAvailable() ? ' (text → vektor)' : '';
-  showToast(`Exportováno ${state.objects.length} objektů do DXF${note}`);
+  showToast(`Exportováno ${objects.length} objektů do DXF${note}`);
 }
 
 /**
@@ -759,6 +762,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
   let exportObjects = selectedIndices.size > 0 && !asDrawn && !forCam
     ? state.objects.filter((_, i) => selectedIndices.has(i))
     : state.objects.filter(o => !o.shellHole && !o.shellSlot && !state.layers.some(l => (l.isFace || l.isShell) && l.id === o.layer));   // bez bokorysu a děr v plášti (faceView/)
+  exportObjects = withoutHelperObjects(exportObjects);   // pomocné vrstvy nikdy do CNC/CAM (helperLayer.js)
 
   // Zdvojené čáry (dvě stejné přesně přes sebe) — na plátně nejsou vidět,
   // proto se kreslí žlutě a hlásí zvlášť; jejich konce by jinak vyšly jako

@@ -10,6 +10,8 @@ import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { objDash, objWidthMul } from '../lineStyles.js';
 import { drawTextOn, drawDimensionOn, drawAutoDimensionOn } from '../render.js';
 import { SvgCanvasContext } from './svgCanvasContext.js';
+import { drawHatch } from '../render/hatch.js';
+import { getObjectBounds } from '../render/bounds.js';
 
 // ── Pomocné funkce ──
 
@@ -522,6 +524,11 @@ function exportPNG(scale, background) {
       if (loop.length < 3) continue;
       loop.forEach((p, i) => { const [sx, sy] = w2s(p.x, p.y); i ? path.lineTo(sx, sy) : path.moveTo(sx, sy); });
       path.closePath();
+    }
+    const hb = obj.hatch && getObjectBounds(obj);
+    if (hb) {
+      drawHatch(g, obj, path, hb, w2s, zoom);
+      continue;
     }
     g.save();
     g.globalAlpha = obj.alpha ?? 0.35;

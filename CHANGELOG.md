@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAD – šrafy řezu ve Vybarvit** (`render/hatch.js`): výplň může mít místo barvy šrafy 45° / 135° / křížem
+  s roztečí v mm výkresu (výchozí podle velikosti plochy, při malém zoomu se ředí). Kreslí plátno i export PNG.
+- **CAD – pomocné vrstvy** (`helperLayer.js`): přepínač v řádku vrstvy; objekty se kreslí tlumeně a nejdou do
+  CAM, CNC kódu (`runCncExport`) ani DXF exportu, netvoří hranici pro Vybarvit, nepočítají se do kontroly
+  mezer / větvení / zdvojených čar (`stockTools`) ani do profilu pro bokorys (`profileObjects`).
+  Testy `tests/hatch-helper-layer.test.js`, `tests/helper-layer-contour.test.js`.
+
 - **CNC Editor – Úsečka úhlem: šipky ✛ u polárního úhlu** (`calculators/cncAngleCompass.js`). Mřížka osmi
   směrů jako v číselném zadání; úhel se počítá podle typu stroje (soustruh / karusel) a zrcadlení os, aby
   šipka odpovídala směru na obrazovce. Test `tests/cnc-angle-compass.test.js`.
@@ -46,6 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAD – Centr (Ctrl+0 / Home / start)** rámuje při zapnutém bokorysu i jeho kruh, ne jen nárys.
+- **CAD – 🗑 Smazat aktuální výkres** vypne bokorys; zůstane prázdný nárys.
 - **CAM – úbytek kroku vrtání a kontrola hluboké díry** (`live/liveModel.drillLevels`, `liveChecks.deepHoleIssue`).
   Pole „Úbytek kroku" (0 = stálý): každý další záběr o úbytek kratší, nejméně úbytek. Sinumerik DAM
   v CYCLE83 (dřív pevně 0), Fanuc G83/G87 ho neumí → díra rozepsaně s poznámkou; simulace stejné záběry.

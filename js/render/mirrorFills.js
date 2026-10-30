@@ -9,6 +9,8 @@ import { objDash, objWidthMul } from '../lineStyles.js';
 import { drawArc, drawCircle, drawLine, drawPoint, drawPolyline, drawRect } from './primitives.js';
 import { state } from '../state.js';
 import { drawAxisEdges } from './mirrorEdges.js';
+import { drawHatch } from './hatch.js';
+import { isHelperLayer, HELPER_ALPHA } from '../helperLayer.js';
 import { mirrorObjectAcrossY, mirrorable } from './mirrorSnap.js';
 
 /**
@@ -41,6 +43,7 @@ export function renderMirrorPreview(vp) {
     ctx.fillStyle = baseColor;
     ctx.lineWidth = (layer?.lineWidth ?? LINE_WIDTH) * objWidthMul(obj) * (isSel ? 1.5 : 1);
     ctx.setLineDash(objDash(obj));
+    ctx.globalAlpha = isHelperLayer(layer) && !isSel ? HELPER_ALPHA : 1;   // jako originál (render/objects.js)
 
     switch (mirrored.type) {
       case 'point':
@@ -98,11 +101,15 @@ export function drawFills(vp) {
       path.closePath();
     }
 
-    ctx.save();
-    ctx.globalAlpha = obj.alpha ?? 0.35;
-    ctx.fillStyle = obj.color || '#60a5fa';
-    ctx.fill(path, 'evenodd');
-    ctx.restore();
+    if (obj.hatch && bounds) {
+      drawHatch(ctx, obj, path, bounds, worldToScreen, state.zoom);
+    } else {
+      ctx.save();
+      ctx.globalAlpha = obj.alpha ?? 0.35;
+      ctx.fillStyle = obj.color || '#60a5fa';
+      ctx.fill(path, 'evenodd');
+      ctx.restore();
+    }
 
     const isSel = idx === state.selected || state.multiSelected.has(idx);
     if (isSel) {

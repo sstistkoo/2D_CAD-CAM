@@ -58,7 +58,10 @@ Herní nástroje seskupené do sekcí:
 - **Průsečíky** – automaticky vypočítané průsečíky (průsečíky skryté vrstvy se nezobrazují a SNAP je nechytá)
 - **Vrstvy** – správa vrstev; 🗑 v řádku vrstvy smaže všechny její objekty (vrstva zůstane, ↩ Zpět je vrátí),
   třeba konstrukční čáry plátku z CAM ve vrstvě *Konstrukce*; při ⇋ Zrcadlit kolem osy je tu i řádek
-  *Hrany přes osu* — okem skryjete čáry přechodů, které spojují obě poloviny dílu
+  *Hrany přes osu* — okem skryjete čáry přechodů, které spojují obě poloviny dílu.
+  Tlačítko s čárkovanou čarou udělá z vrstvy **pomocnou**: její objekty se kreslí
+  tlumeně (název vrstvy kurzívou) a **nejdou do CAM, CNC kódu ani DXF exportu**
+  a netvoří hranici pro Vybarvit. Kontura a vrstvy bokorysu / děr v plášti pomocné být nemohou
 - **Vlastnosti** – barva, tloušťka, styl čáry, čárkovaná
 - **Nastavení** – mřížka, úhlové snap, kóty, okraje, autom. středy, číslování, osa Y
 - **Bubliny s popisem** – hlavičky panelů (Objekty, Průsečíky, Vlastnosti, Vrstvy, CNC Kód,
@@ -100,6 +103,12 @@ vždy ukazuje aktuální hodnotu a co klik udělá.
 krok a tolerance přichycení). Na mobilu je dlouhé podržení vyhrazené přesnému
 ukazateli — velikost mřížky a krok úhlu se tam nastaví v ⚙️ Nastavení →
 # Mřížka a snap.
+
+### Vybarvit a šrafy řezu
+Klik do uzavřené plochy (i mezikruží) ji vyplní. V okně barvy je volba **Výplň**:
+*Barva* nebo **šrafy řezu** (45°, 135°, křížem) s roztečí v mm výkresu — výchozí
+podle velikosti plochy; při malém zoomu se čáry ředí, aby nesplynuly. Šrafy jdou
+i do exportu PNG; funguje v nárysu i v bokorysu.
 
 ### Mobilní ovládání
 - Spodní lišta s hlavními tlačítky

@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v629';
+const CACHE_NAME = 'skica-v631';
 const ASSETS = [
   './',
   './index.html',
@@ -352,6 +352,7 @@ const ASSETS = [
   './js/geometry/tangentCircles.js',
   './js/geometry/tangents.js',
   './js/geometry/transforms.js',
+  './js/helperLayer.js',
   './js/idb.js',
   './js/lib/browser.maker.js',
   './js/lib/dxf-parser.min.js',
@@ -371,6 +372,7 @@ const ASSETS = [
   './js/render/bounds.js',
   './js/render/common.js',
   './js/render/constraints.js',
+  './js/render/hatch.js',
   './js/render/labels.js',
   './js/render/mirrorEdges.js',
   './js/render/mirrorFills.js',

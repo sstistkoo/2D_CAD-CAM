@@ -372,6 +372,7 @@ function mount() {
 }
 
 bridge.deleteFace = deleteFace;
+bridge.disableFaceView = disableFaceView;   // 🗑 Smazat vše → zpět na samotný nárys
 // ◎ Rozmístění děr → „◎ Do čela": vypnutý bokorys nejdřív zapnout.
 bridge.drawHolesToFace = spec => {
   if (faceViewMode() === 'off') enableFaceView();

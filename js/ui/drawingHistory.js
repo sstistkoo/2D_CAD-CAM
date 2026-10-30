@@ -48,6 +48,8 @@ export function initClearAllButton() {
       state.selectedPoint = null;
       state.intersections = [];
       state.nextId = 1;
+      // Prázdný výkres = jen nárys: vypnout bokorys (čela zůstanou ve vrstvách, ale skrytá).
+      if (bridge.disableFaceView) bridge.disableFaceView();
       updateObjectList();
       updateProperties();
       updateIntersectionList();

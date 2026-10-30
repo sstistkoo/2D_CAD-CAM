@@ -1475,6 +1475,26 @@ body {
   font-family: "Consolas", monospace;
 }
 
+/* Šrafy ve Vybarvit (render/hatch.js) — vzhled jako .color-popover-width */
+.color-popover-hatch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  margin-top: 10px;
+  border-top: 1px solid var(--ctp-surface1);
+}
+.color-popover-hatch[hidden] { display: none; }
+.color-popover-hatch label {
+  font-size: 12px;
+  color: var(--ctp-subtext0);
+  flex: 1;
+}
+.color-popover-hatch span {
+  font-size: 12px;
+  color: var(--ctp-text);
+}
+
 .color-popover-actions {
   display: flex;
   justify-content: flex-end;

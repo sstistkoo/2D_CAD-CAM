@@ -15,6 +15,7 @@ import { drawCanvas, screenToWorld } from '../canvas.js';
 import { findObjectAt } from '../geometry.js';
 import { onOverlayRemoved, closeOnBackdropClick } from '../dialogFactory.js';
 import { updateObjectList } from '../ui.js';
+import { HATCH_MODES, defaultHatchStep } from '../render/hatch.js';
 
 // 7 základních barev duhy pro rychlý výběr barvy vrstvy jedním klikem.
 const LAYER_RAINBOW_PRESETS = RAINBOW_PRESETS;
@@ -121,7 +122,7 @@ function pickColorFromCanvas({ onPick, onCancel }) {
  *          onCancel?:()=>void}} opts
  */
 function openColorPicker(opts) {
-  const { title, currentColor, onColor, currentWidth, onWidth, currentAlpha, onAlpha, onCancel } = opts;
+  const { title, currentColor, onColor, currentWidth, onWidth, currentAlpha, onAlpha, currentHatch, onHatch, onCancel } = opts;
   document.querySelector('.color-popover-overlay')?.remove();
 
   // Sleduje aktuální (živě už aplikovanou) hodnotu — potřeba při znovuotevření
@@ -130,7 +131,8 @@ function openColorPicker(opts) {
   let liveColor = currentColor;
   let liveWidth = currentWidth;
   let liveAlpha = currentAlpha;
-  const reopen = () => openColorPicker({ ...opts, currentColor: liveColor, currentWidth: liveWidth, currentAlpha: liveAlpha });
+  let liveHatch = currentHatch;
+  const reopen = () => openColorPicker({ ...opts, currentColor: liveColor, currentWidth: liveWidth, currentAlpha: liveAlpha, currentHatch: liveHatch });
 
   const overlay = document.createElement('div');
   overlay.className = 'input-overlay color-popover-overlay';
@@ -400,6 +402,10 @@ function openColorPicker(opts) {
     dialog.appendChild(alphaRow);
   }
 
+  if (onHatch) {
+    dialog.appendChild(buildHatchRows(currentHatch, opts.hatchStep, (h) => { liveHatch = h; onHatch(h); }));
+  }
+
   const okRow = document.createElement('div');
   okRow.className = 'color-popover-actions';
   const okBtn = document.createElement('button');
@@ -415,6 +421,59 @@ function openColorPicker(opts) {
   // (SV plocha, posuvníky) puštěné nad pozadím picker nezruší.
   closeOnBackdropClick(overlay, () => finish(false));
   document.body.appendChild(overlay);
+}
+
+/**
+ * Řádky „Výplň: Barva / Šrafy…" a „Rozteč" (render/hatch.js). onChange dostane
+ * { angle, step } nebo null (plná barva).
+ */
+function buildHatchRows(current, defStep, onChange) {
+  const wrap = document.createElement('div');
+  const modeRow = document.createElement('div');
+  modeRow.className = 'color-popover-hatch';
+  const modeLabel = document.createElement('label');
+  modeLabel.textContent = 'Výplň';
+  const sel = document.createElement('select');
+  HATCH_MODES.forEach((m, i) => {
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = m.label;
+    if ((current ? current.angle : null) === m.value) o.selected = true;
+    sel.appendChild(o);
+  });
+  modeRow.appendChild(modeLabel);
+  modeRow.appendChild(sel);
+
+  const stepRow = document.createElement('div');
+  stepRow.className = 'color-popover-hatch';
+  const stepLabel = document.createElement('label');
+  stepLabel.textContent = 'Rozteč šraf';
+  const stepInput = document.createElement('input');
+  stepInput.type = 'number';
+  stepInput.min = '0.1';
+  stepInput.step = '0.5';
+  stepInput.style.width = '70px';
+  stepInput.value = String(current?.step || defStep || 2);
+  const stepUnit = document.createElement('span');
+  stepUnit.className = 'color-popover-hatch-unit';
+  stepUnit.textContent = 'mm';
+  stepRow.appendChild(stepLabel);
+  stepRow.appendChild(stepInput);
+  stepRow.appendChild(stepUnit);
+
+  const emit = () => {
+    const mode = HATCH_MODES[+sel.value];
+    stepRow.hidden = mode.value === null;
+    const step = parseFloat(String(stepInput.value).replace(',', '.'));
+    onChange(mode.value === null ? null : { angle: mode.value, step: step > 0 ? step : (defStep || 2) });
+  };
+  sel.addEventListener('change', emit);
+  stepInput.addEventListener('input', emit);
+  stepRow.hidden = !current;
+
+  wrap.appendChild(modeRow);
+  wrap.appendChild(stepRow);
+  return wrap;
 }
 
 /** Otevře popover pro výběr barvy a tloušťky čáry vrstvy. */
@@ -471,6 +530,14 @@ export function openFillColorPicker(fillObj) {
     onColor: (c) => { fillObj.color = c; renderAllDebounced(); },
     currentAlpha: fillObj.alpha,
     onAlpha: (a) => { fillObj.alpha = a; renderAllDebounced(); },
+    // Šrafy řezu místo plné barvy (render/hatch.js).
+    currentHatch: fillObj.hatch || null,
+    hatchStep: defaultHatchStep(fillObj.loops),
+    onHatch: (h) => {
+      if (h) fillObj.hatch = h; else delete fillObj.hatch;
+      fillObj.name = (h ? 'Šrafy' : 'Výplň') + (fillObj.loops.length > 1 ? ' (mezikruží)' : '');
+      renderAllDebounced();
+    },
     onCancel: () => {
       // Zrušit celé vybarvení — smazat nově vytvořenou výplň úplně,
       // ne jen vrátit barvu (uživatel si rozmyslel vyplnit tuhle plochu).
