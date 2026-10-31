@@ -110,7 +110,11 @@ describe('hloubková posloupnost nevynechá pásmo pod krčkem siluety', () => {
     // 32 → 33 dne 25. 9. 2026: NE regrese. Zakázaný kolmý vjezd zkusí
     // částečný krok řetězu (openPass `partialChainStep`) — přibyl dobírací
     // krok X 18,04 u stěny, žádný průchod nezmizel.
-    expect(r.passes.length).toBe(33);
+    // 33 → 31 dne 31. 10. 2026: NE regrese. Nečinné průchody se měří k offsetové
+    // čáře A proti dřívějším průchodům (pravidlo 9) — odpadl průchod po ose X0
+    // před čelem a jeden, jehož materiál vzaly dřívější; úběr skutečného
+    // polotovaru 4584,54 → 4584,50 mm².
+    expect(r.passes.length).toBe(31);
     expect(r.issues.length).toBe(0);
   }, 120000);
 });

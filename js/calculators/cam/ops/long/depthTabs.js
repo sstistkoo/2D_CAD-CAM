@@ -28,6 +28,7 @@ export function makeDepthTabs({ prms, stockLoopOffsetFullL, passes }) {
   const holderLoopL = (prms.respectInsertGeometry && !globalThis.__DISABLE_HOLDER_CLAMP__)
     ? holderWorldLoop(prms, false) : null;
   const DZ_CAP = 0.25;
+  const CAP_AIR_PAD = 20; // mm — víc než rádius největšího kulatého plátku
   // Axiální dosah držáku od špičky + volný prostor; DZ_CAP navíc kryje
   // zaokrouhlení skenu (hranu hrbu vzorky můžou minout o krok).
   const holderZLoL = holderLoopL ? Math.min(...holderLoopL.map(p => p.z)) - HOLDER_STOCK_GAP - DZ_CAP : 0;
@@ -40,6 +41,12 @@ export function makeDepthTabs({ prms, stockLoopOffsetFullL, passes }) {
   if (holderLoopL && stockLoopOffsetFullL && holderZHiL - holderZLoL > 0.05) {
     let tLo = Infinity, tHi = -Infinity;
     for (const p of stockLoopOffsetFullL) { if (p.z < tLo) tLo = p.z; if (p.z > tHi) tHi = p.z; }
+    // Okraj VZDUCHU za oběma čely: podlaha projetých drah se zapisuje jen
+    // do rozsahu tabulky. Rampy řetězu za čelem polotovaru (part-22, Z −13
+    // až −18) se nezapsaly, přestože nosem R 10 vzaly materiál až u čela —
+    // a další vrstva pak vydala rampu celou vzduchem (31. 10. 2026, při zkoušce
+    // s offsetovou čárou jako „skutečným" materiálem v rule7Layers.js).
+    tLo -= CAP_AIR_PAD; tHi += CAP_AIR_PAD;
     const n = Math.ceil((tHi - tLo) / DZ_CAP) + 1;
     if (n > 1 && n < 40000) {
       capZ0 = tLo;
@@ -158,8 +165,11 @@ export function makeDepthTabs({ prms, stockLoopOffsetFullL, passes }) {
     // RAMPA a SLEDOVÁNÍ KONTURY řežou taky — bez nich model tvrdí, že materiál
     // pořád stojí, a hlídání pak zamítá vjezdy do prostoru, který je dávno
     // vykopaný (na part-13-zleva-flange to stálo 29 % úběru).
-    // Krok řetězu za hranicí úseku (`chainBeyond`) jede rampu přesně podle plánu.
-    if ((!noFloor || p.chainBeyond) && p.ramp && Number.isFinite(p.ramp.x0)) noteSegInto(tab, p.ramp.z0, p.ramp.x0, p.zStart, p.x);
+    // Krok řetězu za hranicí úseku (`chainBeyond`) jede rampu přesně podle plánu
+    // — stejně tak vrstva pravidla 7, ze které zbyla jen rampa (tělo nic
+    // neubralo). Bez zápisu ji další vrstva „neviděla" a za čelem part-22
+    // vydala rampu celou vzduchem (31. 10. 2026, táž zkouška jako u okraje tabulky).
+    if ((!noFloor || p.chainBeyond || (p.rule7 && p.rampEntryClear)) && p.ramp && Number.isFinite(p.ramp.x0)) noteSegInto(tab, p.ramp.z0, p.ramp.x0, p.zStart, p.x);
     for (const key of ['contourLeadIn', 'contourLeadOut']) {
       for (const sg of (p[key] || [])) noteSegInto(tab, sg.z1, sg.x1, sg.z2, sg.x2);
     }

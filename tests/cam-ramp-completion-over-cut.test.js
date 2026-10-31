@@ -34,10 +34,15 @@ describe('CAM: uzavírací rampa nejede po už vyříznuté přímce zanoření'
     expect(prev, 'dojezd „Průchodu 4" po přímce zanoření').toBeTruthy();
   });
 
-  it('rampa X 37,197 začíná na konci předchozího zanoření, ne o ap výš', async () => {
+  // Konec rampy X 37,197 Z 107,486 → X 37,182 Z 107,432 (31. 10. 2026): rampa do
+  // prázdna jede, dokud z offsetové čáry nevyjede celý přední oblouk nosu
+  // (cam-ramp-exit-nose.test.js), ne jen jeho střed. Začátek se nemění. Plán
+  // dojede až na hranici rozsahu (X 37,130 Z 107,236), emise konec ořízne podle
+  // skutečného řezu na Z 107,432 — zbytek u čela je tentýž jako dřív.
+  it('rampa X 37,182 začíná na konci předchozího zanoření, ne o ap výš', async () => {
     const { calc } = await getRun();
-    const rc = calc.passes.find(p => p.rampCompletion && near(p.x, 37.197));
-    expect(rc, 'uzavírací rampa X 37,197').toBeTruthy();
+    const rc = calc.passes.find(p => p.rampCompletion && near(p.x, 37.13));
+    expect(rc, 'uzavírací rampa X 37,182').toBeTruthy();
     expect(rc.ramp.x0).toBeCloseTo(39.23, 2);
     expect(rc.ramp.z0).toBeCloseTo(115.074, 2);
     expect(rc.__rampAnchor, 'pomocná značka nesmí zůstat v průchodu').toBeUndefined();
@@ -46,7 +51,7 @@ describe('CAM: uzavírací rampa nejede po už vyříznuté přímce zanoření'
   it('v G-kódu k ní nástroj sjede nad obrobeným sloupcem a posuvem jede jen rampa', async () => {
     const { gcode } = await getRun();
     const L = gcode.split('\n').map(l => l.replace(/^N\d+ /, ''));
-    const i = L.findIndex(l => l.startsWith('G1 X37.197 Z107.486') && l.includes('Rampa'));
+    const i = L.findIndex(l => l.startsWith('G1 X37.182 Z107.432') && l.includes('Rampa'));
     expect(i).toBeGreaterThan(3);
     expect(L.slice(i - 3, i)).toEqual(['G0 Z115.074', 'G0 X41.230', 'G1 X39.230 F0.25']);
     expect(gcode).not.toContain('Z124.404');

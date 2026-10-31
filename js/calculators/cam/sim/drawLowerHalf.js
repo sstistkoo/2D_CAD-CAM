@@ -5,11 +5,11 @@
 // 20. 10. 2026). Jen zobrazení: dráhy, úběr, SNAP ani výpočty se nemění.
 // Kreslí se mezi vrstvami drawOverlays a live (drawCanvas.js).
 import { getArcParams, arcSteps } from '../camMath.js';
-import { getLiveOps } from '../live/liveModel.js';
+import { getLiveOps, liveShownInTurning } from '../live/liveModel.js';
 
-/** Má se kreslit spodní polovina? (operace poháněných nástrojů existují) */
+/** Má se kreslit spodní polovina? (operace poháněných nástrojů existují a jsou vidět) */
 export function lowerHalfOn(prms) {
-  return getLiveOps(prms).length > 0;
+  return getLiveOps(prms).length > 0 && liveShownInTurning(prms);
 }
 
 /** Body kontury (worldPoints z calc) jako lomené čáry {x, z} — oblouky navzorkované. */

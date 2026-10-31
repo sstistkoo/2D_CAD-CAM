@@ -16,7 +16,7 @@
 // nárys CAD — faceFrontView bere u karuselu vodorovnou souřadnici bokorysu),
 // takže výška v řezu = r·cos C; nástroj vpravo (0°) je na poloměru díry.
 // Dřív r·sin C i u karuselu — vrták se kreslil na ose (21. 10. 2026).
-import { getLiveOps, livePositions, faceOut, isKeyway, keywaySpan, slotWidth, drillDepth, DRILL_TIP } from './liveModel.js';
+import { getLiveOps, liveShownInTurning, livePositions, faceOut, isKeyway, keywaySpan, slotWidth, drillDepth, DRILL_TIP } from './liveModel.js';
 
 const COLS = { drill: ['rgba(250,179,135,0.22)', '#fab387'], radial: ['rgba(148,226,213,0.22)', '#94e2d5'], mill: ['rgba(203,166,247,0.22)', '#cba6f7'] };
 const EPS = 1e-6;
@@ -58,7 +58,8 @@ export function faceSpans(op, rot = 0, base = 90) {
  */
 export function drawLiveSectionLayer(f, mach = null) {
   const ops = getLiveOps(f.prms);
-  if (!ops.length) return;
+  // Mimo záložku Vrtání / Frézování jen díry z výkresu (liveShownInTurning).
+  if (!ops.length || (!liveShownInTurning(f.prms) && !(mach && mach.active))) return;
   const { ctx, toScreen } = f;
   const rot = mach && mach.active ? (mach.rot || 0) : 0;
   const base = sectBase(f.prms);

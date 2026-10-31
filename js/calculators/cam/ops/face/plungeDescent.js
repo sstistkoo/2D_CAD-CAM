@@ -28,6 +28,12 @@ export function makeFaceDescentLimit(deps) {
   const {
     prms, ins, passes, foundErrors, zList, xTouchAt, castingOuterOrNull, faceOffsetOut,
   } = deps;
+  // Neobrobený pás = OFFSETOVÁ čára (odlitek může být až u ní), střed nosu o R
+  // nad ní; přídavky DÍLU (`faceOffsetOut`) s polotovarem nesouvisí. Vzduch
+  // taky až nad offsetovou čárou (uživatel 31. 10. 2026).
+  const planTouchAt = deps.planTouchAt || xTouchAt;
+  const planOuterOrNull = deps.planOuterOrNull || castingOuterOrNull;
+  const rawFloorOff = deps.planOuterOrNull ? (deps.rTipFC || 0) : faceOffsetOut;
   let raised = 0, dropped = 0;
   const limitDescent = (report) => {
     if (!ins.faceDescentAtPlungeAngle) return;
@@ -36,9 +42,9 @@ export function makeFaceDescentLimit(deps) {
     const drop = new Set();
     // Dno na Z předchozí vrstvy (střed nosu); -Infinity = vedle je vzduch.
     const floorAt = (z) => {
-      const sf = castingOuterOrNull(z);
+      const sf = planOuterOrNull(z);
       if (sf === null || sf < AXIS_NO_MAT) return -Infinity;
-      const stockFloor = sf + faceOffsetOut;
+      const stockFloor = sf + rawFloorOff;
       const q = byZ.get(z.toFixed(3));
       if (!q || drop.has(q)) return stockFloor;
       if (q.xEnd < AXIS_NO_MAT) return -Infinity;
@@ -52,7 +58,7 @@ export function makeFaceDescentLimit(deps) {
       const need = floor - Math.abs(p.z - zList[i - 1]) * tanA;
       if (need <= p.xEnd + 0.01) continue;
       // Zvednutí nad mez dotyku = průchod by jel vzduchem → vynechat.
-      if (need >= p.xStart - 0.05 || need >= xTouchAt(p.z) - 0.01) {
+      if (need >= p.xStart - 0.05 || need >= planTouchAt(p.z) - 0.01) {
         drop.add(p);
         dropped++;
         continue;

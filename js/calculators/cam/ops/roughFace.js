@@ -197,6 +197,28 @@ export function genFacePasses(ctx) {
     }
     return m;
   };
+  // Mez dotyku proti OFFSETOVÉ ČÁŘE (odlitek může být až u ní, uživatel
+  // 20. 8. 2026). Pro vrstvy po KUŽELU (layerDepth): pokračují, dokud řez
+  // nevyjede za offsetovou čáru (viz `faceRunOut` výš) — s `xTouchAt` (nakreslený
+  // obrys) vypadla vrstva, která by kužel napojila, a zůstal schodek (uživatel
+  // 31. 10. 2026, part-25: vrstva Z0,932 končí na kuželu X39,447 pod čarou 39,566).
+  // Povrch OFFSETOVÉ ČÁRY na Z (null = tam obrys není) — pro hranu destičky nad
+  // neobrobeným pásem (layerDepth).
+  const planOuterOrNull = (z) => {
+    if (planLoopFC) return topXOnLoop(planLoopFC, z);
+    const v = castingOuterOrNull(z);
+    return v === null ? null : v + clrXFC;
+  };
+  const planTouchAt = (z) => {
+    let m = xTouchAt(z);
+    if (!planLoopFC) return m;
+    for (let i = -8; i <= 8; i++) {
+      const dz = rTipFC * (i / 8);
+      const pt = topXOnLoop(planLoopFC, z + dz);
+      if (pt !== null) m = Math.max(m, pt + Math.sqrt(Math.max(0, rTipFC * rTipFC - dz * dz)));
+    }
+    return m;
+  };
   const minZPart = worldPoints.length > 0 ? Math.min(...worldPoints.map(p => p.z)) : -1000;
   // Konec marche v Z: konec DÍLCE není konec MATERIÁLU. Polotovar za čelem
   // pokračuje (přídavek na čelo, upínací zbytek) a vrstvy tam mají jet dál —
@@ -481,7 +503,10 @@ export function genFacePasses(ctx) {
     xsEnd.sort((a, b) => a - b);
     // Per-Z casting outer (pro casting). Pro cylinder = sRad konstantní.
     const xSurface = inEndZone(currentZ) ? castingOuterAtZ(stockZLo) : castingOuterAtZ(currentZ);
-    const xTouch = inEndZone(currentZ) ? endZoneTouchAt(currentZ) : xTouchAt(currentZ);
+    // Mez „řez vzduchem" k OFFSETOVÉ čáře (odlitek může být až u ní) — dřív
+    // k nakreslenému obrysu (uživatel 31. 10. 2026: „ať to všude bere
+    // k offsetové čáře, ne k polotovaru").
+    const xTouch = inEndZone(currentZ) ? endZoneTouchAt(currentZ) : planTouchAt(currentZ);
     let xEnd;
     let xEndBlocked = false;
     if (xsEnd.length > 0) {
@@ -585,19 +610,19 @@ export function genFacePasses(ctx) {
   const zsBeforeGuards = faceZs(passes);
   // Hlídání geometrie DESTIČKY (čelně) — viz ops/face/insertGuard.js.
   guardInsertFace({
-    prms, ins, passes, foundErrors, faceLeft, step, offsetXAt, xTouchAt, castingOuterAtZ, rapidStartXAt });
+    prms, ins, passes, foundErrors, faceLeft, step, offsetXAt, xTouchAt, planTouchAt, castingOuterAtZ, rapidStartXAt });
   // Hloubka vrstev (nikdy hloub než předchozí) — viz ops/face/layerDepth.js.
   const enforceLayerDepth = makeEnforceLayerDepth({
-    prms, ins, passes, foundErrors, faceLeft, step, zList, xTouchAt,
-    castingOuterAtZ, castingOuterOrNull, faceOffsetOut });
+    prms, ins, passes, foundErrors, faceLeft, step, zList, xTouchAt, planTouchAt,
+    castingOuterAtZ, castingOuterOrNull, planOuterOrNull, rTipFC });
   // Doběh na konci úseku — viz ops/face/regionRunOut.js.
   const appendRegionRunOut = makeRegionRunOut({
-    prms, ins, passes, faceLeft, step, zList, xTouchAt, castingOuterAtZ,
+    prms, ins, passes, faceLeft, step, zList, xTouchAt, planTouchAt, castingOuterAtZ, planOuterOrNull,
     faceOffsetOut, faceRunOut, clrXFC, rTipFC, contourTargetAt,
     rapidStartXAt, enforceLayerDepth });
   // Hlídání DRŽÁKU (čelně) — viz ops/face/holderGuard.js.
   const holderGuardFace = makeHolderGuardFace({
-    prms, passes, foundErrors, faceLeft, step, zListAll, xTouchAt,
+    prms, passes, foundErrors, faceLeft, step, zListAll, xTouchAt, planTouchAt,
     offsetXAt, castingOuterOrNull, clrXFC, planLoopFC });
   const runOutAdded = appendRegionRunOut();
   if (runOutAdded > 0) foundErrors.push({ type: 'warning', msg: `Doběh na konci úseku: ${runOutAdded} průchodů přidáno, aby na koncích úseků nezůstal schodek.` });
@@ -606,12 +631,18 @@ export function genFacePasses(ctx) {
   // zvedají a držák musí vidět konečná dna (schodiště), jinak by počítal
   // s hlubšími, než jaká po zvednutí zůstanou.
   const limitDescent = makeFaceDescentLimit({
-    prms, ins, passes, foundErrors, zList, xTouchAt, castingOuterOrNull, faceOffsetOut });
+    prms, ins, passes, foundErrors, zList, xTouchAt, planTouchAt, castingOuterOrNull, planOuterOrNull, rTipFC, faceOffsetOut });
   limitDescent(false);
   holderGuardFace(false);
   limitDescent(true);
   holderGuardFace(true);
   enforceLayerDepth();
+  // Poslední hlídání vrstev umí řetěz ještě ZVEDNOUT (neobrobený pás nad ním
+  // se měří k offsetové čáře) a konec úseku tím ustoupí — doběh přidaný výš
+  // pak chybí a pod nosem zůstane oblouk (uživatel 31. 10. 2026, part-25
+  // Z4,932: „zůstane rádius od nože na polotovaru"). Doplnit znovu na NOVÉ
+  // konce úseků; doběh jde po kuželu, takže jen projde stejnými hlídáními.
+  if (appendRegionRunOut() > 0) { holderGuardFace(true); enforceLayerDepth(); }
   // Dojezd do mezery po vyhozeném průchodu by jel do neobrobeného materiálu.
   dropLeadOutOverGap({ passes, before: zsBeforeGuards, faceLeft, step });
 

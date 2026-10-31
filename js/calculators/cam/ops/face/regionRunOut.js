@@ -9,7 +9,7 @@ import { insertReachZ } from '../../toolEnvelope.js';
 
 export function makeRegionRunOut(deps) {
   const {
-    prms, ins, passes, faceLeft, step, zList, xTouchAt, castingOuterAtZ,
+    prms, ins, passes, faceLeft, step, zList, xTouchAt, planTouchAt = xTouchAt, castingOuterAtZ, planOuterOrNull,
     faceOffsetOut, faceRunOut, clrXFC, rTipFC, contourTargetAt,
     rapidStartXAt, enforceLayerDepth,
   } = deps;
@@ -38,8 +38,15 @@ const appendRegionRunOut = () => {
     const p = byZ.get(zList[i].toFixed(3));
     if (!p || p.runOut) continue;                       // řetězit doběh na doběh ne
     if (byZ.has(zList[i + 1].toFixed(3))) continue;     // úsek pokračuje sám
-    if (p.xEnd >= xTouchAt(p.z) - 0.01) continue;       // předchozí sám nic neubral
+    // „Nic neubral" = nad OFFSETOVOU čárou (odlitek může být až u ní), ne nad
+    // nakresleným obrysem: poslední vrstva Z4,932 končila na X39,656 nad
+    // nakresleným 38,57 + R, doběh se nepřidal a pod nosem zůstal oblouk
+    // (uživatel 31. 10. 2026: „zůstane rádius od nože na polotovaru").
+    if (p.xEnd >= planTouchAt(p.z) - 0.01) continue;    // předchozí sám nic neubral
     const dirRO = Math.sign(zList[i + 1] - zList[i]);   // směr marche, ne k obrobené straně
+    // Doběh tu už je (mimo mřížku — na hraně materiálu): podruhé ne. Volá se
+    // i po posledním hlídání vrstev (roughFace.js), kdy konec úseku ustoupil.
+    if (passes.some(q => q.type === 'face' && q.runOut && dirRO * (q.z - p.z) > 1e-6 && dirRO * (q.z - p.z) <= step + 1e-6)) continue;
     // AP SE MUSÍ DODRŽET. Krok doběhu se skladá z hrany materiálu a ještě
     // `faceOffsetOut` — součet může ap překročit a vrstva pak bere víc, než
     // plátek na jeden záběr unese (nález uživatele 20. 8. 2026: Z197,932 na
@@ -70,6 +77,9 @@ const appendRegionRunOut = () => {
       const span = Math.abs(zList[i + 1] - zList[i]);
       for (let t = 0.05; t <= span + 1e-9; t += 0.05) {
         const zq = zList[i] + dirRO * t;
+        // Hrana NAKRESLENÉHO materiálu — offsetovou čáru za ní řeší druhý doběh
+        // (`zFar` níž: hrana + přídavek). Hledat tu hranu offsetové čáry by ji
+        // započítalo dvakrát a druhý doběh jel vzduchem (part-25 Z194,282).
         if (castingOuterAtZ(zq) <= p.xEnd + t * tanR + 0.01) break;   // materiál skončil
         edge = zq;
       }
@@ -161,6 +171,45 @@ const appendRegionRunOut = () => {
         xStart: Math.max(rapidStartXAt(zf, sf, faceLeft ? 1 : -1), p.xEnd + clrXFC) };
       if (faceLeft) pf.faceLeft = true;
       add.push({ after: p, pass: pf });
+    }
+    // POSLEDNÍ DOBĚH DÁL PO KUŽELU, dokud nos ještě zajede do odlitku. Klesá-li
+    // odlitek za koncem úseku (oblouk), skončil poslední doběh obloukem nosu a
+    // mezi ním a offsetovou čarou zůstal klínek (uživatel 31. 10. 2026, part-25
+    // Z114,5: zbytek 45,00 × čára 45,64 — „zbytek po rádiusu špičky"). Doběh se
+    // POSUNE, nepřidá se další („místo aby ta jedna dráha šla jen dál, přidala
+    // se ještě jedna"); hrana jde po kuželu, takže za ní nic nezůstane. Nejdál
+    // ap od poslední vrstvy; jen natočená destička (kužel).
+    if (tanR > 1e-9 && rTipFC > 1e-6) {
+      const mine = add.filter(e => e.after === p).map(e => e.pass);
+      const last = mine.length ? mine[mine.length - 1] : null;
+      // Nos (kruh R) musí do pásu odlitku opravdu ZAJET (≥ 0,05 mm), ne se ho jen
+      // tečně dotknout krajem — u čela příruby by jinak doběh jel vzduchem.
+      const bites = (zn, xn) => {
+        for (let j = -8; j <= 8; j++) {
+          const dz = rTipFC * 0.9 * (j / 8);
+          const po = planOuterOrNull ? planOuterOrNull(zn + dz) : null;
+          if (po !== null && po > xn - Math.sqrt(rTipFC * rTipFC - dz * dz) + 0.05) return true;
+        }
+        return false;
+      };
+      let zBest = null;
+      for (let d = 0.1; last; d += 0.1) {
+        const zn = last.z + dirRO * d;
+        if (Math.abs(zn - zList[i]) > step + 1e-6) break;
+        if (!bites(zn, p.xEnd + Math.abs(zn - zList[i]) * tanR)) break;
+        zBest = zn;
+      }
+      if (zBest !== null) {
+        const sn = surfaceUnderInsert(zBest);
+        last.z = zBest;
+        last.xEnd = p.xEnd + Math.abs(zBest - zList[i]) * tanR;
+        last.xSurface = sn;
+        last.xStart = Math.max(rapidStartXAt(zBest, sn, faceLeft ? 1 : -1), p.xEnd + clrXFC);
+      }
+      // JEDINÝ doběh na konec úseku (uživatel 31. 10. 2026: „tři dráhy a má být
+      // jenom jedna"). Natočená destička jde hranou po kuželu, takže doběh na
+      // hraně materiálu před ním nic navíc nevezme — zůstane jen ten nejdál.
+      for (let k = add.length - 1; k >= 0; k--) if (add[k].after === p && add[k].pass !== last) add.splice(k, 1);
     }
   }
   for (let k = add.length - 1; k >= 0; k--) {

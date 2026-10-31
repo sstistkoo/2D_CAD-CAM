@@ -147,8 +147,16 @@ async function measure(name) {
   for (let z = zLo + T.dz; z < zHi; z += T.dz) {
     const r = topAt(real.loops, z);
     if (r === null) continue;
-    const m = topAt(M.loops, z);
-    if (m !== null && r - m > worstTrk) { worstTrk = r - m; worstTrkZ = z; }
+    // Tracker se měří UPROSTŘED mezi vzorky: vrcholy polotovaru leží na mřížce
+    // a sloupec přesně na čele offsetové čáry (dojezd tam končí od 31. 10. 2026)
+    // trefil u obou smyček jiný zlomek tisíciny hrany — „model 15,5, realita
+    // 17,06" na Z −5,000, ač Z −4,95 sedí na setinu (holder-*). Pod osou (X < 0)
+    // materiál není: tam se smyčky lišily jen tvarem pod osou (part-4, Z 257,5).
+    const zm = z + T.dz / 2;
+    const rm = topAt(real.loops, zm), m = topAt(M.loops, zm);
+    if (rm !== null && m !== null && Math.max(rm, 0) - Math.max(m, 0) > worstTrk) {
+      worstTrk = Math.max(rm, 0) - Math.max(m, 0); worstTrkZ = zm;
+    }
     const t = tabTopAt(T, z);
     // Výškové pole neví o materiálu za svým vzorkovaným rozsahem — porovnávat
     // se dá jen tam, kde polotovar zná.

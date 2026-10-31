@@ -29,6 +29,7 @@ import { emitBorePreDrilled } from './ops/borePreDrill.js';
 import { boreFloorBody } from './ops/boreFloor.js';
 import { emitRoughing } from './ops/roughEmit.js';
 import { emitFinish } from './ops/finishEmit.js';
+import { makeFaceTransitGuard, rapidFloorX } from './faceTransitGuard.js';
 
 export function generateGCode(S, calc) {
   return S.manualGCode.split('\n').map((line, idx) => ({ text: line, simIdx: idx }));
@@ -690,8 +691,9 @@ export function generateAutoGCode(S, calc) {
   // se rozcházela se skutečně vydaným simPath → false positives. Tohle je
   // opak: ptáme se na KONKRÉTNÍ PRÁVĚ EMITOVANÝ pohyb proti živému
   // `rapidStock`, tedy na týž vstup, jaký uvidí validátor.
+  const bodyHitsRapid = makeFaceTransitGuard(prms, () => rapidStockPlan);   // + celá destička × offsetová čára
   const holderHitsRapid = (x1, z1, x2, z2) =>
-    holderHitsStock([{ x: x1, z: z1 }, { x: x2, z: z2 }]);
+    holderHitsStock([{ x: x1, z: z1 }, { x: x2, z: z2 }]) || bodyHitsRapid(x1, z1, x2, z2);
   // Týž obrys, ale BEZ PROSTORU DESTIČKY — pro ŘEZNÉ pohyby. U hrotu se
   // držák s destičkou překrývá, jenže materiál, který tam je, ŘEŽE DESTIČKA;
   // hlásit ho jako náraz držáku je falešný poplach (táž dělba jako
@@ -973,7 +975,7 @@ export function generateAutoGCode(S, calc) {
     if (rapidHitsStock(fromX2, tz, fromX2, zBack)) return null;
     if (rapidHitsPlan(fromX2, tz, fromX2, zBack)) return null;
     if (holderHitsRapid(fromX2, tz, fromX2, zBack)) return null;
-    if (holderHitsRapid(fromX2, zBack, tx, tz)) return null;
+    if (holderHitsStock([{ x: fromX2, z: zBack }, { x: tx, z: tz }])) return null;   // ŘEZNÁ rampa: jen držák (destička řeže)
     if (approachX !== null && approachX > fromX2 + 1e-6) {
       if (rapidHitsStock(approachX, zBack, fromX2, zBack)) return null;
       if (rapidHitsPlan(approachX, zBack, fromX2, zBack)) return null;
@@ -996,7 +998,8 @@ export function generateAutoGCode(S, calc) {
   // `stopX` = odstup, na kterém se rychloposuv zastaví nad cílem (výchozí
   // Vůle + R). Volající, který VÍ, že celá kružnice nosu je u cíle ve
   // vzduchu (viz `rampEntryClear` v ops/roughEmit.js), smí poslat menší.
-  const emitDescendX = (fromX, tx, tz, touch, stopX = rapidStopX) => {
+  // `minRapidX` = níž rychloposuvem ne (celá destička, faceTransitGuard.js); zbytek jde `descend`.
+  const emitDescendX = (fromX, tx, tz, touch, stopX = rapidStopX, minRapidX = rapidFloorX(bodyHitsRapid, fromX, tx, tz)) => {
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
     // COUVNUTÍ RAMPY PATŘÍ PŘED SJEZD V X. Dokud se emitovalo až za ním,
     // vypadal příjezd takhle (nález uživatele 10. 9. 2026, „šílené dráhy"):
@@ -1015,10 +1018,12 @@ export function generateAutoGCode(S, calc) {
     };
     if (fromX - tx > 1e-6 && (rapidHitsStock(fromX, tz, tx, tz) || rapidHitsPlan(fromX, tz, tx, tz))) {
       const surf = rapidStopXAt(tz);
-      if (surf !== null) { descend(Math.min(fromX, Math.max(tx, surf))); return; }
+      if (surf !== null) { descend(Math.min(fromX, Math.max(tx, surf, minRapidX))); return; }
     }
     if (touch && fromX - tx > 1e-6) {
-      descend(fromX - tx > stopX + 1e-6 ? tx + stopX : fromX);
+      descend(Math.min(fromX, Math.max(fromX - tx > stopX + 1e-6 ? tx + stopX : fromX, minRapidX)));
+    } else if (minRapidX > tx + 1e-6 && fromX - tx > 1e-6) {
+      descend(Math.min(fromX, minRapidX));
     } else if (Math.abs(fromX - tx) > 1e-6) {
       emit(`G0 X${xDia(tx)}`);
     }
@@ -1237,7 +1242,7 @@ export function generateAutoGCode(S, calc) {
     cur, setPos, clipZGc, clipFaceRetractZ, safeRapidTo,
     emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, emitOverCutRapid, airSplitAxial,
     offsetExitZ, gcOffsetXAt, planTopXAtZ, travelTopXAtZ, trimLeadOutToStock,
-    rapidStock, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidCutArea, rapidTopX,
+    rapidStock, rapidStockPlan, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidCutArea, rapidTopX,
     rapidStopX, rapidStopZ, rapidClrZGc, rapidStopXAt, noseFrontClear,
     holderHitsStock, holderPlanAreaAt,
     noteCutMove, noteCutArc, noteCutPass,

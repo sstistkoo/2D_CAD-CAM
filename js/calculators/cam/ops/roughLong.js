@@ -106,7 +106,7 @@ export function genLongPasses(ctx) {
   // o desítky mm (reálný nález na díle uživatele: dojezd na Z42 a rampa až na
   // Z21 při konci rozsahu Z61,1).
   const rangeZLoL = machiningRange ? machiningRange.zLo : -Infinity;
-  const traceFloorL = Math.max(cylStockZ, rangeZLoL);
+  const traceFloorL = Math.max(cylStockZ - (stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z), rangeZLoL);   // dno = OFFSETOVÁ čára (31. 10. 2026: dojezd končil na Z−8,084 u nakresleného čela)
 
   // X-bounds offsetu
   let minPartX = 9999, maxPartX = -9999;
@@ -824,6 +824,8 @@ export function genLongPasses(ctx) {
       // 0,19 mm² v poloze = 0,7 mm² přejeté (díl (6), úsek 2). Proto přísněji.
       residEntryArea: orderAware ? residEntryArea : null, entryTol: 0.05, newCutArea, cutStats,
       clearX: stockClearanceIsZero(prms) ? 0 : stockClearances(prms).x,
+      // Nakreslený (ne offsetový): s offsetovou čárou zde vznikly rampy vzduchem
+      // a vrstvy před čelem (part-22, cam-stock-zero-dimension), pás se ubere i tak (31. 10. 2026).
       stockLoopRaw: stockLoopFullL,
       clearZ: stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z,
       // Nejnižší střed nosu, který dosud projel sloupcem z (podlaha vydaných průchodů).
@@ -2995,16 +2997,19 @@ export function genLongPasses(ctx) {
   // sousedními (navázání bez odjezdu, řetěz zanoření, přesun z místa, kde
   // nůž stojí) se nemění — jejich konec je začátek dalšího.
   if (ins.realStockLayers) {
-    const real = makeRealStock({ rawLoop: stockLoopFullL, footprint: toolFootprintVisual(prms) });
+    const real = makeRealStock({ rawLoop: stockLoopOffsetFullL, footprint: toolFootprintVisual(prms) });   // pravidlo 9: offsetová čára
     const idle = (a, len) => a <= 0.01 * Math.max(len, 1);
     const chainsInto = (q) => !!q && !!(q.pocketReposition || q.cleanApproach || q.emitChainFrom);
+    // S offsetovou čarou je v pásu vůle „materiál" i tam, kde ho už vzal DŘÍVĚJŠÍ průchod — měří se proto i proti nim.
+    // Průchody před i se během smyčky nemění (maže/zkracuje se jen i a výš) → podlaha předem.
+    const floors = real ? real.prefixFloors(passes.map(q => (q && q.type === 'long' && Number.isFinite(q.x) ? passPath(q) : []))) : null;
     for (let i = real ? passes.length - 1 : -1; i >= 0; i--) {
       const p = passes[i];
       if (!p || p.type !== 'long' || !Number.isFinite(p.x)) continue;
       const nextChains = chainsInto(passes[i + 1]);
       if (!p.noRetract && !nextChains && !chainsInto(p) && !(i > 0 && passes[i - 1] && passes[i - 1].noRetract)) {
         const path = passPath(p);
-        if (path.length > 0 && idle(real.cutArea(path), pathLen(path))) { passes.splice(i, 1); continue; }
+        if (path.length > 0 && idle(real.cutArea(floors.maps[i], null, floors[i]), pathLen(path))) { passes.splice(i, 1); continue; }
       }
       const lo = p.contourLeadOut;
       if (p.noRetract || nextChains || !Array.isArray(lo) || lo.length === 0) continue;

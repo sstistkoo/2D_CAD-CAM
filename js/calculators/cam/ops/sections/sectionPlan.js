@@ -88,7 +88,8 @@ export function planSections({ prms, guides, stockPathSegments, planLoop, worldP
   const merged = inner.filter((e, k) => k === 0 || e.z - inner[k - 1].z > 1);
 
   // Úseky zprava doleva (vyšší z = blíž začátku obrábění).
-  const stockTop = (z) => topXOnLoop(stockLoop, z);
+  // Vrch úseku k OFFSETOVÉ čáře — materiál končí až na ní (pravidlo 1 a 9, 31. 10. 2026).
+  const stockTop = (z) => topXOnLoop(loop, z);
   const cuts = [zHi, ...merged.map(e => e.z).reverse(), zLo];
   const sections = [];
   for (let k = 0; k + 1 < cuts.length; k++) {

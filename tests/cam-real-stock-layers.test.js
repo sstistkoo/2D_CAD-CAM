@@ -11,14 +11,17 @@
 //     (`G1 Z-62.712`),
 //   • s rε 0,8 vznikla „poslední kratší vrstva" X 5,214 v pásu vůle za koncem
 //     polotovaru a k ní rampa 5° přes celý díl (`G1 X5.214 Z-62.000`).
-// Pravidlo 9 (docs/cam-pravidla.md): co je materiál, rozhoduje nakreslený
-// polotovar, ne plánovací obrys s vůlí. Oprava: klíč plátku `realStockLayers`
-// (ops/long/realStock.js, bisekce v ops/roughLong.js).
+// Pravidlo 9 (docs/cam-pravidla.md) PŘEPSÁNO uživatelem 31. 10. 2026:
+// „ta offsetová čára je materiál … polotovar končí až u té offsetové čáry"
+// (větší odlitek se nepřekresluje, přidá se Přídavek polotovaru). Vrstvy
+// v pásu vůle před čelem tedy materiál berou; za offsetovou čárou (Z +1,
+// konec Z −63, r 11) nesmí posuvem jet nic. Klíč plátku `realStockLayers`
+// (ops/long/realStock.js) měří k offsetové čáře.
 import { describe, it, expect } from 'vitest';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { buildIsoKnife } from '../js/calculators/isoToolCatalog.js';
 
-const STOCK_R = 10, STOCK_END = -62;
+const STOCK_R = 10, STOCK_END = -62, CLR = 1;   // Vůle X/Z (výchozí 1 mm) → offsetová čára
 const shaft = (radius) => {
   const mk = (pts) => pts.map(([z, x], i) => ({ id: i + 1, type: i ? 'G1' : 'G0', x, z, r: 0, mode: 'ABS' }));
   const params = {
@@ -50,22 +53,22 @@ function roughPasses(gcode) {
 
 describe('CAM: vrstvy hrubování jen nad skutečným polotovarem (pravidlo 9)', () => {
   for (const [radius, R, floorX] of [['04', 0.4, 5.7], ['08', 0.8, 6.1]]) {
-    it(`hřídel s osazením, rε ${R}: žádná vrstva ve vůli, poslední vrstva na dně`, async () => {
+    it(`hřídel s osazením, rε ${R}: žádná vrstva za offsetovou čárou, poslední vrstva na dně`, async () => {
       const { gcode } = await runCamProg(shaft(radius));
       const passes = roughPasses(gcode);
       expect(passes.length).toBeGreaterThan(0);
       const bad = [];
       for (const p of passes) {
-        // Každý průchod musí vjet do polotovaru (čelo je v Z 0) — vrstva celá
-        // v pásu vůle před čelem nic neubere.
+        // Každý průchod musí vjet do materiálu (offsetová čára čela je v Z +1)
+        // — vrstva celá před ní nic neubere.
         const zMin = Math.min(...p.moves.map(m => m.z));
-        if (!(zMin < 0)) bad.push(`${p.title}: celý před čelem (Z ≥ ${zMin})`);
+        if (!(zMin < CLR)) bad.push(`${p.title}: celý před offsetovou čárou čela (Z ≥ ${zMin})`);
         for (const m of p.moves) {
-          // Za konec polotovaru nejede nic posuvem (střed nosu nejvýš o rε dál).
-          if (m.z < STOCK_END - R) bad.push(`${p.title}: ${m.line} za koncem polotovaru`);
-          // Podélně nad polotovarem (r 10) nic posuvem — vršek osazení je
-          // vzduch. (Odskok 45° po konci vrstvy je výjezd, ne řez.)
-          if (m.axial && m.x - R > STOCK_R + 0.01) bad.push(`${p.title}: ${m.line} nad polotovarem`);
+          // Za offsetovou čáru konce nejede nic posuvem (střed nosu nejvýš o rε dál).
+          if (m.z < STOCK_END - CLR - R - 0.01) bad.push(`${p.title}: ${m.line} za offsetovou čárou konce`);
+          // Podélně nad offsetovou čárou (r 11) nic posuvem. (Odskok 45° po
+          // konci vrstvy je výjezd, ne řez.)
+          if (m.axial && m.x - R > STOCK_R + CLR + 0.01) bad.push(`${p.title}: ${m.line} nad offsetovou čárou`);
         }
       }
       expect(bad, bad.join('\n')).toEqual([]);

@@ -21,7 +21,7 @@
 // tu byl do 26. 8. 2026 — proč zmizel, viz komentář u makeBroadPhase.
 
 import { StockModel, toolSweep, polyOffset, polyArea, polyDifference } from '../../geom/geomCore.js';
-import { buildStockLoopRaw, stockPlanLoop, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
+import { buildStockLoopRaw, stockPlanLoop, toolFootprintSlim, toolFootprintVisual, insertWorldLoop } from './materialRemoval.js';
 import { getInsert } from './inserts/index.js';
 import { radialFlip, flipLoopX } from './toolRadialFlip.js';
 
@@ -362,7 +362,17 @@ export function validateToolpath(simPath, prms, stockPathSegments, opts = {}) {
   // vyrobil hlášení, která plánovač neumí obejít, dokud `rapidStopX` neumí
   // spodní hranu destičky.
   const foot = toolFootprintVisual(prms);
-  const footShrunk = toolFootprintSlim(prms, shrink);
+  // RYCHLOPOSUV SE MĚŘÍ CELOU DESTIČKOU (požadavek uživatele 31. 10. 2026:
+  // „když projede plátek rychloposuvem přes materiál … bylo by fajn to
+  // vidět"). Štíhlá řezná stopa zná jen nos a břit; natočená SNMG má zadní
+  // roh NÍŽ než nos a ten při G0 projel polotovarem bez červené (part-25,
+  // `G0 Z20.932` podél Ø70). Při G0 nemá v materiálu co dělat žádná část
+  // destičky. Řezné bloky se dál měří stopou (`foot`), tam tělo za břitem
+  // vede vlastní stopou.
+  const insBody = insertWorldLoop(prms, !!opts.backside);
+  const footShrunk = insBody && insBody.length >= 3
+    ? (polyOffset([insBody], -shrink)[0] || insBody)
+    : toolFootprintSlim(prms, shrink);
   const holderRaw = holderWorldLoop(prms, !!opts.backside);
   const holderShrunk = holderRaw ? (polyOffset([holderRaw], -shrink)[0] || holderRaw) : null;
   // PROSTOR DESTIČKY NENÍ PROSTOR DRŽÁKU. Obrys držáku začíná ve ŠPIČCE

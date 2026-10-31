@@ -18,15 +18,22 @@ describe('dokončování: nájezd rampou i po hrubovací rampě', () => {
     const lines = gcode.split('\n');
     const fin = lines.findIndex(l => l.includes('DOKONCOVANI'));
     expect(fin).toBeGreaterThan(0);
-    let x = null, z = null, move = null;
+    // Rychloposuv se smí zastavit kousek nad rampou (celá destička nad
+    // offsetovou čarou, faceTransitGuard.js) a zbytek dojet posuvem kolmo —
+    // ten kus je ve vzduchu, nejvýš 1 mm. Hodnotí se VJEZD = první posuv s Z.
+    let x = null, z = null, move = null, radialFeed = 0;
     for (const l of lines.slice(fin + 1)) {
       const c = l.replace(/;.*$/, '');
       const mx = /X(-?[\d.]+)/.exec(c), mz = /Z(-?[\d.]+)/.exec(c);
       const nx = mx ? +mx[1] : x, nz = mz ? +mz[1] : z;
-      if (/\bG1\b/.test(c)) { move = { x0: x, z0: z, x1: nx, z1: nz }; break; }
+      if (/\bG1\b/.test(c)) {
+        if (Math.abs(nz - z) < 1e-6) radialFeed += Math.abs(nx - x);
+        else { move = { x0: x, z0: z, x1: nx, z1: nz }; break; }
+      }
       x = nx; z = nz;
     }
     expect(move).not.toBeNull();
+    expect(radialFeed).toBeLessThanOrEqual(1);
     const deg = Math.atan2(Math.abs(move.x1 - move.x0), Math.abs(move.z1 - move.z0)) * 180 / Math.PI;
     expect(deg).toBeLessThanOrEqual(getEffectivePlungeAngle(params) + 0.5);
   }, 120000);

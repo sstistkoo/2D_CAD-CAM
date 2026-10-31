@@ -7,11 +7,24 @@
 
 import { insertReachZ } from '../../toolEnvelope.js';
 
+// Spodní hrana NATOČENÉ destičky (čelně): sklon tan φ a odstup pod středem
+// nosu R/cos φ; null, když destička netvoří kužel. Sdílí hlídání držáku
+// (holderGuard.js) — tvar plátku se čte jen tady (tests/cam-insert-isolation).
+export function tiltedEdge(prms, ins) {
+  const phi = -(parseFloat(prms.toolAngle) || 0);
+  if (!(phi > 0.01 && ins && ins.hasFlankGeometry)) return null;
+  const a = Math.min(89.5, phi) * Math.PI / 180;
+  return { tan: Math.tan(a), off: Math.max(parseFloat(prms.toolRadius) || 0, 0) / Math.cos(a) };
+}
+
 export function makeEnforceLayerDepth(deps) {
   const {
-    prms, ins, passes, foundErrors, faceLeft, step, zList, xTouchAt,
-    castingOuterAtZ, castingOuterOrNull, faceOffsetOut,
+    prms, ins, passes, foundErrors, faceLeft, step, zList, xTouchAt, planTouchAt = xTouchAt,
+    castingOuterAtZ, castingOuterOrNull, rTipFC = 0,
   } = deps;
+  // Povrch neobrobeného pásu = OFFSETOVÁ ČÁRA (odlitek může být až u ní);
+  // bez ní nakreslený obrys.
+  const planOuterOrNull = deps.planOuterOrNull || castingOuterOrNull;
 // ── Hlídání destičky: NIKDY HLOUB NEŽ PŘEDCHOZÍ VRSTVA ──
 // Nakloněná destička má spodní hranu klesající od špičky k obrobené straně
 // pod úhlem natočení. Průchod proto nesmí jít hlouběji než ten předchozí:
@@ -33,6 +46,8 @@ const enforceLayerDepth = () => {
   const reachM = insertReachZ(prms, faceLeft);
   if (phiDeg > 0.01 && reachM > 1e-6) {
     const tanM = Math.tan(Math.min(89.5, phiDeg) * Math.PI / 180);
+    // Spodní hrana je tečna kružnice nosu skloněná o φ: pod středem leží o R/cos φ.
+    const edgeOff = rTipFC / Math.cos(Math.min(89.5, phiDeg) * Math.PI / 180);
     const AXIS_NO_MAT = 0.5;   // dno u osy = vzduch, ne stěna
     const byZ = new Map(passes.filter(p => p.type === 'face').map(p => [p.z.toFixed(3), p]));
     const dropM = new Set();
@@ -77,9 +92,15 @@ const enforceLayerDepth = () => {
             const zq = q.z + t * step;
             const dz = Math.abs(p.z - zq);
             if (dz > reachM + 1e-6) continue;
-            const sf = castingOuterOrNull(zq);
+            // (c) 31. 10. 2026: OPRAVDU offsetová čára (`planOuterOrNull` = vůle
+            // polotovaru), ne nakreslený obrys + přídavky DÍLU (`faceOffsetOut`),
+            // a hrana leží R/cos φ pod středem nosu, ne R. Dřív zadní hrana
+            // průchodu Z268,932 (`G1 X25.750`) sjela na Z~278 na X22,0 — pod
+            // offsetovou čáru 22,80 (uživatel: „zadní strana plátku mi zajela
+            // do materiálu").
+            const sf = planOuterOrNull(zq);
             if (sf === null || sf < AXIS_NO_MAT) continue;
-            const cand = sf + faceOffsetOut + dz * tanM;
+            const cand = sf + edgeOff + dz * tanM;
             if (cand > need) need = cand;
           }
           continue;
@@ -92,7 +113,17 @@ const enforceLayerDepth = () => {
       if (need > p.xEnd + 0.01) {
         // Zvednutí nad mez dotyku = průchod by jel vzduchem → vynechat
         // (týž rozdíl „zkráceno × vynecháno" jako u ostatních hlídání).
-        if (!p.runOut && (need >= p.xStart - 0.05 || need >= xTouchAt(p.z) - 0.01)) {
+        // Konec nad ZAČÁTKEM vynechá i doběh — jako holderGuard. Jinak doběh
+        // jel posuvem od osy ven vzduchem (nález uživatele 30. 10. 2026:
+        // `G0 X37.860` → `G1 X38.735` na Z56,932, polotovar X35,06).
+        // Vzduch = nad OFFSETOVOU čárou (`planTouchAt`), ne nad nakresleným obrysem —
+        // vrstva po kuželu, která ještě sahá do vůle, napojí kužel (bez schodku).
+        // DOBĚH se podle dotyku NOSU nevynechává: spodní hrana klesá za nosem
+        // k obrobené straně a bere pás pod poslední vrstvou, i když nos sám je
+        // nad offsetovou čarou (part-25: doběh Z−3,068 na X40,518 hranou dobere
+        // pás Z−2,5…0,1 do čáry 39,566 — bez něj tam zůstal schodek, uživatel
+        // 31. 10. 2026: „nebere to ke spodku plátku, ale ke středu rádiusu").
+        if (need >= p.xStart - 0.05 || (!p.runOut && need >= planTouchAt(p.z) - 0.01)) {
           dropM.add(p);
           droppedM++;
           // Vynechaný pás zůstává neobrobený — pro další vrstvy je to
@@ -127,9 +158,9 @@ const enforceLayerDepth = () => {
             if (dz > reachM + 1e-6) continue;
             let cand;
             if (q.raw) {
-              const sf = castingOuterOrNull(q.z);
+              const sf = planOuterOrNull(q.z);
               if (sf === null || sf < AXIS_NO_MAT) continue;
-              cand = sf + faceOffsetOut + dz * tanM;
+              cand = sf + edgeOff + dz * tanM;
             } else cand = q.x + dz * tanM;
             if (cand > need) need = cand;
           }

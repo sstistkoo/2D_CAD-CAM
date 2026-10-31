@@ -271,6 +271,20 @@ export function makeEntryRamp({
     // přejela.
     // Svíslý zápich (90°) se v Z nehne — na konec rozsahu nikdy nedojede.
     const tMax = plungeDirL.uz > 1e-9 ? (cz - rangeZLoL) / plungeDirL.uz : Infinity;
+    // Z offsetové čáry musí vyjet celý PŘEDNÍ SPODNÍ oblouk nosu (od směru
+    // jízdy po kolmici dolů), ne jen jeho střed — jinak nos u výjezdu do
+    // prázdna nechá srpek po rádiusu (uživatel 31. 10. 2026, úsek 2 u S14:
+    // `G1 X36.697 Z107.555 ; Rampa`, srpek 0,075 mm × 0,2 mm).
+    const noseOut = (p) => {
+      if (pointInLoop(p, stockLoopOffsetL) !== 'outside') return false;
+      if (!(noseR > 0)) return true;
+      for (let k = 0; k <= 6; k++) {
+        const a = (k / 6) * Math.PI / 2, c = Math.cos(a), s = Math.sin(a);
+        const q = { x: p.x + noseR * (-c * plungeDirL.ux - s * plungeDirL.uz), z: p.z + noseR * (-c * plungeDirL.uz + s * plungeDirL.ux) };
+        if (pointInLoop(q, stockLoopOffsetL) === 'inside') return false;
+      }
+      return true;
+    };
     let t = 0;
     for (let i = 0; i < 300; i++) {
       const tPrev = t;
@@ -286,7 +300,11 @@ export function makeEntryRamp({
         }
         return lo > 1e-6 ? at(lo) : null;
       }
-      if (pointInLoop(p, stockLoopOffsetL) === 'outside') return p;
+      if (noseOut(p)) {
+        let lo = tPrev, hi = t;
+        for (let k = 0; k < 20; k++) { const m = (lo + hi) / 2; if (noseOut(at(m))) hi = m; else lo = m; }
+        return at(hi);
+      }
     }
     return null;
   };

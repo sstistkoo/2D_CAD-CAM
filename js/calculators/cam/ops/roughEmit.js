@@ -19,6 +19,7 @@
 import { segmentHitsPath } from '../contourBuild.js';
 import { getInsert } from '../inserts/index.js';
 import { rapidFeedGap } from '../camMath.js';
+import { makeFaceTransitGuard } from '../faceTransitGuard.js';
 
 /**
  * @param E  sdílené emisní prostředí z `generateAutoGCode()`
@@ -30,7 +31,7 @@ export function emitRoughing(E) {
     cur, setPos, clipZGc, clipFaceRetractZ, safeRapidTo,
     emitDescendX, emitBodyX, emitLiftX, emitLeadOutLine, emitOverCutRapid, airSplitAxial,
     offsetExitZ, gcOffsetXAt, planTopXAtZ, travelTopXAtZ, trimLeadOutToStock,
-    rapidStock, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidCutArea, rapidTopX,
+    rapidStock, rapidStockPlan, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidCutArea, rapidTopX,
     rapidStopX, rapidStopZ, rapidClrZGc, rapidStopXAt, noseFrontClear,
     holderHitsStock, holderPlanAreaAt,
     noteCutMove, noteCutArc, noteCutPass,
@@ -821,9 +822,12 @@ calc.passes.forEach((pass, i) => {
     // inherentní (šířka nosu), ne order-dependent — zůstává rychloposuv.
     {
       const zFrom = cur.z, zTo = pass.z;
+      // + DRŽÁK (a celá destička) proti offsetové čáře — viz faceTransitGuard.js.
+      const transitHitsPlan = makeFaceTransitGuard(prms, rapidStockPlan);
       const travelBlocked = (x) => segmentHitsPath({ x, z: zFrom }, { x, z: zTo }, rapidBlockers)
         || rapidHitsStock(x, zFrom, x, zTo)
-        || rapidHitsPlan(x, zFrom, x, zTo);
+        || rapidHitsPlan(x, zFrom, x, zTo)
+        || transitHitsPlan(x, zFrom, x, zTo);
       const capX = Math.max(rapidTopX + rapidStopX, pass.xStart);
       let xTrav = pass.xStart;
       // Přejezd v Z se ověřuje v SKUTEČNÉ výšce nástroje: pod `cur.x` se nesjíždí
@@ -863,6 +867,11 @@ calc.passes.forEach((pass, i) => {
       // na part-18 zleva (kulatá R8) průchod Z148: sjezd na X29,65, mez
       // X40,03, držák 2× 56 mm² ve stěně (nález 30. 9. 2026).
       const xApp = Math.max(pass.xStart, pass.xEnd);
+      // `xStart` je rapid-safe pro NOS; zadní roh natočené destičky leží níž
+      // (part-25: 3,85 mm pod nosem) a sjezdem by dosedl pod offsetovou čáru
+      // (`G0 X41.370` na Z−3,068). Rychloposuv skončí nejníž, kde je CELÁ
+      // destička volná; zbytek do `xApp` dojede `emitDescendX` posuvem (i pod
+      // úhlem zanoření, je-li tam materiál) — mez počítá sám (výchozí `minRapidX`).
       if (cur.x - xApp > 1e-6) { emitDescendX(cur.x, xApp, pass.z, false); setPos(xApp, pass.z); }
     }
     // Dotyk povrchu polotovaru posuvem — ale NIKDY hlouběji, než kam má

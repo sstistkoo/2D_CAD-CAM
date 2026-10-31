@@ -64,38 +64,69 @@ const topAt = (loops, z) => {
   return top;
 };
 
+// Spodní hrana materiálu na souřadnici z (nejnižší průsečík se smyčkami).
+const bottomAt = (loops, z) => {
+  let lo = null;
+  for (const l of loops) {
+    for (let i = 0; i < l.length; i++) {
+      const a = l[i], b = l[(i + 1) % l.length];
+      if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) {
+        const x = a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
+        if (lo === null || x < lo) lo = x;
+      }
+    }
+  }
+  return lo ?? 0;
+};
+
 async function check(file) {
   const prog = JSON.parse(readFileSync(file, 'utf8'));
   const r = await runCamProg(prog);
   const P = r.params;
   const ap = parseFloat(P.depthOfCut);
+  // ČELNÍ HRUBOVÁNÍ: vrstva má hloubku v Z a průchod jede v X. Měří se stejným
+  // kódem v prohozených osách — „X" měření = Z stroje (zleva zrcadlo), „Z"
+  // měření = X stroje. Model úběru dál běží ve skutečných souřadnicích.
+  const face = P.roughingStrategy === 'face';
+  const sF = P.roughingSide === 'left' ? -1 : 1;
+  const T = face ? (p) => ({ ...p, x: sF * p.z, z: p.x }) : (p) => p;
+  const TL = face ? (loops) => loops.map(l => l.map(T)) : (loops) => loops;
   // Břit = nejnižší bod stopy nástroje pod programovaným bodem (kulatá R, polygon rádius nosu).
-  const lift = Math.max(0, -Math.min(...toolFootprint(P).map(q => q.x)));
+  const lift = Math.max(0, -Math.min(...toolFootprint(P).map(q => T(q).x)));
   const ins = getInsert(P);
   const partingOk = !!ins.cutsFullWidth;
   // P6: dovolený úhel posuvu k ose. Polygon nikdy strměji než spodní hrana.
+  // Čelně: úhel zanoření (pravidlo 6, „Čelně"); spodní hrana podélného plátku tu neplatí.
   const plungeLimit = partingOk ? 90
-    : (P.toolShape === 'polygon' ? Math.min(getEffectivePlungeAngle(P), ins.autoPlungeAngleDeg) : getEffectivePlungeAngle(P));
+    : (P.toolShape === 'polygon' && !face ? Math.min(getEffectivePlungeAngle(P), ins.autoPlungeAngleDeg) : getEffectivePlungeAngle(P));
   const allowX = parseFloat(P.allowanceX) || 0;
-  const sp = r.calcSim.simPath;
+  const spR = r.calcSim.simPath;
+  const sp = face ? spR.map(T) : spR;
   const lines = r.gcode.split('\n');
   const N = (i) => { const t = (lines[sp[i].originalLineIdx] || '').trim(); const m = /^N\d+/.exec(t); return m ? m[0] : `#${i}`; };
   const txt = (i) => (lines[sp[i].originalLineIdx] || '').trim();
 
   const rm = new MaterialRemoval(P, r.calcSim.stockPathSegments, {});
-  const part = offsetSilhouetteLoop(r.calc.contourSegments);
-  // Kam až smí dráha (střed nosu) dojet — offsetová dráha i s přídavky.
-  const { offsetXAt } = makePassHelpers(r.calc.offsetPath || []);
+  const partR = offsetSilhouetteLoop(r.calc.contourSegments);
   // Přídavek se měří KOLMO od dílu (jako offset), ne svisle — na šikmé
   // stěně je svislá vzdálenost k přídavkové čáře mnohem větší než Přídavek X.
   // + Přídavek na hotovo: hrubování ho nechává vždy (calculatePipeline), a kde
   // dokončení nejede (rozsah úseku, nedosažitelný kus), zůstane stát.
   const allow = Math.max(allowX, parseFloat(P.allowanceZ) || 0) + (parseFloat(P.finishAllowance) || 0);
-  let allowLoop = part;
-  try { const o = polyOffset([part], allow); if (o && o[0]) allowLoop = o.sort((u, v) => v.length - u.length)[0]; } catch { /* bez offsetu */ }
+  let allowLoopR = partR;
+  try { const o = polyOffset([partR], allow); if (o && o[0]) allowLoopR = o.sort((u, v) => v.length - u.length)[0]; } catch { /* bez offsetu */ }
+  const part = TL([partR])[0], allowLoop = TL([allowLoopR])[0];
+  // Kam až smí dráha (střed nosu) dojet — offsetová dráha i s přídavky.
+  // Čelně se offsetová dráha (segmenty v osách stroje) neotáčí; mez dává
+  // přídavková čára + zdvih břitu.
+  const offsetXAt = face
+    ? (z) => { const t = topXOnLoop(allowLoop, z); return t === null ? null : t + lift; }
+    : makePassHelpers(r.calc.offsetPath || []).offsetXAt;
   const dir = P.roughingSide === 'left' ? -1 : 1;
-  const order = makeOrderChecks({ ap, part, allowLoop, stockLoop: rm.baseLoop, guides: r.calc.interferenceGuides,
-    cutsFullWidth: partingOk, offsetXAt, dir, topAt, topXOnLoop, pointInLoop });
+  // P7/P8 (hrb, pořadí úseků) jsou v pravidlech jen podélně — čelně se nehodnotí.
+  const order = face ? { onPassStart: () => {}, found: { hump: [], order: [] } }
+    : makeOrderChecks({ ap, part, allowLoop, stockLoop: rm.baseLoop, guides: r.calc.interferenceGuides,
+      cutsFullWidth: partingOk, offsetXAt, dir, topAt, topXOnLoop, pointInLoop });
   let afterRapid = true;
   const found = { chip: [], air: [], plunge: [], endMid: [], thin: [] };
   const thinCand = [];
@@ -104,19 +135,22 @@ async function check(file) {
   for (let i = 1; i < sp.length; i++) {
     const a = sp[i - 1], b = sp[i];
     const len = Math.hypot(b.x - a.x, b.z - a.z);
-    if (len < 1e-9) { rm.advanceTo(sp, i); continue; }
+    if (len < 1e-9) { rm.advanceTo(spR, i); continue; }
     const before = Math.abs(rm.model.area());
-    const loopsBefore = rm.model.loops;
+    const loopsBefore = TL(rm.model.loops);
     if (b.type !== 'G0') {
       // P3 — tříska: materiál nad břitem v každém bodě pohybu (stav PŘED ním).
+      // Čelně jen podle ÚBĚRU (níž): vrstva končí o strmé zúžení a řádek pod
+      // středem nosu tam vede tělem DÍLU za stěnou — „materiál nad břitem"
+      // by započítal celý díl (part-16 N2690: 23 mm, reálně ubráno 3,0 mm).
       let worst = 0;
-      const n = Math.max(1, Math.ceil(len / SAMPLE));
+      const n = face ? -1 : Math.max(1, Math.ceil(len / SAMPLE));
       for (let k = 0; k <= n; k++) {
         const t = k / n, x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
         const top = topAt(loopsBefore, z);
         if (top !== null && top - (x - lift) > worst) worst = top - (x - lift);
       }
-      rm.advanceTo(sp, i);
+      rm.advanceTo(spR, i);
       const cut = before - Math.abs(rm.model.area());
       // P3 — TŘÍSKA PODLE ÚBĚRU (29. 9. 2026): tloušťka, kterou pohyb v některém
       // sloupci Z OPRAVDU ubral (povrch zbytku před × po). Sloupec pod středem
@@ -124,13 +158,15 @@ async function check(file) {
       // než spodek) tam není vidět — vrstva u stěny údolí tak brala dvě vrstvy
       // naráz a kontrola hlásila 0.
       if (cut > 0.05) {
-        const loopsAfter = rm.model.loops;
+        const loopsAfter = TL(rm.model.loops);
         const zA = Math.min(a.z, b.z) - lift - 0.25, zB = Math.max(a.z, b.z) + lift + 0.25;
         for (let z = zA; z <= zB + 1e-9; z += 0.25) {
           const t0 = topAt(loopsBefore, z);
           if (t0 === null) continue;
           const t1 = topAt(loopsAfter, z);
-          const d = t0 - (t1 === null ? 0 : t1);      // sloupec vybraný celý (až k ose)
+          // Sloupec vybraný celý: podélně až k ose (0); čelně až ke spodku řádku
+          // (osa měření je tam Z stroje — „0" by bylo Z 0, ne konec materiálu).
+          const d = t0 - (t1 !== null ? t1 : face ? bottomAt(loopsBefore, z) : 0);
           if (d > worst) worst = d;
         }
       }
@@ -163,7 +199,7 @@ async function check(file) {
       for (const q of pendingEnd) {
         // Materiál za koncem, a přitom by tam dráha na téže hloubce ještě mohla jet
         // (offsetová dráha tam leží pod ní) — tedy nebránila kontura ani přídavek.
-        const top = topAt(rm.model.loops, q.zN), offX = offsetXAt(q.zN);
+        const top = topAt(TL(rm.model.loops), q.zN), offX = offsetXAt(q.zN);
         if (top !== null && top > q.edge + 0.2 && (offX === null || offX < q.edge + lift - 0.2))
           found.endMid.push({ i: q.i, v: top - q.edge });
       }
@@ -171,16 +207,16 @@ async function check(file) {
       // Rychloposuv VZDUCHEM uvnitř vrstvy (stejná hloubka, jen v Z) průchod
       // nekončí — nový průchod začíná až po odjezdu/příjezdu v X.
       if (Math.abs(b.x - a.x) > 1e-6) afterRapid = true;
-      rm.advanceTo(sp, i);
+      rm.advanceTo(spR, i);
     }
   }
 
   // P7 — první vrstva pod vrcholem hrbu jede přes hrb vcelku (scripts/lib/camRuleHump.mjs).
-  found.humpBreak = checkHumpContinuity(sp, offsetXAt);
+  found.humpBreak = face ? [] : checkHumpContinuity(sp, offsetXAt);
 
   // P3 — tenká vrstva uprostřed: později na tomtéž Z jelo ještě hlouběji.
   for (const q of thinCand) {
-    const topEnd = topAt(rm.model.loops, q.z);
+    const topEnd = topAt(TL(rm.model.loops), q.z);
     if (topEnd !== null && topEnd < q.edge - 0.5) found.thin.push(q);
   }
 
@@ -194,22 +230,24 @@ async function check(file) {
   let zLo = Infinity, zHi = -Infinity;
   for (const p of part) { zLo = Math.min(zLo, p.z); zHi = Math.max(zHi, p.z); }
   let sLo = Infinity, sHi = -Infinity;
-  for (const p of rm.baseLoop || []) { sLo = Math.min(sLo, p.z); sHi = Math.max(sHi, p.z); }
+  for (const p of TL([rm.baseLoop || []])[0]) { sLo = Math.min(sLo, p.z); sHi = Math.max(sHi, p.z); }
   const zl = prog.zLimits || {};
-  const rng = zl.rangeActive && Number.isFinite(zl.rangeStart) && Number.isFinite(zl.rangeEnd)
+  const rng = !face && zl.rangeActive && Number.isFinite(zl.rangeStart) && Number.isFinite(zl.rangeEnd)
     ? [Math.min(zl.rangeStart, zl.rangeEnd), Math.max(zl.rangeStart, zl.rangeEnd)] : null;
   const fLo = rng ? Math.max(rng[0], Math.min(zLo, sLo)) : Math.min(zLo, sLo);
   const fHi = rng ? Math.min(rng[1], Math.max(zHi, sHi)) : Math.max(zHi, sHi);
   for (let z = fLo + 0.25; z < fHi; z += 0.25) {
-    const pt = topXOnLoop(allowLoop, z) ?? 0, top = topAt(rm.model.loops, z);
-    const over = top !== null ? top - pt : 0;
+    const ptRaw = topXOnLoop(allowLoop, z);
+    // Čelně: řádek nad průměrem dílu nemá přídavkovou čáru (podélně tam je osa = 0).
+    const pt = ptRaw ?? (face ? null : 0), top = topAt(TL(rm.model.loops), z);
+    const over = top !== null && pt !== null ? top - pt : 0;
     if (over > TOL_FLOOR) {
       if (!run) run = { z0: z, z1: z, max: over }; else { run.z1 = z; run.max = Math.max(run.max, over); }
     } else if (run) { floors.push(run); run = null; }
   }
   if (run) floors.push(run);
 
-  const coll = validateToolpath(sp, P, r.calcSim.stockPathSegments,
+  const coll = validateToolpath(spR, P, r.calcSim.stockPathSegments,
     { backside: P.roughingSide === 'left', maxIssues: 200 });
 
   return { name: basename(file), P, ap, found, floors, coll, N, txt, order };

@@ -432,6 +432,7 @@ export function initLiveTools(deps) {
   const drillUi = createDrillUi({
     S, root, toast: showToast, commit, saveState: deps.saveState, isoMagSlot: deps.isoMagSlot,
     openView: () => { if (!st.open) setMode('both'); },
+    closeView: () => { if (st.open) setMode('off'); },
     play: () => { renderEditor(); if (!st.open) setMode('both'); playProgram(); },
   });
 

@@ -61,6 +61,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM – čelní doběh jel posuvem od osy ven** (`cam/ops/face/layerDepth.js`): hlídání hloubky vrstev zvedlo
+  doběh na konci úseku nad jeho začátek a doběhy z vynechání vyjímalo (nález uživatele: `G0 X37.860` →
+  `G1 X38.735` na Z56,932, celý vzduchem). Konec nad začátkem teď vynechá i doběh, stejně jako hlídání držáku.
+  Fixture `part-25-face-runout-reversed`, test `tests/cam-face-runout-not-reversed.test.js`.
+- **CAM – rychloposuvy hlídají celou destičku a držák** (`cam/faceTransitGuard.js`, `cam/gcodeEmit.js`,
+  `cam/collisionValidator.js`): dřív se při G0 hlídal jen nos a břit. Natočená destička má ale zadní roh níž
+  než nos — podélně zleva drhla tělem po čele příruby (`G0 Z193.478` → `G0 X60.545`, 21,5 mm² do materiálu,
+  part-11/12/14/21), čelně sjela rohem pod offsetovou čáru. Validátor teď měří G0 celou destičkou (⛔ je to
+  vidět červeně), emise přejezd zvedne a sjezd zastaví rychloposuvem tam, kde je celá destička volná, zbytek
+  dojede posuvem. Řezná rampa vjezdu dál testuje jen držák (destička řeže). Upichovák: jen destička (plánovací
+  model má u držáku mezi zápichy fantom). `tests/cam-collision-free` zelený na všech fixtures.
+- **CAM – čelně: kužel natočené destičky bez schodů** (`cam/ops/face/holderGuard.js`, `cam/ops/face/layerDepth.js`,
+  `cam/ops/roughFace.js`): hlídání držáku bralo pod hotovou vrstvou rovné dno ve výšce středu nosu, ačkoli za
+  nosem zůstává kužel spodní hrany (o R/cos φ + t·tan φ níž) → zvedalo každou druhou vrstvu (+1,072/+1,591)
+  a na polotovaru zůstaly schody. Vrstvy po kuželu se vynechávají až nad OFFSETOVOU čarou (dotyk obrysu
+  nosu), doběh se podle nosu nevynechává (hrana za nosem bere pás) a mez nad neobrobeným pásem je offsetová
+  čára + R/cos φ (dřív nakreslený obrys + přídavky dílu → zadní hrana pod offsetovou čarou). Doběh na konci
+  úseku se posuzuje k offsetové čáře a doplní se znovu i po posledním hlídání vrstev (konec úseku tam umí
+  ustoupit) — jinak pod nosem poslední vrstvy zůstal oblouk místo pokračování kuželu.
+  Audit „nakreslený polotovar × offsetová čára“: k offsetové čáře teď rozhoduje i vynechání průchodu jako
+  „řez vzduchem“ při generování (`roughFace.js`), v hlídání destičky (`insertGuard.js`), držáku
+  (`holderGuard.js`) a zanoření kulaté (`plungeDescent.js`, dno neobrobeného pásu = offsetová čára + R, ne
+  nakreslený obrys + přídavky dílu). Např. part-16 dostal u Z108 plnou vrstvu místo doběhu.
+  Natočená destička má na konci úseku JEDINÝ doběh, posunutý po kuželu nejdál, kam nos ještě zajede do pásu
+  odlitku (nejvýš ap od poslední vrstvy) — dřív 2–3 doběhy těsně za sebou a pod posledním klínek po rádiusu
+  špičky (part-25 Z114,5). Upichovák (bez kuželu) beze změny.
+- **Podélné hrubování: materiál až po offsetovou čáru** (pravidla 1 a 9, `cam/ops/roughLong.js`,
+  `long/realStock.js`, `long/depthTabs.js`, `sections/sectionPlan.js`): dojezd na konci polotovaru jede
+  až k offsetové čáře (dřív Z −9,084 u nakresleného čela). Mazání průchodů, které nic neuberou, měří
+  materiál k offsetové čáře a proti dřívějším průchodům (podlaha spočtená jednou — opakované skládání
+  zpomalilo generování až 7×). Tabulka projetých drah má za oběma čely okraj vzduchu 20 mm a zapisuje
+  i vrstvu pravidla 7, ze které zbyla jen rampa. Vrch úseku (kreslení „Po úsecích") je na offsetové čáře.
+  Úběr skutečného polotovaru beze změny, dráhy kratší (o 1–6 %). Kulatá destička (`rule7Layers.js`)
+  dál měří „skutečný" materiál k nakreslenému polotovaru — s offsetovou čárou tam vznikaly rampy vzduchem
+  a vrstvy před čelem. Testy: pravidlo 9 přepsáno na offsetovou čáru (`cam-real-stock-layers`), model
+  zbytku se měří mezi vzorky a nad osou (`cam-strategy-residual`).
+- **Rampa do prázdna bez srpku po rádiusu** (`cam/ops/long/entryRamp.js`, `findRampOutTarget`):
+  uzavírací rampa u strmého čela polotovaru končila, jakmile z offsetové čáry vyjel STŘED nosu —
+  přední spodní oblouk nosu materiál ještě bral a zůstal srpek (díl uživatele, úsek 2 u S14:
+  `G1 X36.697 Z107.555`, 0,075 mm). Teď jede, dokud nevyjede celý oblouk (konec dopřesněn půlením);
+  na dílu uživatele dojede na hranici úseku Z 107,236. Test `cam-ramp-exit-nose`.
+- **CAM – vrtání se neukazuje při jiném obrábění** (`cam/live/liveModel.js`, `liveSection.js`, `liveDrillUi.js`,
+  `sim/drawLowerHalf.js`): díry operace Vrtání (a spodní polovina řezu) se v náhledu soustružení kreslí jen na
+  záložce Vrtání / Frézování nebo jsou-li z výkresu; při odchodu ze záložky se pohled na čelo zavře.
+- **CAM – kontrola pravidel umí čelní hrubování** (`scripts/cam_rules_check.mjs`): měří v prohozených osách
+  (hloubka vrstvy v Z), třísku čelně jen podle skutečného úběru; P7/P8 se čelně nehodnotí (pravidla jsou podélná).
 - **CAM – kolmý nájezd dokončování po hrubovací rampě** (`cam/ops/roughEmit.js`, `cam/ops/finishEmit.js`):
   hrubovací rampa průchodu s nulovým dnem se nezapisovala do zbytkového modelu emise, takže dokončování
   v koridoru své nájezdové rampy „vidělo“ materiál, rampu zahodilo a sjelo kolmo (nález uživatele, Ú2 zleva:

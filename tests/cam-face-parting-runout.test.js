@@ -34,11 +34,16 @@ describe('Čelně upichovákem (šířka 5 mm, natočení 0°)', () => {
     expect(runOut.length).toBeGreaterThan(0);
     // Doběh má smysl jen mimo mřížku: na ní by průchod vznikl sám. Krok mřížky
     // je `depthOfCut`, takže alespoň jeden doběh musí ležet mezi dvěma Z mřížky.
+    // Mez 0,01 mm (dřív 0,05): doběh na hraně materiálu smí ležet těsně u Z
+    // mřížky, kde ŽÁDNÁ vrstva není (Z194,982 × 194,932 = 0,05) — nesmí jen
+    // splývat s mřížkou. Od 31. 10. 2026 (mez vzduchu k offsetové čáře) dostal
+    // úsek u Z108 místo doběhu 108,532 plnou vrstvu 107,932, která bere
+    // nakreslený materiál.
     const ap = parseFloat(prms0.depthOfCut);
     const offGrid = runOut.filter(p => {
       const near = face.filter(q => q !== p && !q.runOut)
         .map(q => Math.abs(((p.z - q.z) % ap + ap) % ap));
-      return near.every(d => Math.min(d, ap - d) > 0.05);
+      return near.every(d => Math.min(d, ap - d) > 0.01);
     });
     expect(offGrid.length).toBeGreaterThan(0);
   }, 120000);

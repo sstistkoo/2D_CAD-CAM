@@ -7,11 +7,13 @@
 
 import { topXOnLoop } from '../../camMath.js';
 import { insertBodyZ } from '../../materialRemoval.js';
-import { HOLDER_CLAMP_MARGIN, holderBottomProfile } from '../../toolEnvelope.js';
+import { HOLDER_CLAMP_MARGIN, holderBottomProfile, insertReachZ } from '../../toolEnvelope.js';
+import { getInsert } from '../../inserts/index.js';
+import { tiltedEdge } from './layerDepth.js';
 
 export function makeHolderGuardFace(deps) {
   const {
-    prms, passes, foundErrors, faceLeft, step, zListAll, xTouchAt,
+    prms, passes, foundErrors, faceLeft, step, zListAll, xTouchAt, planTouchAt = xTouchAt,
     offsetXAt, castingOuterOrNull, clrXFC, planLoopFC,
   } = deps;
 // ── Hlídání DRŽÁKU (čelně) ────────────────────────────────────────
@@ -53,7 +55,17 @@ const holderGuardFace = (report) => {
     // vynechaný — tam stojí SYROVÝ polotovar (`raw`, vzorkuje se až
     // v dotazu: přes šířku pásu se obrys odlitku může zlomit o desítky
     // mm — reálný nález, hrana Ø129 uprostřed pásu jinak propadla).
-    const stair = [];                          // { zLo, zHi, x } | { zLo, zHi, raw }
+    const stair = [];                          // { zLo, zHi, x, zp } | { zLo, zHi, raw }
+    // DNO NATOČENÉ DESTIČKY NENÍ ROVNÉ. Za nosem (k obrobené straně) zůstává
+    // kužel spodní hrany: o R/cos φ pod středem nosu a dál klesá o t·tan φ.
+    // Rovné dno ve výšce středu viděl držák o 0,8–1,9 mm výš, než materiál
+    // je, a zvedal každou DRUHOU vrstvu (+1,072/+1,591 → schody na kuželu,
+    // uživatel 31. 10. 2026, part-25 Z269–241; čistý 15° řetěz validátor
+    // vidí bez kolize). Jen v dosahu hrany (`insertReachZ`), dál rovné dno.
+    const edgeH = tiltedEdge(prms, getInsert(prms));
+    const tiltH = !!edgeH;
+    const tanH = tiltH ? edgeH.tan : 0, edgeOffH = tiltH ? edgeH.off : 0;
+    const reachH = tiltH ? insertReachZ(prms, faceLeft) : 0;
     const stairAt = (zq) => {
       let top = null;
       for (const s of stair) {
@@ -92,6 +104,8 @@ const holderGuardFace = (report) => {
           // o tu hloubku dřív — nález uživatele 6. 10. 2026: čelo PSKNR
           // nedojelo na osu (X 2,14 / 3,94 / 6,08…).
           x = s.x > 1e-6 ? s.x : null;
+          const t = s.zp === undefined ? null : Math.abs(zq - s.zp);
+          if (x !== null && tiltH && t !== null && t <= reachH) x -= edgeOffH + t * tanH;
         }
         if (x !== null && (top === null || x > top)) top = x;
       }
@@ -192,7 +206,8 @@ const holderGuardFace = (report) => {
         // to ale neznamená řez vzduchem: plátek je široký a řeže svou VZDÁLENOU
         // stranou nad materiálem, který stojí dál — právě proto doběh existuje.
         // Lokální mez dotyku by ho zahodila.
-        if (need >= p.xStart - 0.05 || (need >= xTouchAt(p.z) - 0.01 && !p.runOut)) {
+        // Vzduch = nad OFFSETOVOU čárou (odlitek může být až u ní).
+        if (need >= p.xStart - 0.05 || (need >= planTouchAt(p.z) - 0.01 && !p.runOut)) {
           drop.add(p);
           holderDropped++;
         } else {
@@ -222,7 +237,7 @@ const holderGuardFace = (report) => {
       // (part-18 13. 10. 2026: +155 mm² zbytku).
       else if (!p.contourLeadOut) {
         const top = planLoopFC ? topXOnLoop(planLoopFC, p.z) : null;
-        stair.push({ ...entry, x: top !== null ? Math.min(p.xEnd, top) : p.xEnd });
+        stair.push({ ...entry, zp: p.z, x: top !== null ? Math.min(p.xEnd, top) : p.xEnd });
       }
     }
     if (drop.size > 0) {

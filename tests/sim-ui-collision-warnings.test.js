@@ -53,10 +53,10 @@ describe('simulátor — varování kolizí', () => {
     await loadProgram();
     expect(collisions()).toMatchInlineSnapshot(`
       [
-        "⛔ Rychloposuv materiálem (řádek 2, X100.0 Z10.0) — průnik ~71.7 mm².",
-        "⛔ Rychloposuv materiálem (řádek 4, X50.0 Z-25.0) — průnik ~2.9 mm².",
+        "⛔ Rychloposuv materiálem (řádek 2, X100.0 Z10.0) — průnik ~111.4 mm².",
+        "⛔ Rychloposuv materiálem (řádek 4, X50.0 Z-25.0) — průnik ~16.0 mm².",
         "⛔ Držák v kolizi se zbývajícím materiálem (řádek 6, X20.0 Z5.0) — průnik ~501.4 mm².",
-        "⛔ Rychloposuv materiálem (řádek 7, X20.0 Z-60.0) — průnik ~108.8 mm².",
+        "⛔ Rychloposuv materiálem (řádek 7, X20.0 Z-60.0) — průnik ~134.3 mm².",
       ]
     `);
     expect(document.querySelector('.cam-start-popup')).toBeNull();

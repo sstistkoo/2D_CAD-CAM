@@ -178,6 +178,17 @@ export function getLiveOps(prms) {
   return Array.isArray(prms.liveOps) ? prms.liveOps.map(normalizeLiveOp) : [];
 }
 
+/**
+ * Mají se operace poháněných nástrojů v řezu SOUSTRUŽENÍ ukazovat? Jen na
+ * záložce Vrtání / Frézování (`drillActive`), nebo když díry pocházejí
+ * z výkresu (`fromCad`). Ručně nastavené vrtání se jinak do hrubování
+ * nepletlo (uživatel 31. 10. 2026: „vrtání jsem nejel … nemělo by to tam
+ * jít ani vidět, až když přehodím na vrtání nebo to mám nakreslené").
+ */
+export function liveShownInTurning(prms) {
+  return !!prms && (!!prms.drillActive || getLiveOps(prms).some(o => o.fromCad));
+}
+
 /** Řádky „úhel; hodnota" → [{ a, v }]. Oddělovač ; , mezera nebo tab. */
 export function parsePointList(text) {
   const out = [];

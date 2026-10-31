@@ -1,0 +1,627 @@
+{
+ "__camprog": 1,
+ "pathLogicVersion": 3,
+ "savedAt": "2026-10-31T14:47:47.067Z",
+ "params": {
+  "machineType": "LIMS=2000",
+  "mode": "RADIUS",
+  "toolName": "PSBNR2525M12",
+  "speed": 200,
+  "feed": 0.24,
+  "depthOfCut": 4,
+  "retractDistance": 2,
+  "rapidFeed": 6000,
+  "retractAngle": 45,
+  "allowanceX": 0,
+  "allowanceZ": 0,
+  "toolRadius": 0.8,
+  "finishAllowance": 0.2,
+  "doFinishing": true,
+  "roughingStrategy": "longitudinal",
+  "finishOnly": false,
+  "roughingSide": "right",
+  "stockMode": "casting",
+  "stockMargin": 5,
+  "stockDiameter": 111,
+  "stockLength": 5,
+  "stockFace": 349,
+  "safeX": 150,
+  "safeZ": 5,
+  "machineStructure": "lathe",
+  "controlSystem": "sinumerik",
+  "autoProfile": true,
+  "toolShape": "polygon",
+  "toolLength": 12.7,
+  "toolAngle": 15,
+  "toolTipAngle": 90,
+  "toolTipMirror": false,
+  "toolVbdCode": "SNMG120408",
+  "toolClearanceAngle": 0,
+  "holderWidth": 25,
+  "holderLength": 150,
+  "holderHand": "R",
+  "holderProfile": {
+   "sideA": [
+    {
+     "x": 10.477,
+     "z": 3.014
+    },
+    {
+     "x": 21.227,
+     "z": 10.542
+    },
+    {
+     "x": 21.227,
+     "z": 150
+    },
+    {
+     "x": -3.773,
+     "z": 150
+    },
+    {
+     "x": -3.773,
+     "z": 15.966
+    },
+    {
+     "x": -2.628,
+     "z": 10.58
+    },
+    {
+     "x": 10.477,
+     "z": 3.014
+    }
+   ],
+   "sideB": []
+  },
+  "knifeAngle": 270,
+  "holderInflate": 0,
+  "holderInflateAll": false,
+  "toolTipFlat": 0.1,
+  "partOffZ": null,
+  "partingApproachFeed": 1,
+  "partOffSmooth": false,
+  "partOffStartX": 0,
+  "partOffInner": false,
+  "grooveWidth": 0,
+  "grooveBottomX": 0,
+  "grooveHoleD": 0,
+  "grooveChamfer": 0,
+  "partOffFace": false,
+  "faceGrooveD1": 0,
+  "faceGrooveD2": 0,
+  "faceGrooveDepth": 0,
+  "finishingSlot": null,
+  "threadActive": false,
+  "threadName": "",
+  "threadType": "mc",
+  "threadDiameter": 20,
+  "threadPitch": 2.5,
+  "threadAngle": 60,
+  "threadDepth": 1.534,
+  "threadExternal": true,
+  "threadZStart": 0,
+  "threadZEnd": -20,
+  "threadRunIn": 3,
+  "threadRunOut": 0,
+  "threadPasses": 0,
+  "threadSpringPasses": 1,
+  "threadTaperRatio": 0,
+  "threadInfeed": "radial",
+  "drillActive": false,
+  "drillZStart": null,
+  "drillDepth": 20,
+  "drillZEnd": null,
+  "drillDepthFullDia": false,
+  "drillClearance": 2,
+  "drillPeck": 5,
+  "drillChipMode": "clear",
+  "drillRetract": 1,
+  "drillDwell": 0,
+  "boreActive": false,
+  "borePreDrill": false,
+  "borePreDrillSlot": null,
+  "borePreTip": 0,
+  "boreSource": "cylinder",
+  "boreFinish": false,
+  "boreZStart": 0,
+  "boreDiameter": 30,
+  "boreDepth": 20,
+  "borePreDiameter": 20,
+  "borePreDepth": 25,
+  "entryAngle": 30,
+  "entryAngleAuto": true,
+  "respectInsertGeometry": true,
+  "plungeRoughing": true,
+  "pocketFinishAtOnce": true,
+  "noStepRoughing": true,
+  "noStepRoughingFace": true,
+  "orderAwareHolder": true,
+  "rapidClearance": 1,
+  "rapidFeedGap": 1,
+  "stockClearX": null,
+  "stockClearZ": null,
+  "holderAutoComplete": true,
+  "regionRoughing": true,
+  "booleanRoughing": false,
+  "liveOps": [],
+  "liveKind": null
+ },
+ "contourPoints": [
+  {
+   "id": 1793458038705,
+   "type": "G0",
+   "x": 0,
+   "z": 346.371,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038706,
+   "type": "G1",
+   "x": 9.117,
+   "z": 345.397,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038707,
+   "type": "G1",
+   "x": 9.117,
+   "z": 243.123,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038708,
+   "type": "G1",
+   "x": 50.081,
+   "z": 234.99,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038709,
+   "type": "G1",
+   "x": 50.081,
+   "z": 221.135,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038710,
+   "type": "G1",
+   "x": 30.156,
+   "z": 213.667,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038711,
+   "type": "G1",
+   "x": 30.156,
+   "z": 205.009,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038712,
+   "type": "G1",
+   "x": 6.744,
+   "z": 205.009,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038713,
+   "type": "G1",
+   "x": 6.744,
+   "z": 165.945,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038714,
+   "type": "G1",
+   "x": 8.743,
+   "z": 163.945,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038715,
+   "type": "G1",
+   "x": 8.743,
+   "z": 149.544,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038716,
+   "type": "G1",
+   "x": 8.743,
+   "z": 138.253,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038717,
+   "type": "G1",
+   "x": 38.574,
+   "z": 137.509,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038718,
+   "type": "G1",
+   "x": 40.118,
+   "z": 128.86,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038719,
+   "type": "G1",
+   "x": 40.118,
+   "z": 125.462,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038720,
+   "type": "G3",
+   "x": 33.477,
+   "z": 116.044,
+   "r": 10,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038721,
+   "type": "G1",
+   "x": 14.22,
+   "z": 109.175,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038722,
+   "type": "G2",
+   "x": 7.579,
+   "z": 99.757,
+   "r": 10,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038723,
+   "type": "G1",
+   "x": 7.579,
+   "z": 84.177,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038724,
+   "type": "G2",
+   "x": 15.585,
+   "z": 74.378,
+   "r": 10,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038725,
+   "type": "G1",
+   "x": 22.252,
+   "z": 73.021,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038726,
+   "type": "G3",
+   "x": 27.056,
+   "z": 67.142,
+   "r": 6,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038727,
+   "type": "G1",
+   "x": 27.056,
+   "z": 55.47,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038728,
+   "type": "G3",
+   "x": 25.516,
+   "z": 51.456,
+   "r": 6,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038729,
+   "type": "G2",
+   "x": 27.279,
+   "z": 16.913,
+   "r": 24.495,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038730,
+   "type": "G3",
+   "x": 30.566,
+   "z": 9.502,
+   "r": 10,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038731,
+   "type": "G1",
+   "x": 30.566,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458038732,
+   "type": "G1",
+   "x": 0,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  }
+ ],
+ "stockPoints": [
+  {
+   "id": 1793458043838002,
+   "type": "G0",
+   "x": 0,
+   "z": 348.128,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838003,
+   "type": "G1",
+   "x": 9.37,
+   "z": 345.556,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838004,
+   "type": "G1",
+   "x": 9.37,
+   "z": 246.695,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838005,
+   "type": "G2",
+   "x": 9.927,
+   "z": 246.007,
+   "r": 0.764,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838006,
+   "type": "G1",
+   "x": 50.158,
+   "z": 235.196,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838007,
+   "type": "G1",
+   "x": 50.13,
+   "z": 220.366,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838008,
+   "type": "G1",
+   "x": 43.639,
+   "z": 196.229,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838009,
+   "type": "G1",
+   "x": 16.794,
+   "z": 196.228,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838010,
+   "type": "G1",
+   "x": 16.793,
+   "z": 149.547,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838011,
+   "type": "G2",
+   "x": 18.242,
+   "z": 147.66,
+   "r": 1.95,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838012,
+   "type": "G1",
+   "x": 37.75,
+   "z": 142.433,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838013,
+   "type": "G1",
+   "x": 47.698,
+   "z": 141.802,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838014,
+   "type": "G1",
+   "x": 48.168,
+   "z": 128.862,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838015,
+   "type": "G3",
+   "x": 47.956,
+   "z": 122.701,
+   "r": 31.863,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838016,
+   "type": "G3",
+   "x": 36.182,
+   "z": 108.461,
+   "r": 18.05,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838017,
+   "type": "G1",
+   "x": 16.926,
+   "z": 101.594,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838018,
+   "type": "G2",
+   "x": 15.629,
+   "z": 99.755,
+   "r": 1.951,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838019,
+   "type": "G1",
+   "x": 15.629,
+   "z": 84.18,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838020,
+   "type": "G2",
+   "x": 17.192,
+   "z": 82.266,
+   "r": 1.951,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838021,
+   "type": "G1",
+   "x": 24.639,
+   "z": 80.728,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838022,
+   "type": "G3",
+   "x": 35.106,
+   "z": 67.143,
+   "r": 14.05,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838023,
+   "type": "G1",
+   "x": 35.106,
+   "z": 55.469,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838024,
+   "type": "G3",
+   "x": 31.147,
+   "z": 45.666,
+   "r": 14.175,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838025,
+   "type": "G2",
+   "x": 27.346,
+   "z": 33.561,
+   "r": 16.506,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838026,
+   "type": "G2",
+   "x": 33.259,
+   "z": 22.335,
+   "r": 16.506,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838027,
+   "type": "G3",
+   "x": 38.616,
+   "z": 9.503,
+   "r": 18.05,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838028,
+   "type": "G1",
+   "x": 38.587,
+   "z": -8.045,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793458043838029,
+   "type": "G1",
+   "x": 0,
+   "z": -8.046,
+   "r": 0,
+   "mode": "ABS"
+  }
+ ],
+ "borePoints": [],
+ "gcodeDirty": false,
+ "gcodeKey": "d42d5a9b",
+ "activePart": 0,
+ "opContourKey": "G0:0.00,346.37,0.00|G1:9.12,345.40,0.00|G1:9.12,243.12,0.00|G1:50.08,234.99,0.00|G1:50.08,221.13,0.00|G1:30.16,213.67,0.00|G1:30.16,205.01,0.00|G1:6.74,205.01,0.00|G1:6.74,165.94,0.00|G1:8.74,163.94,0.00|G1:8.74,149.54,0.00|G1:8.74,138.25,0.00|G1:38.57,137.51,0.00|G1:40.12,128.86,0.00|G1:40.12,125.46,0.00|G3:33.48,116.04,10.00|G1:14.22,109.17,0.00|G2:7.58,99.76,10.00|G1:7.58,84.18,0.00|G2:15.59,74.38,10.00|G1:22.25,73.02,0.00|G3:27.06,67.14,6.00|G1:27.06,55.47,0.00|G3:25.52,51.46,6.00|G2:27.28,16.91,24.50|G3:30.57,9.50,10.00|G1:30.57,0.00,0.00|G1:0.00,0.00,0.00",
+ "flipX": false,
+ "flipZ": false,
+ "guideLines": [],
+ "zLimits": {
+  "chuck": -47.13,
+  "tail": 497.48,
+  "chuckActive": true,
+  "tailActive": true,
+  "rangeStart": 195.278,
+  "rangeEnd": 107.236,
+  "rangeActive": true
+ },
+ "showZLimits": "on",
+ "xLimits": {
+  "rangeXMin": null,
+  "rangeXMax": null,
+  "active": false
+ },
+ "showSimPath": "all",
+ "showRemoval": true,
+ "showRefGuides": false
+}

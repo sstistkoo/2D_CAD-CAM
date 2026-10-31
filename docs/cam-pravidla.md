@@ -17,7 +17,10 @@ z materiálu.**
 - Čára zanoření vede od kontury šikmo nahoru pod úhlem zanoření.
 - Hranice úseku leží na **patě** té čáry (kde začíná na kontuře).
 - Čára, která z materiálu nevyjede, díl nedělí.
-- Materiál = nakreslený polotovar.
+- Materiál = polotovar až po **offsetovou čáru** (nakreslený polotovar +
+  Přídavek X/Z polotovaru), stejně jako v pravidle 9 (uživatel 31. 10. 2026:
+  „udělat, že materiál je až po tu offsetovou čáru"). Hranice úseku leží tam,
+  kde čára zanoření vyjede z offsetové čáry, a vrch úseku je na ní.
 - Jiné dělení neexistuje — **nikdy** uprostřed údolí ani uprostřed hrbu.
 - **Upichovák podélně nehrubuje** (rozhodnutí uživatele 25. 9. 2026) —
   hrubuje se jím jen čelně, tvar objede dokončení. Úseky proto nemá.
@@ -156,20 +159,23 @@ každý celý najednou (po vrstvách ap až dolů), pak další.**
 
 ---
 
-## Pravidlo 9 — Materiál je skutečný polotovar ✅ schváleno
+## Pravidlo 9 — Polotovar končí až na offsetové čáře ✅ schváleno
 
 **Kde vrstva začíná, kde končí a jestli je před ní vzduch, rozhoduje
-skutečný (nakreslený) polotovar, ne plánovací obrys s vůlí.**
+offsetová čára polotovaru (nakreslený polotovar + Přídavek X/Z polotovaru,
+tečkovaná čára). Ta čára JE materiál.**
 
-- Plánovací obrys (polotovar + vůle, tečkovaná čára) určuje jen, kde
-  končí rychloposuv a odkud se jede posuvem.
-- Kus vrstvy je materiál, jen když z polotovaru opravdu něco ubere.
-  Pouhý dotek nosu (vůle, strmá stěna zbytku po sousedním úseku) nestačí.
-- Vrstva, která celkově nic neubere, se nevydá — ani krátký kus, ani
-  vrstva, která jen setře setiny po vrstvě na schodu.
-- Schváleno uživatelem 29. 9. 2026 (díly `projekt_2026-09-29 (7)–(9)`:
-  vrstvy začínaly ve vůli zbytku po úseku 1, zanořovaly se do vzduchu
-  a pak přejížděly celé údolí rychloposuvem).
+- Uživatel 31. 10. 2026: *„ta offsetová čára je materiál … když je materiál
+  větší, tak místo aby se překresloval výkres s polotovarem, tak se přidá
+  přídavek, a to je ta offsetová čára — takže polotovar končí až u té
+  offsetové čáry."* Nahrazuje znění z 29. 9. 2026 („rozhoduje nakreslený
+  polotovar").
+- Platí pro všechny operace (podélně, čelně, zleva, dokončování, doběhy
+  a dojezdy na konci úseku i za koncem dílu).
+- Kus vrstvy je materiál, jen když z odlitku velkého až po offsetovou čáru
+  opravdu něco ubere. Pouhý dotek nosu (tečně, krajem) nestačí.
+- Vrstva, která neubere nic ani z odlitku až po offsetovou čáru, se nevydá —
+  ani krátký kus, ani vrstva, která jen setře setiny po vrstvě na schodu.
 
 ## Pravidlo 10 — Vjezd do vrstvy ✅ schváleno
 

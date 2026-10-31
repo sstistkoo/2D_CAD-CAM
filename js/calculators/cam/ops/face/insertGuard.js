@@ -13,6 +13,8 @@ export function guardInsertFace(deps) {
     prms, ins, passes, foundErrors, faceLeft, step, offsetXAt, xTouchAt,
     castingOuterAtZ, rapidStartXAt,
   } = deps;
+  // „Vzduch" = nad OFFSETOVOU čárou (odlitek může být až u ní), viz roughFace.js.
+  const planTouchAt = deps.planTouchAt || xTouchAt;
 // ── Hlídání geometrie destičky (čelně) ──
 // Spodní hrana destičky se naklání pod vodorovnou o |natočení|
 // (při čelním hrubování bývá natočení záporné) → průchody končící
@@ -49,7 +51,7 @@ if (prms.respectInsertGeometry && ins.hasFlankGeometry) {
       if (xE > p.xEnd + 0.01) {
         // Zvednutí NAD mez dotyku = průchod by jel vzduchem nad polotovarem;
         // to není zkrácení, ale vynechání (viz totéž u hlídání držáku).
-        if (xE >= p.xStart - 0.05 || xE >= xTouchAt(p.z) - 0.01) {
+        if (xE >= p.xStart - 0.05 || xE >= planTouchAt(p.z) - 0.01) {
           passes.splice(pi, 1);
           faceDropped++;
           continue;

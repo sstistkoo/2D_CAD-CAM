@@ -112,8 +112,10 @@ export function makeRealStock({ rawLoop, footprint }) {
 
   // Plocha (mm²) SKUTEČNÉHO polotovaru, kterou dráha `segs` ubere a kterou
   // nevzala už dráha `floorSegs` (vlastní dřívější kus téhož průchodu).
-  const cutArea = (segs, floorSegs = null) => {
-    const own = lowMap(segs);
+  // `base` = předpočtená podlaha (Float64Array z `prefixFloors`) navíc k `floorSegs`;
+  // `segs` smí být i hotová sloupcová mapa dráhy (`floors.maps[k]`).
+  const cutArea = (segs, floorSegs = null, base = null) => {
+    const own = segs instanceof Map ? segs : lowMap(segs);
     const floor = floorSegs && floorSegs.length ? lowMap(floorSegs) : null;
     let area = 0;
     for (const [i, low] of own) {
@@ -121,12 +123,28 @@ export function makeRealStock({ rawLoop, footprint }) {
       if (t === null || t === undefined) continue;
       let ceil = t;
       if (floor) { const f = floor.get(i); if (f !== undefined && f < ceil) ceil = f; }
+      if (base && base[i] < ceil) ceil = base[i];
       const thick = ceil - Math.max(low, 0);
       if (thick > 0) area += thick * H;
     }
     return area;
   };
-  return { cutArea };
+  // Podlaha PRVNÍCH k drah pro každé k (sloupcové minimum, spočtené jednou):
+  // `floors[k]` = co vzaly dráhy 0 … k−1. Skládat dráhy všech dřívějších
+  // průchodů znovu pro každý průchod zpomalilo generování 3–7× (31. 10. 2026).
+  const prefixFloors = (paths) => {
+    const floors = new Array(paths.length + 1);
+    floors.maps = paths.map(lowMap);
+    let cur = new Float64Array(n).fill(Infinity);
+    floors[0] = cur;
+    for (let k = 0; k < paths.length; k++) {
+      const next = Float64Array.from(cur);
+      for (const [i, low] of floors.maps[k]) if (low < next[i]) next[i] = low;
+      floors[k + 1] = cur = next;
+    }
+    return floors;
+  };
+  return { cutArea, prefixFloors };
 }
 
 // Délka dráhy (úsečky i oblouky po tětivě — na prah stačí).

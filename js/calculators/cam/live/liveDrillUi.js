@@ -41,7 +41,7 @@ const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 
 /**
  * @param d { S, root, toast, commit(mutate), saveState, isoMagSlot(rec, T),
- *            openView(), play() — ▶ simulace programu }
+ *            openView(), closeView(), play() — ▶ simulace programu }
  * @returns {{ toggle(oi), refresh(), drillAll(kind) }}
  */
 export function createDrillUi(d) {
@@ -280,6 +280,15 @@ export function createDrillUi(d) {
     return h + ncHtml();
   }
   let present = false;
+  // Odchod ze záložky Vrtání / Frézování: pohled na čelo (bokorys) se zavře —
+  // s jiným obráběním nemá co dělat (uživatel 31. 10. 2026: „když přepnu
+  // z vrtání na hrubování, ať vrtání zmizí a ukáže se nárys"). Díry
+  // z VÝKRESU patří k dílu, s nimi pohled zůstane.
+  const leave = () => {
+    if (!present) return;
+    present = false;
+    if (d.closeView && !getLiveOps(S.params).some(o => o.fromCad)) d.closeView();
+  };
   function fillBox(box, html) {
     if (box.innerHTML === html) return;
     // Rozbalené části (Výstup NC, kalibrace…) zůstanou rozbalené.
@@ -289,7 +298,7 @@ export function createDrillUi(d) {
   }
   function fillSection() {
     const dBox = root.querySelector('.cam-livedrill'), mBox = root.querySelector('.cam-livemill');
-    if (!dBox && !mBox) { present = false; return; }
+    if (!dBox && !mBox) { leave(); return; }
     if (dBox) fillBox(dBox, sectionHtml());
     // Pole středové díry v ose jen, když se opravdu vrtá v ose.
     const axisBox = root.querySelector('.cam-drill-axis');
@@ -302,7 +311,7 @@ export function createDrillUi(d) {
   if (side) {
     new MutationObserver(() => {
       const box = root.querySelector('.cam-livedrill, .cam-livemill');
-      if (!box) { present = false; return; }
+      if (!box) { leave(); return; }
       if (!box.firstChild || !present) fillSection();
     }).observe(side, { childList: true, subtree: true });
     side.addEventListener('click', e => {
