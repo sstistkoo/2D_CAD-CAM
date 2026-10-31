@@ -624,8 +624,10 @@ export function genFacePasses(ctx) {
   const holderGuardFace = makeHolderGuardFace({
     prms, passes, foundErrors, faceLeft, step, zListAll, xTouchAt, planTouchAt,
     offsetXAt, castingOuterOrNull, clrXFC, planLoopFC });
-  const runOutAdded = appendRegionRunOut();
-  if (runOutAdded > 0) foundErrors.push({ type: 'warning', msg: `Doběh na konci úseku: ${runOutAdded} průchodů přidáno, aby na koncích úseků nezůstal schodek.` });
+  let runOutAdded = appendRegionRunOut();
+  const runOutMsg = () => `Doběh na konci úseku: ${runOutAdded} průchodů přidáno, aby na koncích úseků nezůstal schodek.`;
+  const runOutWarn = runOutAdded > 0 ? { type: 'warning', msg: runOutMsg() } : null;
+  if (runOutWarn) foundErrors.push(runOutWarn);
   // Zanoření do plného materiálu nejvýš o ap pod úhlem zanoření — viz
   // ops/face/plungeDescent.js. Před držákem i za ním: obě hlídání hloubku jen
   // zvedají a držák musí vidět konečná dna (schodiště), jinak by počítal
@@ -641,8 +643,15 @@ export function genFacePasses(ctx) {
   // se měří k offsetové čáře) a konec úseku tím ustoupí — doběh přidaný výš
   // pak chybí a pod nosem zůstane oblouk (uživatel 31. 10. 2026, part-25
   // Z4,932: „zůstane rádius od nože na polotovaru"). Doplnit znovu na NOVÉ
-  // konce úseků; doběh jde po kuželu, takže jen projde stejnými hlídáními.
-  if (appendRegionRunOut() > 0) { holderGuardFace(true); enforceLayerDepth(); }
+  // konce úseků a projít TATÁŽ hlídání (u destičky bez kuželu jde doběh na
+  // cíl kontury, takže i omezení sjezdu).
+  const runOutLate = appendRegionRunOut();
+  if (runOutLate > 0) { limitDescent(true); holderGuardFace(true); enforceLayerDepth(); }
+  if (runOutLate > 0) {
+    runOutAdded += runOutLate;
+    if (runOutWarn) runOutWarn.msg = runOutMsg();
+    else foundErrors.push({ type: 'warning', msg: runOutMsg() });
+  }
   // Dojezd do mezery po vyhozeném průchodu by jel do neobrobeného materiálu.
   dropLeadOutOverGap({ passes, before: zsBeforeGuards, faceLeft, step });
 

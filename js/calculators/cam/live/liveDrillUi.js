@@ -283,11 +283,14 @@ export function createDrillUi(d) {
   // Odchod ze záložky Vrtání / Frézování: pohled na čelo (bokorys) se zavře —
   // s jiným obráběním nemá co dělat (uživatel 31. 10. 2026: „když přepnu
   // z vrtání na hrubování, ať vrtání zmizí a ukáže se nárys"). Díry
-  // z VÝKRESU patří k dílu, s nimi pohled zůstane.
+  // z VÝKRESU patří k dílu, s nimi pohled zůstane. Zavírá se jen pohled, který
+  // otevřela tahle záložka — ručně otevřený předtím zůstane otevřený.
+  let openedHere = false;
   const leave = () => {
     if (!present) return;
     present = false;
-    if (d.closeView && !getLiveOps(S.params).some(o => o.fromCad)) d.closeView();
+    if (openedHere && d.closeView && !getLiveOps(S.params).some(o => o.fromCad)) d.closeView();
+    openedHere = false;
   };
   function fillBox(box, html) {
     if (box.innerHTML === html) return;
@@ -304,7 +307,7 @@ export function createDrillUi(d) {
     const axisBox = root.querySelector('.cam-drill-axis');
     if (axisBox) axisBox.hidden = liveDrillFromCad(S.params);
     if (mBox) fillBox(mBox, millSectionHtml());
-    if (!present) { present = true; d.openView(); }   // přepnuto na záložku Vrtání / Frézování
+    if (!present) { present = true; openedHere = d.openView() === true; }   // přepnuto na záložku Vrtání / Frézování
   }
   // Panel parametrů se překresluje celý — sekci doplnit, kdykoli se objeví.
   const side = root.querySelector('.cam-sim-sidebar');

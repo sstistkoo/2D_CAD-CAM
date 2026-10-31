@@ -15233,7 +15233,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-25-face-runout-reverse
   "Tvar destičky (vrchol 90°, natočení -15°) nedosáhne na 22 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
   "Hlídání destičky: 30 čelních průchodů zkráceno, 7 vynecháno, aby spodní hrana destičky nezajela do kontury.",
   "Hlídání destičky (hloubka vrstev): 20 průchodů zkráceno, 24 vynecháno — natočená destička (15°) nesmí jet hlouběji než předchozí vrstva, jinak by spodní hrana zajela do už obrobeného.",
-  "Doběh na konci úseku: 4 průchodů přidáno, aby na koncích úseků nezůstal schodek.",
+  "Doběh na konci úseku: 5 průchodů přidáno, aby na koncích úseků nezůstal schodek.",
   "Hlídání držáku (čelně): 7 průchodů zkráceno, 3 vynecháno — hlouběji by držák (šířka 31 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",
   "Hlídání destičky (hloubka vrstev): 10 průchodů zkráceno, 4 vynecháno — natočená destička (15°) nesmí jet hlouběji než předchozí vrstva, jinak by spodní hrana zajela do už obrobeného.",
   "Hlídání držáku (čelně): 7 průchodů zkráceno, 3 vynecháno — hlouběji by držák (šířka 31 mm) narazil do materiálu na obrobené straně. Materiál pod mezí obrobte jinou strategií (podélně / zleva) nebo štíhlejším nožem.",

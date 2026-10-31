@@ -431,7 +431,8 @@ export function initLiveTools(deps) {
   // Výběr děr k vrtání a sekce v záložce Vrtání (liveDrillUi.js).
   const drillUi = createDrillUi({
     S, root, toast: showToast, commit, saveState: deps.saveState, isoMagSlot: deps.isoMagSlot,
-    openView: () => { if (!st.open) setMode('both'); },
+    // true = pohled teď otevřelo tohle volání (byl zavřený).
+    openView: () => { if (st.open) return false; setMode('both'); return true; },
     closeView: () => { if (st.open) setMode('off'); },
     play: () => { renderEditor(); if (!st.open) setMode('both'); playProgram(); },
   });

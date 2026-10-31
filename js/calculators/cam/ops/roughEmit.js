@@ -191,6 +191,9 @@ export function emitRoughing(E) {
     if (aBody === null || aAll === null) return true;
     return aAll - aBody >= 0.01 * len;
   };
+// Čelní přejezd v Z: DRŽÁK (a celá destička) proti offsetové čáře — viz
+// faceTransitGuard.js. Jednou pro celou emisi (obrysy těl se staví jen jednou).
+const transitHitsPlan = makeFaceTransitGuard(prms, rapidStockPlan);
 calc.passes.forEach((pass, i) => {
   // Dojezd „bez schodků" tohoto průchodu (čelní, který nic neubere, odpadne).
   const leadOutNow = (pass.type === 'face' && pass.contourLeadOut && !faceLeadOutCuts(pass))
@@ -822,8 +825,6 @@ calc.passes.forEach((pass, i) => {
     // inherentní (šířka nosu), ne order-dependent — zůstává rychloposuv.
     {
       const zFrom = cur.z, zTo = pass.z;
-      // + DRŽÁK (a celá destička) proti offsetové čáře — viz faceTransitGuard.js.
-      const transitHitsPlan = makeFaceTransitGuard(prms, rapidStockPlan);
       const travelBlocked = (x) => segmentHitsPath({ x, z: zFrom }, { x, z: zTo }, rapidBlockers)
         || rapidHitsStock(x, zFrom, x, zTo)
         || rapidHitsPlan(x, zFrom, x, zTo)

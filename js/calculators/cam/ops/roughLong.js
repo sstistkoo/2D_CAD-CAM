@@ -3009,7 +3009,7 @@ export function genLongPasses(ctx) {
       const nextChains = chainsInto(passes[i + 1]);
       if (!p.noRetract && !nextChains && !chainsInto(p) && !(i > 0 && passes[i - 1] && passes[i - 1].noRetract)) {
         const path = passPath(p);
-        if (path.length > 0 && idle(real.cutArea(floors.maps[i], null, floors[i]), pathLen(path))) { passes.splice(i, 1); continue; }
+        if (path.length > 0 && idle(real.cutArea(floors.maps[i], null, floors.before(i)), pathLen(path))) { passes.splice(i, 1); continue; }
       }
       const lo = p.contourLeadOut;
       if (p.noRetract || nextChains || !Array.isArray(lo) || lo.length === 0) continue;

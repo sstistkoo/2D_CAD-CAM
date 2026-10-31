@@ -112,8 +112,8 @@ export function makeRealStock({ rawLoop, footprint }) {
 
   // Plocha (mm²) SKUTEČNÉHO polotovaru, kterou dráha `segs` ubere a kterou
   // nevzala už dráha `floorSegs` (vlastní dřívější kus téhož průchodu).
-  // `base` = předpočtená podlaha (Float64Array z `prefixFloors`) navíc k `floorSegs`;
-  // `segs` smí být i hotová sloupcová mapa dráhy (`floors.maps[k]`).
+  // `base` = předpočtená podlaha (`floors.before(k)` z `prefixFloors`) navíc
+  // k `floorSegs`; `segs` smí být i hotová sloupcová mapa dráhy (`floors.maps[k]`).
   const cutArea = (segs, floorSegs = null, base = null) => {
     const own = segs instanceof Map ? segs : lowMap(segs);
     const floor = floorSegs && floorSegs.length ? lowMap(floorSegs) : null;
@@ -123,26 +123,34 @@ export function makeRealStock({ rawLoop, footprint }) {
       if (t === null || t === undefined) continue;
       let ceil = t;
       if (floor) { const f = floor.get(i); if (f !== undefined && f < ceil) ceil = f; }
-      if (base && base[i] < ceil) ceil = base[i];
+      if (base) {
+        if (base.arr[i] < ceil) ceil = base.arr[i];
+        for (const m of base.extra) { const v = m.get(i); if (v !== undefined && v < ceil) ceil = v; }
+      }
       const thick = ceil - Math.max(low, 0);
       if (thick > 0) area += thick * H;
     }
     return area;
   };
   // Podlaha PRVNÍCH k drah pro každé k (sloupcové minimum, spočtené jednou):
-  // `floors[k]` = co vzaly dráhy 0 … k−1. Skládat dráhy všech dřívějších
+  // `floors.before(k)` = co vzaly dráhy 0 … k−1. Skládat dráhy všech dřívějších
   // průchodů znovu pro každý průchod zpomalilo generování 3–7× (31. 10. 2026).
+  // Celá pole se drží jen po CP drahách, zbytek doplní sloupcové mapy — pole
+  // pro každou dráhu by u dlouhého dílu vzala desítky MB (2 m × 500 průchodů).
+  const CP = 16;
   const prefixFloors = (paths) => {
-    const floors = new Array(paths.length + 1);
-    floors.maps = paths.map(lowMap);
-    let cur = new Float64Array(n).fill(Infinity);
-    floors[0] = cur;
-    for (let k = 0; k < paths.length; k++) {
-      const next = Float64Array.from(cur);
-      for (const [i, low] of floors.maps[k]) if (low < next[i]) next[i] = low;
-      floors[k + 1] = cur = next;
+    const maps = paths.map(lowMap);
+    const cps = [];
+    const cur = new Float64Array(n).fill(Infinity);
+    for (let k = 0; k <= paths.length; k++) {
+      if (k % CP === 0) cps.push(Float64Array.from(cur));
+      if (k < paths.length) for (const [i, low] of maps[k]) if (low < cur[i]) cur[i] = low;
     }
-    return floors;
+    const before = (k) => {
+      const c = Math.floor(k / CP);
+      return { arr: cps[c], extra: maps.slice(c * CP, k) };
+    };
+    return { maps, before };
   };
   return { cutArea, prefixFloors };
 }

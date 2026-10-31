@@ -102,6 +102,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   přední spodní oblouk nosu materiál ještě bral a zůstal srpek (díl uživatele, úsek 2 u S14:
   `G1 X36.697 Z107.555`, 0,075 mm). Teď jede, dokud nevyjede celý oblouk (konec dopřesněn půlením);
   na dílu uživatele dojede na hranici úseku Z 107,236. Test `cam-ramp-exit-nose`.
+- **Opravy po kontrole kódu:** čelní doběh doplněný až po posledním hlídání vrstev projde i omezením
+  sjezdu (`limitDescent`) a započte se do varování „Doběh na konci úseku"; podlaha dřívějších průchodů
+  v `realStock.js` drží celá pole jen po 16 drahách (paměť ~16× menší, výsledek týž); ochrana čelního
+  přejezdu se staví jednou za emisi; odchod ze záložky Vrtání zavře pohled na čelo jen tehdy, když ho
+  otevřela ona (ručně otevřený zůstane).
 - **CAM – vrtání se neukazuje při jiném obrábění** (`cam/live/liveModel.js`, `liveSection.js`, `liveDrillUi.js`,
   `sim/drawLowerHalf.js`): díry operace Vrtání (a spodní polovina řezu) se v náhledu soustružení kreslí jen na
   záložce Vrtání / Frézování nebo jsou-li z výkresu; při odchodu ze záložky se pohled na čelo zavře.
