@@ -627,7 +627,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   }
 
   // Dokončování upichovákem po obálce plátku — viz ops/finish.js.
-  finishOffsetPath = finishPartingEnvelope(prms, finishOffsetPath);
+  finishOffsetPath = finishPartingEnvelope(prms, finishOffsetPath, offsetPath);
 
   // ── ČELISTI / KONÍK PRO PODÉLNÉ HRUBOVÁNÍ: plánuje se rovnou v pásu ────
   // Ořez Z-limity níž zkracuje a zahazuje průchody až PO vygenerování — další

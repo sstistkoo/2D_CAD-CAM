@@ -26,12 +26,32 @@ export function getEffectivePlungeAngle(prms) {
 // Obálka upichováku v jedné osové poloze z = maximum předlohy xAt přes šířku
 // plátku (okno [z, z + dir·span], vzorky po ≤ h); null = pod tělem plátku
 // žádná předloha není.
+//
+// OKRAJ PŘEDLOHY UVNITŘ OKNA (uživatel 31. 10. 2026, `projekt_2026-10-31 (6)`):
+// za úsekem vynechaným kvůli držáku začíná předloha uprostřed okna a vzorky
+// po h její začátek přeskakovaly. Obálka pak skákala podle toho, kam vzorek
+// padl: pila ±0,2 mm na sražení (`N8630 G1 X9.234 Z165.341`) a ±3,5 mm na
+// strmém čele (`N8910 G1 X5.769 Z346.559`). Spodní vzorky zajely do kontury.
+// Okraj mezi vzorkem s předlohou a bez ní se proto dohledá půlením a jde do
+// maxima taky.
 export function partingEnvelopeAt(xAt, z, span, dir, h = 0.4) {
   const inner = Math.max(1, Math.ceil(span / h));
   let m = null;
+  const take = (x) => { if (x !== null && (m === null || x > m)) m = x; };
+  let tPrev = 0, xPrev = null;
   for (let j = 0; j <= inner; j++) {
-    const x = xAt(z + dir * span * (j / inner));
-    if (x !== null && (m === null || x > m)) m = x;
+    const t = span * (j / inner);
+    const x = xAt(z + dir * t);
+    take(x);
+    if (j > 0 && (x === null) !== (xPrev === null)) {
+      let tIn = x === null ? tPrev : t, tOut = x === null ? t : tPrev;
+      for (let k = 0; k < 20; k++) {
+        const tm = (tIn + tOut) / 2;
+        if (xAt(z + dir * tm) !== null) tIn = tm; else tOut = tm;
+      }
+      take(xAt(z + dir * tIn));
+    }
+    tPrev = t; xPrev = x;
   }
   return m;
 }

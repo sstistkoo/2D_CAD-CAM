@@ -61,6 +61,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM – upichovák: záložka Hrub./Hot. už nemění plátek** (`cam/sim/machTabTool.js`) – bez bodu upichnutí
+  zůstane upichovák (hrubuje čelně, dokončuje); dřív se vyměnil za soustružnický nůž ze zásobníku.
+  Test `tests/drill-from-cad.test.js`.
+- **CAM – čelně upichovákem bez zbytečného dojezdu „bez schodků"** (`ops/roughEmit.js`) – dojezd po rovině
+  v hloubce zápichu, který celý leží pod rovnou částí spodní hrany plátku (`flatSpanZ` = b − 2R), se vynechá:
+  zápich ho už vyřízl, jel by vzduchem (pravidlo 5). Delší dojezd než rovná část zůstává.
+- **CAM – upichovák: pila v dokončování za vynechaným úsekem** (`camMath.js` `partingEnvelopeAt`) – kde dráha
+  začíná uprostřed okna plátku (za úsekem vynechaným kvůli držáku), vzorky obálky přeskakovaly její začátek
+  a dráha skákala ±0,2 mm na sražení a ±3,5 mm na čele (zajetí do kontury). Okraj se dohledá půlením.
+  Kde dokončovací dráha není (úsek vynechaný kvůli držáku nebo jen zčásti oříznutý), bere obálka výšku po
+  hrubování (hrubovací offset = kontura + R + přídavek) – jen v mezerách mezi úseky, za začátkem jízdy.
+  Dřív tělo plátku zajelo do vynechané roviny (`N8770 G1 X9.296 Z347.166`), sjelo přídavek „jako na hotovo"
+  a rádius ubral roh bodu 10 (`N8620 G1 X9.319 Z167.558`).
+  Test `tests/cam-parting-envelope-edge.test.js`, fixture `parting-finish-envelope-edge.camprog`.
 - **CAM – čelní doběh jel posuvem od osy ven** (`cam/ops/face/layerDepth.js`): hlídání hloubky vrstev zvedlo
   doběh na konci úseku nad jeho začátek a doběhy z vynechání vyjímalo (nález uživatele: `G0 X37.860` →
   `G1 X38.735` na Z56,932, celý vzduchem). Konec nad začátkem teď vynechá i doběh, stejně jako hlídání držáku.

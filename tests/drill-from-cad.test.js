@@ -70,6 +70,11 @@ describe('záložka obrábění → nástroj', () => {
     expect(machTabPlan('hrub', S('drill', 'N10'))).toBe('tool');
     expect(machTabPlan('hot', S('threading', 'N10'))).toBe('tool');
   });
+  it('upichovák bez bodu upichnutí na Hrub./Hot. zůstane (čelní hrubování)', () => {
+    expect(machTabPlan('hrub', S('parting', 'N10'))).toBe('keep');
+    expect(machTabPlan('hot', S('parting', 'N10'))).toBe('keep');
+    expect(machTabPlan('hrub', S('parting', 'N10', { partOffZ: 300 }))).toBe('tool');
+  });
   it('program jiné operace se nepřepisuje: ze závitu / upichu na Vrtání = nová část', () => {
     expect(machTabPlan('vrt', S('threading', 'N10', { threadActive: true }))).toBe('part');
     expect(machTabPlan('vrt', S('parting', 'N10'))).toBe('part');

@@ -45,6 +45,10 @@ const SPECIAL = new Set(['drill', 'threading', 'parting', 'mill', 'tap']);   // 
 export function machTabPlan(tab, S) {
   const shape = S.params.toolShape;
   const own = OWN[tab];
+  // Upichovák hrubuje čelně i dokončuje (enforceInsertStrategy) — bez bodu
+  // upichnutí ho Hrub./Hot. nechá (uživatel 31. 10. 2026: „když přecvaknu na
+  // Hrub., změní se mi plátek na polygonální"). S bodem je program upichnutí.
+  if (!own && shape === 'parting' && S.params.partOffZ == null) return 'keep';
   if (!own) return (tab === 'hrub' || tab === 'hot') && SPECIAL.has(shape) ? 'tool' : 'keep';
   if (shape === own && (!LIVE[tab] || partLive(S.params) === LIVE[tab])) return 'keep';
   return String(S.manualGCode || '').trim() ? 'part' : 'tool';

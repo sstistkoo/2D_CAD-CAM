@@ -407,7 +407,7 @@ function partingEnvelopeRuns(xAt, zFrom, zTo, span, dir, h) {
  * Dokončování UPICHOVÁKEM: dráha po obálce plátku místo po holém
  * offsetu. Vrací (případně přepsanou) dokončovací dráhu.
  */
-export function finishPartingEnvelope(prms, finishOffsetPath) {
+export function finishPartingEnvelope(prms, finishOffsetPath, roughOffsetPath = []) {
 // ── Dokončování upichovákem: dráha po OBÁLCE ──
 // Upichovák má šířku — dokončovací dráha po samotném offsetu by na
 // úsecích stoupajících k obrobené straně (zprava = doprava) zajela
@@ -429,6 +429,30 @@ if (getInsert(prms).finishAlongEnvelope && (prms.doFinishing || prms.finishOnly)
   });
   if (isFinite(fzMin) && fzMax - fzMin > 0.05) {
     const finXAt = (z) => maxXAt(finishOffsetPath, z);
+    // KDE DOKONČOVACÍ DRÁHA NENÍ, stojí materiál po HRUBOVÁNÍ (kontura + R +
+    // přídavek = hrubovací offset `roughOffsetPath`). Obálka ho musí vidět,
+    // jinak tělo plátku za okrajem dráhy zajede do úseku, který dokončování
+    // vynechalo nebo jen zčásti ořízlo (uživatel 31. 10. 2026, tři kola na
+    // `projekt_2026-10-31`: `N8770 G1 X9.296 Z347.166` 0,6 mm pod rovinou
+    // X9,117; `N8790 G1 X9.917 Z347.166` sjelo přídavek „jako na hotovo";
+    // `N8620 G1 X9.319 Z167.558` — rádius plátku ubral roh bodu 10, protože
+    // oříznutý kus Z163,945–164,521 nebyl ani v dráze, ani ve vynechaných
+    // úsecích). Kde dráha JE, platí ona: tělo jede za nosem po dokončené straně.
+    // Hrubovací výška jen MIMO úsek [zB, zA] — tam sahá okno jedině za
+    // začátkem jízdy (tělo je za nosem), kam nos nikdy nevjel. Uvnitř úseku
+    // nos všechno projel (i „Rovný průměr" za koncem dráhy, který přídavek
+    // před nosem ubírá — pravidlo 15), takže tam stojí výška dráhy.
+    // A jen v MEZERÁCH mezi úseky (uvnitř rozsahu úseků): za koncem celé
+    // dráhy je konec dílu, kudy nos projede nájezdem — hrubovací oblouk kolem
+    // rohu tam zvedl začátek dokončování o přídavek (schod Z −0,5…2,5).
+    // O tom, KDE se jede, rozhoduje dál jen `finXAt` (partingEnvelopeRuns).
+    let runLo = Infinity, runHi = -Infinity;
+    const envXAtIn = (zA, zB) => roughOffsetPath.length === 0 ? finXAt : (z) => {
+      const a = finXAt(z);
+      if (a !== null || (z >= zB - 1e-6 && z <= zA + 1e-6)) return a;
+      if (z < runLo || z > runHi) return null;
+      return maxXAt(roughOffsetPath, z);
+    };
     // jízdní pořadí = klesající Z (zprava doleva) — jako offsetPath.
     // Kruhové úseky obálky se zpětně proloží G2/G3 (fitArcsToPolyline),
     // ať dokončování není rozsekané na stovky mikro-úseček.
@@ -445,6 +469,8 @@ if (getInsert(prms).finishAlongEnvelope && (prms.doFinishing || prms.finishOnly)
     // tolerance konce úseku (maxXAt ±0,01) a strmá úsečka se tam extrapoluje
     // ven (hrb 0,04–0,06 mm).
     const found = partingEnvelopeRuns(finXAt, fzMax, fzMin, w2RF, dirMF, 0.4);
+    // Skutečný rozsah dráhy (fzMin/fzMax berou u oblouků celý kruh cz ± r).
+    for (const [zA, zB] of found) { runLo = Math.min(runLo, zB); runHi = Math.max(runHi, zA); }
     const nG = Math.max(1, Math.ceil((fzMax - fzMin) / 0.4));
     const gridG = [];
     for (let i = 0; i <= nG; i++) gridG.push(fzMax + (fzMin - fzMax) * (i / nG));
@@ -455,7 +481,7 @@ if (getInsert(prms).finishAlongEnvelope && (prms.doFinishing || prms.finishOnly)
     const out = [];
     for (const [zA, zB] of runs) {
       const grid = runs.length > 1 ? [zA, ...gridG.filter(z => z < zA - 0.02 && z > zB + 0.02), zB] : null;
-      const pts = samplePartingEnvelope(finXAt, zA, zB, w2RF, dirMF, 0.4, 0.003, null, grid);
+      const pts = samplePartingEnvelope(envXAtIn(zA, zB), zA, zB, w2RF, dirMF, 0.4, 0.003, null, grid);
       if (pts.length < 2) continue;
       const brk = out.length > 0;
       fitArcsToPolyline(pts, 0.02).forEach((s, i) => out.push(s.type === 'line'

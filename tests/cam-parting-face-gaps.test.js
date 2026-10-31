@@ -46,7 +46,9 @@ describe('upichovák čelně — díl uživatele 8. 10. 2026', () => {
     const bridges = fin.filter(m => m.g !== 'G0' && m.z0 !== null
       && spans(m, 168, 200) && Math.abs(m.x - m.x0) > 1);
     expect(bridges.map(m => m.line)).toEqual([]);
-    expect(gcode).not.toMatch(/X7\.675 Z166\.145/);
+    // Spojka do X7,675 Z166,145 přes vynechaný úsek. Bod sám na sražení ležet
+    // smí (obálka od 31. 10. vidí i vynechané dno → začíná na X7,544 Z166,501).
+    expect(fin.filter(m => m.g === 'G1' && /X7\.675 Z166\.145/.test(m.line) && m.z0 > 167).map(m => m.line)).toEqual([]);
     expect(gcode).not.toMatch(/X12\.077 Z138\.970/);
     // Dno X 8,743 mezi body 11 a 12 se dokončí až do rohu u čela Z 138 a dráha
     // pokračuje rovnou nahoru po čele — žádný sjezd podél čela zvlášť

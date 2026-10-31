@@ -191,12 +191,27 @@ export function emitRoughing(E) {
     if (aBody === null || aAll === null) return true;
     return aAll - aBody >= 0.01 * len;
   };
+  // ČELNÍ DOJEZD POD ROVNÝM DNEM PLÁTKU (`flatSpanZ`, upichovák / závitový):
+  // dojezd jede po rovině v hloubce zápichu a celý leží pod rovnou částí
+  // spodní hrany, kterou zápich právě vyřízl (leží za špičkou na obrobené
+  // straně, viz `bodySpanZ` níž) → schod nevznikl, dojezd by jel vzduchem.
+  // Uživatel 31. 10. 2026 (upichovák 5 mm, ap 2): `G1 X10.117 Z320.932`
+  // po rovině za každým zápichem zbytečně.
+  const faceLeadOutUnderFlat = (pass) => {
+    const flat = insGc.flatSpanZ || 0;
+    if (!(flat > 0)) return false;
+    const dirZ = pass.faceLeft ? -1 : 1;
+    return pass.contourLeadOut.every(sg => sg.type === 'line'
+      && Math.abs(sg.x1 - pass.xEnd) < 0.005 && Math.abs(sg.x2 - pass.xEnd) < 0.005
+      && [sg.z1, sg.z2].every(z => dirZ * (z - pass.z) > -1e-3 && dirZ * (z - pass.z) < flat + 1e-3));
+  };
 // Čelní přejezd v Z: DRŽÁK (a celá destička) proti offsetové čáře — viz
 // faceTransitGuard.js. Jednou pro celou emisi (obrysy těl se staví jen jednou).
 const transitHitsPlan = makeFaceTransitGuard(prms, rapidStockPlan);
 calc.passes.forEach((pass, i) => {
   // Dojezd „bez schodků" tohoto průchodu (čelní, který nic neubere, odpadne).
-  const leadOutNow = (pass.type === 'face' && pass.contourLeadOut && !faceLeadOutCuts(pass))
+  const leadOutNow = (pass.type === 'face' && pass.contourLeadOut
+    && (!faceLeadOutCuts(pass) || faceLeadOutUnderFlat(pass)))
     ? null : pass.contourLeadOut;
   addCmt(`Průchod ${i + 1}${pass.pocketClean ? ' (kapsa bez schodků)' : pass.pocketReposition ? ' (zanoření v kapse)' : pass.ramp ? ` (oblouk ${flipArc('G3')})` : pass.contourLeadIn ? ' (kapsa po kontuře)' : leadOutNow ? ' (bez schodků)' : ''}`);
   // Směr řezu v ose Z: −1 = standard (zprava doleva), +1 = druhá strana
