@@ -113,6 +113,7 @@ if ((prms.doFinishing || prms.finishOnly) && prms.respectInsertGeometry && rapid
       kept.push(out);
     }
     if (finStockDropped > 0) {
+      dropStubChains(kept, partLoop, prms);
       finPath = kept;
       // Hlášení z EMISE (ne z calculate) — fullUpdate() ho po přepočtu
       // připojí zpět do ⚠ panelu, viz S.genNotes v camSimulator.js.
@@ -440,6 +441,7 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
       kept.push(out);
     }
     if (finDeepTrimmed > 0) {
+      dropStubChains(kept, offsetSilhouetteLoop(calc.contourSegments), prms);
       finPath = kept;
       S.genNotes.push({ type: 'warning', msg: `Dokončování: ${finDeepTrimmed} úsek(ů) zkráceno/vynecháno — hrubování tam nechalo víc materiálu než hloubku třísky (ap ${finMaxCut} mm), dokončovací nůž by ho bral naráz. Dohrubujte to (jiné upnutí/nástroj) a pusťte dokončování znovu.` });
     }
@@ -491,6 +493,7 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
       // Úsek vypadl celý — řetěz začne až dalším (atStart zůstává).
     }
     if (finStartTrimmed > 0) {
+      dropStubChains(kept, offsetSilhouetteLoop(calc.contourSegments), prms);
       finPath = kept;
       S.genNotes.push({ type: 'warning', msg: `Dokončování: ${finStartTrimmed} řetěz(ů) začíná dál — na původním začátku stojí po hrubování víc než přídavek (klín, kam se nevejde držák) a nájezd by se do něj zanořil kolmo.` });
     }
@@ -515,7 +518,8 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
     }
     // Konec řetězu (další úsek je samostatný ostrov, nebo už žádný není).
     const next = finSegs[idx + 1];
-    if (!next || next.chainBreak) finRunOut();
+    // Odskok od čela (`departure`, ops/finish.js) už je ve vzduchu — za ním nic.
+    if ((!next || next.chainBreak) && !seg.departure) finRunOut();
   });
   // Odjezd z dílu VŽDY přes výjezd v X a teprve pak přejezd v Z (`forceUp`),
   // nikdy diagonálou — stejný důvod jako u konce hrubování: je to poslední
@@ -523,4 +527,73 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   safeRapidTo((parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1),
     parseFloat(prms.safeZ) || 0, false, true);
 }
+}
+
+// PAHÝL ŘETĚZU: vyřazený úsek uprostřed řetězu (držák ve zbytku, tříska nad
+// ap — oblouk „celý, nebo vůbec", začátek ve zbytku) nechá zbytek, který se
+// hotového tvaru dotkne nanejvýš na 0,2 mm (nos dál než R + 0,02) — nic nedokončí,
+// jen sloupne kus přídavku a vyjede posuvem vzduchem (part-17 po obálce
+// upichováku 31. 10. 2026: `N5600 G1 X28.129` → `N5630 G1 X32.190`, 3,9 mm
+// vzduchem). Takový řetěz odpadá celý. Mění `path` na místě.
+function dropStubChains(path, partLoop, prms) {
+  if (!partLoop || partLoop.length < 3 || path.length === 0) return;
+  const rTip = Math.max(0, parseFloat(prms.toolRadius) || 0);
+  // Upichovák dokončuje i ZADNÍM rádiusem (obálka, ops/finish.js): obrys dna
+  // sahá od nosu o rovnou část `flatSpanZ` na stranu těla. Sražení u bodu 10
+  // (`projekt_2026-10-31`) řeže jen zadní roh — nos je od kontury 0,9 mm.
+  const span = getInsert(prms).flatSpanZ || 0;
+  const bodyDir = prms.roughingSide === 'left' ? -1 : 1;
+  const distToPart = (p) => {
+    let m = Infinity;
+    for (let i = 0; i < partLoop.length; i++) {
+      const a = partLoop[i], b = partLoop[(i + 1) % partLoop.length];
+      const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz;
+      const t = l2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / l2)) : 0;
+      m = Math.min(m, Math.hypot(p.x - a.x - t * dx, p.z - a.z - t * dz));
+    }
+    return m;
+  };
+  // Délka, po kterou řetěz jede po hotovém tvaru (vzorky po ≤ 0,05 mm).
+  // Dotyk v jediném bodě nestačí: pahýl končí tam, kde začínal vyřazený
+  // oblouk, a ten na kontuře leží.
+  const onPartLen = (s) => {
+    const pts = [];
+    if (s.type === 'line') {
+      const n = Math.max(1, Math.ceil(Math.hypot(s.p2.x - s.p1.x, s.p2.z - s.p1.z) / 0.05));
+      for (let k = 0; k <= n; k++) pts.push({ x: s.p1.x + (s.p2.x - s.p1.x) * k / n, z: s.p1.z + (s.p2.z - s.p1.z) * k / n });
+    } else {
+      let sA = s.startAngle, eA = s.endAngle;
+      if (s.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+      if (s.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+      const n = Math.max(2, Math.min(400, Math.ceil(s.r * Math.abs(eA - sA) / 0.05)));
+      for (let k = 0; k <= n; k++) {
+        const a = sA + (eA - sA) * (k / n);
+        pts.push({ x: s.cx + Math.sin(a) * s.r, z: s.cz + Math.cos(a) * s.r });
+      }
+    }
+    const nSpan = span > 0 ? Math.ceil(span / 0.1) : 0;
+    const on = (p) => {
+      for (let j = 0; j <= nSpan; j++)
+        if (distToPart({ x: p.x, z: p.z + bodyDir * (nSpan ? span * j / nSpan : 0) }) <= rTip + 0.02) return true;
+      return false;
+    };
+    let len = 0, prev = on(pts[0]);
+    for (let k = 1; k < pts.length; k++) {
+      const cur = on(pts[k]);
+      if (prev && cur) len += Math.hypot(pts[k].x - pts[k - 1].x, pts[k].z - pts[k - 1].z);
+      if (len >= 0.2) return len;   // stačí na rozhodnutí
+      prev = cur;
+    }
+    return len;
+  };
+  const chains = [];
+  path.forEach((s, i) => { if (i === 0 || s.chainBreak) chains.push([]); chains[chains.length - 1].push(s); });
+  const live = chains.filter(c => {
+    let len = 0;
+    for (const q of c) { len += onPartLen(q); if (len >= 0.2) return true; }
+    return false;
+  });
+  if (live.length === chains.length) return;
+  path.length = 0;
+  live.forEach((c, i) => c.forEach((s, j) => path.push(j === 0 && i > 0 ? { ...s, chainBreak: true } : s)));
 }

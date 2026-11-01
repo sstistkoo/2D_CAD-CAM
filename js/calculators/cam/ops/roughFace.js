@@ -11,6 +11,7 @@ import { makeRegionRunOut } from './face/regionRunOut.js';
 import { makeHolderGuardFace } from './face/holderGuard.js';
 import { makeFaceDescentLimit } from './face/plungeDescent.js';
 import { faceZs, dropLeadOutOverGap } from './face/leadOutOverGap.js';
+import { wallDescents, attachWallDescents } from './face/wallLayers.js';
 
 export function genFacePasses(ctx) {
   // Pravidla PLÁTKU (cam/inserts/*) — generátor se jich ptá místo toho, aby
@@ -250,7 +251,18 @@ export function genFacePasses(ctx) {
     if (p.isDegenerate) return;
     const z1 = p.type === 'line' ? p.p1.z : p.cz + p.r;
     const z2 = p.type === 'line' ? p.p2.z : p.cz - p.r;
-    maxOZ = Math.max(maxOZ, z1, z2);
+    // maxOZ = konec, odkud se postupuje: oblouk jen v SKUTEČNÉM rozsahu
+    // (krajní body + vrchol kružnice, leží-li na oblouku). Celá kružnice
+    // cz + r posunula konec offsetu dál, než je, a vrstvy v tom pásu spadly
+    // do větve „uvnitř, pro jistotu přeskočit" (part-20 zleva: vrstva před
+    // čelem z ops/face/wallLayers.js vypadla, roh vydal 1,836 místo 1,30).
+    // minOZ (pahýl u čelistí) zůstává po staru — na něm stojí hloubka
+    // průchodů za levým koncem kontury a ta je samostatná věc.
+    if (p.type === 'line') maxOZ = Math.max(maxOZ, z1, z2);
+    else {
+      maxOZ = Math.max(maxOZ, p.p1.z, p.p2.z);
+      if (isAngleBetween(0, p.startAngle, p.endAngle, p.dir === 'G2')) maxOZ = Math.max(maxOZ, z1);
+    }
     if (Math.min(z1, z2) < minOZ) {
       minOZ = Math.min(z1, z2);
       if (p.type === 'line') minOZx = (p.p1.z <= p.p2.z) ? p.p1.x : p.p2.x;
@@ -611,6 +623,25 @@ export function genFacePasses(ctx) {
   // Hlídání geometrie DESTIČKY (čelně) — viz ops/face/insertGuard.js.
   guardInsertFace({
     prms, ins, passes, foundErrors, faceLeft, step, offsetXAt, xTouchAt, planTouchAt, castingOuterAtZ, rapidStartXAt });
+  // Sjezd po kolmé stěně (pravidlo 3) — ops/face/wallLayers.js. Až ZA hlídáním
+  // destičky: to zvedne průchod v toleranci svislice stěny (Z 204,000 u 204,009)
+  // na vršek stěny, a teprve takový sjezd potřebuje. Dno na zNew
+  // = nejvyšší offset pod rovnou částí dna plátku na straně těla (upichovák;
+  // jinde jen bod), za koncem kontury (čelo dílu) osa.
+  if (typeof offsetXAt === 'function') {   // ladicí skripty ho nepředávají
+    const spanW = ins.flatSpanZ || 0, dirW = faceLeft ? -1 : 1;
+    const nW = Math.max(1, Math.ceil(spanW / 0.1));
+    attachWallDescents(passes, wallDescents(zList, offsetPath, offsetXAt, faceLeft ? 1 : -1), (z) => {
+      let m = null;
+      for (let k = 0; k <= (spanW > 0 ? nW : 0); k++) {
+        const zq = z + dirW * spanW * k / nW;
+        const x = offsetXAt(zq) ?? (zq > maxOZ + 0.01 ? 0 : null);
+        if (x === null) return null;
+        if (m === null || x > m) m = x;
+      }
+      return m;
+    });
+  }
   // Hloubka vrstev (nikdy hloub než předchozí) — viz ops/face/layerDepth.js.
   const enforceLayerDepth = makeEnforceLayerDepth({
     prms, ins, passes, foundErrors, faceLeft, step, zList, xTouchAt, planTouchAt,

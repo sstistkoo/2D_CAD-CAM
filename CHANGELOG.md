@@ -61,6 +61,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM – čelní hrubování: sjezd po kolmé stěně** (`ops/face/wallLayers.js`, pravidlo 3) – mřížka po ap na stěnu
+  (čelo dílu, osazení) nesedla a před ní zůstalo až ap navíc (díl uživatele zleva: čelo Z 0 1,2 mm, osazení Z 205
+  2,4 mm). Průchod za stěnou teď zabere ap shora, na vršku stěny se posune ke stěně (0,02 mm před svislici offsetu)
+  a sjede po ní na dno – bez vrstvy navíc. Konec offsetu (`maxOZ`, `roughFace.js`) bere oblouk jen v jeho skutečném
+  rozsahu (celá kružnice tiše přeskakovala vrstvy u čela); pás schodu v hlídání držáku sahá jen k sousední vrstvě
+  (`holderGuard.js`).
+- **CAM – upichovák: dokončení kolmého čela zhora dolů** (`ops/finish.js`) – čelo na začátku jízdy je samostatný
+  řetěz shora k ose s odskokem 45°; dřív nájezd sjel čelem a dráha se vracela posuvem nahoru.
+  Totéž u kolmé stěny uprostřed (osazení): dno dojede ke stěně → odskok → stěna shora dolů → odskok → průměr;
+  po stěně nahoru by horní strana držáku brala materiál (`wallsTopDown`).
+- **CAM – dokončování: pahýl řetězu po vyřazeném úseku** (`ops/finishEmit.js`, `dropStubChains`) – když filtr
+  vyřadí úsek uprostřed řetězu (držák ve zbytku, tříska nad ap, začátek ve zbytku), zbytek, který po hotovém tvaru
+  nejede aspoň 0,2 mm (u upichováku počítá celé dno), odpadá – jinak jen sloupl přídavek a vyjel posuvem vzduchem
+  (part-17: 3,9 mm).
+- **CAM – upichovák: svislé čelo na konci dílu v obálce** (`ops/finish.js`) – obálka vzorkuje x(z) a svislé čelo
+  (zleva k Z 0) z ní vypadlo; na straně těla za koncem celé dráhy se vrací.
 - **CAM – upichovák: záložka Hrub./Hot. už nemění plátek** (`cam/sim/machTabTool.js`) – bez bodu upichnutí
   zůstane upichovák (hrubuje čelně, dokončuje); dřív se vyměnil za soustružnický nůž ze zásobníku.
   Test `tests/drill-from-cad.test.js`.

@@ -483,15 +483,79 @@ if (getInsert(prms).finishAlongEnvelope && (prms.doFinishing || prms.finishOnly)
       const grid = runs.length > 1 ? [zA, ...gridG.filter(z => z < zA - 0.02 && z > zB + 0.02), zB] : null;
       const pts = samplePartingEnvelope(envXAtIn(zA, zB), zA, zB, w2RF, dirMF, 0.4, 0.003, null, grid);
       if (pts.length < 2) continue;
+      // SVISLÉ ČELO NA KONCI DÍLU (uživatel 31. 10. 2026, zleva k čelu Z 0):
+      // obálka vzorkuje x(z), svislice má jediné Z — zbyl z ní horní bod a
+      // sjezd čela k ose zmizel, ač držák by ho dovolil. Vrací se jen na konci
+      // CELÉ dráhy na straně těla: tělo je tam za koncem dílu ve vzduchu.
+      // Na druhém konci (a za mezerou) by tělo sjelo do dílu / do zbytku.
+      // Tolerance 0,05: kraj úseku je proti začátku dráhy zkrácený o 0,02.
+      // ČELO ZHORA DOLŮ (uživatel 1. 11. 2026: „ať tu na hotovo jede zhora
+      // dolů při kolmé stěně"): na začátku jízdy je čelo SAMOSTATNÝ řetěz
+      // shora k ose; za ním odjezd a nájezd na průměr (chainBreak). Spojené
+      // s průměrem by jelo od osy nahoru — nájezd sjel čelem dolů a dráha se
+      // pak vracela posuvem nahoru (`G1 X0` → `G1 X31.366 Z-0.800`).
+      let faceSeg = null;
+      const onBody = dirMF > 0 ? zA >= runHi - 0.05 : zB <= runLo + 0.05;
+      const ep = dirMF > 0 ? pts[0] : pts[pts.length - 1];
+      if (onBody) {
+        let xLow = Infinity, fz = null;
+        for (const s of finishOffsetPath) {
+          if (s.type === 'line' && Math.abs(s.p1.z - s.p2.z) < 1e-3 && Math.abs(s.p1.z - ep.z) < 0.05
+            && Math.min(s.p1.x, s.p2.x) < xLow) { xLow = Math.min(s.p1.x, s.p2.x); fz = s.p1.z; }
+        }
+        if (fz !== null && xLow < ep.x - 0.05) {
+          // Krajní bod obálky na Z čela (je o zkrácení kraje úseku vedle) —
+          // jinak by se s patou čela slil do šikmé úsečky.
+          ep.z = fz;
+          if (dirMF > 0) faceSeg = { type: 'line', p1: { x: ep.x, z: fz }, p2: { x: xLow, z: fz }, chainBreak: out.length > 0 };
+          else pts.push({ x: xLow, z: fz });   // na konci jízdy jde čelo shora samo
+        }
+      }
+      if (faceSeg) {
+        out.push(faceSeg);
+        // Odskok od čela pod 45° do vzduchu za koncem dílu (Odskok, jako
+        // u hrubovacích průchodů) — výjezd jinak jel G0 svisle podél
+        // právě dokončeného čela.
+        const rd = Math.max(0.5, parseFloat(prms.retractDistance) || 0);
+        const q = faceSeg.p2;
+        out.push({ type: 'line', p1: { x: q.x, z: q.z }, p2: { x: q.x + rd, z: q.z + dirMF * rd }, departure: true });
+      }
       const brk = out.length > 0;
       fitArcsToPolyline(pts, 0.02).forEach((s, i) => out.push(s.type === 'line'
         ? { type: 'line', p1: { x: s.p1.x, z: s.p1.z }, p2: { x: s.p2.x, z: s.p2.z }, chainBreak: brk && i === 0 }
         : { type: 'arc', p1: { x: s.p1.x, z: s.p1.z }, p2: { x: s.p2.x, z: s.p2.z }, refP1: { x: s.p1.x, z: s.p1.z }, refP2: { x: s.p2.x, z: s.p2.z }, cx: s.cx, cz: s.cz, r: s.r, dir: s.dir, startAngle: s.startAngle, endAngle: s.endAngle, chainBreak: brk && i === 0 }));
     }
-    if (out.length > 0) finishOffsetPath = out;
+    if (out.length > 0) finishOffsetPath = wallsTopDown(out, prms);
   }
 }
   return finishOffsetPath;
+}
+
+// KOLMÁ STĚNA SE DOKONČUJE SHORA DOLŮ (uživatel 1. 11. 2026, osazení Z 205
+// upichovákem: „v takové poloze mi bude brát horní strana držáku materiál").
+// Svislice, po které by dráha STOUPALA (`G1 X7.544 Z204.198` → `G1 X30.956
+// Z204.201`), se rozdělí: dno dojede ke stěně → odskok → samostatný řetěz
+// po stěně shora dolů → odskok → nový řetěz od vršku stěny dál po průměru.
+// Odskoky (`departure`) jdou pod 45° nahoru zpět nad dno, odkud se přijelo.
+function wallsTopDown(path, prms) {
+  const rd = Math.max(0.5, parseFloat(prms.retractDistance) || 0);
+  const out = [];
+  for (let i = 0; i < path.length; i++) {
+    const s = path[i];
+    const up = s.type === 'line' && !s.departure && Math.abs(s.p2.z - s.p1.z) < 0.05 && s.p2.x - s.p1.x > 0.3;
+    const prev = out[out.length - 1];
+    if (!up || !prev || prev.departure) { out.push(s); continue; }
+    // Směr jízdy k stěně z předchozího úseku; odskok jde proti němu.
+    const pz = prev.type === 'line' ? prev.p1.z : (prev.p1 ? prev.p1.z : s.p1.z);
+    const dir = Math.sign(s.p1.z - pz) || 1;
+    const back = (q) => ({ type: 'line', p1: { x: q.x, z: q.z }, p2: { x: q.x + rd, z: q.z - dir * rd }, departure: true });
+    out.push(back(s.p1));
+    out.push({ type: 'line', p1: { x: s.p2.x, z: s.p2.z }, p2: { x: s.p1.x, z: s.p1.z }, chainBreak: true });
+    out.push(back(s.p1));
+    const next = path[i + 1];
+    if (next) path[i + 1] = { ...next, chainBreak: true };
+  }
+  return out;
 }
 
 /**

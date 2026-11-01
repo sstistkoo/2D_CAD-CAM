@@ -152,6 +152,9 @@ if (ins.cutsFullWidth) {
         }
       }
       for (const p of faceArr) {
+        // Sjezd po kolmé stěně (ops/face/wallLayers.js) není dojezd po kontuře
+        // — obálka by z něj nechala jen kus po vršku stěny. Tělo si hlídá sám.
+        if (p.wallDescent) continue;
         const lo = p.contourLeadOut;
         let zEnd = (lo && lo.length > 0) ? lo[lo.length - 1].z2 : p.z;
         const ext = extEnd.get(p);

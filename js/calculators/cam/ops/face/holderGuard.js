@@ -116,11 +116,25 @@ const holderGuardFace = (report) => {
     // by pod nimi viděl jen konturu, tedy vzduch. Stojí tam přitom SYROVÝ
     // polotovar v plné výšce a právě do něj najel držák prvního průchodu pod
     // takovým pásem (reálný nález: 30 mm neobrobené stěny, 91 mm² kolize).
+    // ŠÍŘKA PÁSU = vzdálenost k nejbližší vrstvě na obrobené straně, nejvýš
+    // ap. Pás vrstvy je materiál, který bere JEN ona; při rovnoměrné mřížce
+    // je to přesně ap. Doplněná vrstva před stěnou (ops/face/wallLayers.js)
+    // leží blíž — pás po ap by přesáhl přes předchozí vrstvu a její schod by
+    // zakázal i tu (part-20: Z −1,32 zkrácená na X 24,666 → Z −2 taky).
+    const layerZs = [...new Set([...zListAll, ...faceArr.map(p => p.z)].map(z => +z.toFixed(4)))];
+    const bandW = (z) => {
+      let w = step;
+      for (const q of layerZs) {
+        const d = dirM * (q - z);
+        if (d > 1e-4 && d < w) w = d;
+      }
+      return w;
+    };
     {
       const have = new Set(faceArr.map(p => p.z.toFixed(3)));
       for (const z of zListAll) {
         if (have.has(z.toFixed(3))) continue;
-        const zB = z + dirM * step;
+        const zB = z + dirM * bandW(z);
         stair.push({ zLo: Math.min(z, zB), zHi: Math.max(z, zB), raw: true });
       }
     }
@@ -222,7 +236,7 @@ const holderGuardFace = (report) => {
         holderTrimmed++;
       }
       // Evidence schodu pro další (hlubší, více vlevo) průchody.
-      const zA = p.z, zB = p.z + dirM * step;
+      const zA = p.z, zB = p.z + dirM * bandW(p.z);
       const entry = { zLo: Math.min(zA, zB), zHi: Math.max(zA, zB) };
       // Doběh nad povrchem nechává na svém Z syrový povrch (viz výš) — do
       // schodiště držáku patří jako `raw`. Doběh na hraně materiálu ale řeže,
