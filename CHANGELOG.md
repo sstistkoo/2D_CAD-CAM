@@ -61,6 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM simulátor – SBL za běhu** (`cam/sim/singleBlock.js`) – zapnutý během přehrávání se nezastavil po dokončeném
+  bloku (cíl se počítal jen při ▶); teď dojede aktuální řádek a zastaví. Test `tests/sim-single-block.test.js`.
 - **CAM – čelní hrubování: sjezd po kolmé stěně** (`ops/face/wallLayers.js`, pravidlo 3) – mřížka po ap na stěnu
   (čelo dílu, osazení) nesedla a před ní zůstalo až ap navíc (díl uživatele zleva: čelo Z 0 1,2 mm, osazení Z 205
   2,4 mm). Průchod za stěnou teď zabere ap shora, na vršku stěny se posune ke stěně (0,02 mm před svislici offsetu)
@@ -70,7 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CAM – upichovák: dokončení kolmého čela zhora dolů** (`ops/finish.js`) – čelo na začátku jízdy je samostatný
   řetěz shora k ose s odskokem 45°; dřív nájezd sjel čelem a dráha se vracela posuvem nahoru.
   Totéž u kolmé stěny uprostřed (osazení): dno dojede ke stěně → odskok → stěna shora dolů → odskok → průměr;
-  po stěně nahoru by horní strana držáku brala materiál (`wallsTopDown`).
+  po stěně nahoru by horní strana držáku brala materiál (`wallsTopDown`). Dno se zastaví o přídavek na hotovo
+  (+0,02) před stěnou – na stěně ještě stojí přídavek a bok plátku s držákem by do něj vjel po celé výšce.
 - **CAM – dokončování: pahýl řetězu po vyřazeném úseku** (`ops/finishEmit.js`, `dropStubChains`) – když filtr
   vyřadí úsek uprostřed řetězu (držák ve zbytku, tříska nad ap, začátek ve zbytku), zbytek, který po hotovém tvaru
   nejede aspoň 0,2 mm (u upichováku počítá celé dno), odpadá – jinak jen sloupl přídavek a vyjel posuvem vzduchem

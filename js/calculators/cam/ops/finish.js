@@ -549,7 +549,21 @@ function wallsTopDown(path, prms) {
     const pz = prev.type === 'line' ? prev.p1.z : (prev.p1 ? prev.p1.z : s.p1.z);
     const dir = Math.sign(s.p1.z - pz) || 1;
     const back = (q) => ({ type: 'line', p1: { x: q.x, z: q.z }, p2: { x: q.x + rd, z: q.z - dir * rd }, departure: true });
-    out.push(back(s.p1));
+    // DNO SE ZASTAVÍ PŘED STĚNOU o přídavek (+0,02): na stěně ještě stojí
+    // přídavek na hotovo a dojezd až na hotovou polohu by do něj vjel bokem
+    // plátku a držáku po celé výšce (uživatel 1. 11. 2026). Kout pak dočistí
+    // sjezd po stěně, který končí na dně.
+    const stop = (parseFloat(prms.finishAllowance) || 0) > 0 ? (parseFloat(prms.finishAllowance) || 0) + 0.02 : 0;
+    let floorEnd = s.p1;
+    if (stop > 0 && prev.type === 'line') {
+      const L = Math.hypot(prev.p2.x - prev.p1.x, prev.p2.z - prev.p1.z);
+      if (L > stop + 0.1) {
+        const t = (L - stop) / L;
+        floorEnd = { x: prev.p1.x + (prev.p2.x - prev.p1.x) * t, z: prev.p1.z + (prev.p2.z - prev.p1.z) * t };
+        out[out.length - 1] = { ...prev, p2: floorEnd };
+      }
+    }
+    out.push(back(floorEnd));
     out.push({ type: 'line', p1: { x: s.p2.x, z: s.p2.z }, p2: { x: s.p1.x, z: s.p1.z }, chainBreak: true });
     out.push(back(s.p1));
     const next = path[i + 1];

@@ -68,6 +68,7 @@ import { renderCodeMini } from './cam/sim/codeMini.js';
 import { initLiveTools } from './cam/live/livePanel.js';
 import { simStockArgs } from './cam/sim/grooveSim.js';
 import { radialFlip } from './cam/toolRadialFlip.js';
+import { nextBlockTarget } from './cam/sim/singleBlock.js';
 // Verze logiky generování drah. ZVYŠ při každé změně, která mění vygenerovaný
 // G-kód (hrubování/dokončování/hlídání/…). Uložený manualGCode s jinou verzí se
 // při otevření CAM zahodí a dráhy se přegenerují automaticky — jinak by uživatel
@@ -3780,16 +3781,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         // V single-block módu: spočítat cíl = konec dalšího G-kód bloku.
         if (S.singleBlock) {
           if (!S._cachedCalc) recalcNow();
-          const calc = S._cachedCalc;
-          const total = calc.simPath.length - 1;
-          const currentSimIdx = Math.floor(S.simProgress * total);
-          const currentLineIdx = calc.simPath[currentSimIdx]?.originalLineIdx ?? -1;
-          let targetIdx = total;
-          for (let i = currentSimIdx + 1; i <= total; i++) {
-            const li = calc.simPath[i].originalLineIdx;
-            if (li != null && li > currentLineIdx) { targetIdx = i; break; }
-          }
-          S.simBlockTarget = total > 0 ? targetIdx / total : 1;
+          S.simBlockTarget = nextBlockTarget(S._cachedCalc.simPath, S.simProgress);
         } else {
           S.simBlockTarget = null;
         }
@@ -3808,7 +3800,9 @@ export function openCamSimulator(initialContour, initialGCode) {
     } else if (act === 'sbl') {
       S.singleBlock = !S.singleBlock;
       btn.classList.toggle('cam-sim-active', S.singleBlock);
+      // Zapnuto ZA BĚHU → dojet aktuální blok a zastavit (jinak cíl chyběl).
       if (!S.singleBlock) S.simBlockTarget = null;
+      else if (S.simRunning && S._cachedCalc) S.simBlockTarget = nextBlockTarget(S._cachedCalc.simPath, S.simProgress);
       showToast(S.singleBlock ? 'Single block ZAP – přehrávání po blocích' : 'Single block VYP');
     } else if (act === 'speed-down') {
       const idx = SIM_SPEEDS.indexOf(S.simSpeed);

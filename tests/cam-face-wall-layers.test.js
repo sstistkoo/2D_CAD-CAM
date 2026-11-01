@@ -65,7 +65,9 @@ describe('díl uživatele — čelo Z 0 zleva upichovákem', () => {
     // Osazení Z 205 uprostřed: po dně ke stěně → odskok → stěna SHORA dolů →
     // odskok → průměr. Nikdy posuvem po stěně nahoru (horní strana držáku).
     const finTxt = L.slice(iFin).map(l => l.replace(/^N\d+ /, '')).join('\n');
-    expect(finTxt).toMatch(/G1 X7\.544 Z204\.198\nG1 X9\.544 Z202\.198\nG0 X32\.956[^\n]*\nG0 Z204\.201\nG1 X30\.956 Z204\.201\nG1 X7\.544 Z204\.198\nG1 X9\.544 Z202\.198/);
+    // Dno končí o přídavek 0,2 + 0,02 před stěnou (bok plátku by jinak vjel do
+    // přídavku na stěně po celé výšce); kout dočistí sjezd po stěně.
+    expect(finTxt).toMatch(/G1 X7\.544 Z203\.978\nG1 X9\.544 Z201\.978\nG0 X32\.956[^\n]*\nG0 Z204\.201\nG1 X30\.956 Z204\.201\nG1 X7\.544 Z204\.198\nG1 X9\.544 Z202\.198/);
     expect(finTxt).not.toMatch(/G1 X7\.544 Z204\.198\nG1 X30\.956 Z204\.201/);
   });
 });
