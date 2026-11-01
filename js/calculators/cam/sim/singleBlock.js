@@ -11,7 +11,11 @@
 export function nextBlockTarget(simPath, progress) {
   const total = simPath.length - 1;
   if (total <= 0) return 1;
-  const currentSimIdx = Math.floor(progress * total);
+  // Tolerance: po SBL stojí přehrávání PŘESNĚ na i/total, jenže
+  // floor(i/total·total) vyjde u části i jako i − 1 (plovoucí čárka; 48 z 8000).
+  // Pak se brala za aktuální předchozí řádek, cíl vyšel na místě a ▶ „nereagoval"
+  // (uživatel 1. 11. 2026: N1160, N1340, N230, N360, N620…).
+  const currentSimIdx = Math.min(total, Math.floor(progress * total + 1e-7));
   const currentLineIdx = simPath[currentSimIdx]?.originalLineIdx ?? -1;
   for (let i = currentSimIdx + 1; i <= total; i++) {
     const li = simPath[i].originalLineIdx;

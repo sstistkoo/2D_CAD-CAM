@@ -25,6 +25,7 @@ import { makeFinishTipGuard } from '../toolEnvelope.js';
 import { fitArcsToPolyline, samplePartingEnvelope, partingEnvelopeAt } from '../camMath.js';
 import { maxXAt } from '../passHelpers.js';
 import { getInsert } from '../inserts/index.js';
+import { holderWorldLoop } from '../collisionValidator.js';
 
 /**
  * @param ctx  vstupy z `computeCalculation()` — viz destrukturace níž
@@ -511,6 +512,20 @@ if (getInsert(prms).finishAlongEnvelope && (prms.doFinishing || prms.finishOnly)
           else pts.push({ x: xLow, z: fz });   // na konci jízdy jde čelo shora samo
         }
       }
+      // ZAČÁTEK VE VZDUCHU (uživatel 1. 11. 2026): za mezerou jede obálka
+      // nejdřív ve výšce, kterou určuje jen vynechaný úsek (výška hrubování,
+      // tělo plátku ho přejíždí) — nos ani dno nic neubírají (`N8680 G1
+      // X9.743 Z167.739`, 3,2 mm posuvem vzduchem). Takové body se odříznou;
+      // řetěz začne posledním z nich, odkud se už řeže.
+      if (!faceSeg && roughOffsetPath.length > 0 && pts.length > 2) {
+        const air = (p) => {
+          const f = partingEnvelopeAt(finXAt, p.z, w2RF, dirMF, 0.4);
+          return f === null || f < p.x - 0.005;
+        };
+        let k = 0;
+        while (k < pts.length - 1 && air(pts[k])) k++;
+        if (k > 1) pts.splice(0, k - 1);
+      }
       if (faceSeg) {
         out.push(faceSeg);
         // Odskok od čela pod 45° do vzduchu za koncem dílu (Odskok, jako
@@ -537,17 +552,39 @@ if (getInsert(prms).finishAlongEnvelope && (prms.doFinishing || prms.finishOnly)
 // Z204.201`), se rozdělí: dno dojede ke stěně → odskok → samostatný řetěz
 // po stěně shora dolů → odskok → nový řetěz od vršku stěny dál po průměru.
 // Odskoky (`departure`) jdou pod 45° nahoru zpět nad dno, odkud se přijelo.
-function wallsTopDown(path, prms) {
+//
+// NAKLONĚNÁ STĚNA (uživatel 1. 11. 2026: „když bude mírně nahnuté to čelo, ale
+// plátek i tak nevyjde, aby nezasáhl držák"): zespodu nahoru se smí, jen když
+// se stěna od držáku odkloní dost rychle. Držák (kanonický rám, +z k obrobené
+// straně) přečnívá ke stěně o L ve výšce H nad špičkou; přídavek na stěně leží
+// R − přídavek od středu a s výškou se odklání o sklon s = posun v Z / výšku.
+// Držák projde, když s ≥ max (L − (R − přídavek)) / H (MGEHR: 0,7 přes 0,6 ve
+// 15 mm → 0,0067, tj. stěna strmější než ≈ 89,6° se bere shora).
+export function climbSlopeMin(prms) {
+  const loop = holderWorldLoop(prms, false);
+  if (!loop) return 0;
+  const r = Math.max(0, parseFloat(prms.toolRadius) || 0);
+  const free = r - (parseFloat(prms.finishAllowance) || 0);
+  let m = 0;
+  for (const q of loop) if (q.x > 1e-6) m = Math.max(m, (-q.z - free) / q.x);
+  return m;
+}
+
+export function wallsTopDown(path, prms) {
   const rd = Math.max(0.5, parseFloat(prms.retractDistance) || 0);
+  const sMin = climbSlopeMin(prms) + 0.002;
   const out = [];
   for (let i = 0; i < path.length; i++) {
     const s = path[i];
-    const up = s.type === 'line' && !s.departure && Math.abs(s.p2.z - s.p1.z) < 0.05 && s.p2.x - s.p1.x > 0.3;
     const prev = out[out.length - 1];
-    if (!up || !prev || prev.departure) { out.push(s); continue; }
+    const rise = s.type === 'line' && !s.departure ? s.p2.x - s.p1.x : 0;
+    if (!(rise > 0.3) || !prev || prev.departure) { out.push(s); continue; }
     // Směr jízdy k stěně z předchozího úseku; odskok jde proti němu.
     const pz = prev.type === 'line' ? prev.p1.z : (prev.p1 ? prev.p1.z : s.p1.z);
     const dir = Math.sign(s.p1.z - pz) || 1;
+    // Sklon stěny od držáku (posun ve směru jízdy na mm výšky); dost odkloněná
+    // stěna se jede zespodu po obálce jako dřív.
+    if ((s.p2.z - s.p1.z) * dir / rise >= sMin) { out.push(s); continue; }
     const back = (q) => ({ type: 'line', p1: { x: q.x, z: q.z }, p2: { x: q.x + rd, z: q.z - dir * rd }, departure: true });
     // DNO SE ZASTAVÍ PŘED STĚNOU o přídavek (+0,02): na stěně ještě stojí
     // přídavek na hotovo a dojezd až na hotovou polohu by do něj vjel bokem

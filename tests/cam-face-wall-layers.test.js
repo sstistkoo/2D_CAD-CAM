@@ -71,3 +71,27 @@ describe('díl uživatele — čelo Z 0 zleva upichovákem', () => {
     expect(finTxt).not.toMatch(/G1 X7\.544 Z204\.198\nG1 X30\.956 Z204\.201/);
   });
 });
+
+describe('dokončení stěny shora dolů — i mírně nakloněné (wallsTopDown)', () => {
+  // Uživatel 1. 11. 2026: „když bude mírně nahnuté čelo, ale plátek i tak
+  // nevyjde, aby nezasáhl držák, ať to vezme taky zvrchu".
+  it('mez sklonu z držáku MGEHR: přečnívá 0,7 přes 0,6 ve 15 mm', async () => {
+    const { climbSlopeMin } = await import('../js/calculators/cam/ops/finish.js');
+    const { params } = await runCamProgFile(FILE);
+    expect(climbSlopeMin(params)).toBeCloseTo(0.1 / 15, 4);
+  });
+  it('stěna nakloněná pod mez → shora dolů, dost odkloněná → zespodu', async () => {
+    const { wallsTopDown } = await import('../js/calculators/cam/ops/finish.js');
+    const { params } = await runCamProgFile(FILE);
+    const floor = { type: 'line', p1: { x: 7.5, z: 190 }, p2: { x: 7.5, z: 204 } };
+    const wall = (dz) => ({ type: 'line', p1: { x: 7.5, z: 204 }, p2: { x: 30, z: 204 + dz } });
+    const top = { type: 'line', p1: { x: 30, z: 204.1 }, p2: { x: 30, z: 214 } };
+    // 0,1 mm na 22,5 mm výšky (≈ 89,75°) — držák by bral přídavek.
+    const a = wallsTopDown([floor, wall(0.1), { ...top }], params);
+    expect(a.some(s => s.p1.x === 30 && s.p2.x === 7.5)).toBe(true);
+    // 1 mm na 22,5 mm (≈ 87,5°) — držák projde, jede se zespodu po obálce.
+    const b = wallsTopDown([floor, wall(1), { ...top, p1: { x: 30, z: 205 } }], params);
+    expect(b.some(s => s.p1.x === 7.5 && s.p2.x === 30)).toBe(true);
+    expect(b.some(s => s.departure)).toBe(false);
+  });
+});

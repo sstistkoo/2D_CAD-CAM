@@ -2106,7 +2106,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (total <= 0) return;
     S.simRunning = false; S.simBlockTarget = null; playBtn.textContent = '▶';
     S._gcodeFocusLine = null;   // ovládání simulace přebíjí kliknutý řádek
-    const currentSimIdx = Math.max(0, Math.min(total, Math.floor(S.simProgress * total)));
+    const currentSimIdx = Math.max(0, Math.min(total, Math.floor(S.simProgress * total + 1e-7)));   // + tolerance: viz cam/sim/singleBlock.js
     const currentLineIdx = calc.simPath[currentSimIdx]?.originalLineIdx ?? -1;
     let targetIdx;
     if (direction > 0) {

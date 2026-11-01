@@ -17,4 +17,10 @@ describe('nextBlockTarget', () => {
     expect(nextBlockTarget(path, 1)).toBe(1);
     expect(nextBlockTarget([{ originalLineIdx: 0 }], 0)).toBe(1);
   });
+  it('ze zastávky na i/total vždy dál (plovoucí čárka)', () => {
+    // floor(i/total·total) === i − 1 u části i — dřív cíl = aktuální pozice.
+    const total = 8000;
+    const p = Array.from({ length: total + 1 }, (_, i) => ({ originalLineIdx: i }));
+    for (let i = 1; i < total; i++) expect(nextBlockTarget(p, i / total)).toBeGreaterThan(i / total);
+  });
 });

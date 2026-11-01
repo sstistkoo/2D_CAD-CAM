@@ -61,6 +61,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM – upichovák: dokončování nezačíná ve vzduchu** (`ops/finish.js`) – za úsekem vynechaným kvůli držáku jela obálka
+  nejdřív ve výšce hrubování a nic neubírala (3,2 mm posuvem vzduchem); body, jejichž výšku určuje jen vynechaný úsek,
+  se odříznou a řetěz začne tam, kde se řeže.
+- **CAM simulátor – SBL: ▶ po zastavení nereagoval** (`cam/sim/singleBlock.js`, krokování ⏭/⏮) – zastávka leží
+  přesně na i/total a floor(i/total·total) vyšlo u části řádků i − 1 (plovoucí čárka); za aktuální se bral předchozí
+  řádek a cíl vyšel na místě (N1160, N1340, N230…). Teď s tolerancí.
 - **CAM simulátor – SBL za běhu** (`cam/sim/singleBlock.js`) – zapnutý během přehrávání se nezastavil po dokončeném
   bloku (cíl se počítal jen při ▶); teď dojede aktuální řádek a zastaví. Test `tests/sim-single-block.test.js`.
 - **CAM – čelní hrubování: sjezd po kolmé stěně** (`ops/face/wallLayers.js`, pravidlo 3) – mřížka po ap na stěnu
@@ -74,6 +80,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Totéž u kolmé stěny uprostřed (osazení): dno dojede ke stěně → odskok → stěna shora dolů → odskok → průměr;
   po stěně nahoru by horní strana držáku brala materiál (`wallsTopDown`). Dno se zastaví o přídavek na hotovo
   (+0,02) před stěnou – na stěně ještě stojí přídavek a bok plátku s držákem by do něj vjel po celé výšce.
+  Shora dolů se bere i mírně nakloněná stěna, pokud by držák při jízdě zespodu zasáhl přídavek: mez sklonu se
+  počítá z obrysu držáku (`climbSlopeMin`; MGEHR ≈ 89,6°), dost odkloněná stěna se jede zespodu po obálce.
 - **CAM – dokončování: pahýl řetězu po vyřazeném úseku** (`ops/finishEmit.js`, `dropStubChains`) – když filtr
   vyřadí úsek uprostřed řetězu (držák ve zbytku, tříska nad ap, začátek ve zbytku), zbytek, který po hotovém tvaru
   nejede aspoň 0,2 mm (u upichováku počítá celé dno), odpadá – jinak jen sloupl přídavek a vyjel posuvem vzduchem
