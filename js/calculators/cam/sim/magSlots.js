@@ -71,7 +71,7 @@ export function _isoMagSlot(rec, num) {
   return slot;
 }
 
-/** Výchozí nože jako sloty T1–T7 — ISO nože + vrták (prázdný zásobník, reset). */
+/** Výchozí nože jako sloty T1–T9 — ISO nože + vrták + úzké držáky (prázdný zásobník, reset). */
 export function _isoDefaultMagSlots() {
   return defaultMagazineKnives().map((rec, i) => _isoMagSlot(rec, i + 1));
 }

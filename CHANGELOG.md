@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM – strategie ⇋ Cik cak** (kulatá destička v úzkém držáku, `cam/ops/zigzagRough.js`, `zigzagReverse.js`,
+  `zigzagEmit.js`): Podélně podle všech pravidel, jen vrstva za hrbolem, která by vyjela do prázdného prostoru
+  (bez polotovaru), se vezme obráceně — ze vzduchu ke stěně hrbolu, bez zanoření a bez klínu pod čarou zanoření.
+  Spodek pod polotovarem u hranice úseku cik cakem až ke stěně v sousedním úseku (`zigzagFloor.js`) —
+  začátek u pravé stěny, rampa nekončí za šikmou stěnou, dno bez návratu po stejné hloubce. Výjezd obrácené
+  vrstvy po oblouku stěny bez schodků, nejvyšší vrstva pokračuje po průměru přes vršek hrbolu. Dokončování
+  v úseku se spodkem cik cak sjede po pravém čele a dokončí dno až ke stěně. Schody na šikmých stěnách
+  spodku dojede jízda po hrubovacím offsetu (s přídavkem) ještě při hrubování. Čára přídavku se v náhledu
+  kreslí bez napojení na čáru zanoření.
+  Pravidlo 20 v `docs/cam-pravidla.md` je NÁVRH. Testy `tests/cam-zigzag-reverse.test.js`,
+  `tests/cam-zigzag-sections.test.js` (díl uživatele po úsecích).
+- **CAM – úzké držáky v 🔧 Zásobníku** (`calculators/narrowHolders.js`): T8 **SRDPN úzký** (kulatá R5,
+  lišta o 0,5 mm/stranu užší než ⌀ destičky) a T9 **Upichovák úzký** (4 mm, rovná lišta o 0,2 mm/stranu užší).
+  Kolmé čelo bez drhnutí z obou stran; změna R / šířky destičky lištu přestaví (`holderFollowsInsert.js`,
+  nově i pro upichovák). Výchozí sada revize 4 — do uloženého zásobníku se přidají jednou. Test `tests/narrow-holders.test.js`. Hlídání držáku (`toolEnvelope.js`)
+  u držáku celého ve stínu destičky bere siluetu zmenšenou o R dokola (ne posunutou dolů) — jinak vrstvy u stěny
+  končily o 2,5 mm dřív než se SRSCR téhož R; ostatní držáky beze změny (otisk 32 fixtures shodný).
 - **Tolerance ISO 286 nad 500 do 3150 mm** (`calculators/iso286Large.js`) – pro velké průměry na karuselu.
   IT1–IT18 a základní úchylky d–s / D–S opsané z tabulek ISO 286-2:2010 (r, s v jemných podrozsazích),
   každá hodnota zkontrolovaná rozdílem = IT. Nad 500 mm: a, b, c, j nedefinováno, díry K–S bez Δ.

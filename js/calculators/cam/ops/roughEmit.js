@@ -20,6 +20,7 @@ import { segmentHitsPath } from '../contourBuild.js';
 import { getInsert } from '../inserts/index.js';
 import { rapidFeedGap } from '../camMath.js';
 import { makeFaceTransitGuard } from '../faceTransitGuard.js';
+import { emitZigzagPass } from './zigzagEmit.js';
 
 /**
  * @param E  sdílené emisní prostředí z `generateAutoGCode()`
@@ -218,6 +219,8 @@ calc.passes.forEach((pass, i) => {
   // (zleva doprava, `backside`). Nájezd před řez a odskok po řezu jdou
   // vždy PROTI směru řezu (−zDir), dojezd „do vzduchu" za koncem po směru.
   const zDir = pass.backside ? 1 : -1;
+  // Cik cak: hotová řada pohybů, směr se střídá (ops/zigzagEmit.js).
+  if (pass.type === 'zigzag') { simCounter = emitZigzagPass(pass, { addN, xDia, cur, setPos, safeRapidTo, noteCutMove, prms, rDist, rDistZ }, simCounter); return; }
   if (pass.type === 'long' && (pass.contourLeadIn || pass.ramp || pass.pocketClean)) {
     // Kapsa za bossem kontury: namísto odskoku a rychloposuvu přes
     // vršek polotovaru se kopíruje samotná kontura (G1/G2/G3) až k

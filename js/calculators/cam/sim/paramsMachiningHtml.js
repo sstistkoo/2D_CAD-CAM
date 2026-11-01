@@ -21,7 +21,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
   let html = '';
   const _machOpen = S.machiningConfigOpen;
   const _fmtNum = (v) => String(v).replace('.', ',');
-  const _stratIcon = prms.roughingStrategy === 'face' ? '↓' : '↔';
+  const _stratIcon = prms.roughingStrategy === 'face' ? '↓' : prms.roughingStrategy === 'zigzag' ? '⇋' : '↔';
   const _sideIcon = prms.roughingSide === 'left' ? '→' : '←';
   const _surfIcon = programInner(prms) ? '◎' : '';
   const _machSubTab = S.machiningSubTab || 'hrub';
@@ -52,6 +52,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
     <div class="cam-sim-toggle-row">
       <button data-rough="face" class="${prms.roughingStrategy === 'face' ? 'cam-sim-active' : ''}">↓ Čelně (X)</button>
       ${getInsert(prms).longRoughing === false ? '' : `<button data-rough="longitudinal" class="${prms.roughingStrategy === 'longitudinal' ? 'cam-sim-active' : ''}">↔ Podélně (Z)</button>`}
+      ${getInsert(prms).zigzagPockets ? `<button data-rough="zigzag" class="${prms.roughingStrategy === 'zigzag' ? 'cam-sim-active' : ''}" title="Jako Podélně, ale vrstva za hrbolem, která by vyjela do prázdného prostoru, se vezme obráceně — ze vzduchu ke stěně, bez zanoření. Jen kulatá destička v držáku užším než destička (🔧 SRDPN úzký)">⇋ Cik cak</button>` : ''}
     </div>
     <div class="cam-sim-toggle-row">
       <button data-side="left" class="${prms.roughingSide === 'left' ? 'cam-sim-active' : ''}" title="Druhá strana — zaber zleva doprava (zprava nelze, narazil by držák / geometrie destičky), omezeno 📐 Rozsahem obrábění">→ Zleva</button>

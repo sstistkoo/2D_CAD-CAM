@@ -176,6 +176,7 @@ export function polygonInsert(prms) {
     footprintIsOutline: false,
     holderAxial: false,
     canDrill: false,
+    zigzagPockets: false,
     canBore: true,
     pointLengthZ: 0,
   };

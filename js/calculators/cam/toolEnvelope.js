@@ -155,6 +155,19 @@ export function buildObstacleLoops(path, prms, { stockPathSegments = null, openR
   return obstacleLoops.length > 0 ? obstacleLoops : null;
 }
 
+/** Držák v ose Z celý mezi krajními body destičky (úzký držák). */
+function holderInInsertShadow(holder, prms, backside) {
+  const ins = insertWorldLoop(prms, backside);
+  if (!ins || ins.length < 3) return false;
+  const zs = holder.map(p => p.z), iz = ins.map(p => p.z);
+  return Math.min(...zs) > Math.min(...iz) + 1e-6 && Math.max(...zs) < Math.max(...iz) - 1e-6;
+}
+function shrinkObstacle(loops, r) {
+  if (!loops) return null;
+  const out = polyOffset(loops, -r, 'round');
+  return out.length > 0 ? out : null;
+}
+
 /**
  * Zakázaná oblast ŠPIČKY pro daný obrys nástroje relativně ke špičce
  * (typicky držák z holderWorldLoop): F = obstacle ⊕ (−toolLoop).
@@ -295,8 +308,16 @@ export function makeHolderClamp(prms, offsetPath, { backside = false, margin = H
   // 806 mm², range-end-leadout 175 mm², part-13-zleva-flange 43 mm²) —
   // a ty díly kulatou destičku vůbec nemají. Rezervu proto nechat.
   const noseLiftX = Math.max(0, getInsert(prms).noseLiftX || 0);
-  const obstacleLoops = buildObstacleLoops(offsetPath, prms,
-    { stockPathSegments, openR, dropX: noseLiftX });
+  // DRŽÁK VE STÍNU DESTIČKY (úzký držák, narrowHolders.js, 1. 11. 2026):
+  // držák je v ose Z z obou stran užší než destička, takže kam by narazil
+  // do strany, tam by dřív narazila destička. Rezerva o R do strany (silueta
+  // středu nosu) by ho jen odsunula od stěny — vrstvy u stěny končily o
+  // 2,5 mm dřív než se SRSCR téhož R. Silueta se proto zmenší o R dokola
+  // (≈ kontura + přídavek), místo posunu dolů. Ostatní držáky beze změny.
+  const shadowed = noseLiftX > 0 && holderInInsertShadow(holder, prms, backside);
+  const obstacleLoops = shadowed
+    ? shrinkObstacle(buildObstacleLoops(offsetPath, prms, { stockPathSegments, openR }), noseLiftX)
+    : buildObstacleLoops(offsetPath, prms, { stockPathSegments, openR, dropX: noseLiftX });
   if (!obstacleLoops) return null;
   const forbidden = buildTipForbiddenRegion(obstacleLoops, holder);
   if (forbidden.length === 0) return null;

@@ -1468,6 +1468,28 @@ náhledem destičky a držáku. Pod náhledem je jeden přepínač
   dosadí R z kódu (u kulaté polovinu průměru z velikosti: RCMT 1204M0 → R6).
   **Hrubování (Podélně / Čelně) si každý plátek pamatuje:** kulatá podélně →
   upichovák (ten umí jen čelně) → zpět na kulatou vrátí podélně.
+  **⇋ Cik cak** (jen kulatá destička v držáku užším než destička, 🔧 SRDPN
+  úzký; 1. 11. 2026): jede jako Podélně podle všech pravidel (úseky, pořadí,
+  zanořování). Jen **vrstva za hrbolem**, která by se zanořila a **vyjela do
+  prázdného prostoru** (za ní není polotovar — typicky odlitek s prázdným
+  údolím), se vezme **obráceně**: nůž vjede ve volném prostoru a bere proti
+  obvyklému směru až ke stěně hrbolu, po ní vyjede o vrstvu nahoru. Nezanořuje
+  se a pod čarou zanoření nezůstane klín. Vše zůstává v témže úseku, nic se
+  nepřejíždí. Na tyči (za vrstvou materiál) je program shodný s Podélně.
+  Obrácené vrstvy jdou za sebou shora dolů až na úroveň polotovaru (u S6),
+  po pravé straně dílu; mezi nimi odskok, rychloposuv rovnou nad další vjezd
+  a nové ap (ne výjezd nahoru). **Spodek pod polotovarem u hranice úseku**
+  (např. Ú2 pod S6) se místo zanořování od hranice vezme cik cakem — vrstva
+  tam a zpět, rampa o ap níž — a doprava dojede až ke stěně i v sousedním
+  úseku (roh u stěny). Začíná u pravé stěny, mezi vrstvami jen rampa (žádné
+  výjezdy po stěně nahoru a zpět), dno jede jednou. Schody, které vrstvy
+  nechají na šikmých stěnách, dojede ještě při hrubování jedna jízda po
+  stěně s přídavkem na hotovo (vpravo i vlevo). Dokončování tam sjede
+  po pravém čele a dno dokončí až ke stěně. Obrácená vrstva vyjíždí po
+  oblouku stěny plynule (bez schodků) a nejvyšší pokračuje po průměru přes
+  vršek hrbolu. V náhledu se čára
+  zanoření, kterou obrácené vrstvy nahradily, nekreslí a hranice úseku u nich
+  vede až dolů na polotovar. Se širším držákem ⚠ a jede se jen podélně.
   U čtyřstranné (polygon) destičky se úhel ε dá otevřít na dvě strany od
   polárního úhlu — pokud náhled ukáže destičku obráceně, tlačítko **⇄ Přehodit
   stranu** ji překlopí bez nutnosti přepočítávat úhly ručně. **Není to jen
@@ -1573,7 +1595,7 @@ Hlavička okna je v jednom řádku:
   Rozbalení karty ne.
 - **☰** — menu s méně častou správou: **📥 Import ze souborů** (jeden nebo
   víc `.json` z 💾 Uložit do PC, každý jako nový slot — celý import je jeden
-  krok ↩) a **🔄 Seřadit dle výchozích** (výchozí nože zpět na T1–T7).
+  krok ↩) a **🔄 Seřadit dle výchozích** (výchozí nože zpět na T1–T9).
 - **✕** — zavření, odsazené od ☰, ať se okno omylem nezavře.
 
 **Výchozí nože T1–T6** jsou skutečné nože z 📚 ISO katalogu (dřík 25×25),
@@ -1590,6 +1612,14 @@ konec, 7. 10. 2026):
 | T4 | SRSCR 2525M20 | RCMT 2006M0 | Kulaty — R10 jako dřív, dojede k čelu |
 | T5 | SER 2525M16 | 16ER AG60 | Zavit |
 | T6 | MGEHR 2525-5 | MGMN 500-M | Upichovak — š 5, R 0,8 jako dřív |
+
+**T8 SRDPN úzký a T9 Upichovák úzký** (1. 11. 2026) mají držák — rovnou lištu —
+**užší než plátek**: u kulaté o 0,5 mm na stranu než ⌀ destičky (výchozí R5,
+RPMT 10T3), u upichováku o 0,2 mm na stranu než šířka destičky (výchozí 4 mm).
+Při kolmém čele / stěně tak nedrhne ani jedna strana a lišta neomezuje hloubku.
+Když změníte **R** kulaté nebo **šířku** upichovací destičky (Parametry, 🔪
+Geometrie, zásobník), lišta se přestaví a je pořád o tutéž mezeru užší. Ručně
+upravený obrys se nepřestavuje. Do uloženého zásobníku se přidaly jednou na konec.
 
 **Tlačítka tvaru destičky (● ■ ▮ ▽ ⌀) nasadí celý nůž** i s držákem a jeho
 obrysem (7. 10. 2026): ● kulatá → **SRSCR2525M20**, ■ polygon →

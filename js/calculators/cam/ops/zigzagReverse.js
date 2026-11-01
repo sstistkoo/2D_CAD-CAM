@@ -1,0 +1,250 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  CIK CAK — vrstva za hrbolem obráceně: ze vzduchu ke stěně     ║
+// ╚══════════════════════════════════════════════════════════════╝
+//
+// Uživatel 1. 11. 2026: všechno se dělá podle pravidel (úseky, pořadí,
+// zanořování). Jediná výjimka: vrstva za hrbolem, která by se zprava
+// zanořila, jela doleva a VYJELA DO PRÁZDNÉHO PROSTORU (vlevo není
+// polotovar), se vezme obráceně — nůž zajede vlevo do volného místa a bere
+// doprava až ke stěně hrbolu. Nezanořuje se, a protože ke stěně jede
+// vodorovně, čára zanoření pro ni neplatí — klín pod ní nezůstane.
+//
+// Pracuje nad hotovými průchody genLongPasses (v prostoru středu nosu,
+// jízda −Z; zleva je svět zrcadlený). Obrácený průchod zůstává na místě
+// původního → týž úsek, totéž pořadí, žádný přejezd do jiného úseku.
+
+import { maxXAt } from '../passHelpers.js';
+
+const DZ = 0.05;
+const ENTRY_AIR = 1;        // vjezd o tolik před koncem materiálu (ve vzduchu)
+const WALL_STEP = 0.25;
+
+/**
+ * Dotkne se SPODNÍ půlka kružnice nosu (střed x, z) polotovaru? Horní půlka
+ * se neptá — nad vrstvou je materiál ubraný vrstvami nad ní (jedou shora).
+ */
+function makeStockTouch(stockSegs, R, clear = 0) {
+  if (!stockSegs || !stockSegs.length) return null;
+  // Vůle polotovaru (Vůle X/Z): kružnice nosu zvětšená o ni — rychloposuv
+  // na vjezd se pak nedotkne ani polotovaru, se kterým počítá plánování.
+  const Rc = R + clear;
+  const n = Math.max(2, Math.ceil(Rc / 0.25));
+  return (x, z) => {
+    for (let k = -n; k <= n; k++) {
+      const dz = (k / n) * Rc, t = maxXAt(stockSegs, z + dz);
+      if (t !== null && t > x - Math.sqrt(Math.max(Rc * Rc - dz * dz, 0)) + 0.02) return true;
+    }
+    return false;
+  };
+}
+
+/**
+ * Obrátí vrstvy za hrbolem, které končí ve vzduchu. Mění `passes` na místě.
+ * @param {object} o { passes, start, raw, guided, stock, noseR, step, zLo, zHi }
+ *   zLo    — čelisti (vjezd vlevo za ně nesmí)
+ *   zHi    — začátek rozsahu úseku (obrácená vrstva za něj nejede)
+ *   raw    — offset bez čar zanoření (stěna hrbolu, kam se dojede)
+ *   guided — offset, nad kterým jelo podélné hrubování
+ * @returns {number} počet obrácených vrstev
+ */
+export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR, step, zLo = -Infinity, zHi = Infinity, clear = 0 }) {
+  const touch = makeStockTouch(stock, noseR);
+  // Vjezd (sem sjede rychloposuv): s vůlí polotovaru; nevyjde-li, o kus dál
+  // doleva ve volnu (do 2R). Rozhodnutí „vlevo je volno" se dělá bez vůle.
+  const touchClr = makeStockTouch(stock, noseR, clear);
+  const entryAir = (X, z0, zMin) => {
+    for (let z = z0; z >= Math.max(zMin, z0 - 2 * noseR); z -= 0.1) {
+      if (fR(z) > X + 1e-6) return null;
+      // Rychloposuv končí 0,5 nad vrstvou (zbytek posuvem, zigzagEmit.js):
+      // tam s vůlí, na hloubce vrstvy bez ní.
+      if (!touchClr(X + 0.5, z) && !touch(X, z)) return z;
+    }
+    return null;
+  };
+  if (!touch) return 0;   // bez polotovaru nevíme, kde je vzduch
+  const fR = (z) => { const v = maxXAt(raw, z); return v === null ? -Infinity : v; };
+  const fG = (z) => { const v = maxXAt(guided, z); return v === null ? -Infinity : v; };
+  // Stěna vpravo od z na hloubce X (offset bez čar zanoření se zvedne nad X).
+  const wallRight = (X, z, zMax0) => {
+    const zMax = Math.min(zMax0, zHi);
+    for (let zz = z; zz <= zMax + 1e-9; zz += DZ) {
+      if (fR(zz) > X + 1e-6) {
+        let a = zz - DZ, b = zz;
+        for (let q = 0; q < 30; q++) { const m = (a + b) / 2; if (fR(m) > X + 1e-6) b = m; else a = m; }
+        return a;
+      }
+    }
+    // Bez stěny až po začátek úseku: vrstva končí na něm (dál je jiný úsek).
+    return zHi <= zMax0 && zHi > z ? zHi : null;
+  };
+  // Krok po stěně z (x0,z0) do (x1,z1): šikmo, kde tětiva offset nepodřízne;
+  // na oblouku se zjemní body na offsetu. Jen u skutečného schodu (stěna
+  // uskočí) nejdřív nahoru a pak přes — šikmo by hranu podřízl. (Uživatel:
+  // „schodky místo rádiusu".)
+  const wallStep = (x0, z0, x1, z1, depth = 0) => {
+    let worst = 0.005, wz = null;
+    for (let t = 0.125; t < 1; t += 0.125) {
+      const zt = z0 + (z1 - z0) * t, d = fR(zt) - (x0 + (x1 - x0) * t);
+      if (d > worst) { worst = d; wz = zt; }
+    }
+    if (wz === null) return [{ x: x1, z: z1 }];
+    const xm = fR(wz);
+    if (depth >= 6 || xm > x1 + 1e-6) return [{ x: x1, z: z0 }, { x: x1, z: z1 }];
+    return [...wallStep(x0, z0, xm, wz, depth + 1), ...wallStep(xm, wz, x1, z1, depth + 1)];
+  };
+  // Tah obrácené vrstvy: vjezd ve vzduchu, +Z ke stěně, po stěně o vrstvu
+  // nahoru. Skončí-li stěna pod další vrstvou (vršek hrbolu), pokračuje po
+  // offsetu přes vršek, dokud nesjede zpět na výšku vrstvy — průměr za
+  // rádiusem se obrobí zleva, ne až zvrchu a zprava (uživatel 1. 11.).
+  const layerMoves = (X, zAir, zw) => {
+    const moves = [{ g: 'G0', x: X, z: zAir }, { g: 'G1', x: X, z: zw }];
+    const k = Math.max(1, Math.ceil(step / WALL_STEP));
+    let lx = X, lz = zw, top = false;
+    for (let j = 1; j <= k; j++) {
+      const x = X + step * j / k, z = wallRight(x, lz, zw + 2 * step + 2 * noseR);
+      if (z === null) { top = true; break; }
+      for (const q of wallStep(lx, lz, x, z)) moves.push({ g: 'G1', x: q.x, z: q.z });
+      lx = x; lz = z;
+    }
+    if (top) {
+      const zEnd = Math.min(zHi, lz + 4 * noseR + 4 * step);
+      let zz = lz;
+      while (zz < zEnd) {
+        zz = Math.min(zEnd, zz + 0.5);
+        const f = fR(zz);
+        if (!(f > X + 0.02) || f > X + step) {
+          if (f <= X + 0.02) moves.push({ g: 'G1', x: X, z: zz });
+          break;
+        }
+        moves.push({ g: 'G1', x: f, z: zz });
+      }
+    }
+    return moves;
+  };
+  const done = [];
+  for (let i = start; i < passes.length; i++) {
+    const p = passes[i];
+    if (!p || p.type !== 'long' || !Number.isFinite(p.x) || !(p.zStart > p.zEnd + 0.5)) continue;
+    const X = p.x;
+    // Za hrbolem: vpravo od začátku vrstvy stojí kontura (nebo čára zanoření) nad ní.
+    const behindHump = fG(p.zStart + 0.3) > X + 0.05 || !!p.ramp || !!p.contourLeadIn;
+    if (!behindHump) continue;
+    // Volno HNED ZA MATERIÁLEM u hrbolu (ne až na konci vrstvy — ta může
+    // pokračovat přes prázdné údolí k dalšímu materiálu): první místo vlevo
+    // od začátku, kde se spodní půlka nosu nedotkne polotovaru. Narazí-li se
+    // dřív na konturu, vzduch tu není.
+    let zFree = null;
+    // (Začátek vrstvy leží na stěně nebo pod hranou schodu — ta se přeskočí.)
+    let z0 = p.zStart - 0.1;
+    while (fR(z0) > X + 0.05 && z0 > p.zStart - 2 * noseR - step) z0 -= 0.1;
+    // Vrstva musí NEJDŘÍV jet materiálem (u hrbolu) a pak vyjet do vzduchu;
+    // začíná-li ve vzduchu (materiál až dál vlevo), není to tenhle případ.
+    let mat = false;
+    for (let zz = z0; zz >= p.zEnd - 2 * noseR - 2; zz -= 0.1) {
+      if (fR(zz) > X + 0.05) break;
+      if (touch(X, zz)) mat = true;
+      else if (mat) { zFree = zz; break; }
+      else break;
+    }
+    if (zFree === null) continue;
+    // Další materiál vlevo za mezerou (v rozsahu původní vrstvy) zůstane
+    // původní vrstvě — začne ve vzduchu před ním, bez nájezdu po kontuře.
+    let zNext = null;
+    for (let zz = zFree - 0.1; zz >= p.zEnd; zz -= 0.1) { if (touch(X, zz)) { zNext = zz; break; } }
+    let zAir = entryAir(X, zFree - ENTRY_AIR, zNext !== null ? (zFree + zNext) / 2 : -Infinity);
+    if (zAir === null) continue;
+    // Vjezd i s plátkem (± R) před čelistmi (zLo).
+    if (fR(zAir) > X + 1e-6 || touch(X, zAir) || zAir - noseR < zLo - 1e-6) continue;
+    const zw = wallRight(X, zFree, p.zStart + 2 * noseR + step);
+    if (zw === null || zw - zAir < 0.5) continue;
+    const moves = layerMoves(X, zAir, zw);
+    // `chain`: hned předchozí průchod je obrácená vrstva — emise po jejím
+    // odskoku jede rychloposuvem rovnou nad vjezd a dolů (ne přes vrch).
+    const prev = passes[i - 1];
+    passes[i] = { type: 'zigzag', moves, xSafe: X + step, reversedLayer: true, chain: !!(prev && prev.reversedLayer) };
+    if (zNext !== null) {
+      const rest = { ...p, zStart: Math.min((zFree + zNext) / 2, zNext + ENTRY_AIR) };
+      delete rest.contourLeadIn; delete rest.ramp; delete rest.rampFeedFrom; delete rest.leadInTrimmed;
+      passes.splice(i + 1, 0, rest);
+      i++;
+    }
+    done.push({ x: X, z0: zAir, z1: zw });
+  }
+  // DOPLNĚNÍ AŽ DOLŮ (uživatel 1. 11. 2026: „dráhy po ap z levé strany až
+  // dolů k S6"): pod poslední obrácenou vrstvou skupiny podélné hrubování
+  // vrstvu často vůbec nemá (ořízla ji čára zanoření). Přidají se další
+  // obrácené vrstvy po ap, dokud vpravo stojí materiál a vlevo je volno.
+  for (let i = passes.length - 1; i >= start; i--) {
+    const r = passes[i];
+    if (!r || !r.reversedLayer) continue;
+    const X0 = r.moves[0].x;
+    // Vrstva pod ní (do 0,6 ap) už je — obrácená nebo podélná přes totéž místo.
+    const near = (X, za, zb) => done.some((d) => Math.abs(d.x - X) < 0.6 * step && d.z0 < zb && d.z1 > za)
+      || passes.some((q) => q && q.type === 'long' && Math.abs(q.x - X) < 0.6 * step && Math.abs(q.zStart - q.zEnd) > 0.5
+        && Math.min(q.zStart, q.zEnd) < zb && Math.max(q.zStart, q.zEnd) > za);
+    if (near(X0 - step, r.moves[0].z, r.moves[1].z)) continue;
+    const add = [];
+    let zA = r.moves[0].z, zW = r.moves[1].z;
+    for (let X = X0 - step; X > 0; X -= step) {
+      // Tu vrstvu už jede jiná (krok řetězu zanoření bez těla se nepočítá —
+      // ten v obrácené oblasti nemá co dělat a smaže se níž).
+      if (near(X, zA, zW)) break;
+      const zw = wallRight(X, zA, zW + 2 * noseR + step);
+      if (zw === null) break;
+      let z0 = zw - 0.1, zFree = null, mat = false;
+      for (let zz = z0; zz >= zA - 2 * noseR - 2; zz -= 0.1) {
+        if (fR(zz) > X + 0.05) break;
+        if (touch(X, zz)) mat = true; else if (mat) { zFree = zz; break; }
+      }
+      if (!mat || zFree === null) break;
+      const zAir = entryAir(X, zFree - ENTRY_AIR, -Infinity);
+      if (zAir === null || zAir - noseR < zLo - 1e-6) break;
+      add.push({ type: 'zigzag', moves: layerMoves(X, zAir, zw), xSafe: X + step, reversedLayer: true, chain: true });
+      done.push({ x: X, z0: zAir, z1: zw });
+      zA = zAir; zW = zw;
+    }
+    if (add.length) passes.splice(i + 1, 0, ...add);
+  }
+  // SESKUPENÍ: obrácené vrstvy téhož místa za hrbolem jdou ZA SEBOU, shora
+  // dolů, na místě poslední z nich — tedy až po pravé straně (pravidlo 7:
+  // „pak se přejede přes hrb a dodělá se zbytek"). Mezi nimi jen odskok,
+  // rychloposuv rovnou nad další vjezd a nové ap (`chain`).
+  const zr = (q) => [Math.min(...q.moves.map((m) => m.z)), Math.max(...q.moves.map((m) => m.z))];
+  const idx = [];
+  for (let i = start; i < passes.length; i++) if (passes[i] && passes[i].reversedLayer) idx.push(i);
+  const groups = [];
+  for (const i of idx) {
+    const q = passes[i], [lo, hi] = zr(q);
+    const g = groups.find((G) => G.some((j) => {
+      const o = passes[j], [l2, h2] = zr(o);
+      return Math.abs(Math.abs(o.moves[0].x - q.moves[0].x) - step) < 0.6 * step && lo < h2 && hi > l2;
+    }));
+    if (g) g.push(i); else groups.push([i]);
+  }
+  const remove = new Set(), insertAt = new Map();
+  for (const G of groups) {
+    if (G.length < 2) continue;
+    const items = G.map((j) => passes[j]).sort((a, b) => b.moves[0].x - a.moves[0].x)
+      .map((q, k) => ({ ...q, chain: k > 0 }));
+    const last = Math.max(...G);
+    G.forEach((j) => remove.add(j));
+    insertAt.set(last, items);
+  }
+  if (remove.size) {
+    const out = passes.slice(0, start);
+    for (let i = start; i < passes.length; i++) {
+      if (insertAt.has(i)) out.push(...insertAt.get(i));
+      else if (!remove.has(i)) out.push(passes[i]);
+    }
+    passes.length = 0;
+    passes.push(...out);
+  }
+  // Samostatné kroky řetězu zanoření (rampa bez těla, pravidlo 14) v obrácené
+  // oblasti už nemají kam vést — obrácené vrstvy tam vjíždějí ze vzduchu.
+  for (let i = passes.length - 1; i >= start; i--) {
+    const p = passes[i];
+    if (!p || p.type !== 'long' || !(p.ramp || p.contourLeadIn) || Math.abs(p.zStart - p.zEnd) > 0.5) continue;
+    if (done.some((r) => Math.abs(r.x - p.x) <= step + 0.01 && p.zStart >= r.z0 - 0.01 && p.zStart <= r.z1 + step + 0.01)) passes.splice(i, 1);
+  }
+  return done.length;
+}

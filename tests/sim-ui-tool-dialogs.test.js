@@ -61,6 +61,8 @@ describe('🔧 Zásobník', () => {
         "T5 SER2525M16",
         "T6 MGEHR2525-5",
         "T7 Vrtak HSS D20",
+        "T8 SRDPN úzký",
+        "T9 Upichovák úzký",
       ]
     `);
   });
@@ -134,7 +136,9 @@ describe('🔧 Zásobník — ☰ menu a 💾 Uložit aktuální nástroj', () =
         "T5 SER2525M16",
         "T6 MGEHR2525-5",
         "T7 Vrtak HSS D20",
-        "T8 Můj nůž",
+        "T8 SRDPN úzký",
+        "T9 Upichovák úzký",
+        "T10 Můj nůž",
       ]
     `);
     // úklid: vlastní nůž (teď poslední) pryč

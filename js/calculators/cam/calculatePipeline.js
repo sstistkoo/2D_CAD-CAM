@@ -26,6 +26,7 @@ import { radialFlip } from './toolRadialFlip.js';
 import { getInsert } from './inserts/index.js';
 import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
 import { buildFinishPath, clipFinishBand, finishPartingEnvelope } from './ops/finish.js';
+import { floorFinishZHi, floorFinishFace } from './ops/zigzagFloor.js';
 import { mirrorCalcZ, mirrorParamsZ, mirrorPointChain, mirrorZLimits } from './zMirror.js';
 import { buildStockLoopRaw, insertExtent, stockPlanLoop } from './materialRemoval.js';
 import { resolveRangeX, xMaxWallZ } from './rangeX.js';
@@ -41,6 +42,7 @@ export function roughingKey(S) {
   const type = S.params.roughingStrategy || 'longitudinal';
   const left = (S.params.roughingSide || 'right') === 'left';
   if (type === 'longitudinal') return left ? 'backside' : 'longitudinal';
+  if (type === 'zigzag') return 'zigzag';
   return 'face';
 }
 
@@ -62,6 +64,9 @@ export function mirrorsWorldZ(S) {
 // i emise viděly totéž; starý projekt s upichovákem podélně se tím přepne.
 export function enforceInsertStrategy(params) {
   if (params && getInsert(params).longRoughing === false) params.roughingStrategy = 'face';
+  // Cik cak umí jen plátek s klíčem `zigzagPockets` (kulatá, ops/zigzagRough.js).
+  const type = params && params.roughingStrategy;
+  if (type === 'zigzag' && !getInsert(params).zigzagPockets) params.roughingStrategy = 'longitudinal';
 }
 
 // VRTÁ JEN VRTÁK — a vrták nic jiného neumí. Operaci Vrtání proto určuje
@@ -467,6 +472,10 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     ? dropTinyArcs(trimAndRemoveLoops(buildRawOffsets(contourSegments, tipR, 0, 0, 0).rawOffsets))
     : [];
 
+  // Offset BEZ mezních čar zanoření — cik cak (ops/zigzagReverse.js) dojede
+  // ke stěně za hrbolem vodorovně ze vzduchu, čára zanoření pro něj neplatí.
+  const offsetPathNoGuide = offsetPath;
+
   // ── NAPOJENÍ OFFSETU NA MEZNÍ ČÁRU ZANOŘENÍ ────────────────────────────
   // Offsetová čára nesmí u strmé stěny kopírovat povrch — pod daným úhlem
   // zanoření tam plátek nesjede. Řetěz se proto ořízne offsetem mezní čáry
@@ -482,7 +491,9 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
       offsetPath = joinPlungeGuideOffsets(offsetPath, pgs,
         tipR + allowanceX + finishAllowance, tipR + allowanceZ + finishAllowance,
         'offRough', contourSegments, { endBeyondChain });
-      if (finishRefPath.length > 0)
+      // Cik cak (uživatel 1. 11. 2026): vrstvy za hrbolem jdou ze vzduchu ke
+      // stěně (ops/zigzagReverse.js) — hotovní čára po čáře zanoření nevede.
+      if (finishRefPath.length > 0 && roughingKey(S) !== 'zigzag')
         finishRefPath = joinPlungeGuideOffsets(finishRefPath, pgs, tipR, tipR,
           'offFinish', contourSegments, { endBeyondChain });
     }
@@ -669,7 +680,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // ── Strategie hrubování (cam/roughingStrategies.js) ──
   // passCtx = sdílený kontext: data + pass-helpery z calculate().
   const passCtx = {
-    prms, sRad, stockFace, step, offsetPath, stockPathSegments,
+    prms, sRad, stockFace, step, offsetPath, offsetPathNoGuide, stockPathSegments,
     stockWorldPoints, worldPoints, passes, foundErrors,
     offsetXAt, traceOffsetPath, findPocketExitZ,
     findLeadOutEndZ, hIntersect, machiningRange: rangeForPasses, machiningRangeX, chuckZ, tailZ,
@@ -713,7 +724,8 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     const extF = insertExtent(prms);
     const res = clipFinishBand(finishOffsetPath, {
       zLo: machiningRange ? machiningRange.zLoCut : -Infinity,
-      zHi: machiningRange ? machiningRange.zHi : Infinity,
+      // (Cik cak: dokončení až ke stěně, kam dojel spodek — ops/zigzagFloor.js)
+      zHi: machiningRange ? floorFinishZHi(passes, machiningRange.zHi, allowanceZ + finishAllowance) : Infinity,
       // (X min pod osou: pod ní žádný materiál není — přesah se nepřičítá)
       xLo: machiningRangeX ? machiningRangeX.xLo + (machiningRangeX.xLo > 0 ? extF.down : 0) : -Infinity,
       // X max: nad ním je v zóně vzduch — jen rádius kulaté (pomocné X max
@@ -721,7 +733,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
       xHi: machiningRangeX ? machiningRangeX.xHi + (getInsert(prms).noseLiftX || 0) : Infinity,
     });
     if (res.trimmed > 0 || res.dropped > 0) {
-      finishOffsetPath = res.path;
+      finishOffsetPath = machiningRange ? floorFinishFace(res.path, passes, machiningRange.zHi, contourSegments, tipR) : res.path;
       foundErrors.push({
         type: 'warning',
         msg: `Rozsah obrábění (📐): dokončování ořezáno na zadaný úsek — ${res.trimmed} úsek(ů) zkráceno, ${res.dropped} vynecháno. Zbytek kontury dodělá operace pro sousední úsek.`,
@@ -965,7 +977,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   //   + zvýrazněný číslovaný profil) — ovládá tlačítko „Auto profil". Bez něj
   //   se ukáže normální kontura se všemi body, dráhy ale jedou po profilu.
   const profileViewActive = profileModeActive && (prms.autoProfile !== false);
-  const calcOut = { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, finishOffsetPath, finishRefPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, sectionPlan, partSegments: rawContourForInterference, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null,
+  const calcOut = { worldPoints, stockWorldPoints, contourSegments, machinableContour, offsetPath, offsetPathNoGuide: roughingKey(S) === 'zigzag' ? offsetPathNoGuide : null, finishOffsetPath, finishRefPath, finishUnreachablePath, stockPathSegments, passes, simPath, retractDist, totalPathLength, estimatedTimeSeconds, interferenceSegments, flankSegments, interferenceGuides, sectionPlan, partSegments: rawContourForInterference, stockTopX, profileModeActive, profileViewActive, rawContourForProfile: profileViewActive ? rawContourForProfile : null,
     // Konec rozsahu Z (ruční 📐 i stěna nad X max, pravidlo 12) — emise
     // dokončování za něj nepustí plátek ani „Rovným průměrem" (finishEmit.js
     // `finRunOut`). null = rozsah neplatí.

@@ -404,3 +404,61 @@ ven (se sražením jako ostatní zápichy).**
 - Pohyb: rychloposuvem před čelo (vůle + přesah nástroje), radiálně nad
   zápich, osově do čela, zpět před čelo. Peckování (osově) / plynulý zápich
   jako u upichu.
+
+## Pravidlo 20 — Cik cak: vrstva za hrbolem ze vzduchu ke stěně **NÁVRH**
+
+**Strategie ⇋ Cik cak (kulatá destička, držák užší než destička) jede jako
+Podélně podle všech pravidel (úseky, pořadí, zanořování). Jediná změna:
+vrstva za hrbolem, která by se zanořila a vyjela do prázdného prostoru
+(za ní není polotovar), se vezme obráceně — vjede ve volném prostoru a
+jede proti obvyklému směru až ke stěně hrbolu (bez čáry zanoření), po
+stěně vyjede o vrstvu nahoru.**
+
+- Navrženo 1. 11. 2026 (uživatel: „když je volný prostor z levé strany, zajet
+  doleva a brát doprava, ne se zanořovat a vyjet do prázdného prostoru").
+  Čeká na schválení.
+- Obrácená vrstva zůstává na místě původní — týž úsek, totéž pořadí; žádné
+  přejíždění mezi úseky ani přes prázdné údolí.
+- Vzduch = spodní půlka nosu se kousek za koncem vrstvy nedotkne polotovaru
+  ani kontury; vjezd (± R) musí ležet v rozsahu 📐 / před čelistmi.
+- Volno se hledá HNED ZA MATERIÁLEM u hrbolu; materiál dál vlevo za
+  mezerou zůstává původní vrstvě. Vjezd smí ležet za hranicí úseku (je ve
+  vzduchu — pravidlo 11 hlídá jen materiál), mez jsou čelisti.
+- Obrácené vrstvy téhož místa za hrbolem jdou za sebou shora dolů, až po
+  pravé straně (pravidlo 7). Mezi nimi: odskok šikmo od stěny, rychloposuv
+  v téže výšce rovnou nad další vjezd, dolů ve vzduchu (posledních 0,5
+  posuvem) a nové ap.
+- Kde podélné hrubování pod poslední obrácenou vrstvou žádnou vrstvu nemá
+  (ořízla ji čára zanoření), přidají se další obrácené vrstvy po ap, dokud
+  vpravo stojí materiál a vlevo je volno — až na úroveň polotovaru (S6).
+- Výjezd obrácené vrstvy po stěně jde šikmo po jejím tvaru (oblouk bez
+  schodků; tětiva nesmí podříznout offset, jinak se zjemní); „nahoru a pak
+  přes" jen u skutečného schodu (vodorovná plocha). Skončí-li stěna pod
+  další vrstvou (vršek hrbolu), vrstva pokračuje po offsetu přes vršek,
+  dokud nesjede zpět na svou výšku — průměr za rádiusem se obrobí zleva.
+- Hotovní (tečkovaná) čára se u Cik cak na čáru zanoření nenapojuje; čára
+  přídavku (hrubovací offset) se v náhledu kreslí bez napojení na čáru
+  zanoření (zanořování se nepoužívá).
+- Vjezd obrácené vrstvy: rychloposuv končí 0,5 nad vrstvou a drží Vůli X/Z
+  od polotovaru; kroky řetězu zanoření bez těla v obrácené oblasti odpadají.
+- **Spodek pod polotovarem u hranice úseku** (Po úsecích: Ú2 pod S6):
+  místo vrstev zanořovaných rampou od hranice jeden průchod cik cak — vrstva
+  od stěny ke stěně, vpravo až ke stěně i za hranicí úseku (**výjimka
+  z pravidla 11**, jen tady); začíná u pravé stěny (na výšce začátku rampy)
+  rampou doleva, na konci vrstvy hned rampa pod úhlem zanoření o ap níž (bez
+  výjezdů po stěně nahoru a zpět); rampa končí uvnitř další vrstvy (šikmá
+  stěna se s hloubkou zužuje — žádný bod pod hrubovacím offsetem). Dno jede
+  jednou, bez návratu po stejné hloubce. Platí i mezi šikmými stěnami.
+- **Schody na stěnách spodku:** po spodku cik cak jedna jízda po hrubovacím
+  offsetu (s přídavkem na hotovo) po každé šikmé stěně shora do rohu u dna —
+  vpravo doleva (−Z), vlevo doprava (+Z); svislá stěna se vynechá. Před
+  dokončováním tak na stěnách zůstane jen přídavek.
+- **Dokončování v úseku se spodkem cik cak** dojede taky až ke stěně za
+  hranicí úseku (táž výjimka z pravidla 11): nájezd nad hranou čela, svisle
+  dolů po čele (čelo, které pravidlo 15 jinak vynechá) a dál po dně
+  (`floorFinishZHi`, `floorFinishFace` v `ops/zigzagFloor.js`).
+- Náhled: čára zanoření nahrazená obrácenými vrstvami se nekreslí, hranice
+  úseku u nich vede až dolů na polotovar.
+- Kde za vrstvou materiál je (tyč), platí Podélně beze změny.
+- Kontrola: `tests/cam-zigzag-reverse.test.js` (směr vrstev, validátor
+  kolizí 0, úběr ≥ podélně, na tyči G-kód shodný s Podélně).

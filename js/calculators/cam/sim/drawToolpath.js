@@ -48,7 +48,9 @@ export function drawToolpathLayer(f) {
   if (S.showSimPath !== 'none' && !S.gcodeEditEnabled && passesArePreview) {
     ctx.beginPath();
     calc.passes.forEach(pass => {
-      if (pass.type === 'long') {
+      if (pass.type === 'zigzag') {
+        pass.moves.forEach((m, k) => { const p = toScreen(m.x, m.z); if (k) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
+      } else if (pass.type === 'long') {
         if (pass.contourLeadIn) {
           // sledování kontury (G1/G2/G3) přes kapsu místo odskoku
           drawContourTrace(pass.contourLeadIn);

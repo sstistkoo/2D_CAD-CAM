@@ -12,9 +12,14 @@
 // postavil pro PŮVODNÍ velikost). Vlastní / ručně upravený / cizí držák se
 // nechá být.
 
-import { parseIsoKnifeName, isoHolderForInsert } from '../isoToolCatalog.js';
+//
+// Úzké držáky (narrowHolders.js, 1. 11. 2026) se poznají podle obrysu —
+// kulatá i upichovák; šířka lišty jde za R / šířkou destičky.
 
-const SIZE_KEYS = { round: ['toolRadius'], polygon: ['toolLength', 'toolRadius'] };
+import { parseIsoKnifeName, isoHolderForInsert } from '../isoToolCatalog.js';
+import { narrowHolderProfile } from '../narrowHolders.js';
+
+const SIZE_KEYS = { round: ['toolRadius'], polygon: ['toolLength', 'toolRadius'], parting: ['toolLength', 'toolRadius'] };
 const num = (v) => parseFloat(v) || 0;
 
 const loopKey = (p) => JSON.stringify(p
@@ -51,6 +56,9 @@ export function holderForResizedInsert(before, after) {
   const keys = SIZE_KEYS[after.shape];
   if (!keys || before.shape !== after.shape) return null;
   if (!keys.some((k) => num(before[k]) !== num(after[k]))) return null;
+  const narrow = narrowHolderProfile(before);
+  if (narrow && loopKey(narrow) === loopKey(before.profile)) return narrowHolderProfile(after);
+  if (after.shape === 'parting') return null;
   if (num(after.toolRadius) <= 0) return null;
   const parsed = parseIsoKnifeName(before.name, before.vbd);
   if (!parsed) return null;

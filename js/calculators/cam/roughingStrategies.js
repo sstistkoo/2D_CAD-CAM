@@ -12,6 +12,7 @@
 //      v camSimulator.js (ořez Z-limitů, emise G-kódu, vykreslení).
 import { genFacePasses } from './ops/roughFace.js';
 import { genLongPasses } from './ops/roughLong.js';
+import { genZigzagPasses } from './ops/zigzagRough.js';
 
 export { genFacePasses, genLongPasses };
 // genPasses(ctx) naplní ctx.passes; label se použije v hlavičce G-kódu.
@@ -34,4 +35,7 @@ export const ROUGHING_STRATEGIES = {
   // polotovaru tam hlídá dotyk nosu, podélný řetěz ramp by jel vzduchem.
   face: { genPasses: genFacePasses, label: 'CELNI', guideEndBeyondChain: true },
   backside: { genPasses: genLongPasses, label: 'PODELNE ZLEVA' },
+  // Cik cak (1. 11. 2026): podélně + vrstva za hrbolem ze vzduchu ke stěně, jen kulatá v úzkém
+  // držáku (ops/zigzagRough.js). Zleva = týž algoritmus v zrcadle.
+  zigzag: { genPasses: genZigzagPasses, label: 'PODELNE CIK CAK' },
 };

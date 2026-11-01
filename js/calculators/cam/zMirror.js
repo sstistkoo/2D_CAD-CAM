@@ -138,6 +138,7 @@ export function mirrorPass(pass) {
   if (pass.rampFeedFrom) out.rampFeedFrom = { ...pass.rampFeedFrom, z: -pass.rampFeedFrom.z };
   if (pass.contourLeadIn) out.contourLeadIn = mirrorTraceSegs(pass.contourLeadIn);
   if (pass.contourLeadOut) out.contourLeadOut = mirrorTraceSegs(pass.contourLeadOut);
+  if (pass.moves) out.moves = pass.moves.map(m => ({ ...m, z: -m.z }));   // cik cak
   return out;
 }
 
@@ -200,7 +201,7 @@ export function mirrorCalcZ(calc) {
   }
   for (const key of ['contourSegments', 'machinableContour', 'offsetPath', 'finishOffsetPath',
     'finishRefPath', 'finishUnreachablePath', 'stockPathSegments', 'interferenceSegments',
-    'flankSegments', 'rawContourForProfile', 'partSegments']) {
+    'flankSegments', 'rawContourForProfile', 'partSegments', 'offsetPathNoGuide']) {
     if (calc[key]) out[key] = mirrorSegPath(calc[key]);
   }
   if (calc.interferenceGuides) out.interferenceGuides = mirrorGuides(calc.interferenceGuides);

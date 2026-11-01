@@ -5,6 +5,7 @@
 // v camSimulator.js (Fáze 5); vrstvy skládá drawCanvas.js.
 import { getArcParams, arcSteps, getNormal } from '../camMath.js';
 import { guidePolyPoints } from '../interferenceGuides.js';
+import { guideHiddenByReverse, offsetSegHiddenByReverse, offsetPathForView } from './zigzagView.js';
 
 /** @param f snímek kreslení z drawCanvas(): { S, ctx, calc, prms, C, toScreen, _drawPointsContour } */
 export function drawContourLayer(f) {
@@ -157,7 +158,9 @@ export function drawContourLayer(f) {
   {
     const allGuides = [
       ...(S.guideLines || []).map(g => ({ ...g, auto: false })),
-      ...((calc.interferenceGuides || []).map(g => ({ ...g, auto: true })))
+      // Cik cak: čáru zanoření nahrazenou obrácenými vrstvami nekreslit (zigzagView.js).
+      // (u Cik cak se zanořování ruší — čáry zanoření se nekreslí vůbec)
+      ...((calc.interferenceGuides || []).filter(g => !(g.plungeLimit && prms.roughingStrategy === 'zigzag') && !guideHiddenByReverse(calc, g)).map(g => ({ ...g, auto: true })))
     ];
     if (allGuides.length > 0) {
       const tipROff = parseFloat(prms.toolRadius) || 0;
@@ -239,13 +242,17 @@ export function drawContourLayer(f) {
   }
 
   // offset path — v 🙈 stavu (none) skryjeme všechny drahy
-  if (S.showSimPath !== 'none' && calc.offsetPath.length > 0) {
+  const offView = offsetPathForView(calc, prms);
+  if (S.showSimPath !== 'none' && offView.length > 0) {
     ctx.beginPath();
-    calc.offsetPath.forEach((seg, i) => {
+    let gap = false;   // předchozí úsek vynechán (Cik cak, zigzagView.js) → navázat moveTo
+    offView.forEach((seg, i) => {
       if (seg.isDegenerate) return;
+      if (offsetSegHiddenByReverse(calc, seg, prms)) { gap = true; return; }
+      const brk = gap; gap = false;
       if (seg.type === 'line') {
         const p1 = toScreen(seg.p1.x, seg.p1.z), p2 = toScreen(seg.p2.x, seg.p2.z);
-        if (i === 0 || seg.chainBreak) ctx.moveTo(p1.x, p1.y); else ctx.lineTo(p1.x, p1.y);
+        if (i === 0 || seg.chainBreak || brk) ctx.moveTo(p1.x, p1.y); else ctx.lineTo(p1.x, p1.y);
         ctx.lineTo(p2.x, p2.y);
       } else if (seg.type === 'arc') {
         const steps = arcSteps(seg.r, S.view.scale);
@@ -255,7 +262,7 @@ export function drawContourLayer(f) {
         for (let j = 0; j <= steps; j++) {
           const a = sA + (eA - sA) * (j / steps);
           const pt = toScreen(seg.cx + Math.sin(a) * seg.r, seg.cz + Math.cos(a) * seg.r);
-          if (j === 0 && (i === 0 || seg.chainBreak)) ctx.moveTo(pt.x, pt.y);
+          if (j === 0 && (i === 0 || seg.chainBreak || brk)) ctx.moveTo(pt.x, pt.y);
           else ctx.lineTo(pt.x, pt.y);
         }
       }

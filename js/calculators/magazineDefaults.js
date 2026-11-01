@@ -24,6 +24,7 @@
 import { DEFAULT_TOOL_MAGAZINE as LEGACY_MAGAZINE } from './cam/camToolPicker.js';
 import { buildIsoKnife } from './isoToolCatalog.js';
 import { buildIsoDrill } from './isoDrills.js';
+import { buildNarrowKnife } from './narrowHolders.js';
 
 /**
  * Revize výchozí sady. Uložený zásobník si pamatuje, kterou už dostal
@@ -32,9 +33,10 @@ import { buildIsoDrill } from './isoDrills.js';
  *   1 — ISO nože místo provizorních (6. 10. 2026)
  *   2 — PSBNR 2525M12 jako hrubovací (T2 místo PCLNR)
  *   3 — vrták ⌀20 pro operaci Vrtání (7. 10. 2026)
+ *   4 — úzké držáky: kulatá SRDPN a upichovák s rovnou lištou (1. 11. 2026)
  */
-export const MAGAZINE_DEFAULTS_REV = 3;
-export const DEFAULTS_ADDED_IN_REV = { 2: ['SB'], 3: ['DR'] };
+export const MAGAZINE_DEFAULTS_REV = 4;
+export const DEFAULTS_ADDED_IN_REV = { 2: ['SB'], 3: ['DR'], 4: ['NR', 'NP'] };
 
 /** Nože výchozí sady přidané po revizi `rev` (záznamy knihovny). */
 export function isoDefaultsAddedSince(rev) {
@@ -46,13 +48,17 @@ export function isoDefaultsAddedSince(rev) {
 
 /** Výchozí nože MIMO ISO katalog držáků (bez staré předlohy) — za ISO noži. */
 export const EXTRA_DEFAULT_SET = [
-  { id: 'DR', opts: { kind: 'hss', diameter: 20 }, role: 'vrtání v ose — HSS ⌀20 118° (DIN 345, pouzdro MK2)' },
+  { id: 'DR', opts: { kind: 'hss', diameter: 20 }, build: buildIsoDrill, role: 'vrtání v ose — HSS ⌀20 118° (DIN 345, pouzdro MK2)' },
+  // Úzké držáky (narrowHolders.js): lišta užší než plátek, šířka sleduje R / šířku.
+  { id: 'NR', opts: { kind: 'round', radius: 5 }, build: buildNarrowKnife, role: 'kulatá R5 v úzké liště SRDPN — kolmá stěna z obou stran' },
+  { id: 'NP', opts: { kind: 'parting', width: 4 }, build: buildNarrowKnife, role: 'upichovák 4 mm s rovnou úzkou lištou' },
 ];
 
-/** Celá výchozí sada zásobníku: ISO nože (T1–T6) + vrták (T7) — vrták je
- *  týž záznam jako v 📚 katalogu (Vrtáky), takže smazaný jde vrátit odtud. */
+/** Celá výchozí sada zásobníku: ISO nože (T1–T6) + vrták (T7) + úzké držáky
+ *  (T8–T9) — vrták je týž záznam jako v 📚 katalogu (Vrtáky), takže smazaný
+ *  jde vrátit odtud. */
 export function defaultMagazineKnives() {
-  return [...isoDefaultKnives(), ...EXTRA_DEFAULT_SET.map((s) => buildIsoDrill(s.opts))];
+  return [...isoDefaultKnives(), ...EXTRA_DEFAULT_SET.map((s) => s.build(s.opts))];
 }
 
 /**

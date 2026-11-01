@@ -235,6 +235,8 @@ export function roundInsert(prms) {
     footprintIsOutline: false,
     holderAxial: false,
     canDrill: false,
+    //   zigzagPockets — umí strategii ⇋ Cik cak (ops/zigzagRough.js)
+    zigzagPockets: true,
     canBore: true,
     pointLengthZ: 0,
   };

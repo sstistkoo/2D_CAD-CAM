@@ -291,10 +291,10 @@ describe('🔧 Zásobník — výchozí ISO nože místo provizorních', () => {
     expect([again.replaced.length, again.dropped]).toEqual([0, 0]);
   });
 
-  it('revize výchozí sady: rev 1 dostane jednou PSBNR + vrták, rev 2 jen vrták, aktuální nic', () => {
-    expect(isoDefaultsAddedSince(1).map((r) => r.name)).toEqual(['PSBNR2525M12', 'Vrtak HSS D20']);
-    expect(isoDefaultsAddedSince(0).map((r) => r.name)).toEqual(['PSBNR2525M12', 'Vrtak HSS D20']);
-    expect(isoDefaultsAddedSince(2).map((r) => r.name)).toEqual(['Vrtak HSS D20']);
+  it('revize výchozí sady: rev 1 dostane jednou PSBNR + vrták, rev 2 vrták + úzké, aktuální nic', () => {
+    expect(isoDefaultsAddedSince(1).map((r) => r.name)).toEqual(['PSBNR2525M12', 'Vrtak HSS D20', 'SRDPN úzký', 'Upichovák úzký']);
+    expect(isoDefaultsAddedSince(0).map((r) => r.name)).toEqual(['PSBNR2525M12', 'Vrtak HSS D20', 'SRDPN úzký', 'Upichovák úzký']);
+    expect(isoDefaultsAddedSince(2).map((r) => r.name)).toEqual(['Vrtak HSS D20', 'SRDPN úzký', 'Upichovák úzký']);
     // Výchozí vrták = týž záznam jako v 📚 katalogu (smazaný jde vrátit odtud).
     expect(isoDefaultsAddedSince(2)[0]).toEqual(buildIsoDrill({ kind: 'hss', diameter: 20 }));
     expect(isoDefaultsAddedSince(2)[0].tool).toMatchObject({ toolShape: 'drill', toolRadius: 10, toolTipAngle: 118 });

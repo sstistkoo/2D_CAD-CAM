@@ -114,6 +114,7 @@ export function threadingInsert(prms) {
     footprintIsOutline: false,
     holderAxial: false,
     canDrill: false,
+    zigzagPockets: false,
     canBore: false,
     pointLengthZ: 0,
   };

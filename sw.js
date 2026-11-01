@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v677';
+const CACHE_NAME = 'skica-v694';
 const ASSETS = [
   './',
   './index.html',
@@ -140,6 +140,10 @@ const ASSETS = [
   './js/calculators/cam/ops/sections/sectionRanges.js',
   './js/calculators/cam/ops/shared.js',
   './js/calculators/cam/ops/thread.js',
+  './js/calculators/cam/ops/zigzagEmit.js',
+  './js/calculators/cam/ops/zigzagFloor.js',
+  './js/calculators/cam/ops/zigzagReverse.js',
+  './js/calculators/cam/ops/zigzagRough.js',
   './js/calculators/cam/partOffReach.js',
   './js/calculators/cam/passHelpers.js',
   './js/calculators/cam/plungeContourBridge.js',
@@ -187,6 +191,7 @@ const ASSETS = [
   './js/calculators/cam/sim/threadPicker.js',
   './js/calculators/cam/sim/toolFiles.js',
   './js/calculators/cam/sim/toolGeometryDialog.js',
+  './js/calculators/cam/sim/zigzagView.js',
   './js/calculators/cam/startCheck.js',
   './js/calculators/cam/stockHole.js',
   './js/calculators/cam/strategyKnife.js',
@@ -258,6 +263,7 @@ const ASSETS = [
   './js/calculators/knifeThumb.js',
   './js/calculators/magazineDefaults.js',
   './js/calculators/mcode.js',
+  './js/calculators/narrowHolders.js',
   './js/calculators/noseRadius.js',
   './js/calculators/noseRadiusMath.js',
   './js/calculators/revolveMath.js',

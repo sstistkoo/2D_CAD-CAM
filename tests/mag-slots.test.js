@@ -20,11 +20,11 @@ describe('sloty zásobníku', () => {
     expect(_defaultMagSlot(9)).toMatchObject({ slot: 9, name: 'T9', shape: 'round', holderProfile: null });
   });
 
-  it('výchozí sada T1–T7 a změna tvaru slotu na nůž tvaru (vlastní jméno zůstane)', () => {
+  it('výchozí sada T1–T9 a změna tvaru slotu na nůž tvaru (vlastní jméno zůstane)', () => {
     const mag = _isoDefaultMagSlots();
     expect(mag.map(s => `T${s.slot} ${s.name} ${s.shape}`)).toEqual([
       'T1 PSKNR2525M12 polygon', 'T2 PSBNR2525M12 polygon', 'T3 PDJNR2525M15 polygon', 'T4 SRSCR2525M20 round',
-      'T5 SER2525M16 threading', 'T6 MGEHR2525-5 parting', 'T7 Vrtak HSS D20 drill',
+      'T5 SER2525M16 threading', 'T6 MGEHR2525-5 parting', 'T7 Vrtak HSS D20 drill', 'T8 SRDPN úzký round', 'T9 Upichovák úzký parting',
     ]);
     const own = { ..._defaultMagSlot(8), name: 'Vlastní' };
     _setMagSlotShape(own, 'parting');
