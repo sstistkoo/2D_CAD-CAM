@@ -19,6 +19,7 @@ import { flushAutoCncExport } from '../geometry.js';
 import { showConfirmDialog } from '../dialogFactory.js';
 import { findContourDuplicates, objectsBounds } from '../stockTools.js';
 import { deleteObjectsByIndices } from '../ui.js';
+import { findAxisFixes, applyAxisFixEdits, describeAxisFixes, axisFixKey } from './axisFix.js';
 
 // Otisky zdvojených čar, které uživatel už v nabídce viděl (za celou session) –
 // runCncExport běží po každé úpravě výkresu a stejnou nabídku by jinak
@@ -230,11 +231,60 @@ export function maybeOfferContourDuplicates(dups) {
 export function openCamFromDrawing(openCam) {
   const dups = findContourDuplicates();
   const transfer = () => _transferMainProfile(openCam);
+  const axis = () => offerAxisFixes({ onDone: transfer });
   if (dups.length > 0 && _hasNew(dups)) {
-    offerContourDuplicates(dups, { onDone: transfer });
+    offerContourDuplicates(dups, { onDone: axis });
   } else {
-    transfer();
+    axis();
   }
+}
+
+// Plány oprav u osy, které uživatel v nabídce odmítl (za celou session).
+const _axisDeclined = new Set();
+
+/**
+ * Konce čar těsně vedle osy, pahýly a přesahy u osy (axisFix.js): přiblíží
+ * na ně, vyznačí je a nabídne opravu jedním krokem Zpět. Odmítnutý plán se
+ * stejný znovu nenabízí.
+ * @param {{onDone?: () => void}} [opts]
+ */
+export function offerAxisFixes({ onDone = null } = {}) {
+  const done = () => { if (onDone) onDone(); };
+  const fixes = findAxisFixes();
+  if (fixes.items.length === 0) { done(); return; }
+  const key = axisFixKey(fixes);
+  if (_axisDeclined.has(key)) { done(); return; }
+  const view = _saveView();
+  const objs = [...new Set(fixes.items.map(it => it.obj))];
+  state.axisFixMarks = objs;
+  const n = fixes.items.length;
+  _dialogOpen = true;
+  showConfirmDialog(describeAxisFixes(fixes), () => {
+    _dialogOpen = false;
+    state.axisFixMarks = [];
+    pushUndo();
+    const del = applyAxisFixEdits(fixes).filter(o => state.objects.includes(o));
+    if (del.length) deleteObjectsByIndices(del.map(o => state.objects.indexOf(o)));
+    _restoreView(view);
+    renderAll();
+    showToast(`Opraveno u osy (${n}) ✓`);
+    done();
+  }, {
+    confirmLabel: 'Opravit',
+    cancelLabel: 'Ponechat',
+    danger: false,
+    peek: true,
+    onCancel: () => {
+      _dialogOpen = false;
+      _axisDeclined.add(key);
+      state.axisFixMarks = [];
+      _restoreView(view);
+      renderAll();
+      done();
+    },
+  });
+  _zoomTo(objs);
+  renderAll();
 }
 
 function _transferMainProfile(openCam) {
@@ -279,3 +329,4 @@ function _transferMainProfile(openCam) {
 bridge.offerContourDuplicates = offerContourDuplicates;
 bridge.maybeOfferContourDuplicates = maybeOfferContourDuplicates;
 bridge.openCamFromDrawing = openCamFromDrawing;
+bridge.offerAxisFixes = offerAxisFixes;

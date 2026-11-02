@@ -435,6 +435,13 @@ CAM část ti umožní generovat NC programy pro obrábění.
   zůstane žluté vyznačení a **kliknutím na žlutou čáru nebo její popisek**
   (nástroj Výběr, myš i prst) se nabídka smazání objeví znovu. Do CAM se
   přebytečná kopie neposílá ani tak.
+- **Oprava u osy** – při otevření CAM aplikace hledá místa, kde výkres u osy
+  *skoro* sedí: volný konec čáry do 2 mm od osy (třeba čelo začínající na
+  X −0,301 nebo čelo polotovaru končící na X 0,786), krátký pahýl, který by
+  po přitažení na osu měl nulovou délku, a přesah čáry za roh (osa polotovaru
+  delší než jeho čelo). Vyznačí je **žlutě „oprava u osy"**, vypíše, co se
+  změní, a nabídne **Opravit** (jeden krok Zpět). Po **Ponechat** se stejná
+  nabídka v tomtéž sezení neopakuje. Upravují se jen úsečky.
 
 ### 3. CAM Simulátor
 1. Klikni na **CAM** v Sinumerik rozcestníku
