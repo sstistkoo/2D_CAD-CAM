@@ -1207,6 +1207,19 @@ export function foldContourToMachiningSide(points, stockPoints) {
         kept.push({ ...p, x: 0, xAbs: 0, xReal: 0, z: zAxis, zAbs: zAxis, zReal: zAxis });
       }
     }
+    // Úsečka, která z bodu za osou VYCHÁZÍ zpátky na stranu obrábění (čelo
+    // nakreslené od X −0,3 nahoru, kousek pod osou), se taky ořízne na ose.
+    // Dřív se zahodil její začátek a s ním celé čelo (uživatel 2. 11. 2026:
+    // „chybí mi tam jedna čára na kontuře, právě čelo"). Bod na ose začíná
+    // nový úsek (G0), pokud tam kontura už nestojí.
+    const next = points[idx + 1];
+    if (next && next.type === 'G1' && next.xReal * machSign > eps) {
+      const t = (0 - p.xReal) / (next.xReal - p.xReal);
+      const zAxis = p.zReal + t * (next.zReal - p.zReal);
+      const last = kept[kept.length - 1];
+      if (!last || Math.abs(last.xReal) > eps || Math.abs(last.zReal - zAxis) > eps)
+        kept.push({ ...p, type: 'G0', x: 0, xAbs: 0, xReal: 0, z: zAxis, zAbs: zAxis, zReal: zAxis });
+    }
     // ostatní body za osou zahodit
   }
   return kept.length >= 2 ? kept : points;

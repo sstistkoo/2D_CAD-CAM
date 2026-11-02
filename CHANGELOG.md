@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM – čelo začínající kousek pod osou nevypadne z kontury** (`cam/contourBuild.js`
+  `foldContourToMachiningSide`) – úsečka, která z bodu pod osou (např. X −0,301) vychází nahoru, se ořízne
+  na ose stejně jako úsečka jdoucí osou dolů; dřív se zahodila celá a v CAM chybělo čelo. Otisk CAM shodný.
+  Test `tests/cam-fold-face-below-axis.test.js`.
 - **CAM – upichovák: dokončování nezačíná ve vzduchu** (`ops/finish.js`) – za úsekem vynechaným kvůli držáku jela obálka
   nejdřív ve výšce hrubování a nic neubírala (3,2 mm posuvem vzduchem); body, jejichž výšku určuje jen vynechaný úsek,
   se odříznou a řetěz začne tam, kde se řeže.
