@@ -52,7 +52,7 @@ describe('🗑 v řádku vrstvy', () => {
 });
 
 describe('řádek Hrany přes osu', () => {
-  it('jen při zrcadlení na soustruhu; oko přepíná state.mirrorEdges', () => {
+  it('jen při zrcadlení (soustruh i karusel); oko přepíná state.mirrorEdges', () => {
     expect(row('Hrany přes osu')).toBeUndefined();
     state.mirrorPreview = true;
     ui.updateLayerList();
@@ -61,6 +61,9 @@ describe('řádek Hrany přes osu', () => {
     row('Hrany přes osu').querySelector('button.layer-icon-btn').click();
     expect(state.mirrorEdges).toBe(true);
     state.machineType = 'karusel';
+    ui.updateLayerList();
+    expect(row('Hrany přes osu')).toBeDefined();
+    state.mirrorPreview = false;
     ui.updateLayerList();
     expect(row('Hrany přes osu')).toBeUndefined();
   });

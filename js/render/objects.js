@@ -123,7 +123,7 @@ export function renderObjects() {
   });
   ctx.globalAlpha = 1;
 
-  // ── Náhled zrcadlení kontury kolem osy rotace (y=0) ──
+  // ── Náhled zrcadlení kontury kolem osy rotace (soustruh y=0, karusel x=0) ──
   if (state.mirrorPreview) {
     renderMirrorPreview(vp);
   }

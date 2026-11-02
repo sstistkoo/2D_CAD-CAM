@@ -13,13 +13,16 @@
 // objektu — jinak by se hrana kontury, polotovaru a čárkované čáry lišily.
 // Díl a polotovar zvlášť (každý svou barvou, polotovar díl nezakrývá). Kreslí
 // se jen chybějící kus — svislé čáry profilu a jejich zrcadlo už nakreslené jsou.
-// Jen soustruh: zrcadlí se kolem y = 0 (osa vřetena).
+// Soustruh: zrcadlí se kolem y = 0 (osa vřetena), hrana je svislá úsečka.
+// Karusel: osa je svislá (x = 0) — hrany se počítají v souřadnicích soustruhu
+// (objekty prohozené jako machineSwap.js) a kreslí se vodorovně.
 import { state } from '../state.js';
 import { LINE_WIDTH } from '../constants.js';
 import { bulgeToArc, getRectCorners } from '../utils.js';
 import { resolveObjectColor } from './common.js';
 import { isFeatureObject } from '../faceView/faceLayer.js';
 import { materialAt, objectsHash } from '../faceView/faceReference.js';
+import { swapObjectAxes } from '../machineSwap.js';
 
 const TYPES = new Set(['line', 'arc', 'rect', 'polyline']);
 const TAN_TOL = Math.sin(2 * Math.PI / 180);   // tečný přechod = do 2°
@@ -133,8 +136,30 @@ let _cache = null;
 
 /** Hrany přes osu z posledního vykreslení jako úsečky pro SNAP (mirrorSnap.js). */
 export function axisEdgeSnapLines() {
-  if (!_cache || state.machineType === 'karusel' || state.mirrorEdges === false) return [];
-  return _cache.lines.map(({ z, a, b, o }) => ({ type: 'line', layer: o.layer, x1: z, y1: a, x2: z, y2: b }));
+  if (!_cache || _cache.car !== isCar() || state.mirrorEdges === false) return [];
+  return _cache.lines.map(({ z, a, b, o }) => {
+    const [x1, y1] = toWorld(z, a), [x2, y2] = toWorld(z, b);
+    return { type: 'line', layer: o.layer, x1, y1, x2, y2 };
+  });
+}
+
+const isCar = () => state.machineType === 'karusel';
+/** (z, poloměr) hrany → svět: soustruh wx = z, wy = r; karusel naopak. */
+const toWorld = (z, r) => (isCar() ? [r, z] : [z, r]);
+
+/**
+ * Hrany pro aktuální stroj. Karusel: objekty se prohodí do souřadnic
+ * soustruhu (kopie), výstupní `o` zůstává originál (vrstva, barva).
+ */
+function edgeLinesFor(objects) {
+  if (!isCar()) return axisEdgeLines(objects);
+  const copies = objects.map(o => {
+    const c = structuredClone(o);
+    swapObjectAxes(c);
+    c._orig = o;
+    return c;
+  });
+  return axisEdgeLines(copies).map(l => ({ ...l, o: l.o._orig || l.o }));
 }
 
 /**
@@ -143,13 +168,14 @@ export function axisEdgeSnapLines() {
  * @param w2s worldToScreen → [sx, sy]
  */
 export function drawAxisEdges(g, w2s) {
-  if (state.machineType === 'karusel' || state.mirrorEdges === false) return;   // skryté okem ve Vrstvách
+  if (state.mirrorEdges === false) return;   // skryté okem ve Vrstvách
   const off = new Set((state.layers || []).filter(l => !l.visible).map(l => l.id));
   const objs = state.objects.filter(o => o && TYPES.has(o.type) && !o.isDimension && !o.isCoordLabel
     && !o.isCamPathNote && !off.has(o.layer) && !isFeatureObject(o));
   const key = objectsHash(objs);
-  if (!_cache || _cache.key !== key) {
-    _cache = { key, lines: [...axisEdgeLines(objs.filter(o => !o.isStock)), ...axisEdgeLines(objs.filter(o => o.isStock))] };
+  const car = isCar();
+  if (!_cache || _cache.key !== key || _cache.car !== car) {
+    _cache = { key, car, lines: [...edgeLinesFor(objs.filter(o => !o.isStock)), ...edgeLinesFor(objs.filter(o => o.isStock))] };
   }
   g.save();
   _cache.lines.forEach(({ z, a, b, hidden, o }) => {
@@ -157,7 +183,7 @@ export function drawAxisEdges(g, w2s) {
     g.strokeStyle = resolveObjectColor(o);
     g.lineWidth = (layer?.lineWidth ?? LINE_WIDTH) * EDGE_WIDTH;
     g.setLineDash(hidden ? HIDDEN_DASH : []);
-    const p = w2s(z, a), q = w2s(z, b);
+    const p = w2s(...toWorld(z, a)), q = w2s(...toWorld(z, b));
     g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke();
   });
   g.restore();

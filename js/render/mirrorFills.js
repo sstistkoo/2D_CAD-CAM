@@ -11,10 +11,11 @@ import { state } from '../state.js';
 import { drawAxisEdges } from './mirrorEdges.js';
 import { drawHatch } from './hatch.js';
 import { isHelperLayer, HELPER_ALPHA } from '../helperLayer.js';
-import { mirrorObjectAcrossY, mirrorable } from './mirrorSnap.js';
+import { mirrorObjectAcrossAxis, mirrorable } from './mirrorSnap.js';
 
 /**
- * Vykreslí zrcadlenou kopii kontury kolem osy y=0 (jen zobrazení, objekty
+ * Vykreslí zrcadlenou kopii kontury kolem osy rotace — soustruh y=0, karusel
+ * x=0 (jen zobrazení, objekty
  * nevznikají). Čarou jako originál — dokreslená druhá polovina nárysu má být
  * jako na výkresu plná; tenká čárkovaná patří skrytým hranám, třeba dírám
  * čel (uživatel 20. 10. 2026).
@@ -27,7 +28,7 @@ export function renderMirrorPreview(vp) {
     if (!mirrorable(obj)) return;
     const layer = state.layers.find(l => l.id === obj.layer);
 
-    const mirrored = mirrorObjectAcrossY(obj);
+    const mirrored = mirrorObjectAcrossAxis(obj);
     if (!mirrored) return;
 
     if (obj.type !== 'constr') {

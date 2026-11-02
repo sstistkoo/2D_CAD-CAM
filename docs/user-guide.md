@@ -811,18 +811,19 @@ začne až na přírubě) — *Skrz* po místo, kde z materiálu vyjde (bez
 přesahu; díra bez hloubky je průchozí), *Do hloubky* / *Do Z* (měřeno od
 roviny čela) po dno se špičkou vrtáku 118°; osa díry čerchovaně. Výška díry
 v nárysu = její svislá poloha v bokorysu (karusel: vodorovná). Díry pod osou
-leží ve spodní polovině nárysu: **◎ Do čela** proto na soustruhu zapne
+leží ve druhé polovině nárysu: **◎ Do čela** proto zapne
 **☰ Nastavení → ⇋ Zrcadlit kolem osy** a značka řezu i lišta čela se
-posunou pod spodní polovinu.
+posunou za ni (soustruh pod osu, karusel vlevo od osy).
 
-**⇋ Zrcadlit kolem osy** (☰ Nastavení) dokreslí nárys pod osu jako
+**⇋ Zrcadlit kolem osy** (☰ Nastavení) dokreslí druhou polovinu nárysu jako
 technologický výkres — hotová kontura i polotovar dokola, **plnou čarou**
 jako originál (jen zobrazení, objekty nevznikají; kresba čel se nezrcadlí).
 Hrany a přechody (osazení, sražení, zápich, konec polotovaru) se spojí
 **přes osu**: viditelná hrana čarou obrysu, zakrytá (např. hrana vývrtu
 uvnitř dílu) tenkou čárkovanou, tečný přechod zaoblení se nekreslí (ISO 128).
-Jen soustruh (zrcadlí se kolem y = 0). **SNAP** chytá i dokreslenou spodní
-polovinu, hrany přes osu a čáry děr v nárysu (rohy, hrany, osu díry) —
+Soustruh zrcadlí kolem vodorovné osy (y = 0, dolů), karusel kolem svislé
+osy rotace (x = 0, z pravého horního kvadrantu do levého horního); hrany
+přes osu jsou u karuselu vodorovné. **SNAP** chytá i dokreslenou polovinu, hrany přes osu a čáry děr v nárysu (rohy, hrany, osu díry) —
 jde od nich kótovat i kreslit dál.
 Kresby čel se ukládají s projektem; do CAM ani CNC kódu profilu nejdou —
 načtou se zvlášť:

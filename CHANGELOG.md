@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAD ⇋ Zrcadlit kolem osy na karuselu** (`render/mirrorSnap.js` `mirrorObjectAcrossAxis`, `mirrorEdges.js`,
+  `geometry/select.js`): karusel má svislou osu rotace, zrcadlí se proto kolem x = 0 — z pravého horního
+  kvadrantu do levého horního (dřív dolů jako soustruh). Hrany přes osu, SNAP, klik na zrcadlo, řádek
+  „Hrany přes osu" ve Vrstvách i „◎ Do čela" fungují i na karuselu. Zrcadlo natočeného obdélníku neguje natočení.
+- **CAD popisky os u počátku** (`render/axes.js`): záporné popisky vodorovné osy a popisky svislé osy těsně
+  pod ní se už nepřekrývají s „0" a navzájem.
 - **CAD přepnutí Soustruh ↔ Karusel prohodí i výkres** (nový `machineSwap.js`): výkres se zrcadlí přes
   úhlopříčku (wx ↔ wy), takže díl zůstane na svých souřadnicích X/Z — dřív se prohodily jen osy a kresba stála
   na cizích souřadnicích. Převede se i historie ↩/↪, kotvy, nulový bod, kóty a vazby (vodorovná ↔ svislá);

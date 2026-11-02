@@ -550,9 +550,9 @@ function paintFace(g, w2s) {
     // stranu, pod osu jen krátký přesah bez šipky — lišta čela pak stojí hned
     // pod osou, ne pod prázdným spodkem řezu (uživatel 20. 10. 2026).
     const pb = profileBounds(prof, true);
-    // ⇋ Zrcadlit kolem osy (Nastavení, osa y = 0 → jen soustruh; „◎ Do čela"
-    // ho zapne) dokreslí spodní polovinu — řez i lišta jdou pod ni.
-    const below = !pb || (isCar ? pb.minX : pb.minY) < -0.01 || (!isCar && !!state.mirrorPreview);
+    // ⇋ Zrcadlit kolem osy (Nastavení; soustruh kolem y = 0, karusel kolem
+    // x = 0; „◎ Do čela" ho zapne) dokreslí druhou polovinu — řez i lišta jdou do ní.
+    const below = !pb || (isCar ? pb.minX : pb.minY) < -0.01 || !!state.mirrorPreview;
     const lo = below ? -span : -STUB_PX / (zoom || 1);
     const [x1, y1] = P(z, lo), [x2, y2] = P(z, span);
     // spanMax / loMax = řez přes největší průměr dílu: lišta čela pod nárysem

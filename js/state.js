@@ -292,7 +292,7 @@ export const state = {
   flipX: false,
   // Otočení vodorovné osy Z: false = Z+ vpravo (výchozí), true = Z+ vlevo
   flipZ: false,
-  // Náhled zrcadlení kontury kolem osy rotace (y=0) – jen vizuální, neukládá objekty
+  // Náhled zrcadlení kontury kolem osy rotace (soustruh y=0 dolů, karusel x=0 doleva) – jen vizuální, neukládá objekty
   mirrorPreview: false,
   // Hrany přes osu při zrcadlení (render/mirrorEdges.js) — oko v panelu Vrstvy
   mirrorEdges: true,

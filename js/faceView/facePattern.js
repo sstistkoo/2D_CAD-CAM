@@ -72,7 +72,7 @@ export function drawHolesToFace(spec) {
   withUndoBatch(() => objs.forEach(o => addObject(o)));
   // Díry pod osou se v nárysu kreslí skrytou čarou (faceFrontView.js) — spodní
   // polovinu nárysu dokreslí ⇋ Zrcadlit kolem osy (uživatel 20. 10. 2026).
-  const mirrorOn = state.machineType !== 'karusel' && !state.mirrorPreview;
+  const mirrorOn = !state.mirrorPreview;
   if (mirrorOn) { state.mirrorPreview = true; saveSettings(); if (bridge.updateLayerList) bridge.updateLayerList(); }
   state.selected = null; state.multiSelected.clear();
   calculateAllIntersections();
@@ -83,7 +83,7 @@ export function drawHolesToFace(spec) {
   showToast(`Čelo ${faceLabel(face)}: ${n} ${n === 1 ? 'díra' : n < 5 ? 'díry' : 'děr'} Ø${fmt(spec.d)}${spec.thread ? ` se závitem ${spec.thread.name}` : ''}`
     + info.text
     + (spec.pcd > 0 ? ` na roztečné kružnici Ø${fmt(spec.pcd)} (čerchovaná = pomocná, do CAM nejde)` : '')
-    + (mirrorOn ? '. Nárys zrcadlen pod osu (Nastavení → ⇋ Zrcadlit kolem osy)' : ''), 6000);
+    + (mirrorOn ? `. Nárys zrcadlen ${state.machineType === 'karusel' ? 'doleva od osy' : 'pod osu'} (Nastavení → ⇋ Zrcadlit kolem osy)` : ''), 6000);
   return n;
 }
 

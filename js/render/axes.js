@@ -136,6 +136,8 @@ export function renderAxes() {
     const tw = g.measureText(txt).width;
     const drawX = x + 2;
     if (drawX < lastLabelEndX + labelPad) continue; // přeskočit – překrývalo by se
+    // Záporné popisky (zrcadlo karuselu vlevo) by vjely do „0" u počátku.
+    if (drawX < state.panX + 4 && drawX + tw > state.panX - 24) continue;
     g.fillText(txt, drawX, hLabelY);
     lastLabelEndX = drawX + tw;
   }
@@ -150,6 +152,8 @@ export function renderAxes() {
     const dispLabel = isKarusel ? label : displayX(label);
     const drawY = y - 3;
     if (drawY < lastLabelEndY + labelPad) continue; // přeskočit – překrývalo by se
+    // Těsně pod vodorovnou osou je řada vodorovných popisků a „0" — nepřekrývat.
+    if (drawY > state.panY - 2 && drawY - 13 < hLabelY + 2) continue;
     g.fillText(dispLabel.toString(), vLabelX, drawY);
     lastLabelEndY = drawY + 13; // přibližná výška fontu 13px
   }
@@ -250,4 +254,4 @@ export function renderAxes() {
   }
 }
 
-// ── Náhled zrcadlení kolem osy rotace (y=0) ──
+// ── Náhled zrcadlení kolem osy rotace (soustruh y=0, karusel x=0) ──

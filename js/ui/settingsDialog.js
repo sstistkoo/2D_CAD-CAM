@@ -89,7 +89,7 @@ export function showSettingsDialog() {
           <button class="calc-btn" id="settFlipZ" style="${btnS}${act(state.flipZ)}" title="Otočit vodorovnou osu Z">⇄ Z+ ${state.flipZ ? 'vlevo ←' : 'vpravo →'}</button>
         </div>
         <div style="display:flex;gap:6px;margin-top:6px">
-          <button class="calc-btn" id="settMirrorPreview" style="${btnS}${act(state.mirrorPreview)}" title="Dokreslit konturu zrcadlenou kolem osy rotace (y=0) — druhá polovina nárysu; jen zobrazení, objekty nevznikají">⇋ Zrcadlit kolem osy: ${state.mirrorPreview ? 'ON' : 'OFF'}</button>
+          <button class="calc-btn" id="settMirrorPreview" style="${btnS}${act(state.mirrorPreview)}" title="Dokreslit konturu zrcadlenou kolem osy rotace (soustruh y=0 dolů, karusel x=0 doleva) — druhá polovina nárysu; jen zobrazení, objekty nevznikají">⇋ Zrcadlit kolem osy: ${state.mirrorPreview ? 'ON' : 'OFF'}</button>
         </div>
         <div style="display:flex;gap:6px;margin-top:6px">
           <button class="calc-btn" id="settContourGaps" style="${btnS}${act(state.showContourGaps)}" title="Zvýraznit mezery/přerušení v kontuře na plátně">⊗ Mezery v kontuře: ${state.showContourGaps ? 'ON' : 'OFF'}</button>
@@ -249,7 +249,7 @@ export function showSettingsDialog() {
     showToast(state.flipZ ? 'Osa Z otočena – Z+ vlevo' : 'Osa Z – Z+ vpravo');
   });
 
-  // ── Náhled zrcadlení kolem osy rotace (y=0) ──
+  // ── Náhled zrcadlení kolem osy rotace (soustruh y=0, karusel x=0) ──
   overlay.querySelector('#settMirrorPreview').addEventListener('click', () => {
     state.mirrorPreview = !state.mirrorPreview;
     const mBtn = overlay.querySelector('#settMirrorPreview');

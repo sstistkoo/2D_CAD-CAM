@@ -76,7 +76,8 @@ export function findObjectAt(wx, wy) {
   const direct = _findObjectDirect(wx, wy);
   if (direct !== null || !state.mirrorPreview) return direct;
   // Zrcadlo kolem osy (⇋) je jen náhled — klik na něj bere původní objekt.
-  return _findObjectDirect(wx, -wy);
+  // Karusel zrcadlí kolem svislé osy (x = 0), soustruh kolem y = 0.
+  return state.machineType === 'karusel' ? _findObjectDirect(-wx, wy) : _findObjectDirect(wx, -wy);
 }
 
 function _findObjectDirect(wx, wy) {
@@ -100,11 +101,17 @@ function _findObjectDirect(wx, wy) {
   return closestDist < threshold ? closest : null;
 }
 
-/** Klik na zrcadlený náhled (⇋) → zrcadlená y, aby segmenty/body seděly na originál. */
-function _mirroredClickY(wx, wy) {
-  if (!state.mirrorPreview || _findObjectDirect(wx, wy) !== null) return wy;
-  const i = _findObjectDirect(wx, -wy);
-  return i !== null && mirrorable(state.objects[i]) ? -wy : wy;
+/**
+ * Klik na zrcadlený náhled (⇋) → zrcadlený bod, aby segmenty/body seděly na
+ * originál. Soustruh zrcadlí y (osa y = 0), karusel x (svislá osa x = 0).
+ * @returns {[number, number]}
+ */
+function _mirroredClick(wx, wy) {
+  if (!state.mirrorPreview || _findObjectDirect(wx, wy) !== null) return [wx, wy];
+  const car = state.machineType === 'karusel';
+  const [mx, my] = car ? [-wx, wy] : [wx, -wy];
+  const i = _findObjectDirect(mx, my);
+  return i !== null && mirrorable(state.objects[i]) ? [mx, my] : [wx, wy];
 }
 
 /**
@@ -283,7 +290,7 @@ export function selectObjectAt(wx, wy) {
   }
   state._selectedConstraint = null;
 
-  wy = _mirroredClickY(wx, wy);
+  [wx, wy] = _mirroredClick(wx, wy);
   const snapPt = findIntersectionAt(wx, wy);
   const newSel = findObjectAt(wx, wy);
   const threshold = SELECT_THRESHOLD / state.zoom;

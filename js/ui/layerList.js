@@ -133,7 +133,7 @@ export function updateLayerList() {
  * z kontury / polotovaru (uživatel 29. 10. 2026).
  */
 function mirrorEdgesRow() {
-  if (!state.mirrorPreview || state.machineType === 'karusel') return null;
+  if (!state.mirrorPreview) return null;
   const li = document.createElement("li");
   li.className = "layer-row";
   li.title = "Čáry přechodů, které při zrcadlení spojují obě poloviny dílu";

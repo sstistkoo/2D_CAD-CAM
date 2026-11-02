@@ -221,10 +221,10 @@ describe('spodní polovina nárysu (⇋ Zrcadlit kolem osy)', () => {
     expect(n).toBe(2);
     expect(state.mirrorPreview).toBe(true);
   });
-  it('karusel zrcadlí kolem jiné osy — nezapíná', () => {
+  it('karusel zrcadlí kolem svislé osy (x = 0) — zapíná také', () => {
     state.machineType = 'karusel';
     drawHolesToFace({ holes: [{ x: 0, y: 40 }], d: 7, depth: { mode: 'depth', value: 5 } });
-    expect(state.mirrorPreview).toBe(false);
+    expect(state.mirrorPreview).toBe(true);
   });
   it('se zrcadlením jde řez (a lišta čela) přes obě poloviny, bez něj jen kousek pod osu', () => {
     drawFaceReference(g, w2s);
