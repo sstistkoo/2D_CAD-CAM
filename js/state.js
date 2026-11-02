@@ -9,6 +9,8 @@ import { COLORS, MOBILE_BREAKPOINT } from './constants.js';
 let _pushUndoHook = null;
 /** @param {Function} fn */
 export function setPushUndoHook(fn) { _pushUndoHook = fn; }
+/** Změna výkresu mimo historii ↩ (např. prohození os) – spustí autosave. */
+export function notifyDrawingChanged() { if (_pushUndoHook) _pushUndoHook(); }
 
 // ── Toast notifikace ──
 // Klasický toast dole na obrazovce (position:fixed, bottom) při kreslení

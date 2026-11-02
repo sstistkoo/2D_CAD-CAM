@@ -11,9 +11,10 @@ import { state, showToast, pushUndo, axisLabels, displayX, xPrefix, fmtNum } fro
 import { renderAll } from '../render.js';
 import { bridge } from '../bridge.js';
 import { makeOverlay } from '../dialogFactory.js';
+import { setMachineType } from './statusButtons.js';
 import { showHistoryDialog } from './drawingHistory.js';
 import { fullscreenButtonHTML, wireFullscreenButton } from '../fullscreen.js';
-import { applyTheme, persistSettings, toggleAngleSnap, toggleSnapGrid, updateCoordModeBtn, updateDimsBtn, updateMachineTypeBtn, updateXDisplayBtn } from '../ui.js';
+import { applyTheme, persistSettings, toggleAngleSnap, toggleSnapGrid, updateCoordModeBtn, updateDimsBtn, updateXDisplayBtn } from '../ui.js';
 
 export function showSettingsDialog() {
   const act = (cond) => cond ? 'border-color:var(--ctp-green);background:var(--ctp-green);color:var(--ctp-base)' : 'border-color:var(--ctp-surface1);background:var(--ctp-surface0);color:var(--ctp-text)';
@@ -192,18 +193,12 @@ export function showSettingsDialog() {
     kBtn.style.cssText = `${btnBase}${state.machineType === 'karusel' ? activeStyle : inactiveStyle}`;
   }
   overlay.querySelector('#settMachSoustruh').addEventListener('click', () => {
-    state.machineType = 'soustruh';
-    updateMachineTypeBtn();
+    setMachineType('soustruh');
     updateMachBtns();
-    renderAll();
-    persistSettings();
   });
   overlay.querySelector('#settMachKarusel').addEventListener('click', () => {
-    state.machineType = 'karusel';
-    updateMachineTypeBtn();
+    setMachineType('karusel');
     updateMachBtns();
-    renderAll();
-    persistSettings();
   });
 
   // ── Osa X ──

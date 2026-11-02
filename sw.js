@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v703';
+const CACHE_NAME = 'skica-v704';
 const ASSETS = [
   './',
   './index.html',
@@ -386,6 +386,7 @@ const ASSETS = [
   './js/lib/makerjs-gear.js',
   './js/lib/makerjsBridge.js',
   './js/lineStyles.js',
+  './js/machineSwap.js',
   './js/objects.js',
   './js/render.js',
   './js/render/axes.js',

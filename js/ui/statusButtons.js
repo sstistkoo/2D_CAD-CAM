@@ -11,7 +11,10 @@
 // aplikace importuje jen z js/ui.js, nikdy z js/ui/* napřímo.
 
 import { COLORS } from '../constants.js';
-import { state, showToast, pushUndo } from '../state.js';
+import { state, showToast, pushUndo, notifyDrawingChanged } from '../state.js';
+import { drawCanvas, hSign, vSign } from '../canvas.js';
+import { swapDrawingAxes } from '../machineSwap.js';
+import { updateAssociativeDimensions } from '../dialogs/dimension.js';
 import { renderAll } from '../render.js';
 import { bridge } from '../bridge.js';
 import { showGridSizeDialog, showAngleSnapDialog } from './gridAngleDialogs.js';
@@ -185,12 +188,28 @@ export function updateMachineTypeBtn() {
   });
 }
 
-/** Přepne typ stroje Soustruh ↔ Karusel (prohodí osy). */
-export function toggleMachineType() {
-  state.machineType = state.machineType === 'soustruh' ? 'karusel' : 'soustruh';
+/**
+ * Nastaví typ stroje. Při změně prohodí osy i výkresu (machineSwap.js),
+ * aby díl zůstal na svých souřadnicích X/Z.
+ * @param {'soustruh'|'karusel'} type
+ */
+export function setMachineType(type) {
+  if (type !== 'soustruh' && type !== 'karusel') return;
+  if (state.machineType !== type) {
+    swapDrawingAxes({ width: drawCanvas.width, height: drawCanvas.height, hSign: hSign(), vSign: vSign() });
+    state.machineType = type;
+    updateAssociativeDimensions();
+    notifyDrawingChanged();
+  }
   updateMachineTypeBtn();
   renderAll();
+  persistSettings();
   if (bridge.updateMobileCoords) bridge.updateMobileCoords(state.mouse.x, state.mouse.y);
+}
+
+/** Přepne typ stroje Soustruh ↔ Karusel (prohodí osy). */
+export function toggleMachineType() {
+  setMachineType(state.machineType === 'soustruh' ? 'karusel' : 'soustruh');
   showToast(state.machineType === 'karusel'
     ? 'Karusel – X vodorovně, Z svisle'
     : 'Soustruh – Z vodorovně, X svisle');

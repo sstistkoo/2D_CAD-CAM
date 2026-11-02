@@ -87,7 +87,7 @@ kvůli přepnutí nemusí otvírat ⚙️ Nastavení:
 
 | Indikátor | Klik přepíná |
 |-----------|--------------|
-| SOU / KAR | typ stroje – soustruh ↔ karusel |
+| SOU / KAR | typ stroje – soustruh ↔ karusel; prohodí osy i výkres (díl zůstane na svých X/Z) |
 | ABS / INC | absolutní ↔ inkrementální souřadnice |
 | R / ⌀     | osa X jako poloměr ↔ průměr |
 | #         | snap na mřížku ON ↔ OFF |

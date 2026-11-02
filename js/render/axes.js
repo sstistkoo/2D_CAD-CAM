@@ -40,18 +40,22 @@ export function renderAxes() {
   g.lineTo(state.panX, h);
   g.stroke();
 
-  // Osa rotace soustruhu (Z, y=0) – čerchovaná čára (konvence osy souměrnosti)
-  if (!isKarusel) {
-    g.save();
-    g.strokeStyle = hColor + 'aa';
-    g.lineWidth = LINE_WIDTH;
-    g.setLineDash([18, 4, 2, 4]);
-    g.beginPath();
+  // Osa rotace (Z) – čerchovaná čára (konvence osy souměrnosti):
+  // soustruh vodorovně (y=0), karusel svisle (x=0)
+  g.save();
+  g.strokeStyle = (isKarusel ? vColor : hColor) + 'aa';
+  g.lineWidth = LINE_WIDTH;
+  g.setLineDash([18, 4, 2, 4]);
+  g.beginPath();
+  if (isKarusel) {
+    g.moveTo(state.panX, 0);
+    g.lineTo(state.panX, h);
+  } else {
     g.moveTo(0, state.panY);
     g.lineTo(w, state.panY);
-    g.stroke();
-    g.restore();
   }
+  g.stroke();
+  g.restore();
 
   // Mřížka – zobrazit pokud je zapnutý snap na mřížku
   if (state.snapToGrid) {

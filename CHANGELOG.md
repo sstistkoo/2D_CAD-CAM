@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAD přepnutí Soustruh ↔ Karusel prohodí i výkres** (nový `machineSwap.js`): výkres se zrcadlí přes
+  úhlopříčku (wx ↔ wy), takže díl zůstane na svých souřadnicích X/Z — dřív se prohodily jen osy a kresba stála
+  na cizích souřadnicích. Převede se i historie ↩/↪, kotvy, nulový bod, kóty a vazby (vodorovná ↔ svislá);
+  kresby čel (bokorys) se jen přestaví. Osa rotace karuselu (svislá) je čerchovaná jako u soustruhu.
 - **CAM Po úsecích — přechod mezi úseky** (`gcodeMerge.js`): beze změny nože se mezi částmi nevypíná vřeteno
   ani chlazení (M5/M9 + M3/M8) a nejede se do startovní polohy — po výjezdu od obrobku další úsek najede
   rovnou na svůj první průchod. Při výměně nože beze změny.
