@@ -313,3 +313,22 @@ export function slotToolParams(slot) {
   }
   return out;
 }
+
+/**
+ * Převezme do CAM parametrů nastavení z CAD, které CAM nesmí mít vlastní:
+ * • mód osy X — G-kód vyexportovaný v RADIUS módu by se v DIAMON (výchozí)
+ *   vykreslil na poloviční pozici;
+ * • typ stroje — výkres pro karusel se v CAM dřív otevíral jako soustruh
+ *   (výchozí 'lathe' / naposledy zvolený v CAM), uživatel 2. 11. 2026.
+ *   G-kód se tím nemění (X = radiální, Z = osa vřetena u obou strojů), mění
+ *   se orientace náhledu a s ní kreslení a úpravy drah.
+ * @param {object} params S.params otevíraného CAM
+ * @param {{xDisplayMode?: string, machineType?: string}} cad stav CAD
+ */
+export function syncParamsFromCad(params, cad) {
+  if (!params || !cad) return;
+  if (cad.xDisplayMode === 'radius') params.mode = 'RADIUS';
+  else if (cad.xDisplayMode === 'diameter') params.mode = 'DIAMON';
+  if (cad.machineType === 'karusel') params.machineStructure = 'carousel';
+  else if (cad.machineType === 'soustruh') params.machineStructure = 'lathe';
+}

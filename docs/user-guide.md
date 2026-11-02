@@ -421,6 +421,9 @@ CAM část ti umožní generovat NC programy pro obrábění.
 
 ### 2. Kontura / Profil
 - Profil obráběného kusu: linií, oblouky, polyline
+- **Typ stroje se přenáší:** výkres pro **karusel** (KAR ve stavovém řádku) se
+  v CAM otevře taky jako karusel — dráhy se generují a kreslí v jeho orientaci.
+  Přepínač Soustruh/Karusel v CAM platí do zavření; při dalším otevření rozhoduje CAD.
 - Pro CAM použij **Kontura** šablonu nebo nakresli vlastní
 - **Do CAM jde jen jeden souvislý profil** (nejdelší napojený řetěz čar).
   Zbude-li mimo něj něco (osamocená čára, kus odtržený mezerou, kružnice),

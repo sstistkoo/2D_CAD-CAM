@@ -28,7 +28,7 @@ import { boreChainFromState } from './cam/boreContour.js';
 import { ContourGouge } from './cam/contourGouge.js';
 import { camConfirm, camCloseConfirm, camOffsetDialog, camAddMoveDialog } from './cam/camSimulatorDialogs.js';
 import { injectCSS } from './cam/camSimulatorStyles.js';
-import { _defaultCamParams, stripCodeOwnedParams } from './cam/camDefaults.js';
+import { _defaultCamParams, stripCodeOwnedParams, syncParamsFromCad } from './cam/camDefaults.js';
 import { advanceAlongPath, spindleRpmAt, moveRateMmMin, buildTimeProfile, fmtClock, fmtDuration } from './cam/feedRates.js';
 import { drillGeom, drillAutoFaceZ, drillHoleLoop } from './cam/ops/drill.js';
 import { parseManualGCodeToPath, buildStockPointsFromCanvas, _parseGCodeRange, parseContourGCode, parseContourAndStockGCode } from './cam/gcodeParser.js';
@@ -645,8 +645,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Synchronizace s módem canvasu — bez toho se G-kód vyexportovaný v RADIUS
   // módu interpretuje v CAMu v DIAMON (default) a kontura se vykreslí na
   // poloviční pozici. Mód v CAMu by neměl měnit fyzické umístění kontury.
-  if (state.xDisplayMode === 'radius') S.params.mode = 'RADIUS';
-  else if (state.xDisplayMode === 'diameter') S.params.mode = 'DIAMON';
+  syncParamsFromCad(S.params, state);   // mód X (R/⌀) + typ stroje (soustruh/karusel) z CAD
 
   // Parse initial contour (+ volitelně polotovar) z G-kódu pokud byl předán.
   // CNC export v CAD obaluje polotovar značkami STOCK_START/END, takže ho

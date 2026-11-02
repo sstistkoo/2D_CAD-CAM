@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM přebírá typ stroje z CAD** (`cam/camDefaults.js` `syncParamsFromCad`): výkres nakreslený
+  pro karusel se v CAM otevíral jako soustruh (výchozí / naposledy zvolený typ v CAM). Při otevření CAM
+  se teď Soustruh/Karusel nastaví podle CAD (stejně jako mód X R/⌀), dráhy se rovnou kreslí a upravují
+  v orientaci karuselu. G-kód se nemění — X radiální, Z osa vřetena platí u obou strojů.
 - **CAD/CAM automatická oprava mezer při přechodu do CAM** (nový `dialogs/leftoverFixes.js`, `contourCheck.js`):
   dialog „čáry mimo profil" nabízí **🔧 Spojit a otevřít CAM**. Kontrola výkresu spojuje jen mezery do 0,5 mm
   mezi úsečkami; tady se ví, které čáry na profil nenavazují, takže se spojí mezera do 5 mm — úsečky do rohu
