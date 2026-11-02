@@ -96,8 +96,8 @@ export function drawContourHighlights() {
   for (const o of state.camLeftovers || []) {
     if (live.has(o)) marks.push({ obj: o, color: COLORS.snapEdge, label: 'mimo profil' });
   }
-  for (const o of state.axisFixMarks || []) {
-    if (live.has(o)) marks.push({ obj: o, color: COLORS.yellow, label: 'oprava u osy' });
+  for (const o of state.drawingFixMarks || []) {
+    if (live.has(o)) marks.push({ obj: o, color: COLORS.yellow, label: 'oprava' });
   }
   if (marks.length === 0) return;
   ctx.save();

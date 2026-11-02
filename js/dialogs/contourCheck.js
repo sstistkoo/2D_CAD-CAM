@@ -16,10 +16,11 @@ import { bridge } from '../bridge.js';
 import { renderAll } from '../render.js';
 import { fitViewToWorldBounds } from '../canvas.js';
 import { flushAutoCncExport } from '../geometry.js';
-import { showConfirmDialog } from '../dialogFactory.js';
+import { showConfirmDialog, makeInputOverlay, onOverlayRemoved } from '../dialogFactory.js';
 import { findContourDuplicates, objectsBounds } from '../stockTools.js';
 import { deleteObjectsByIndices } from '../ui.js';
-import { findAxisFixes, applyAxisFixEdits, describeAxisFixes, axisFixKey } from './axisFix.js';
+import { findDrawingFixes } from './drawingFixes.js';
+import { applyFixItems, fixKey } from './fixShared.js';
 
 // Otisky zdvojených čar, které uživatel už v nabídce viděl (za celou session) –
 // runCncExport běží po každé úpravě výkresu a stejnou nabídku by jinak
@@ -231,7 +232,7 @@ export function maybeOfferContourDuplicates(dups) {
 export function openCamFromDrawing(openCam) {
   const dups = findContourDuplicates();
   const transfer = () => _transferMainProfile(openCam);
-  const axis = () => offerAxisFixes({ onDone: transfer });
+  const axis = () => offerDrawingFixes({ onDone: transfer });
   if (dups.length > 0 && _hasNew(dups)) {
     offerContourDuplicates(dups, { onDone: axis });
   } else {
@@ -239,52 +240,85 @@ export function openCamFromDrawing(openCam) {
   }
 }
 
-// Plány oprav u osy, které uživatel v nabídce odmítl (za celou session).
-const _axisDeclined = new Set();
+// Opravy, které uživatel v okně nechal nezaškrtnuté (za celou session) —
+// stejné se znovu nenabízejí.
+const _fixDeclined = new Set();
+const _esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /**
- * Konce čar těsně vedle osy, pahýly a přesahy u osy (axisFix.js): přiblíží
- * na ně, vyznačí je a nabídne opravu jedním krokem Zpět. Odmítnutý plán se
- * stejný znovu nenabízí.
- * @param {{onDone?: () => void}} [opts]
+ * Kontrola výkresu (drawingFixes.js): okno se seznamem drobných chyb, každá
+ * se zaškrtávátkem (výchozí zaškrtnuto) a ⌖ pro přiblížení. Zaškrtnuté se
+ * opraví jedním krokem Zpět; zaškrtnuté čáry jsou na plátně žlutě.
+ * Uživatel 2. 11. 2026: „ať vyskočí okno s upozorněním, co se opravuje,
+ * s možností to zaškrtnout k potvrzení".
+ * @param {{onDone?: () => void, all?: boolean}} [opts] `all` = ukázat i dřív
+ *   odmítnuté (ruční kontrola)
  */
-export function offerAxisFixes({ onDone = null } = {}) {
+export function offerDrawingFixes({ onDone = null, all = false } = {}) {
   const done = () => { if (onDone) onDone(); };
-  const fixes = findAxisFixes();
-  if (fixes.items.length === 0) { done(); return; }
-  const key = axisFixKey(fixes);
-  if (_axisDeclined.has(key)) { done(); return; }
+  const items = findDrawingFixes().filter(it => all || !_fixDeclined.has(fixKey(it)));
+  if (items.length === 0) { done(); return false; }
   const view = _saveView();
-  const objs = [...new Set(fixes.items.map(it => it.obj))];
-  state.axisFixMarks = objs;
-  const n = fixes.items.length;
+  const checked = items.map(() => true);
+  const marks = () => { state.drawingFixMarks = [...new Set(items.filter((_, i) => checked[i]).flatMap(it => it.objs))]; };
+  marks();
+  const rows = items.map((it, i) => `
+      <div class="fix-item">
+        <label><input type="checkbox" data-i="${i}" checked><span>${_esc(it.label)}</span></label>
+        <button type="button" class="fix-zoom" data-z="${i}" title="Přiblížit">⌖</button>
+      </div>`).join('');
+  const overlay = makeInputOverlay(`
+    <div class="input-dialog confirm-dialog fix-dialog">
+      <p class="confirm-dialog-message">Ve výkresu jsou drobné chyby, které na plátně nejsou vidět, ale CAM by z nich postavil nesmysl. Zaškrtnuté se opraví (vyznačeno žlutě, Zpět to vrátí):</p>
+      <div class="fix-list">${rows}</div>
+      <div class="btn-row">
+        <button type="button" class="btn-cancel btn-cancel-overlay">Ponechat vše</button>
+        <button type="button" class="btn-ok" id="fixDialogOk"></button>
+      </div>
+    </div>`);
+  overlay.classList.add('input-overlay--peek');
+  const okBtn = overlay.querySelector('#fixDialogOk');
+  const label = () => {
+    const n = checked.filter(Boolean).length;
+    okBtn.textContent = n === items.length ? `Opravit vše (${n})` : `Opravit vybrané (${n})`;
+    okBtn.disabled = n === 0;
+  };
+  label();
+  overlay.querySelectorAll('input[data-i]').forEach(cb => cb.addEventListener('change', () => {
+    checked[+cb.dataset.i] = cb.checked; label(); marks(); renderAll();
+  }));
+  overlay.querySelectorAll('[data-z]').forEach(b => b.addEventListener('click', () => {
+    _zoomTo(items[+b.dataset.z].objs); renderAll();
+  }));
   _dialogOpen = true;
-  showConfirmDialog(describeAxisFixes(fixes), () => {
+  let confirmed = false;
+  okBtn.addEventListener('click', () => {
+    confirmed = true;
+    const pick = items.filter((_, i) => checked[i]);
+    items.forEach((it, i) => { if (!checked[i]) _fixDeclined.add(fixKey(it)); });
+    overlay.remove();
     _dialogOpen = false;
-    state.axisFixMarks = [];
+    state.drawingFixMarks = [];
     pushUndo();
-    const del = applyAxisFixEdits(fixes).filter(o => state.objects.includes(o));
+    const del = applyFixItems(pick).filter(o => state.objects.includes(o));
     if (del.length) deleteObjectsByIndices(del.map(o => state.objects.indexOf(o)));
     _restoreView(view);
     renderAll();
-    showToast(`Opraveno u osy (${n}) ✓`);
+    showToast(`Opraveno ve výkresu: ${pick.length} ✓`);
     done();
-  }, {
-    confirmLabel: 'Opravit',
-    cancelLabel: 'Ponechat',
-    danger: false,
-    peek: true,
-    onCancel: () => {
-      _dialogOpen = false;
-      _axisDeclined.add(key);
-      state.axisFixMarks = [];
-      _restoreView(view);
-      renderAll();
-      done();
-    },
   });
-  _zoomTo(objs);
+  onOverlayRemoved(overlay, () => {
+    if (confirmed) return;
+    _dialogOpen = false;
+    items.forEach(it => _fixDeclined.add(fixKey(it)));
+    state.drawingFixMarks = [];
+    _restoreView(view);
+    renderAll();
+    done();
+  });
+  _zoomTo(items.flatMap(it => it.objs));
   renderAll();
+  return true;
 }
 
 function _transferMainProfile(openCam) {
@@ -329,4 +363,4 @@ function _transferMainProfile(openCam) {
 bridge.offerContourDuplicates = offerContourDuplicates;
 bridge.maybeOfferContourDuplicates = maybeOfferContourDuplicates;
 bridge.openCamFromDrawing = openCamFromDrawing;
-bridge.offerAxisFixes = offerAxisFixes;
+bridge.offerDrawingFixes = offerDrawingFixes;

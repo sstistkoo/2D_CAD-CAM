@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v695';
+const CACHE_NAME = 'skica-v696';
 const ASSETS = [
   './',
   './index.html',
@@ -318,6 +318,8 @@ const ASSETS = [
   './js/dialogs/combinedModal.js',
   './js/dialogs/contourCheck.js',
   './js/dialogs/dimension.js',
+  './js/dialogs/drawingFixes.js',
+  './js/dialogs/fixShared.js',
   './js/dialogs/gearDialog.js',
   './js/dialogs/gearPairDialog.js',
   './js/dialogs/grooveDialog.js',

@@ -435,13 +435,27 @@ CAM část ti umožní generovat NC programy pro obrábění.
   zůstane žluté vyznačení a **kliknutím na žlutou čáru nebo její popisek**
   (nástroj Výběr, myš i prst) se nabídka smazání objeví znovu. Do CAM se
   přebytečná kopie neposílá ani tak.
-- **Oprava u osy** – při otevření CAM aplikace hledá místa, kde výkres u osy
-  *skoro* sedí: volný konec čáry do 2 mm od osy (třeba čelo začínající na
-  X −0,301 nebo čelo polotovaru končící na X 0,786), krátký pahýl, který by
-  po přitažení na osu měl nulovou délku, a přesah čáry za roh (osa polotovaru
-  delší než jeho čelo). Vyznačí je **žlutě „oprava u osy"**, vypíše, co se
-  změní, a nabídne **Opravit** (jeden krok Zpět). Po **Ponechat** se stejná
-  nabídka v tomtéž sezení neopakuje. Upravují se jen úsečky.
+- **Kontrola výkresu** – při otevření CAM (a ručně v ⚙ Nastavení →
+  **🔧 Zkontrolovat výkres**) aplikace hledá drobné chyby, které na plátně
+  nejsou vidět, ale CAM by z nich postavil nesmysl. Hledá jen to, co má
+  jednoznačnou opravu, zvlášť v kontuře a v polotovaru:
+  - **u osy** – volný konec čáry do 2 mm od osy (třeba čelo od X −0,301) →
+    na osu; pahýl, který by tím měl nulovou délku → smazat; přesah čáry za
+    roh (osa polotovaru delší než jeho čelo) → zkrátit,
+  - **mezera** – dva volné konce do 0,5 mm od sebe → spojit do průsečíku
+    prodloužených úseček (u oblouku na konec oblouku, oblouk se nemění),
+  - **konec u čáry** – volný konec úsečky do 0,5 mm před jinou úsečkou nebo
+    přes ni → prodloužit / zkrátit k ní,
+  - **skoro rovná čára** – úsečka delší než 2 mm, skoro vodorovná nebo svislá
+    (odchylka do 0,05 mm) → narovnat; posune se konec s „méně kulatou"
+    hodnotou a s ním navazující úsečky.
+
+  Otevře se okno se **seznamem oprav**, každá se **zaškrtávátkem** (výchozí
+  zaškrtnuté) a tlačítkem **⌖** pro přiblížení na místo; zaškrtnuté čáry jsou
+  na plátně **žlutě „oprava"**. **Opravit vybrané** provede zaškrtnuté jedním
+  krokem Zpět. Nezaškrtnuté (i po **Ponechat vše**) se při dalším otevření
+  CAM v tomtéž sezení už nenabízejí; ruční kontrola ukáže vše. Upravují se
+  jen úsečky.
 
 ### 3. CAM Simulátor
 1. Klikni na **CAM** v Sinumerik rozcestníku

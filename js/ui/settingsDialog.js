@@ -92,6 +92,7 @@ export function showSettingsDialog() {
         </div>
         <div style="display:flex;gap:6px;margin-top:6px">
           <button class="calc-btn" id="settContourGaps" style="${btnS}${act(state.showContourGaps)}" title="Zvýraznit mezery/přerušení v kontuře na plátně">⊗ Mezery v kontuře: ${state.showContourGaps ? 'ON' : 'OFF'}</button>
+          <button class="calc-btn" id="settCheckDrawing" style="${btnS}${act(false)}" title="Najít drobné chyby (mezery, konce u osy, skoro rovné čáry) a nabídnout opravu">🔧 Zkontrolovat výkres</button>
         </div>
       </fieldset>
 
@@ -274,6 +275,13 @@ export function showSettingsDialog() {
     renderAll();
     persistSettings();
     showToast(state.showContourGaps ? 'Zvýraznění mezer v kontuře: ON' : 'Zvýraznění mezer v kontuře: OFF');
+  });
+
+  // ── Kontrola výkresu (dialogs/drawingFixes.js) — i dřív odmítnuté opravy ──
+  overlay.querySelector('#settCheckDrawing').addEventListener('click', () => {
+    overlay.remove();
+    const shown = bridge.offerDrawingFixes ? bridge.offerDrawingFixes({ all: true }) : false;
+    if (!shown) showToast('Kontrola výkresu: nic k opravě ✓');
   });
 
   // ── Snap mřížka ON/OFF ──

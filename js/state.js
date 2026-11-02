@@ -285,9 +285,9 @@ export const state = {
   // Čáry, které při přenosu do CAM zůstaly mimo hlavní profil – zvýrazněné
   // jen po dobu dotazu před otevřením CAM (dialogs/contourCheck.js).
   camLeftovers: [],
-  // Čáry s opravou u osy (konec těsně vedle osy, pahýl, přesah) – zvýrazněné
-  // jen po dobu nabídky opravy (dialogs/axisFix.js, contourCheck.js).
-  axisFixMarks: [],
+  // Čáry s navrženou opravou (Kontrola výkresu) – zvýrazněné jen po dobu
+  // okna s opravami (dialogs/drawingFixes.js, contourCheck.js).
+  drawingFixMarks: [],
   // Zobrazovat značky "Mezera" na plátně (lze vypnout v nastavení)
   showContourGaps: false,
   // Režim výstupu CNC kódu: 'abs' = G90, 'inc' = G91

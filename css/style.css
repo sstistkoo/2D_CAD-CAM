@@ -1750,6 +1750,54 @@ body {
   white-space: pre-line;
 }
 
+/* Kontrola výkresu (contourCheck.js offerDrawingFixes) – seznam oprav se
+   zaškrtávátky; dlouhý seznam se posouvá, ať okno nezakryje výkres. */
+.fix-list {
+  max-height: 34vh;
+  overflow-y: auto;
+  margin: 8px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fix-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ctp-text);
+}
+.fix-item label {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.fix-item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin: 0;
+  accent-color: var(--ctp-yellow);
+}
+.fix-zoom {
+  flex: none;
+  min-width: 32px;
+  height: 28px;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 6px;
+  background: var(--ctp-surface0);
+  color: var(--ctp-text);
+  font-size: 16px;
+  cursor: pointer;
+}
+.fix-dialog .btn-ok:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ── Anchor-point radio (pin fixed point) ── */
 .anchor-radio-row {
   display: flex;

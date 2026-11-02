@@ -9,11 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **CAD → CAM – nabídka „Oprava u osy"** (`dialogs/axisFix.js`, volá `contourCheck.js` při otevření CAM):
-  volný konec úsečky do 2 mm od osy → na osu (vodorovná úsečka i s navazující čarou), pahýl s nulovou
-  délkou → smazat, přesah za roh (např. osa polotovaru delší než jeho čelo) → zkrátit. Vyznačí žlutě,
-  vypíše změny, jeden krok Zpět. Z výkresu uživatele 2. 11. 2026 (čelo od X −0,301, otevřený polotovar).
-  Test `tests/axis-fix.test.js`.
+- **CAD → CAM – Kontrola výkresu s opravami k zaškrtnutí** (`dialogs/drawingFixes.js`, `axisFix.js`,
+  `fixShared.js`; okno `contourCheck.js` `offerDrawingFixes`): při otevření CAM a ručně (⚙ Nastavení →
+  🔧 Zkontrolovat výkres) najde drobné chyby s jednoznačnou opravou — konec čáry do 2 mm od osy → na osu,
+  pahýl → smazat, přesah za roh → zkrátit, mezera do 0,5 mm → spojit do průsečíku, konec do 0,5 mm u čáry
+  → prodloužit / zkrátit, skoro vodorovná / svislá úsečka (do 0,05 mm, delší než 2 mm) → narovnat.
+  Okno se seznamem, zaškrtávátko a ⌖ přiblížení u každé opravy, žluté vyznačení, jeden krok Zpět.
+  Z výkresu uživatele 2. 11. 2026 (čelo od X −0,301, otevřený polotovar). Testy `tests/axis-fix.test.js`,
+  `tests/drawing-fixes.test.js`, `tests/drawing-fix-dialog.test.js`.
 - **CAM – strategie ⇋ Cik cak** (kulatá destička v úzkém držáku, `cam/ops/zigzagRough.js`, `zigzagReverse.js`,
   `zigzagEmit.js`): Podélně podle všech pravidel, jen vrstva za hrbolem, která by vyjela do prázdného prostoru
   (bez polotovaru), se vezme obráceně — ze vzduchu ke stěně hrbolu, bez zanoření a bez klínu pod čarou zanoření.
