@@ -11,7 +11,7 @@
 // Nález uživatele 30. 9. 2026: hláška „kontura se větví" u zdvojené úsečky,
 // kterou nebylo na výkrese vidět; CAM ji dostal jako samostatný kus za G0.
 
-import { state, pushUndo, showToast } from '../state.js';
+import { state, pushUndo, showToast, setNotifyActions } from '../state.js';
 import { bridge } from '../bridge.js';
 import { renderAll } from '../render.js';
 import { fitViewToWorldBounds } from '../canvas.js';
@@ -265,11 +265,35 @@ const _KIND_WORD = {
  * „udělat ten zvoneček červený, když tam bude nějaké upozornění"). Na rozdíl
  * od `has-unread` (bliká do otevření panelu) drží, dokud chyba nezmizí.
  */
-function _bellWarning(on) {
+function _bellWarning(on, n = 0) {
+  setNotifyActions(on ? [
+    { label: `🔧 Opravit automaticky (${n})`, onClick: autoFixDrawing },
+    { label: '☑ Vybrat opravy…', onClick: () => { if (!offerDrawingFixes({ all: true })) showToast('Kontrola výkresu: nic k opravě ✓'); } },
+  ] : []);
   const badge = typeof document !== 'undefined' && document.getElementById('mobileNotifyBadge');
   if (!badge) return;
   badge.classList.toggle('has-warning', on);
   badge.title = on ? 'Hlášky — ve výkresu jsou chyby k opravě' : 'Hlášky';
+}
+
+/**
+ * Automatická oprava ze zvonečku (uživatel 2. 11. 2026: „dej ať u zvonečku
+ * mám možnost to automaticky opravit"): provede VŠECHNY nalezené opravy
+ * bez okna, jedním krokem Zpět, a vypíše, co opravila.
+ * @returns {number} počet provedených oprav
+ */
+export function autoFixDrawing() {
+  const items = findDrawingFixes();
+  if (items.length === 0) { showToast('Kontrola výkresu: nic k opravě ✓'); _bellWarning(false); return 0; }
+  pushUndo();
+  const del = applyFixItems(items).filter(o => state.objects.includes(o));
+  if (del.length) deleteObjectsByIndices(del.map(o => state.objects.indexOf(o)));
+  state.drawingFixMarks = [];
+  renderAll();
+  notifyDrawingFixes();   // zvoneček zešedne hned, ne až po dalším exportu
+  const what = [...new Set(items.map(it => _KIND_WORD[it.kind] || it.kind))].join(', ');
+  showToast(`🔧 Opraveno automaticky: ${items.length} (${what}) — Zpět vrátí`, 4000);
+  return items.length;
 }
 
 /**
@@ -284,7 +308,7 @@ export function notifyDrawingFixes() {
   if (!state.objects || state.objects.length > NOTIFY_MAX_OBJECTS) { _bellWarning(false); return; }
   let items;
   try { items = findDrawingFixes(); } catch { return; }
-  _bellWarning(items.length > 0);
+  _bellWarning(items.length > 0, items.length);
   const keys = items.map(fixKey);
   const fresh = keys.filter(k => !_fixNotified.has(k) && !_fixDeclined.has(k));
   keys.forEach(k => _fixNotified.add(k));
@@ -417,3 +441,4 @@ bridge.maybeOfferContourDuplicates = maybeOfferContourDuplicates;
 bridge.openCamFromDrawing = openCamFromDrawing;
 bridge.offerDrawingFixes = offerDrawingFixes;
 bridge.notifyDrawingFixes = notifyDrawingFixes;
+bridge.autoFixDrawing = autoFixDrawing;

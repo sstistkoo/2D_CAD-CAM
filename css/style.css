@@ -2745,6 +2745,32 @@ body.notify-open #mobileCoordBar {
 .mobile-notify-item-action:active {
   background: var(--ctp-surface0);
 }
+/* Trvalá tlačítka nahoře v panelu (setNotifyActions v state.js) — např.
+   „🔧 Opravit automaticky" z Kontroly výkresu. */
+.mobile-notify-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--ctp-surface0);
+}
+.mobile-notify-action {
+  font-size: 13px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ctp-surface1);
+  background: var(--ctp-surface0);
+  color: var(--ctp-text);
+  cursor: pointer;
+}
+.mobile-notify-action:first-child {
+  background: var(--ctp-green);
+  border-color: var(--ctp-green);
+  color: var(--ctp-base);
+  font-weight: 600;
+}
 .mobile-notify-empty {
   font-size: 12px;
   color: var(--ctp-subtext0);

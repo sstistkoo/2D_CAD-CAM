@@ -22,6 +22,20 @@ const DEFERRED_NOTIFY_MAX = 6;
 /** @type {{msg: string, onClick: (()=>void)|null}[]} */
 let _deferredNotifications = [];
 let _notifyWired = false;
+/** Tlačítka nahoře v panelu zvonečku (např. „🔧 Opravit automaticky"), viz setNotifyActions. */
+let _notifyActions = [];
+
+/**
+ * Trvalá tlačítka nahoře v panelu zvonečku — drží, dokud je volající nezmění
+ * (na rozdíl od hlášek, které se střídají). Prázdné pole = žádná.
+ * Kontrola výkresu (dialogs/contourCheck.js) tu nabízí automatickou opravu.
+ * @param {{label: string, onClick: () => void}[]} actions
+ */
+export function setNotifyActions(actions) {
+  _notifyActions = Array.isArray(actions) ? actions : [];
+  const panel = typeof document !== 'undefined' && document.getElementById('mobileNotifyPanel');
+  if (panel && !panel.hidden) renderNotifyPanel();
+}
 
 function shouldDeferToast() {
   if (typeof window === 'undefined' || window.innerWidth > MOBILE_BREAKPOINT) return false;
@@ -41,13 +55,17 @@ function escapeHtml(str) {
 function renderNotifyPanel() {
   const panel = document.getElementById('mobileNotifyPanel');
   if (!panel) return;
+  const actions = _notifyActions.length
+    ? `<div class="mobile-notify-actions">${_notifyActions.map((a, i) =>
+      `<button type="button" class="mobile-notify-action" data-notify-action="${i}">${escapeHtml(a.label)}</button>`).join('')}</div>`
+    : '';
   if (!_deferredNotifications.length) {
-    panel.innerHTML = '<div class="mobile-notify-empty">Žádné hlášky</div>';
+    panel.innerHTML = actions + (actions ? '' : '<div class="mobile-notify-empty">Žádné hlášky</div>');
     return;
   }
   // Nejnovější nahoře; položky s akcí (`onClick`, viz showToast opts.onClick
   // – např. „skoč na mezeru v kontuře") dostanou terčík a jdou kliknout.
-  panel.innerHTML = _deferredNotifications
+  panel.innerHTML = actions + _deferredNotifications
     .slice()
     .reverse()
     .map((n, i) => {
@@ -80,6 +98,13 @@ function wireNotifyBadge() {
     }
   });
   panel.addEventListener('click', (e) => {
+    const act = e.target.closest('[data-notify-action]');
+    if (act) {
+      const a = _notifyActions[Number(act.dataset.notifyAction)];
+      setOpen(false);
+      if (a) a.onClick();
+      return;
+    }
     const item = e.target.closest('[data-notify-idx]');
     if (!item) return;
     const n = _deferredNotifications[Number(item.dataset.notifyIdx)];

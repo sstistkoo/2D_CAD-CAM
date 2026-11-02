@@ -72,7 +72,8 @@ describe('okno Kontrola výkresu', () => {
     cc.notifyDrawingFixes();
     expect(badge.classList.contains('has-unread')).toBe(false);
     expect(badge.classList.contains('has-warning')).toBe(true);   // červený, dokud chyba trvá
-    items[0].click();
+    // Panel se po kontrole překreslí — položku hledat znovu.
+    [...panel.querySelectorAll('[data-notify-idx]')].find(el => el.textContent.includes('Výkres:')).click();
     expect(document.querySelector('.fix-dialog')).not.toBeNull();
     document.querySelector('.fix-dialog').closest('.input-overlay').remove();
     await new Promise(r => setTimeout(r, 0));   // zavření okna hlásí MutationObserver
@@ -96,6 +97,26 @@ describe('okno Kontrola výkresu', () => {
     document.querySelector('#fixDialogOk').click();
     expect(opened).toBe(1);
     expect(state.objects[0].y1).toBe(0);
+  });
+
+  it('zvoneček: 🔧 Opravit automaticky opraví vše bez okna a zvoneček zešedne', async () => {
+    await new Promise(r => setTimeout(r, 0));
+    Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true });
+    state.objects = [L(100, -0.4, 100, 20), L(100, 20, 50.2, 20), L(50, 20, 50, 30), L(50, 30, 0, 30), L(0, 30, 0, 0)];
+    const badge = document.getElementById('mobileNotifyBadge');
+    const panel = document.getElementById('mobileNotifyPanel');
+    cc.notifyDrawingFixes();
+    expect(badge.classList.contains('has-warning')).toBe(true);
+    if (panel.hidden) badge.click();
+    const btns = [...panel.querySelectorAll('[data-notify-action]')];
+    expect(btns.map(b => b.textContent)).toEqual(['🔧 Opravit automaticky (2)', '☑ Vybrat opravy…']);
+    btns[0].click();
+    expect(document.querySelector('.fix-dialog')).toBeNull();   // bez okna
+    expect(state.objects[0].y1).toBe(0);
+    expect(state.objects[1].x2).toBe(50);
+    expect(badge.classList.contains('has-warning')).toBe(false);
+    badge.click();
+    expect(panel.querySelectorAll('[data-notify-action]')).toHaveLength(0);
   });
 });
 
