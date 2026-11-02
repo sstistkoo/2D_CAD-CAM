@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+- **Mobil na výšku: panel nástrojů CAD nižší o ~3 řady** (`css/style.css`): víc vidět plátno, v tlačítkách
+  se roluje. Horní řádek Výběr / Kóta / Tl Kon / Smaž / ✕ zůstává při rolování přilepený nahoře.
+
 ### Fixed
 
 - **Karusel → CAM: kontura chodila obráceně** (`storage/fileIO.js` přenos do CAM): řetěz začínal na největším

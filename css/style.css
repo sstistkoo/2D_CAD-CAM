@@ -3640,6 +3640,20 @@ body.notify-open #mobileCoordBar {
     width: 0;
     height: 0;
   }
+
+  /* Panel nástrojů nižší o ~3 řady tlačítek (řada ≈ 42 px) – víc plátna
+     na kreslení, v tlačítkách se roluje. Spodní mez 30vh, aby na nízkém
+     displeji nezbyl jen proužek. Horní řádek (Výběr/Kóta/Tl Kon/Smaž/✕)
+     zůstává při rolování přilepený nahoře. */
+  #topbar {
+    max-height: max(30vh, calc(60vh - 126px));
+    overscroll-behavior: contain;
+  }
+  #topbar > .toolbar-header {
+    position: sticky;
+    top: -4px; /* kompenzuje padding #topbar */
+    z-index: 2;
+  }
 }
 
 /* ── Calculator launcher buttons ── */
