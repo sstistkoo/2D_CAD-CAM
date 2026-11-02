@@ -1106,7 +1106,8 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     }
     const chained = [];
     while (_hasChainable()) {
-      // Start řetězu: nejpravější (max drawing-x) endpoint, přednostně volný konec.
+      // Start řetězu: max Z (soustruh drawing-x; karusel do CAM drawing-y), přednostně volný konec.
+      const zKey = forCam && state.machineType === 'karusel' ? (c) => c.y : (c) => c.x;
       let bIdx = -1, bRev = false, bX = -Infinity, bFree = false;
       for (let i = 0; i < items.length; i++) {
         if (used[i] || !eps[i]) continue;
@@ -1116,8 +1117,8 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
         ];
         for (const c of cand) {
           const free = _degUnused(c.x, c.y) === 1;
-          if ((free && !bFree) || (free === bFree && c.x > bX)) {
-            bFree = free; bX = c.x; bIdx = i; bRev = c.rev;
+          if ((free && !bFree) || (free === bFree && zKey(c) > bX)) {
+            bFree = free; bX = zKey(c); bIdx = i; bRev = c.rev;
           }
         }
       }

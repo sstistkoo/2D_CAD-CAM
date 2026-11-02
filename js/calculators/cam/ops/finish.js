@@ -36,7 +36,7 @@ export function buildFinishPath(ctx) {
   const {
     prms, clearance, contourSegments, preBridgeContour, machinableContour,
     rawContourForInterference, stockPathSegments, tipR,
-    finishUnreachablePath, foundErrors,
+    finishUnreachablePath, foundErrors, zigzagWalls = false,
   } = ctx;
   let finishOffsetPath = [];
   // Hlídání destičky: úseky, kam destička bočním ostřím nedosáhne,
@@ -157,7 +157,7 @@ export function buildFinishPath(ctx) {
     let steepAfter = false;
     {
       // (Cik cak: vyhrubovaná stěna i svisle — zigzagSteepLimit v ops/zigzagFloor.js)
-      const sp = splitSteepFinish(finSeg, zigzagSteepLimit(prms, finSeg, stockPathSegments, tipR, plungeDeg, contourSegments), finDirZ);
+      const sp = splitSteepFinish(finSeg, zigzagSteepLimit(zigzagWalls, prms, finSeg, stockPathSegments, tipR, plungeDeg, contourSegments), finDirZ);
       if (sp.steep) {
         finSteepSkipped++;
         sp.steep.unreachable = true;

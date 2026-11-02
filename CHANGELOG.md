@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Karusel → CAM: kontura chodila obráceně** (`storage/fileIO.js` přenos do CAM): řetěz začínal na největším
+  průměru (zadní konec dílu), protože se start hledal podle vodorovné osy výkresu — u karuselu je to X.
+  Hrubování pak vyšlo jinak než u stejného dílu ze soustruhu (jiné průchody i kapsy). Start je teď na čele
+  (max Z) i u karuselu; tentýž díl ze SOU i KAR dá v CAM bajt po bajtu stejný program, podélně i čelně, s
+  nakresleným polotovarem (`tests/karusel-cam-equivalence.test.js`).
+- **CAM Cik cak: dokončovací modul se neptá na druh operace** (`ops/zigzagFloor.js`): `zigzagSteepLimit`
+  dostává příznak od rozcestníku (`calculatePipeline` `roughingKey`), test oddělení operací zase prochází.
+  Program beze změny (otisk 32 fixtures shodný).
 - **CAM přebírá typ stroje z CAD** (`cam/camDefaults.js` `syncParamsFromCad`): výkres nakreslený
   pro karusel se v CAM otevíral jako soustruh (výchozí / naposledy zvolený typ v CAM). Při otevření CAM
   se teď Soustruh/Karusel nastaví podle CAD (stejně jako mód X R/⌀), dráhy se rovnou kreslí a upravují

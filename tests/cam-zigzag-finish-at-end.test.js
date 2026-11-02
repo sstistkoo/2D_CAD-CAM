@@ -71,9 +71,9 @@ describe('Cik cak — na hotovo až na konci', () => {
     const line = (a, b) => ({ type: 'line', p1: a, p2: b });
     const cleared = [line({ x: 0, z: 120 }, { x: 5.1, z: 120 }), line({ x: 5.1, z: 120 }, { x: 5.1, z: 80 }), line({ x: 5.1, z: 80 }, { x: 0, z: 80 })];
     const full = [line({ x: 0, z: 120 }, { x: 40, z: 120 }), line({ x: 40, z: 120 }, { x: 40, z: 80 }), line({ x: 40, z: 80 }, { x: 0, z: 80 })];
-    expect(zigzagSteepLimit(prms, face, cleared, 5, 45)).toBe(90);
-    expect(zigzagSteepLimit(prms, face, full, 5, 45)).toBe(45);
-    expect(zigzagSteepLimit({ ...prms, roughingStrategy: 'longitudinal' }, face, cleared, 5, 45)).toBe(45);
+    expect(zigzagSteepLimit(true, prms, face, cleared, 5, 45)).toBe(90);
+    expect(zigzagSteepLimit(true, prms, face, full, 5, 45)).toBe(45);
+    expect(zigzagSteepLimit(false, prms, face, cleared, 5, 45)).toBe(45);
   });
 
   it('sectionFinishAtEnd: úseky bez dokončení, za nimi část „Na hotovo" přes celý rozsah', () => {

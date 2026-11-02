@@ -203,10 +203,11 @@ export function floorFinishFace(path, passes, zHi, contour, tipR) {
  * zapichovalo plnou hloubkou — tam platí úhel zanoření. Převis (> 90°)
  * zůstává zakázaný. Ostatní strategie: úhel zanoření beze změny.
  * `contour` — hotový díl: kus čela pod ním (ořízne se v rohu o dno) se
- * nekontroluje.
+ * nekontroluje. `zigzagWalls` — hrubuje se Cik cak; o druhu operace
+ * rozhoduje rozcestník (calculatePipeline `roughingKey`), ne tento modul.
  */
-export function zigzagSteepLimit(prms, seg, stock, tipR, plungeDeg, contour = null) {
-  if (!prms || prms.roughingStrategy !== 'zigzag' || !getInsert(prms).zigzagPockets) return plungeDeg;
+export function zigzagSteepLimit(zigzagWalls, prms, seg, stock, tipR, plungeDeg, contour = null) {
+  if (!zigzagWalls || !prms || !getInsert(prms).zigzagPockets) return plungeDeg;
   if (!seg || !Array.isArray(stock) || !stock.length) return plungeDeg;
   const allow = Math.max(parseFloat(prms.allowanceX) || 0, parseFloat(prms.allowanceZ) || 0)
     + (parseFloat(prms.finishAllowance) || 0);

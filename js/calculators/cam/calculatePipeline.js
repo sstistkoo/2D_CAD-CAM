@@ -526,6 +526,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
       prms, clearance, contourSegments, preBridgeContour, machinableContour,
       rawContourForInterference, stockPathSegments, tipR,
       finishUnreachablePath, foundErrors,
+      zigzagWalls: roughingKey(S) === 'zigzag',   // druh operace určuje rozcestník
     });
   }
 
