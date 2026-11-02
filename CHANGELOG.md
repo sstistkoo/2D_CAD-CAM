@@ -78,6 +78,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM – díry z výkresu se v soustružení nekreslí** (`live/liveModel.js` `liveShownInTurning`) – díry
+  a spodní polovina řezu jen na záložce Vrtání / Frézování; dřív se díry z bokorysu ukazovaly i v hrubování,
+  kde se nevrtají. Test `tests/face-cam-transfer.test.js`.
 - **CAM – čelo začínající kousek pod osou nevypadne z kontury** (`cam/contourBuild.js`
   `foldContourToMachiningSide`) – úsečka, která z bodu pod osou (např. X −0,301) vychází nahoru, se ořízne
   na ose stejně jako úsečka jdoucí osou dolů; dřív se zahodila celá a v CAM chybělo čelo. Otisk CAM shodný.

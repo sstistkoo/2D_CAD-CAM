@@ -174,10 +174,13 @@ describe('spodní polovina řezu v CAM', () => {
   it('díry 180°…360° patří pod osu, 0°…180° nad', () => {
     expect([0, 45, 90, 180, 225, 270, 315].map(lowerAngle)).toEqual([false, false, false, false, true, true, true]);
   });
-  it('kreslí se jen s operacemi poháněných nástrojů', () => {
-    expect(lowerHalfOn({ liveOps: [] })).toBe(false);
+  it('kreslí se jen s operacemi poháněných nástrojů a jen na záložce Vrtání', () => {
+    expect(lowerHalfOn({ liveOps: [], drillActive: true })).toBe(false);
     state.objects.push(hole(0, 40, { mode: 'through', value: null }));
-    expect(lowerHalfOn({ liveOps: liveOpsFromCad(faceDrawingsForCam(), GEO, []).ops })).toBe(true);
+    const liveOps = liveOpsFromCad(faceDrawingsForCam(), GEO, []).ops;
+    expect(lowerHalfOn({ liveOps, drillActive: true })).toBe(true);
+    // Díry z výkresu se v soustružení nekreslí (uživatel 2. 11. 2026).
+    expect(lowerHalfOn({ liveOps })).toBe(false);
   });
   it('kontura: G0 dělí čáry, oblouk se navzorkuje; válcový polotovar = obdélník od osy', () => {
     const wp = [

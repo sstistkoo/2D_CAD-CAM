@@ -58,7 +58,7 @@ export function faceSpans(op, rot = 0, base = 90) {
  */
 export function drawLiveSectionLayer(f, mach = null) {
   const ops = getLiveOps(f.prms);
-  // Mimo záložku Vrtání / Frézování jen díry z výkresu (liveShownInTurning).
+  // Mimo záložku Vrtání / Frézování nic (liveShownInTurning), při obrábění ano.
   if (!ops.length || (!liveShownInTurning(f.prms) && !(mach && mach.active))) return;
   const { ctx, toScreen } = f;
   const rot = mach && mach.active ? (mach.rot || 0) : 0;

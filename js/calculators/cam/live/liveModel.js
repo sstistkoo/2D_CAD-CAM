@@ -180,13 +180,13 @@ export function getLiveOps(prms) {
 
 /**
  * Mají se operace poháněných nástrojů v řezu SOUSTRUŽENÍ ukazovat? Jen na
- * záložce Vrtání / Frézování (`drillActive`), nebo když díry pocházejí
- * z výkresu (`fromCad`). Ručně nastavené vrtání se jinak do hrubování
- * nepletlo (uživatel 31. 10. 2026: „vrtání jsem nejel … nemělo by to tam
- * jít ani vidět, až když přehodím na vrtání nebo to mám nakreslené").
+ * záložce Vrtání / Frézování (`drillActive`). Do 2. 11. 2026 se ukazovaly
+ * i díry z výkresu (`fromCad`, uživatel 31. 10.: „… nebo to mám nakreslené"),
+ * ale pak se pletly do hrubování dílu, kde se nevrtají (uživatel 2. 11. 2026:
+ * „mám v cam díry i když je nejedu" → jen na záložce Vrtání).
  */
 export function liveShownInTurning(prms) {
-  return !!prms && (!!prms.drillActive || getLiveOps(prms).some(o => o.fromCad));
+  return !!prms && !!prms.drillActive;
 }
 
 /** Řádky „úhel; hodnota" → [{ a, v }]. Oddělovač ; , mezera nebo tab. */

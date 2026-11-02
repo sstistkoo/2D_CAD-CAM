@@ -813,7 +813,8 @@ načtou se zvlášť:
   frézuje od prvního materiálu pod svou osou („Drážka 1 · Z280 ◀"). Změní-li
   se v CAD hloubka díry, přepíše se i název operace (ručně přejmenovaná
   operace si název nechá).
-- **Řez s dírami** — jsou-li operace poháněných nástrojů, řez vlevo má
+- **Řez s dírami** — na záložce **Vrtání / Frézování** (v soustružení se
+  díry ani spodní polovina nekreslí, i když jsou nakreslené ve výkresu) má řez vlevo
   i **spodní polovinu** (kontura a polotovar zrcadlené přes osu) a díry
   do čela leží ve výšce jako v nárysu CAD (svislá poloha v pohledu na
   čelo: C 0° a 180° **na ose Z**, C 90° nahoře, C 270° dole); díry do
