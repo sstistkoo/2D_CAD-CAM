@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   průměru (zadní konec dílu), protože se start hledal podle vodorovné osy výkresu — u karuselu je to X.
   Hrubování pak vyšlo jinak než u stejného dílu ze soustruhu (jiné průchody i kapsy). Start je teď na čele
   (max Z) i u karuselu; tentýž díl ze SOU i KAR dá v CAM bajt po bajtu stejný program, podélně i čelně, s
-  nakresleným polotovarem (`tests/karusel-cam-equivalence.test.js`).
+  nakresleným polotovarem i s dírou pro vyvrtávání (`tests/karusel-cam-equivalence.test.js`). Poháněné nástroje:
+  díra nakreslená pod nástrojem jde na C0 u obou strojů (dřív u karuselu v pohledu Soustruh C270).
 - **CAM Cik cak: dokončovací modul se neptá na druh operace** (`ops/zigzagFloor.js`): `zigzagSteepLimit`
   dostává příznak od rozcestníku (`calculatePipeline` `roughingKey`), test oddělení operací zase prochází.
   Program beze změny (otisk 32 fixtures shodný).
