@@ -86,9 +86,9 @@ export function moveEnd(item, o, i, x, y) {
 }
 
 /** Popis místa „Z… X…" podle stroje (soustruh: Z vodorovně, X = poloměr svisle). */
-export function placeLabel(x, y, machineType) {
+export function placeLabel(x, y, machineType, d = 2) {
   const [z, r] = machineType === 'karusel' ? [y, x] : [x, y];
-  return `Z${fmt(z, 2)} X${fmt(r, 2)}`;
+  return `Z${fmt(z, d)} X${fmt(r, d)}`;
 }
 
 /** Provede zaškrtnuté opravy na výkrese. Vrací objekty ke smazání. */

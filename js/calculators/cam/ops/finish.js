@@ -25,6 +25,7 @@ import { makeFinishTipGuard } from '../toolEnvelope.js';
 import { fitArcsToPolyline, samplePartingEnvelope, partingEnvelopeAt } from '../camMath.js';
 import { maxXAt } from '../passHelpers.js';
 import { getInsert } from '../inserts/index.js';
+import { zigzagSteepLimit } from './zigzagFloor.js';
 import { holderWorldLoop } from '../collisionValidator.js';
 
 /**
@@ -155,7 +156,8 @@ export function buildFinishPath(ctx) {
     // částí řetěz končí → rovný průměr (`finRunOut`) a odjezd.
     let steepAfter = false;
     {
-      const sp = splitSteepFinish(finSeg, plungeDeg, finDirZ);
+      // (Cik cak: vyhrubovaná stěna i svisle — zigzagSteepLimit v ops/zigzagFloor.js)
+      const sp = splitSteepFinish(finSeg, zigzagSteepLimit(prms, finSeg, stockPathSegments, tipR, plungeDeg, contourSegments), finDirZ);
       if (sp.steep) {
         finSteepSkipped++;
         sp.steep.unreachable = true;

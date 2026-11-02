@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Fixed
+
+- **CAM Po úsecích — přechod mezi úseky** (`gcodeMerge.js`): beze změny nože se mezi částmi nevypíná vřeteno
+  ani chlazení (M5/M9 + M3/M8) a nejede se do startovní polohy — po výjezdu od obrobku další úsek najede
+  rovnou na svůj první průchod. Při výměně nože beze změny.
+- **CAM „Výjezd nad konturu" jen tak vysoko, jak je třeba** (`gcodeEmit.js`, nový `cam/rapidLift.js`): když
+  nízký přejezd neprojde (typicky držák opřený o stěnu už v cíli), zkouší se výš po 1 mm místo skoku na vrch
+  celého polotovaru (Úsek 2: `G0 X69.017` → `G0 X34.230`). Čistý sjezd v X na stejném Z se nezvedá ani kvůli
+  držáku — zdvih by vedl stejným sloupcem, jen delší cestou.
+- **CAM Cik cak — obrácená vrstva přes roh offsetu** (`ops/zigzagReverse.js`): výjezd po stěně už nejede
+  tětivou nad offsetem (rovná plocha → šikmá stěna, N2470 `X35.545 Z210.134`), ale přes jeho roh — zůstane
+  jen přídavek na hotovo.
+- **CAM Cik cak — čelo u spodku** (`ops/zigzagFloor.js`): „Hrub. bez schodků" projede i svislé čelo, ke
+  kterému spodek cik cak dojíždí (schody mezi vrstvami na přechodu Úsek 1 → Úsek 2).
+- **CAM ↺ Reset / Po úsecích s aktivní částí „Na hotovo"** (`sim/sectionFinishAtEnd.js` `baseFinishOnly`):
+  „jen dokončovací operace" se z automatické části „Na hotovo" nepřenáší do hrubování.
+- **Vyrovnání (Vodor. / Kolm.) nemění barvu úsečky** (`render/constraints.js`): zelené / fialové přetónování
+  vyrovnané úsečky zmizelo (polotovar po vyrovnání zešedl); ikona vazby zůstává u vybrané vazby.
+- **Kontrola výkresu:** oprava „skoro rovné čáry“ srovná celý řetěz rovných úseček (mikron se nepřenáší dál),
+  popisek ukazuje 3 desetinná místa a návrat z CAM srovná mikronové schody polotovaru (`snapStockJitter`).
+
+### Added
+
 - **Kontrola výkresu i pod zvonečkem 🔔** (`contourCheck.js` `notifyDrawingFixes`): po každé úpravě výkresu,
   když přibude nová drobná chyba, přijde hláška pod zvoneček v horní liště; klepnutí otevře okno s opravami.
   Každá chyba se hlásí jednou; nad 800 objektů se po úpravách nekontroluje. Dokud je co opravit, zvoneček
@@ -30,7 +53,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   začátek u pravé stěny, rampa nekončí za šikmou stěnou, dno bez návratu po stejné hloubce. Výjezd obrácené
   vrstvy po oblouku stěny bez schodků, nejvyšší vrstva pokračuje po průměru přes vršek hrbolu. Dokončování
   v úseku se spodkem cik cak sjede po pravém čele a dokončí dno až ke stěně. Schody na šikmých stěnách
-  spodku dojede jízda po hrubovacím offsetu (s přídavkem) ještě při hrubování. Čára přídavku se v náhledu
+  spodku dojede jízda po hrubovacím offsetu (s přídavkem) ještě při hrubování — jen s „Hrub. bez schodků".
+  „✂ Po úsecích" s dokončováním: úseky jen hrubují, na konci jedna část **Na hotovo** přes všechny úseky
+  naráz (`cam/sim/sectionFinishAtEnd.js`); dokončení sjede i po vyhrubovaných svislých stěnách.
+- **CAM – spojený program:** referenční blok `; --- KONTURA (Pro referenci) ---` je jednou na konci, ne z každé části
+  (`cam/gcodeMerge.js`). Čára přídavku se v náhledu
   kreslí bez napojení na čáru zanoření.
   Pravidlo 20 v `docs/cam-pravidla.md` je NÁVRH. Testy `tests/cam-zigzag-reverse.test.js`,
   `tests/cam-zigzag-sections.test.js` (díl uživatele po úsecích).

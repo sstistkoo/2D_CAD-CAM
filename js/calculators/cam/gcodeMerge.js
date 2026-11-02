@@ -100,9 +100,11 @@ export function renumberLines(lines, start = 10, step = 10) {
 // z hlavičky vypíší jen řádky měnící stav stroje oproti stavu z předchozích
 // programů (opakované nastavení se vynechá), závěrečné M30 zůstává jen
 // u posledního programu a celý výsledek se na závěr přečísluje N10, N20…
-// Na každém přechodu mezi programy (kde se M30 vynechává) se před odjezdem
-// na bezpečnou polohu vypne vřeteno i chlazení a po výměně nástroje a
-// doplnění chybějící hlavičky dalšího programu se zase zapnou.
+// Mění-li další program nástroj, vypne se na přechodu (kde se M30 vynechává)
+// před odjezdem na bezpečnou polohu vřeteno i chlazení a po výměně nástroje a
+// doplnění chybějící hlavičky dalšího programu se zase zapnou. Beze změny
+// nástroje běží vřeteno i chlazení dál a vynechá se i návrat do startovní
+// polohy (zůstane jen výjezd od obrobku).
 // Mění-li část NÁSTROJ, vypíše se navíc vždy nájezd do referenčního bodu
 // (G75/G28/G74) a startovní bezpečná poloha, i kdyby se oproti předchozí
 // části nezměnily — viz TOOL_CHANGE_FORCED.
@@ -122,17 +124,40 @@ export function mergePrograms(items, ctrl = null) {
     return -1;
   };
 
+  // Referenční blok kontury („; --- KONTURA (Pro referenci) ---" a za ním
+  // jen komentáře) má na konci každá část. Ve spojeném programu stačí jednou
+  // na konci — u „✂ Po úsecích" ho jinak bylo tolikrát, kolik je částí.
+  // Různé bloky (např. díra a kontura) zůstanou každý jednou.
+  const refs = [];
+  const takeRef = (lines) => {
+    const i = lines.findIndex((l) => /^\s*[;(]\s*-{2,}.*Pro referenci/i.test(l));
+    if (i < 0 || lines.slice(i).some((l) => l.replace(/[;(].*/, '').trim())) return lines;
+    const blk = lines.slice(i);
+    while (blk.length && !blk[blk.length - 1].trim()) blk.pop();
+    const key = blk.join('\n');
+    if (!refs.some((r) => r.key === key)) refs.push({ key, blk });
+    return lines.slice(0, i);
+  };
+
+  // Mění hlavička `header` nástroj (T/D) oproti stavu z předchozích částí?
+  const headerChangesTool = (header) => header.some(line =>
+    classifyHeaderLine(line).some(([k, v]) => (k === 'tool' || k === 'dcorr') && state[k] !== v));
+  const isRapid = (line) => /^(N\d+\s*)?G0?0\b/i.test(line.replace(/[;(].*/, '').trim())
+    && !/\bG0?[123]\b/i.test(line.replace(/[;(].*/, '').replace(/^N\d+\s*/, '').replace(/^G0?0\b/i, ''));
+  // Vřeteno a chlazení stojí po předchozí části (M5/M9) — znovu zapnout.
+  let spindleStopped = false;
+
   items.forEach((item, idx) => {
     const isFirst = idx === 0;
     const isLast = idx === items.length - 1;
-    const { header, body } = splitHeaderBody(item.code);
+    const { header, body: body0 } = splitHeaderBody(item.code);
+    const body = takeRef(body0);
 
     out.push(cmt(`===== ${item.name} =====`));
 
     // Nejdřív zjistit, jestli tahle část mění nástroj — pak se nájezd do
     // ref. bodu / bezpečné polohy vypíše i tehdy, když je shodný s předchozí.
-    const changesTool = !isFirst && header.some(line =>
-      classifyHeaderLine(line).some(([k, v]) => (k === 'tool' || k === 'dcorr') && state[k] !== v));
+    const changesTool = !isFirst && headerChangesTool(header);
 
     header.forEach(line => {
       if (!line.trim()) return;
@@ -159,21 +184,36 @@ export function mergePrograms(items, ctrl = null) {
       }
     });
 
-    if (!isFirst) {
+    if (!isFirst && spindleStopped) {
       const dir = state.spdir || 'M3';
       out.push(`${dir} ${cmt(SPINDLE_CMT[dir.slice(1)] || 'Vřeteno ZAP')}`);
       out.push(`M8 ${cmt('Chlazení ZAP')}`);
     }
 
     const bodyLines = isLast ? body : body.filter(l => !isM30(l));
-    if (!isLast) {
+    if (!isLast && headerChangesTool(splitHeaderBody(items[idx + 1].code).header)) {
       const stopLines = [`M5 ${cmt('Vřeteno STOP')}`, `M9 ${cmt('Chlazení VYP')}`];
       const ci = lastCodeIndex(bodyLines);
       if (ci >= 0) bodyLines.splice(ci, 0, ...stopLines);
       else bodyLines.push(...stopLines);
+      spindleStopped = true;
+    } else if (!isLast) {
+      // Stejný nůž (např. „✂ Po úsecích"): vřeteno i chlazení běží dál a
+      // nejede se zpět do startovní polohy — z koncových rychloposuvů zůstane
+      // jen první (výjezd od obrobku) a další část najede rovnou na svůj
+      // první průchod, jako by šlo o další průchod téže operace.
+      let ci = lastCodeIndex(bodyLines);
+      const rapids = [];
+      while (ci >= 0 && isRapid(bodyLines[ci])) {
+        rapids.unshift(ci);
+        do { ci--; } while (ci >= 0 && !bodyLines[ci].replace(/[;(].*/, '').trim());
+      }
+      rapids.slice(1).reverse().forEach((i) => bodyLines.splice(i, 1));
+      spindleStopped = false;
     }
     bodyLines.forEach(line => out.push(line));
   });
+  refs.forEach((r) => out.push(...r.blk));
 
   return renumberLines(out, 10, 10).join('\n');
 }

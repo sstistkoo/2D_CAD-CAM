@@ -157,12 +157,32 @@ function detectStraighten(grp, ctx) {
       const target = L[axis + (2 - mv.i)];   // hodnota druhého konce
       const item = { kind: 'straighten', group: grp.name, amount: dev, objs: [], sets: [], dels: [] };
       const at = (p) => (axis === 'y' ? { x: p.x, y: target } : { x: target, y: p.y });
-      for (const j of mv.joined) { const P = at(endsOf(j.o)[j.i]); moveEnd(item, j.o, j.i, P.x, P.y); claim(j.o, j.i); }
+      // Posunutý konec vezme navazující úsečky; ty, které by tím samy zešikmily o pár
+      // mikronů (dosud přesně rovné), se srovnají taky svým druhým koncem — jinak by
+      // se odchylka jen přesunula o úsečku dál. Oblouk řetěz zastaví.
+      const seen = new Set([L]);
+      const shift = (o, i) => {
+        const joined = joinedAt(live, o, endsOf(o)[i].x, endsOf(o)[i].y);
+        const P = at(endsOf(o)[i]);
+        moveEnd(item, o, i, P.x, P.y); claim(o, i);
+        for (const j of joined) {
+          const Pj = at(endsOf(j.o)[j.i]);
+          moveEnd(item, j.o, j.i, Pj.x, Pj.y); claim(j.o, j.i);
+          if (seen.has(j.o) || j.o.type !== 'line') continue;
+          seen.add(j.o);
+          const oi = 1 - j.i, q = endsOf(j.o)[oi];
+          const d = Math.abs(q[axis] - target);
+          if (d < 1e-6 || d > STRAIGHT_TOL || Math.hypot(j.o.x2 - j.o.x1, j.o.y2 - j.o.y1) < STRAIGHT_MIN_LEN) continue;
+          const far = joinedAt(live, j.o, q.x, q.y);
+          if (isClaimed(j.o, oi) || !far.every(f => f.o.type === 'line' && !isClaimed(f.o, f.i))) continue;
+          shift(j.o, oi);
+        }
+      };
+      shift(L, mv.i);
       const P = at(mv.p);
-      moveEnd(item, L, mv.i, P.x, P.y); claim(L, mv.i);
       // Popis podle plátna: osa soustruhu leží vodorovně, karuselu svisle.
       const inX = (axis === 'y') === (ctx.machineType !== 'karusel');
-      item.at = placeLabel(P.x, P.y, ctx.machineType);
+      item.at = placeLabel(P.x, P.y, ctx.machineType, 3);   // odchylka je v tisícinách, tak i cíl
       item.label = `${G(grp.name)}: skoro ${axis === 'y' ? 'vodorovná' : 'svislá'} čára (odchylka ${fmt(dev)} mm${inX ? ' v X' : ' v Z'}) → narovnat (${item.at})`;
       ctx.items.push(item);
       break;

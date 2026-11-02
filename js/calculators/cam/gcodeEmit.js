@@ -29,7 +29,7 @@ import { emitBorePreDrilled } from './ops/borePreDrill.js';
 import { boreFloorBody } from './ops/boreFloor.js';
 import { emitRoughing } from './ops/roughEmit.js';
 import { emitFinish } from './ops/finishEmit.js';
-import { makeFaceTransitGuard, rapidFloorX } from './faceTransitGuard.js';
+import { makeFaceTransitGuard, rapidFloorX } from './faceTransitGuard.js'; import { lowestClearLift } from './rapidLift.js';
 
 export function generateGCode(S, calc) {
   return S.manualGCode.split('\n').map((line, idx) => ({ text: line, simIdx: idx }));
@@ -1095,13 +1095,13 @@ export function generateAutoGCode(S, calc) {
     // obrysům), kdežto testovaný bod X 18,345 hlásil 1,27 mm².
     const surfStop = (cur.x - tx > 1e-6) ? rapidStopXAt(tz) : null;
     const rTxReal = surfStop === null ? rTx : Math.min(cur.x, Math.max(rTx, surfStop));
-    // ČISTÝ SJEZD V X DOLŮ se nezvedá (24. 9. 2026): po „Výjezdu nad konturu"
-    // by následoval TENTÝŽ svislý sjezd, jen delší — zdvih nic nechrání.
+    // ČISTÝ SJEZD V X DOLŮ se nezvedá (24. 9. 2026; od 2. 11. ani kvůli držáku): po „Výjezdu
+    // nad konturu" by následoval TENTÝŽ svislý sjezd, jen delší — zdvih nic nechrání.
     // `descendTo` si náraz do zbytku řeší sám (posuv). Nález uživatele:
     // `G0 X75.545 ; Výjezd nad konturu` a hned `G0 X46.909` na Z 113,829
     // (sjezd končil přesně na offsetu boku hrbu a dotyk se bral jako náraz).
     const pureDescent = sameZ && tx < cur.x - 1e-6;
-    if (forceUp || (!pureDescent && segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers))
+    if (forceUp || (!pureDescent && (segmentHitsPath({ x: cur.x, z: cur.z }, { x: tx, z: tz }, rapidBlockers)
         // DESTIČKA: stačí testovat rychloposuvovou část — zbytek dojede
         // `descendTo` posuvem. DRŽÁK: testuje se CELÝ sjezd až na `tx`, protože
         // `emitDescendX` držák neřeší vůbec; bez toho zmizel zdvih, který na
@@ -1113,7 +1113,7 @@ export function generateAutoGCode(S, calc) {
         // obrysu a výška odskoku vedla vůlí nafouknutým bokem bossu (díl
         // uživatele s upichovákem, 24. 9. 2026: `G0 Z176.125` na X 26,4, 9,5 mm²).
         || (!sameX ? false : rapidHitsPlan(cur.x, cur.z, rTxReal, tz))
-        || holderHitsRapid(cur.x, cur.z, tx, tz)) {
+        || holderHitsRapid(cur.x, cur.z, tx, tz)))) {
       // JAK VYSOKO. `rapidTopX` je vrch CELÉHO polotovaru, takže zdvih
       // „Výjezd nad konturu“ jezdil pokaydé až nad nejvyšší místo dílu, i když
       // přejezd v Z potřeboval překonat jen nízký schod (nález uživatele
@@ -1136,10 +1136,9 @@ export function generateAutoGCode(S, calc) {
           // a při zrcadlení (hrubování zleva) padnou vzorky na zrcadlená Z → výška
           // vyšla o 1 µm jinak a parita zrcadlení se rozesšla (X46.170 × X46.169).
           const cand = Math.min(capUpX, Math.max(cur.x, tx, quantizeUp(top + rapidStopX)));
-          if (cand < capUpX - 1e-6
-              && !segmentHitsPath({ x: cand, z: cur.z }, { x: cand, z: tz }, rapidBlockers)
-              && !rapidHitsStock(cand, cur.z, cand, tz)
-              && !holderHitsRapid(cand, cur.z, cand, tz)) xUp = cand;
+          // Neprojde-li, zkouší se výš po 1 mm (cam/rapidLift.js), ne hned vrch polotovaru.
+          xUp = lowestClearLift(cand, capUpX, (h) => !segmentHitsPath({ x: h, z: cur.z }, { x: h, z: tz }, rapidBlockers)
+            && !rapidHitsStock(h, cur.z, h, tz) && !holderHitsRapid(h, cur.z, h, tz));
         }
       }
       // Diagnostický seam (guarded, v produkci no-op — stejný vzor jako

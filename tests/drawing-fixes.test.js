@@ -65,6 +65,16 @@ describe('kontrola výkresu', () => {
     expect(kinds(o)).toEqual([]);
   });
 
+  it('mikron na řetězu rovných úseček se nepřenáší dál: srovná se celý řetěz až k oblouku / šikmé čáře', () => {
+    // polotovar: 149,544→167,259 (o 0,001 šikmá) → 196,278 vodorovně → svisle
+    const o = [S(149.544, 16.743, 167.259, 16.744), S(167.259, 16.744, 196.278, 16.744), S(196.278, 16.744, 196.278, 40)];
+    const items = findDrawingFixes(o, opts);
+    expect(items.map(it => it.kind)).toEqual(['straighten']);
+    applyFixItems(items);
+    expect(o.map(l => [l.y1, l.y2])).toEqual([[16.743, 16.743], [16.743, 16.743], [16.743, 40]]);
+    expect(findDrawingFixes(o, opts)).toEqual([]);
+  });
+
   it('krátká úsečka a velká odchylka se nerovnají (může být záměr)', () => {
     const o = clean();
     o[2].x2 = 50.04;  o[3].x1 = 50.04;                     // schod jen 10 mm, 0,04 mm — rovná se

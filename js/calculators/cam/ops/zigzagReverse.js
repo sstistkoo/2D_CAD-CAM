@@ -80,17 +80,38 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
   // Krok po stěně z (x0,z0) do (x1,z1): šikmo, kde tětiva offset nepodřízne;
   // na oblouku se zjemní body na offsetu. Jen u skutečného schodu (stěna
   // uskočí) nejdřív nahoru a pak přes — šikmo by hranu podřízl. (Uživatel:
-  // „schodky místo rádiusu".)
+  // „schodky místo rádiusu".) Vede-li tětiva NAD offsetem (rovná plocha a za
+  // ní šikmá stěna), taky se zjemní po offsetu — jinak by nad ním zůstal klín
+  // navíc k přídavku (uživatel 2. 11. 2026: N2470 G1 X35.545 Z210.134 „jede
+  // nějak zešikma", má jet s přídavkem na hotovo).
   const wallStep = (x0, z0, x1, z1, depth = 0) => {
-    let worst = 0.005, wz = null;
+    let worst = 0.005, wz = null, over = null;
     for (let t = 0.125; t < 1; t += 0.125) {
-      const zt = z0 + (z1 - z0) * t, d = fR(zt) - (x0 + (x1 - x0) * t);
+      const zt = z0 + (z1 - z0) * t, f = fR(zt), d = f - (x0 + (x1 - x0) * t);
       if (d > worst) { worst = d; wz = zt; }
+      // Offset pod tětivou, ale ne pod výškou vrstvy (tam je údolí, ne stěna).
+      else if (wz === null && -d > 0.005 && f >= Math.min(x0, x1) - 1e-6 && (!over || -d > over.d)) over = { d: -d, z: zt };
+    }
+    if (wz === null && over && depth < 12) {
+      const xm = fR(over.z);
+      return [...wallStep(x0, z0, xm, over.z, depth + 1), ...wallStep(xm, over.z, x1, z1, depth + 1)];
     }
     if (wz === null) return [{ x: x1, z: z1 }];
     const xm = fR(wz);
     if (depth >= 6 || xm > x1 + 1e-6) return [{ x: x1, z: z0 }, { x: x1, z: z1 }];
     return [...wallStep(x0, z0, xm, wz, depth + 1), ...wallStep(xm, wz, x1, z1, depth + 1)];
+  };
+  // Body na téže přímce (zjemnění po rovné ploše) se sloučí do jednoho tahu.
+  const mergeCollinear = (moves) => {
+    const out = [];
+    for (const m of moves) {
+      const a = out[out.length - 2], b = out[out.length - 1];
+      if (a && b && a.g === 'G1' && b.g === 'G1' && m.g === 'G1'
+        && Math.abs((b.x - a.x) * (m.z - a.z) - (b.z - a.z) * (m.x - a.x)) < 0.002 * Math.hypot(m.x - a.x, m.z - a.z)
+        && (b.z - a.z) * (m.z - b.z) + (b.x - a.x) * (m.x - b.x) >= 0) out.pop();
+      out.push(m);
+    }
+    return out;
   };
   // Tah obrácené vrstvy: vjezd ve vzduchu, +Z ke stěně, po stěně o vrstvu
   // nahoru. Skončí-li stěna pod další vrstvou (vršek hrbolu), pokračuje po
@@ -119,7 +140,7 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
         moves.push({ g: 'G1', x: f, z: zz });
       }
     }
-    return moves;
+    return mergeCollinear(moves);
   };
   const done = [];
   for (let i = start; i < passes.length; i++) {

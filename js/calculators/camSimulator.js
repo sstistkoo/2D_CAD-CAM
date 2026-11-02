@@ -68,7 +68,7 @@ import { renderCodeMini } from './cam/sim/codeMini.js';
 import { initLiveTools } from './cam/live/livePanel.js';
 import { simStockArgs } from './cam/sim/grooveSim.js';
 import { radialFlip } from './cam/toolRadialFlip.js';
-import { nextBlockTarget } from './cam/sim/singleBlock.js';
+import { nextBlockTarget } from './cam/sim/singleBlock.js'; import { sectionFinishBegin, sectionFinishEnd, baseFinishOnly } from './cam/sim/sectionFinishAtEnd.js';
 // Verze logiky generování drah. ZVYŠ při každé změně, která mění vygenerovaný
 // G-kód (hrubování/dokončování/hlídání/…). Uložený manualGCode s jinou verzí se
 // při otevření CAM zahodí a dráhy se přegenerují automaticky — jinak by uživatel
@@ -1273,6 +1273,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     S.opView = 'part';
     applyPartToState(first, S);                 // polotovar první části
     S.params = live.params;
+    S.params.finishOnly = baseFinishOnly(S.opParts, S.activePart, S.params.finishOnly);
     STOCK_PARAM_KEYS.forEach(k => { if (k in first.params) S.params[k] = first.params[k]; });
     if (wasAll) {
       S.zLimits = live.z; S.xLimits = live.x;
@@ -1316,7 +1317,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (r.error) { showToast(r.error, 4000); return; }
     const steps = r.steps;
 
-    pushHistory();
+    pushHistory(); const fin = sectionFinishBegin(S);   // Cik cak: na hotovo až na konci (sectionFinishAtEnd.js)
     const baseStock = JSON.parse(JSON.stringify(S.stockPoints));
     const baseLimits = { z: JSON.parse(JSON.stringify(S.zLimits)), x: JSON.parse(JSON.stringify(S.xLimits)) };
     const parts = [];
@@ -1351,7 +1352,7 @@ export function openCamSimulator(initialContour, initialGCode) {
         warned = ` — po „${st.name}" se obrobený polotovar nepodařilo spočítat, další úsek začal na stejném`;
       }
     }
-    S.opParts = parts;
+    S.opParts = sectionFinishEnd(S, fin, { parts, baseLimits, regen: _regenGCode, makePart });
     // Rozsahy PŘED rozdělením — ↺ Reset se k nim vrátí.
     S.opParts[0].baseLimits = baseLimits;
     if (baseLoop) S.opParts[0].baseStockLoop = baseLoop.map(p => ({ x: Math.round(p.x * 1000) / 1000, z: Math.round(p.z * 1000) / 1000 }));

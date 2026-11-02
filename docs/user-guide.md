@@ -1515,9 +1515,12 @@ náhledem destičky a držáku. Pod náhledem je jeden přepínač
   (např. Ú2 pod S6) se místo zanořování od hranice vezme cik cakem — vrstva
   tam a zpět, rampa o ap níž — a doprava dojede až ke stěně i v sousedním
   úseku (roh u stěny). Začíná u pravé stěny, mezi vrstvami jen rampa (žádné
-  výjezdy po stěně nahoru a zpět), dno jede jednou. Schody, které vrstvy
-  nechají na šikmých stěnách, dojede ještě při hrubování jedna jízda po
-  stěně s přídavkem na hotovo (vpravo i vlevo). Dokončování tam sjede
+  výjezdy po stěně nahoru a zpět), dno jede jednou. Se zaškrtnutým **Hrub.
+  bez schodků** dojede schody, které vrstvy nechají na šikmých stěnách,
+  ještě při hrubování jedna jízda po stěně s přídavkem na hotovo (vpravo
+  i vlevo). Je-li zapnuté dokončování, **✂ Po úsecích** úseky jen vyhrubuje
+  a na konec přidá jednu část **Na hotovo** — všechny úseky naráz, po
+  čelech i po vyhrubovaných svislých stěnách. Dokončování tam sjede
   po pravém čele a dno dokončí až ke stěně. Obrácená vrstva vyjíždí po
   oblouku stěny plynule (bez schodků) a nejvyšší pokračuje po průměru přes
   vršek hrbolu. V náhledu se čára

@@ -15,7 +15,7 @@ import { state, pushUndo, showToast, setNotifyActions } from '../state.js';
 import { bridge } from '../bridge.js';
 import { renderAll } from '../render.js';
 import { fitViewToWorldBounds } from '../canvas.js';
-import { flushAutoCncExport } from '../geometry.js';
+import { flushAutoCncExport, calculateAllIntersections } from '../geometry.js';
 import { showConfirmDialog, makeInputOverlay, onOverlayRemoved } from '../dialogFactory.js';
 import { findContourDuplicates, objectsBounds } from '../stockTools.js';
 import { deleteObjectsByIndices } from '../ui.js';
@@ -289,6 +289,7 @@ export function autoFixDrawing() {
   const del = applyFixItems(items).filter(o => state.objects.includes(o));
   if (del.length) deleteObjectsByIndices(del.map(o => state.objects.indexOf(o)));
   state.drawingFixMarks = [];
+  calculateAllIntersections();   // CNC kód v panelu se obnoví z opraveného výkresu
   renderAll();
   notifyDrawingFixes();   // zvoneček zešedne hned, ne až po dalším exportu
   const what = [...new Set(items.map(it => _KIND_WORD[it.kind] || it.kind))].join(', ');
@@ -378,6 +379,7 @@ export function offerDrawingFixes({ onDone = null, all = false } = {}) {
     pushUndo();
     const del = applyFixItems(pick).filter(o => state.objects.includes(o));
     if (del.length) deleteObjectsByIndices(del.map(o => state.objects.indexOf(o)));
+    calculateAllIntersections();   // CNC kód v panelu se obnoví z opraveného výkresu
     _restoreView(view);
     renderAll();
     showToast(`Opraveno ve výkresu: ${pick.length} ✓`);

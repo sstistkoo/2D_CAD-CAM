@@ -51,5 +51,6 @@ export function genZigzagPasses(ctx, op) {
     passes, start, raw: ctx.offsetPathNoGuide || offsetPath, step,
     tanA: Math.tan(getEffectivePlungeAngle(prms) * Math.PI / 180),
     zHi: ctx.machiningRange && Number.isFinite(ctx.machiningRange.zHi) ? ctx.machiningRange.zHi : Infinity,
+    noSteps: !!prms.noStepRoughing,   // schody na stěnách dojet (Hrub. bez schodků)
   });
 }

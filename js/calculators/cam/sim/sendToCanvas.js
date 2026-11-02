@@ -17,6 +17,24 @@ import { guidePolyPoints } from '../interferenceGuides.js';
 // s konstrukčními čarami (uživatel 29. 10. 2026). Výkres se tu celý nahrazuje.
 const CONTOUR_LAYER_ID = 0;
 
+// Obrobený polotovar z CAM má souřadnice zaokrouhlené na µm průměru (opParts.js
+// machinedStockPoints), takže dva body téže vodorovné/svislé čáry se mohou lišit
+// o 1–2 µm poloměru. Do CAD by se vrátila skoro rovná čára, kterou pak Kontrola
+// výkresu pokaždé nabízí k narovnání. Schod do ~1,5 µm poloměru mezi sousedními
+// body úsečky se proto srovná na hodnotu předchozího bodu (oblouky se nemění).
+export function snapStockJitter(chainPts, isDia) {
+  const tolX = isDia ? 0.003 : 0.0015, tolZ = 0.0015;
+  const out = chainPts.map(p => ({ ...p }));
+  for (let i = 1; i < out.length; i++) {
+    const a = out[i - 1], b = out[i], next = out[i + 1];
+    if (b.type !== 'G1' || (next && (next.type === 'G2' || next.type === 'G3'))) continue;
+    const dx = Math.abs(b.xAbs - a.xAbs), dz = Math.abs(b.zAbs - a.zAbs);
+    if (dx > 1e-9 && dx <= tolX && dz >= 0.1) b.xAbs = a.xAbs;
+    else if (dz > 1e-9 && dz <= tolZ && dx >= 0.1) b.zAbs = a.zAbs;
+  }
+  return out;
+}
+
 /**
  * Smaže výkres CAD a vloží do něj konturu/polotovar/konstrukční čáry ze
  * simulátoru, pak simulátor zavře. Ptá se volající (✕ → camCloseConfirm);
@@ -131,7 +149,7 @@ export async function handleSendToCanvas({ S, setOpView, getAllGuideLines, overl
     }
   } else {
     const stockPts = resolvePointsToAbsolute(S.stockPoints);
-    if (stockPts.length >= 2) emitChain(stockPts, true);
+    if (stockPts.length >= 2) emitChain(snapStockJitter(stockPts, isDia), true);
   }
 
   // Konstrukční čáry (ruční pomocné + automatické hranice nájezdu/výjezdu)

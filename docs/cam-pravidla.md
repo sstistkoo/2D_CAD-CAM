@@ -432,7 +432,9 @@ stěně vyjede o vrstvu nahoru.**
   (ořízla ji čára zanoření), přidají se další obrácené vrstvy po ap, dokud
   vpravo stojí materiál a vlevo je volno — až na úroveň polotovaru (S6).
 - Výjezd obrácené vrstvy po stěně jde šikmo po jejím tvaru (oblouk bez
-  schodků; tětiva nesmí podříznout offset, jinak se zjemní); „nahoru a pak
+  schodků; tětiva nesmí podříznout offset a nesmí vést ani nad ním — rovná
+  plocha a za ní šikmá stěna jede přes roh offsetu, ne zkratkou; jinak se
+  zjemní); „nahoru a pak
   přes" jen u skutečného schodu (vodorovná plocha). Skončí-li stěna pod
   další vrstvou (vršek hrbolu), vrstva pokračuje po offsetu přes vršek,
   dokud nesjede zpět na svou výšku — průměr za rádiusem se obrobí zleva.
@@ -449,10 +451,19 @@ stěně vyjede o vrstvu nahoru.**
   výjezdů po stěně nahoru a zpět); rampa končí uvnitř další vrstvy (šikmá
   stěna se s hloubkou zužuje — žádný bod pod hrubovacím offsetem). Dno jede
   jednou, bez návratu po stejné hloubce. Platí i mezi šikmými stěnami.
-- **Schody na stěnách spodku:** po spodku cik cak jedna jízda po hrubovacím
-  offsetu (s přídavkem na hotovo) po každé šikmé stěně shora do rohu u dna —
-  vpravo doleva (−Z), vlevo doprava (+Z); svislá stěna se vynechá. Před
-  dokončováním tak na stěnách zůstane jen přídavek.
+- **Schody na stěnách spodku** (jen se zaškrtnutým „Hrub. bez schodků"):
+  po spodku cik cak jedna jízda po hrubovacím offsetu (s přídavkem na
+  hotovo) po každé šikmé stěně shora do rohu u dna — vpravo doleva (−Z),
+  vlevo doprava (+Z); svislá stěna (čelo) jednou jízdou svisle dolů po
+  offsetu od výšky začátku cik caku do rohu u dna (uživatel 2. 11. 2026:
+  vrstvy od čela odjíždějí rampou, mezi nimi zůstal klín). Před dokončováním tak na
+  stěnách zůstane jen přídavek.
+- **Po úsecích s dokončováním:** úseky se jen vyhrubují (s přídavkem), za
+  nimi jedna část „Na hotovo" (jen dokončení) přes celý rozsah, všechny
+  úseky naráz, na polotovaru po posledním úseku.
+- **Výjimka z pravidla 15 (dokončování):** strmý kus až po svislé čelo se
+  dokončí, pokud nad ním stojí nanejvýš přídavek (vyhrubovaná stěna); kde za
+  čelem stojí nevyhrubovaný polotovar, platí úhel zanoření. Převis zakázán.
 - **Dokončování v úseku se spodkem cik cak** dojede taky až ke stěně za
   hranicí úseku (táž výjimka z pravidla 11): nájezd nad hranou čela, svisle
   dolů po čele (čelo, které pravidlo 15 jinak vynechá) a dál po dně

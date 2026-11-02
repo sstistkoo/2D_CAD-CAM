@@ -105,6 +105,24 @@ describe('Cik cak po úsecích — díl uživatele', () => {
     expect(validateToolpath(zz.calcSim.simPath, zz.params, zz.calc.stockPathSegments, { planStock: true })).toHaveLength(0);
   }, 180000);
 
+  it('Ú2: čelo 7-8 (Z 199,8) projede jízda shora do rohu u dna — schody mezi vrstvami cik caku', async () => {
+    // Uživatel 2. 11. 2026: „jeden úsek mně to vynechalo … na pravém čele".
+    const zz = await run(U.sections[1], 'zigzag');
+    const face = zz.calc.passes.find((p) => p.wallClean && p.moves.length === 2 && Math.abs(p.moves[0].z - p.moves[1].z) < 0.5);
+    expect(face).toBeTruthy();
+    expect(face.moves[0].z).toBeGreaterThan(199.5);
+    expect(face.moves[0].x).toBeGreaterThan(20);           // od výšky začátku cik caku
+    expect(face.moves[1].x).toBeLessThan(12.5);            // až na dno (r 6,744 + R + přídavek)
+  }, 180000);
+
+  it('Ú1: obrácená vrstva jde po offsetu přes jeho roh, ne tětivou nad ním (N2470)', async () => {
+    // Uživatel 2. 11. 2026: „N2470 G1 X35.545 Z210.134 … jede nějak zešikma".
+    const zz = await run(U.sections[0], 'zigzag');
+    const p = zz.calc.passes.find((q) => q.reversedLayer && Math.abs(q.moves[0].x - 34.545) < 0.01);
+    expect(p).toBeTruthy();
+    expect(p.moves.some((m) => Math.abs(m.x - 35.356) < 0.01 && Math.abs(m.z - 210.063) < 0.05)).toBe(true);
+  }, 180000);
+
   it('obrácené vrstvy: výjezd po oblouku stěny bez schodků (N4270)', async () => {
     const zz = await run(U.sections[1], 'zigzag');
     const rev = zz.calc.passes.filter((p) => p.reversedLayer);

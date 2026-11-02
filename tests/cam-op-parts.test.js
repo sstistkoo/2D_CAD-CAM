@@ -408,6 +408,18 @@ describe('mergePrograms', () => {
     expect(merged).toContain('M8 ; Chlazení ZAP');
   });
 
+  it('beze změny nože (Po úsecích) vřeteno ani chlazení nevypíná a nejede do startu', () => {
+    // Uživatel 2. 11. 2026: přejezd na další úsek jako další průchod.
+    const part = (x) => PART_A.replace('G1 X40 Z-10 F0.25', `G1 X${x} Z-10 F0.25`)
+      .replace('G0 X150 Z5\nM30', 'G0 X150 ; Výjezd nad konturu\nG0 Z5\nM30');
+    const same = mergePrograms([{ name: 'Úsek 1', code: part(40) }, { name: 'Úsek 2', code: part(30) }]);
+    expect(same).not.toMatch(/\bM5\b|\bM9\b/);
+    expect(same.match(/\bM3\b/g).length).toBe(1);
+    const first = same.slice(0, same.indexOf('; ===== Úsek 2'));
+    expect(first.trim().split('\n').pop()).toMatch(/G0 X150 ; Výjezd/);   // výjezd zůstal, návrat do Z5 ne
+    expect(same.slice(same.indexOf('===== Úsek 2'))).toContain('G1 X30 Z-10');
+  });
+
   it('beze změny nože se ref. bod neopakuje', () => {
     const same = mergePrograms([{ name: 'A', code: PART_A }, { name: 'B', code: PART_A }]);
     expect(same.match(/G75 X150/g).length).toBe(1);
@@ -453,5 +465,23 @@ describe('buildCombinedProgram / partsAsMergeItems', () => {
       { name: 'Prázdná', gcode: '' },
     ]);
     expect(items).toEqual([{ name: 'Hrubování.MPF', code: PART_A }]);
+  });
+});
+
+describe('mergePrograms: referenční blok kontury jen jednou', () => {
+  // Uživatel 2. 11. 2026: po „✂ Po úsecích" + Na hotovo byl v programu
+  // „; --- KONTURA (Pro referenci) ---" čtyřikrát (z každé části).
+  const part = (n, ref = ['; G0 X0 Z1', '; G1 X5 Z0']) => ['N10 G18', 'N20 T="A" D1 M6', 'N30 M3', '; --- HRUBOVANI ---',
+    `N40 G1 X${n} Z5`, 'N50 G0 X150', 'N60 M30', '; --- KONTURA (Pro referenci) ---', ...ref].join('\n');
+  it('stejný blok ze všech částí → jednou na konci za M30', () => {
+    const g = mergePrograms([{ name: 'Úsek 1', code: part(1) }, { name: 'Úsek 2', code: part(2) }, { name: 'Na hotovo', code: part(3) }]);
+    expect(g.match(/Pro referenci/g)).toHaveLength(1);
+    const L = g.trim().split('\n');
+    expect(L[L.length - 1]).toBe('; G1 X5 Z0');
+    expect(L.findIndex((l) => /M30/.test(l))).toBeLessThan(L.findIndex((l) => /Pro referenci/.test(l)));
+  });
+  it('různé bloky zůstanou každý jednou', () => {
+    const g = mergePrograms([{ name: 'A', code: part(1) }, { name: 'B', code: part(2, ['; G0 X9 Z9']) }]);
+    expect(g.match(/Pro referenci/g)).toHaveLength(2);
   });
 });

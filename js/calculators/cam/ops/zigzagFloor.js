@@ -22,16 +22,17 @@
 // (jízda −Z, zleva zrcadlo).
 
 import { maxXAt } from '../passHelpers.js';
+import { getInsert } from '../inserts/index.js';
 
 const DZ = 0.05;
 
 /**
  * Nahradí řadu zanořovacích vrstev u hranice úseku průchodem cik cak.
- * @param {object} o { passes, start, raw, step, tanA, zHi }
+ * @param {object} o { passes, start, raw, step, tanA, zHi, noSteps }
  *   raw — offset bez čar zanoření; zHi — začátek rozsahu úseku
  * @returns {number} počet nahrazených vrstev
  */
-export function floorZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinity }) {
+export function floorZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinity, noSteps = false }) {
   if (!Number.isFinite(zHi)) return 0;
   const fR = (z) => { const v = maxXAt(raw, z); return v === null ? -Infinity : v; };
   // Stěna vpravo od z na hloubce X (offset se zvedne nad X).
@@ -123,11 +124,17 @@ export function floorZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinity
   // hrubovacím offsetu (s přídavkem na hotovo) shora do rohu u dna — vpravo
   // doleva, vlevo doprava; dokončování pak bere jen přídavek (uživatel 1. 11.:
   // „dojet schodky při hrubování s přídavkem na hotovo … napřed ty schodky
-  // před hotovní dráhou"). Svislá stěna schody nemá — vynechá se.
+  // před hotovní dráhou"). Svislá stěna (čelo) má schody taky — vrstvy od ní
+  // odjíždějí rampou, mezi nimi zůstane klín po ap (uživatel 2. 11. 2026:
+  // „mělo by to být celé projeté s přídavkem … u přechodu z úseku 1 na úsek 2
+  // na pravém čele") — projede se po čele shora dolů do rohu u dna.
   const Lz = layers[layers.length - 1];
   const wallPass = (side) => {
     const zT = side > 0 ? bTop : (wallLeft(xTop, L0.a + 0.5, L0.a - reach) ?? L0.a);
     const zB = side > 0 ? Lz.b : Lz.a;
+    if (Math.abs(zT - zB) < 0.5 && xTop - Lz.X > 0.5 && fR(zB + side * 0.3) > xTop - 1e-6) {
+      return { type: 'zigzag', moves: [{ g: 'G0', x: xTop, z: zT }, { g: 'G1', x: Lz.X, z: zB }], xSafe: xTop, wallClean: true, endDir: side };
+    }
     if (side * (zT - zB) < 0.5) return null;
     const pts = [{ g: 'G0', x: xTop, z: zT }];
     const n = Math.max(2, Math.ceil(Math.abs(zT - zB) / 0.25));
@@ -145,7 +152,8 @@ export function floorZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinity
     }
     return { type: 'zigzag', moves: pts, xSafe: xTop, wallClean: true, endDir: side };
   };
-  const clean = [wallPass(1), wallPass(-1)].filter(Boolean);
+  // Jen s „Hrub. bez schodků" (uživatel 2. 11.: „když by bylo zaškrtnuté").
+  const clean = noSteps ? [wallPass(1), wallPass(-1)].filter(Boolean) : [];
   for (let k = grp.length - 1; k >= 0; k--) passes.splice(grp[k], 1);
   passes.splice(grp[0], 0, zig, ...clean);
   return grp.length;
@@ -184,4 +192,41 @@ export function floorFinishFace(path, passes, zHi, contour, tipR) {
   const top = maxXAt(contour, zF + tipR + 0.01);
   if (top === null || top + tipR <= s0.p1.x + 0.5) return path;
   return [{ type: 'line', p1: { x: top + tipR, z: zF }, p2: { x: s0.p1.x, z: zF }, floorFace: true }, { ...s0, chainBreak: false }, ...path.slice(1)];
+}
+
+/**
+ * Mez pravidla 15 pro dokončování u Cik cak: kulatá destička v úzkém držáku
+ * sjede po vyhrubované stěně i svisle (uživatel 1.–2. 11.: „aby to jelo po
+ * tom pravém čele", dokončení všech úseků naráz) — strmý kus až po svislé
+ * čelo se nevynechá. Jen kde nad celým kusem stojí nanejvýš přídavek: čelo
+ * dílu s nevyhrubovaným polotovarem za ním (konec dílu u osy) by se
+ * zapichovalo plnou hloubkou — tam platí úhel zanoření. Převis (> 90°)
+ * zůstává zakázaný. Ostatní strategie: úhel zanoření beze změny.
+ * `contour` — hotový díl: kus čela pod ním (ořízne se v rohu o dno) se
+ * nekontroluje.
+ */
+export function zigzagSteepLimit(prms, seg, stock, tipR, plungeDeg, contour = null) {
+  if (!prms || prms.roughingStrategy !== 'zigzag' || !getInsert(prms).zigzagPockets) return plungeDeg;
+  if (!seg || !Array.isArray(stock) || !stock.length) return plungeDeg;
+  const allow = Math.max(parseFloat(prms.allowanceX) || 0, parseFloat(prms.allowanceZ) || 0)
+    + (parseFloat(prms.finishAllowance) || 0);
+  const N = 24;
+  for (let k = 0; k <= N; k++) {
+    const t = k / N;
+    let x, z;
+    if (seg.type === 'line') { x = seg.p1.x + (seg.p2.x - seg.p1.x) * t; z = seg.p1.z + (seg.p2.z - seg.p1.z) * t; }
+    else {
+      let sA = seg.startAngle, eA = seg.endAngle;
+      if (seg.dir === 'G2' && eA > sA) eA -= 2 * Math.PI;
+      if (seg.dir === 'G3' && eA < sA) eA += 2 * Math.PI;
+      const a = sA + (eA - sA) * t;
+      x = seg.cx + Math.sin(a) * seg.r; z = seg.cz + Math.cos(a) * seg.r;
+    }
+    // Kus pod hotovým dílem (čelo ještě neoříznuté o dno v rohu) se nepočítá.
+    const part = contour ? maxXAt(contour, z) : null;
+    if (part !== null && x - tipR < part - 0.01) continue;
+    const top = maxXAt(stock, z);
+    if (top !== null && top > x - tipR + allow + 0.5) return plungeDeg;
+  }
+  return 90;
 }
