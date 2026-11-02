@@ -233,7 +233,11 @@ export function maybeOfferContourDuplicates(dups) {
 export function openCamFromDrawing(openCam) {
   const dups = findContourDuplicates();
   const transfer = () => _transferMainProfile(openCam);
-  const axis = () => offerDrawingFixes({ onDone: transfer });
+  // Vstup do CAM nabízí opravy POKAŽDÉ, i dřív odmítnuté — je to poslední
+  // chvíle před drahami (uživatel 2. 11. 2026: „teď tam nemám tu automatickou
+  // opravu při přechodu do CAM" — po „Ponechat" ze zvonečku se už neukázala).
+  // Odmítnutí tlumí jen opakované hlášky zvonečku.
+  const axis = () => offerDrawingFixes({ onDone: transfer, all: true });
   if (dups.length > 0 && _hasNew(dups)) {
     offerContourDuplicates(dups, { onDone: axis });
   } else {
@@ -242,7 +246,7 @@ export function openCamFromDrawing(openCam) {
 }
 
 // Opravy, které uživatel v okně nechal nezaškrtnuté (za celou session) —
-// stejné se znovu nenabízejí.
+// zvoneček o nich znovu nehlásí (vstup do CAM a ruční kontrola je ukážou).
 const _fixDeclined = new Set();
 const _esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 

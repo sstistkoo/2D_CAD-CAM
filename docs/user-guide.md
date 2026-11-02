@@ -453,8 +453,8 @@ CAM část ti umožní generovat NC programy pro obrábění.
   Otevře se okno se **seznamem oprav**, každá se **zaškrtávátkem** (výchozí
   zaškrtnuté) a tlačítkem **⌖** pro přiblížení na místo; zaškrtnuté čáry jsou
   na plátně **žlutě „oprava"**. **Opravit vybrané** provede zaškrtnuté jedním
-  krokem Zpět. Nezaškrtnuté (i po **Ponechat vše**) se při dalším otevření
-  CAM v tomtéž sezení už nenabízejí; ruční kontrola ukáže vše. Upravují se
+  krokem Zpět. Při vstupu do CAM se okno ukáže **pokaždé**, dokud chyby trvají;
+  nezaškrtnuté (i po **Ponechat vše**) jen zvoneček znovu nehlásí. Upravují se
   jen úsečky.
 
   Kontrola běží i **po každé úpravě výkresu**: když přibude nová chyba, na

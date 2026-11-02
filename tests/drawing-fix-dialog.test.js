@@ -81,5 +81,21 @@ describe('okno Kontrola výkresu', () => {
     cc.notifyDrawingFixes();
     expect(badge.classList.contains('has-warning')).toBe(false);
   });
+
+  it('vstup do CAM nabídne opravy pokaždé, i dřív odmítnuté (ze zvonečku)', async () => {
+    const { bridge } = await import('../js/bridge.js');
+    bridge.buildCamTransfer = () => ({ code: 'G0', leftovers: [], boreSuspect: [] });
+    state.objects = [L(100, -0.4, 100, 20), L(100, 20, 0, 20), L(0, 20, 0, 0)];
+    // Okno ze zvonečku → Ponechat vše.
+    expect(cc.offerDrawingFixes({ all: true })).toBe(true);
+    document.querySelector('.fix-dialog').closest('.input-overlay').remove();
+    await new Promise(r => setTimeout(r, 0));
+    let opened = 0;
+    cc.openCamFromDrawing(() => opened++);
+    expect(document.querySelector('.fix-dialog')).not.toBeNull();
+    document.querySelector('#fixDialogOk').click();
+    expect(opened).toBe(1);
+    expect(state.objects[0].y1).toBe(0);
+  });
 });
 

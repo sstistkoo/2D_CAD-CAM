@@ -91,6 +91,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Vstup do CAM nabídne opravy výkresu pokaždé** (`contourCheck.js` `openCamFromDrawing`) – po „Ponechat vše"
+  (i v okně otevřeném ze zvonečku) se okno při dalším vstupu do CAM už neukázalo. Odmítnutí teď tlumí jen
+  opakované hlášky zvonečku. Test `tests/drawing-fix-dialog.test.js`.
 - **CAM – díry z výkresu se v soustružení nekreslí** (`live/liveModel.js` `liveShownInTurning`) – díry
   a spodní polovina řezu jen na záložce Vrtání / Frézování; dřív se díry z bokorysu ukazovaly i v hrubování,
   kde se nevrtají. Test `tests/face-cam-transfer.test.js`.
