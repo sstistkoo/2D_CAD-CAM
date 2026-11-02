@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Kontrola výkresu i pod zvonečkem 🔔** (`contourCheck.js` `notifyDrawingFixes`): po každé úpravě výkresu,
   když přibude nová drobná chyba, přijde hláška pod zvoneček v horní liště; klepnutí otevře okno s opravami.
-  Každá chyba se hlásí jednou; nad 800 objektů se po úpravách nekontroluje. Test
+  Každá chyba se hlásí jednou; nad 800 objektů se po úpravách nekontroluje. Dokud je co opravit, zvoneček
+  zůstane červený (`.has-warning`), po opravě zešedne. Test
   `tests/drawing-fix-dialog.test.js`.
 - **CAD → CAM – Kontrola výkresu s opravami k zaškrtnutí** (`dialogs/drawingFixes.js`, `axisFix.js`,
   `fixShared.js`; okno `contourCheck.js` `offerDrawingFixes`): při otevření CAM a ručně (⚙ Nastavení →

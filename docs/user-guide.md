@@ -461,7 +461,8 @@ CAM část ti umožní generovat NC programy pro obrábění.
   mobilu blikne **zvoneček 🔔** v horní liště s hláškou „⚠ Výkres: 2 drobné
   chyby (mezera, konec u osy) — klepni pro opravu" (na desktopu krátká hláška
   dole). Klepnutí na hlášku otevře okno s opravami. O stejné chybě zvoneček
-  hlásí jen jednou. U výkresů nad 800 objektů (velký DXF) se po úpravách
+  hlásí jen jednou. Dokud ve výkresu nějaká chyba k opravě je, zvoneček
+  **zůstane červený** (i po přečtení hlášky); po opravě zase zešedne. U výkresů nad 800 objektů (velký DXF) se po úpravách
   nekontroluje — ruční kontrola a kontrola při otevření CAM běží dál.
 
 ### 3. CAM Simulátor

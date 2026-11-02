@@ -55,7 +55,7 @@ describe('okno Kontrola výkresu', () => {
     expect(document.querySelector('.fix-dialog')).toBeNull();
   });
 
-  it('zvoneček: nová chyba přidá hlášku, stejná podruhé ne; klepnutí otevře okno', () => {
+  it('zvoneček: nová chyba přidá hlášku, stejná podruhé ne; klepnutí otevře okno', async () => {
     Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true });
     state.objects = [L(100, 0, 100, 20), L(100, 20, 50.3, 20), L(50, 20, 50, 30), L(50, 30, 0, 30), L(0, 30, 0, 0)];
     const badge = document.getElementById('mobileNotifyBadge');
@@ -71,9 +71,15 @@ describe('okno Kontrola výkresu', () => {
     badge.classList.remove('has-unread');
     cc.notifyDrawingFixes();
     expect(badge.classList.contains('has-unread')).toBe(false);
+    expect(badge.classList.contains('has-warning')).toBe(true);   // červený, dokud chyba trvá
     items[0].click();
     expect(document.querySelector('.fix-dialog')).not.toBeNull();
     document.querySelector('.fix-dialog').closest('.input-overlay').remove();
+    await new Promise(r => setTimeout(r, 0));   // zavření okna hlásí MutationObserver
+    // Chyba opravená → zvoneček už není červený.
+    state.objects[1].x2 = 50;
+    cc.notifyDrawingFixes();
+    expect(badge.classList.contains('has-warning')).toBe(false);
   });
 });
 

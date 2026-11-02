@@ -2667,6 +2667,13 @@ body {
   cursor: pointer;
   flex-shrink: 0;
 }
+/* Ve výkresu je co opravit (Kontrola výkresu, contourCheck.js) — červený,
+   dokud chyba nezmizí; nebliká (bliká jen nepřečtená hláška níž). */
+.mobile-notify-badge.has-warning {
+  background: var(--ctp-red);
+  border-color: var(--ctp-red);
+  color: var(--ctp-base);
+}
 .mobile-notify-badge.has-unread {
   background: var(--ctp-red);
   border-color: var(--ctp-red);

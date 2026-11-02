@@ -257,6 +257,18 @@ const _KIND_WORD = {
 };
 
 /**
+ * Zvoneček červený, dokud ve výkresu je co opravit (uživatel 2. 11. 2026:
+ * „udělat ten zvoneček červený, když tam bude nějaké upozornění"). Na rozdíl
+ * od `has-unread` (bliká do otevření panelu) drží, dokud chyba nezmizí.
+ */
+function _bellWarning(on) {
+  const badge = typeof document !== 'undefined' && document.getElementById('mobileNotifyBadge');
+  if (!badge) return;
+  badge.classList.toggle('has-warning', on);
+  badge.title = on ? 'Hlášky — ve výkresu jsou chyby k opravě' : 'Hlášky';
+}
+
+/**
  * Upozornění pod zvoneček 🔔 (uživatel 2. 11. 2026: „objeví se mi to až když
  * jdu do CAM … mám v CAD nahoře zvoneček s upozorněním, můžeš dát i tam").
  * Běží po každé úpravě výkresu (runCncExport → _reportContourIssues →
@@ -265,9 +277,10 @@ const _KIND_WORD = {
  */
 export function notifyDrawingFixes() {
   if (_dialogOpen || _camOpening) return;
-  if (!state.objects || state.objects.length > NOTIFY_MAX_OBJECTS) return;
+  if (!state.objects || state.objects.length > NOTIFY_MAX_OBJECTS) { _bellWarning(false); return; }
   let items;
   try { items = findDrawingFixes(); } catch { return; }
+  _bellWarning(items.length > 0);
   const keys = items.map(fixKey);
   const fresh = keys.filter(k => !_fixNotified.has(k) && !_fixDeclined.has(k));
   keys.forEach(k => _fixNotified.add(k));
