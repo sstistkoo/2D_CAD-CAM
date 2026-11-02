@@ -426,7 +426,11 @@ CAM část ti umožní generovat NC programy pro obrábění.
   Zbude-li mimo něj něco (osamocená čára, kus odtržený mezerou, kružnice),
   aplikace to před otevřením CAM přiblíží, vyznačí **fialově „mimo profil"**
   a zeptá se: **Otevřít CAM bez nich**, nebo **Zpět do výkresu** (typicky
-  spojit mezeru). Body (nástroj Bod) se do CAM neposílají nikdy.
+  spojit mezeru). Je-li kus odtržený mezerou do 5 mm, nabídne i
+  **🔧 Spojit a otevřít CAM** — úsečky prodlouží do rohu (mezera do 1 mm se
+  spojí uprostřed, úsečka k oblouku na jeho konec), jinak doplní spojovací
+  úsečku; dotčené čáry jsou žlutě, Zpět opravu vrátí. Body (nástroj Bod) se
+  do CAM neposílají nikdy.
 - **Zdvojené čáry** – dvě stejné čáry přesně přes sebe (dvakrát nakreslená
   nebo zkopírovaná úsečka) na výkrese nejsou vidět, ale kontura se kvůli nim
   hlásí jako rozvětvená. Aplikace je vyznačí **žlutě „2× přes sebe – klikni"**,

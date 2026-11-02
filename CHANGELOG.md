@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAD/CAM automatická oprava mezer při přechodu do CAM** (nový `dialogs/leftoverFixes.js`, `contourCheck.js`):
+  dialog „čáry mimo profil" nabízí **🔧 Spojit a otevřít CAM**. Kontrola výkresu spojuje jen mezery do 0,5 mm
+  mezi úsečkami; tady se ví, které čáry na profil nenavazují, takže se spojí mezera do 5 mm — úsečky do rohu
+  (do 1 mm uprostřed, úsečka k oblouku na jeho konec), jinak se doplní spojovací úsečka (i mezi oblouky
+  a polyline). Bez možné opravy dialog řekne proč (mezera moc velká / profil se větví).
 - **CAD ⇋ Zrcadlit kolem osy na karuselu** (`render/mirrorSnap.js` `mirrorObjectAcrossAxis`, `mirrorEdges.js`,
   `geometry/select.js`): karusel má svislou osu rotace, zrcadlí se proto kolem x = 0 — z pravého horního
   kvadrantu do levého horního (dřív dolů jako soustruh). Hrany přes osu, SNAP, klik na zrcadlo, řádek

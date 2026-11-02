@@ -20,7 +20,8 @@ import { showConfirmDialog, makeInputOverlay, onOverlayRemoved } from '../dialog
 import { findContourDuplicates, objectsBounds } from '../stockTools.js';
 import { deleteObjectsByIndices } from '../ui.js';
 import { findDrawingFixes } from './drawingFixes.js';
-import { applyFixItems, fixKey } from './fixShared.js';
+import { applyFixItems, fixKey, fmt } from './fixShared.js';
+import { findLeftoverFixes, nearestLeftoverGap, MAX_GAP } from './leftoverFixes.js';
 
 // Otisky zdvojených čar, které uživatel už v nabídce viděl (za celou session) –
 // runCncExport běží po každé úpravě výkresu a stejnou nabídku by jinak
@@ -413,29 +414,84 @@ function _transferMainProfile(openCam) {
   const shown = res.leftovers.length > 0 ? res.leftovers : suspect;
   state.camLeftovers = shown;
   const n = shown.length;
-  const msg = res.leftovers.length > 0
+  // Automatická oprava mezer (uživatel 2. 11. 2026: „měl bych tam mít
+  // automatickou opravu, která se mi nenabídla") — leftoverFixes.js.
+  let fixes = [];
+  try { fixes = findLeftoverFixes(shown); } catch { fixes = []; }
+  const nf = fixes.length;
+  let msg = res.leftovers.length > 0
     ? `Do CAM půjde jen hlavní souvislý profil. ${n} ${_plural(n, 'čára na něj nenavazuje', 'čáry na něj nenavazují', 'čar na něj nenavazuje')} `
-      + '(vyznačeno fialově „mimo profil") a do CAM ' + _plural(n, 'nepůjde', 'nepůjdou', 'nepůjde') + '.\n\n'
-      + 'Patří-li k profilu, je v kontuře mezera — vraťte se do výkresu a spojte ji.'
+      + '(vyznačeno fialově „mimo profil") a do CAM ' + _plural(n, 'nepůjde', 'nepůjdou', 'nepůjde') + '.'
     : `Vyznačené čáry (${n}) končí těsně u konce profilu, ale nenavazují na něj — v kontuře je mezera. `
-      + 'Do CAM půjdou jako samostatná DÍRA pro vyvrtávání, ne jako součást kontury.\n\n'
-      + 'Patří-li k profilu, vraťte se do výkresu a mezeru spojte.';
-  showConfirmDialog(msg, () => {
+      + 'Do CAM půjdou jako samostatná DÍRA pro vyvrtávání, ne jako součást kontury.';
+  if (nf > 0) {
+    msg += `\n\nNalezeno ${nf} ${_plural(nf, 'mezera', 'mezery', 'mezer')}, ${_plural(nf, 'kterou', 'které', 'které')} jde spojit automaticky:\n`
+      + fixes.map(f => '• ' + f.label.replace(/^Kontura: /, '')).join('\n')
+      + '\n\nZpět opravu vrátí.';
+  } else {
+    let near = null;
+    try { near = nearestLeftoverGap(shown); } catch { near = null; }
+    msg += '\n\nPatří-li k profilu, vraťte se do výkresu a mezeru spojte.';
+    if (near !== null && near > MAX_GAP) msg += ` (Nejmenší mezera ${fmt(near)} mm je na automatickou opravu moc velká — max ${fmt(MAX_GAP)} mm.)`;
+    else if (near !== null && near < 0.01) msg += ' (Čáry se dotýkají, ale profil se v tom místě větví nebo napojuje doprostřed čáry — rozdělte ji / smažte přebytečný kus.)';
+  }
+  const open = () => {
     state.camLeftovers = [];
     _restoreView(view);
     renderAll();
     openCam(res.code);
-  }, {
-    confirmLabel: res.leftovers.length > 0 ? 'Otevřít CAM bez nich' : 'Otevřít CAM i tak',
-    cancelLabel: 'Zpět do výkresu',
-    danger: false,
-    peek: true,
-    // Zvýraznění zůstane, ať je vidět, co opravit; sundá ho příští úprava
-    // výkresu (runCncExport → _reportContourIssues).
-    onCancel: () => renderAll(),
+  };
+  const overlay = makeInputOverlay(`
+    <div class="input-dialog confirm-dialog">
+      <p class="confirm-dialog-message" style="white-space:pre-line">${_esc(msg)}</p>
+      <div class="btn-row" style="flex-wrap:wrap">
+        <button type="button" class="btn-cancel btn-cancel-overlay">Zpět do výkresu</button>
+        <button type="button" class="btn-cancel" id="leftoverOpen">${res.leftovers.length > 0 ? 'Otevřít CAM bez nich' : 'Otevřít CAM i tak'}</button>
+        ${nf > 0 ? `<button type="button" class="btn-ok" id="leftoverFix">🔧 Spojit (${nf}) a otevřít CAM</button>` : ''}
+      </div>
+    </div>`);
+  overlay.classList.add('input-overlay--peek');
+  let acted = false;
+  overlay.querySelector('#leftoverOpen').addEventListener('click', () => { acted = true; overlay.remove(); open(); });
+  const fixBtn = overlay.querySelector('#leftoverFix');
+  if (fixBtn) fixBtn.addEventListener('click', () => {
+    acted = true;
+    overlay.remove();
+    applyLeftoverFixes(fixes);
+    state.camLeftovers = [];
+    _restoreView(view);
+    showToast(`🔧 Spojeno: ${nf} — Zpět vrátí`, 4000);
+    // Znovu přes kontrolu: zbude-li něco mimo profil, dialog se ukáže znovu.
+    _transferMainProfile(openCam);
   });
+  // Zvýraznění zůstane, ať je vidět, co opravit; sundá ho příští úprava
+  // výkresu (runCncExport → _reportContourIssues).
+  // Čáry profilu, kterých se oprava týká, žlutě (jako okno Kontroly výkresu);
+  // čáry mimo profil už jsou fialově — dva popisky přes sebe by se nečetly.
+  onOverlayRemoved(overlay, () => { state.drawingFixMarks = []; if (!acted) renderAll(); });
+  const shownSet = new Set(shown);
+  state.drawingFixMarks = [...new Set(fixes.flatMap(f => f.objs))].filter(o => !shownSet.has(o));
   _zoomTo(shown);
   renderAll();
+}
+
+/**
+ * Provede opravy mezer z leftoverFixes.js jedním krokem Zpět (posuny konců
+ * úseček + nové spojovací úsečky).
+ * @returns {number} počet provedených oprav
+ */
+export function applyLeftoverFixes(fixes) {
+  if (!fixes || fixes.length === 0) return 0;
+  pushUndo();
+  const del = applyFixItems(fixes).filter(o => state.objects.includes(o));
+  if (del.length) deleteObjectsByIndices(del.map(o => state.objects.indexOf(o)));
+  for (const f of fixes) {
+    for (const a of f.adds || []) state.objects.push({ ...a, id: state.nextId++ });
+  }
+  calculateAllIntersections();
+  if (bridge.updateObjectList) bridge.updateObjectList();
+  renderAll();
+  return fixes.length;
 }
 
 bridge.offerContourDuplicates = offerContourDuplicates;
@@ -444,3 +500,4 @@ bridge.openCamFromDrawing = openCamFromDrawing;
 bridge.offerDrawingFixes = offerDrawingFixes;
 bridge.notifyDrawingFixes = notifyDrawingFixes;
 bridge.autoFixDrawing = autoFixDrawing;
+bridge.applyLeftoverFixes = applyLeftoverFixes;
