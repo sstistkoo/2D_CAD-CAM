@@ -457,6 +457,13 @@ CAM část ti umožní generovat NC programy pro obrábění.
   CAM v tomtéž sezení už nenabízejí; ruční kontrola ukáže vše. Upravují se
   jen úsečky.
 
+  Kontrola běží i **po každé úpravě výkresu**: když přibude nová chyba, na
+  mobilu blikne **zvoneček 🔔** v horní liště s hláškou „⚠ Výkres: 2 drobné
+  chyby (mezera, konec u osy) — klepni pro opravu" (na desktopu krátká hláška
+  dole). Klepnutí na hlášku otevře okno s opravami. O stejné chybě zvoneček
+  hlásí jen jednou. U výkresů nad 800 objektů (velký DXF) se po úpravách
+  nekontroluje — ruční kontrola a kontrola při otevření CAM běží dál.
+
 ### 3. CAM Simulátor
 1. Klikni na **CAM** v Sinumerik rozcestníku
 2. Vyber operaci:

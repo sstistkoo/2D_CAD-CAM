@@ -54,4 +54,26 @@ describe('okno Kontrola výkresu', () => {
     expect(done).toBe(1);
     expect(document.querySelector('.fix-dialog')).toBeNull();
   });
+
+  it('zvoneček: nová chyba přidá hlášku, stejná podruhé ne; klepnutí otevře okno', () => {
+    Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true });
+    state.objects = [L(100, 0, 100, 20), L(100, 20, 50.3, 20), L(50, 20, 50, 30), L(50, 30, 0, 30), L(0, 30, 0, 0)];
+    const badge = document.getElementById('mobileNotifyBadge');
+    const panel = document.getElementById('mobileNotifyPanel');
+    badge.classList.remove('has-unread');
+    cc.notifyDrawingFixes();
+    expect(badge.classList.contains('has-unread')).toBe(true);
+    badge.click();                                     // otevřít panel
+    const items = [...panel.querySelectorAll('[data-notify-idx]')].filter(el => el.textContent.includes('Výkres:'));
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toContain('1 drobná chyba (mezera)');
+    // Stejná chyba po další úpravě — nic nového.
+    badge.classList.remove('has-unread');
+    cc.notifyDrawingFixes();
+    expect(badge.classList.contains('has-unread')).toBe(false);
+    items[0].click();
+    expect(document.querySelector('.fix-dialog')).not.toBeNull();
+    document.querySelector('.fix-dialog').closest('.input-overlay').remove();
+  });
 });
+

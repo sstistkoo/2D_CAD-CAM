@@ -216,6 +216,7 @@ function _canvasFree() {
  * @returns {boolean} true = nabídka se otevřela (toast je pak zbytečný)
  */
 export function maybeOfferContourDuplicates(dups) {
+  notifyDrawingFixes();
   if (!dups || dups.length === 0) return false;
   if (_dialogOpen) return true;
   if (_camOpening || !_hasNew(dups) || !_canvasFree()) return false;
@@ -244,6 +245,40 @@ export function openCamFromDrawing(openCam) {
 // stejné se znovu nenabízejí.
 const _fixDeclined = new Set();
 const _esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Opravy, o kterých už zvoneček hlásil (za celou session) — hlásí se jen nové.
+const _fixNotified = new Set();
+// Nad tolik objektů se kontrola po každé úpravě nepouští (velký DXF import);
+// ruční kontrola v Nastavení i kontrola při otevření CAM běží dál.
+const NOTIFY_MAX_OBJECTS = 800;
+const _KIND_WORD = {
+  snap: 'konec u osy', stub: 'pahýl u osy', trim: 'přesah za roh', gap: 'mezera',
+  extend: 'konec před čarou', trimTee: 'konec přes čáru', straighten: 'skoro rovná čára',
+};
+
+/**
+ * Upozornění pod zvoneček 🔔 (uživatel 2. 11. 2026: „objeví se mi to až když
+ * jdu do CAM … mám v CAD nahoře zvoneček s upozorněním, můžeš dát i tam").
+ * Běží po každé úpravě výkresu (runCncExport → _reportContourIssues →
+ * maybeOfferContourDuplicates); hlásí, jen když přibyla oprava, o které
+ * zvoneček ještě nehlásil. Klepnutí na hlášku otevře okno s opravami.
+ */
+export function notifyDrawingFixes() {
+  if (_dialogOpen || _camOpening) return;
+  if (!state.objects || state.objects.length > NOTIFY_MAX_OBJECTS) return;
+  let items;
+  try { items = findDrawingFixes(); } catch { return; }
+  const keys = items.map(fixKey);
+  const fresh = keys.filter(k => !_fixNotified.has(k) && !_fixDeclined.has(k));
+  keys.forEach(k => _fixNotified.add(k));
+  if (fresh.length === 0) return;
+  const n = items.length;
+  const what = [...new Set(items.map(it => _KIND_WORD[it.kind] || it.kind))].join(', ');
+  showToast(`⚠ Výkres: ${n} ${_plural(n, 'drobná chyba', 'drobné chyby', 'drobných chyb')} (${what}) — klepni pro opravu`, 6000, {
+    bell: true,
+    onClick: () => { if (!offerDrawingFixes({ all: true })) showToast('Kontrola výkresu: nic k opravě ✓'); },
+  });
+}
 
 /**
  * Kontrola výkresu (drawingFixes.js): okno se seznamem drobných chyb, každá
@@ -364,3 +399,4 @@ bridge.offerContourDuplicates = offerContourDuplicates;
 bridge.maybeOfferContourDuplicates = maybeOfferContourDuplicates;
 bridge.openCamFromDrawing = openCamFromDrawing;
 bridge.offerDrawingFixes = offerDrawingFixes;
+bridge.notifyDrawingFixes = notifyDrawingFixes;
