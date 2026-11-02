@@ -1456,6 +1456,13 @@ programů) to nedělá.
   ručně napsat třeba G2/G3 při úpravě stávajícího oblouku nebo G4, G33 apod.
 - **📐 Náhled kontury** (pravý panel): malý náhled nad kódem, řádek s kurzorem
   žlutě. Po zavření editoru se objekt z řádku s kurzorem označí na plátně.
+- **▾ a ⇲ v oranžové liště** (vedle ✕): **▾** rozbalí / sbalí lištu s ☰ panely,
+  🔗, G90, 🔍, 🔢, kontrolou a 🔄 i řádek „Údaje a nápověda" (výchozí sbalené –
+  víc místa na kód). **⇲** zmenší editor na spodní půlku displeje: nad ním je vidět
+  plátno a na něm živě to, co píšeš (kontura modře, polotovar oranžově čárkovaně,
+  G0 šedě, řádek s kurzorem žlutě). Plátno jde i posouvat a zoomovat. **⇱** vrátí
+  editor přes celý displej. Výkres se tím nemění – přepíše se až po zavření / 🔄
+  jako dřív. Volba obou tlačítek se pamatuje.
 - **Průsečíky na plátně** (pravý panel): klepnutím se souřadnice vloží na kurzor.
 - **🎯 Bod z plátna** chytá koncové body a průsečíky vždy (i s vypnutým
   přichytáváním) – vkládá přesné souřadnice.

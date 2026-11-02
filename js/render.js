@@ -32,9 +32,9 @@ export function renderAll() {
     // Náhled VK kontury – přes bridge, aby render.js nemusel importovat
     // calculators/vkContour.js (viz CLAUDE.md: žádné přímé cyklické importy).
     if (state.vkPreview?.visible && bridge.renderVkPreview) bridge.renderVkPreview(ctx);
-    // Živý náhled záložky 🔢 Číselné zadání – přes bridge ze stejného
-    // důvodu jako VK (render.js nesmí importovat dialogové moduly).
+    // Živé náhledy 🔢 Číselného zadání a zmenšeného CNC editoru – přes bridge (jako VK).
     if (state.numPreview?.visible && bridge.renderNumPreview) bridge.renderNumPreview(ctx);
+    if (bridge.renderCncLive) bridge.renderCncLive(ctx);
     // Aktualizovat mobilní Cancel tlačítko
     if (bridge.updateMobileCancelBtn) bridge.updateMobileCancelBtn();
     // Aktualizovat tlačítka Dokončit/Uzavřít konturu

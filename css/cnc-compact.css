@@ -1,0 +1,73 @@
+/* ══════════════════════════════════════════════════════════════
+   CNC Editor z Kalkulaček (kreslicí) – rozbalovací lišta a zmenšený
+   režim nad plátnem (js/calculators/cncEditorLive.js).
+   Načítá se ZA style.css a landscape-mobile.css (přebíjí je).
+   ══════════════════════════════════════════════════════════════ */
+
+/* Tlačítka ▾ (lišty) a ⇲/⇱ (velikost) v oranžové liště vlevo od ✕ */
+.cne-sn-tog {
+  all: unset; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 4px;
+  background: rgba(0,0,0,.15); color: #1a1a1a;
+  font: 900 13px/1 system-ui, sans-serif;
+}
+.cne-sn-tog:active { background: rgba(0,0,0,.3); }
+.cne-sn-tog.on { background: rgba(0,0,0,.32); }
+
+/* Sbalené lišty: řádek ☰ 🔗 G90 🔍 🔢 ✓ 🔄 ☰ a řádek „Údaje a nápověda"
+   jsou schované, rozbalí je ▾. */
+.cne-overlay-draw:not(.cne-bars-open) .cne-toolbar--draw,
+.cne-overlay-draw:not(.cne-bars-open) .cne-info { display: none; }
+
+/* ── Zmenšený editor: dole, nad ním je vidět (a ovládat) plátno ── */
+.calc-overlay.cne-overlay-draw.cne-compact {
+  background: none;
+  pointer-events: none;            /* tahy prstem nad editorem jdou na plátno */
+  align-items: flex-end;
+  padding: 0;
+}
+.calc-overlay.cne-overlay-draw.cne-compact .cnc-editor-window {
+  pointer-events: auto;
+  width: 100vw; max-width: 100vw;
+  /* Výška podle obsahu: lišta + pár řádků kódu + klávesnice ≈ půlka displeje */
+  height: auto; max-height: 80dvh;
+  border-radius: 10px 10px 0 0;
+  box-shadow: 0 -4px 16px rgba(0,0,0,.45);
+}
+/* Kód: pevná výška ~5 řádků (asi třetina okna) */
+.cne-overlay-draw.cne-compact .cne-main { flex: 0 0 auto; height: clamp(80px, 17dvh, 160px); }
+
+/* ── Telefon na výšku: menší tlačítka dole ── */
+@media (max-width: 600px) and (orientation: portrait) {
+  .cne-overlay-draw .cne-sn-tog {
+    width: 32px; height: 30px; font-size: 16px; border-radius: 7px;
+  }
+  .cne-overlay-draw .cne-sn-bar { gap: 5px; }
+  .cne-overlay-draw .cne-quickbar { gap: 2px; padding-top: 3px; }
+  .cne-overlay-draw .cne-qb { min-height: 26px; padding: 2px; font-size: 12px; }
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-big { min-height: 34px; font-size: 15px; }
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-arc { min-height: 26px; font-size: 13px; }
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-big small { font-size: 9px; }
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-wide { min-height: 28px; }
+  .cne-overlay-draw .cne-quickbar--draw .cne-qb-num,
+  .cne-overlay-draw .cne-quickbar--draw [data-act="pickFromCanvas"] { font-size: 15px; }
+  /* Zmenšený: kratší oranžová lišta, víc místa na kód */
+  .cne-overlay-draw.cne-compact .cne-sn-bar { min-height: 34px; padding-top: 2px; padding-bottom: 2px; }
+  .cne-overlay-draw.cne-compact .cne-sn-close { width: 30px; height: 30px; top: 50%; }
+}
+
+/* ── Telefon naležato: zmenšený editor vpravo, plátno vlevo ── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .cne-overlay-draw .cne-sn-tog { width: 26px; height: 24px; }
+  .calc-overlay.cne-overlay-draw.cne-compact { justify-content: flex-end; align-items: stretch; }
+  .calc-overlay.cne-overlay-draw.cne-compact .cnc-editor-window {
+    width: 62vw; max-width: 62vw; height: 100dvh; max-height: 100dvh;
+    border-radius: 10px 0 0 10px;
+    box-shadow: -4px 0 16px rgba(0,0,0,.45);
+  }
+  .cne-overlay-draw.cne-compact .cne-main { flex: 1 1 auto; height: auto; }
+}
+
+/* Malý náhled kontury nad kódem je ve zmenšeném režimu zbytečný – kreslí se na plátno */
+.cne-overlay-draw.cne-compact .cne-preview { display: none; }

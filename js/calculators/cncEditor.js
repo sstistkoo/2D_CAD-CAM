@@ -10,6 +10,7 @@ import { showToast, state } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { analyzeDrawCode, moveInfo, moveAtOrBefore, moveDirDeg, modeAtLine, polarToXZ, tangentToIK, geometryChecks, angleLineEnd, convertLinesMode, f3 } from './cncDrawTools.js';
 import { drawPreview } from './cncDrawPreview.js';
+import { setupLiveView } from './cncEditorLive.js';
 import { lineHint, helpHTML } from './cncHints.js';
 import { joinAtIntersection, chamferByAngle } from './cncJoin.js';
 import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
@@ -1913,6 +1914,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     return anCache.an;
   }
   function caretLine() { return editor.value.slice(0, editor.selectionStart ?? 0).split('\n').length - 1; }
+  const live = drawOnClose ? setupLiveView(overlay, { analysis, caretLine }) : null;   // ⇕ zmenšený editor nad plátnem
   let tInfo = null;
   // Nápověda k zápisu: vysvětlí slova na řádku s kurzorem a poradí, co dopsat.
   const hintEl = $('hintText');
@@ -1990,6 +1992,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
         infoTextEl.textContent = p ? `Řádek bez pohybu · poloha X${f3(p.to.x * an.xs)} Z${f3(p.to.z)}` : 'Řádek bez pohybu';
       }
       if (previewEl && !previewEl.hidden) drawPreview(previewEl, an, { curLine: ln, flipX: state.flipX, flipZ: state.flipZ });
+      live?.update(an, ln);
     }, 30);
   }
   function setPreview(on) {

@@ -49,6 +49,7 @@ export const bridge = {
   renderVkPreview: null,
   fitVkPreviewView: null,
   renderNumPreview: null,
+  renderCncLive: null,     // zmenšený CNC editor z Kalkulaček (cncEditorLive.js)
   commitVkToDrawing: null,
   vkDrawPoint: null,
   vkDrawUndo: null,

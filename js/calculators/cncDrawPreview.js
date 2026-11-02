@@ -97,3 +97,41 @@ export function drawPreview(cv, an, opts = {}) {
     ctx.beginPath(); ctx.arc(e.x, e.y, 3.5, 0, Math.PI * 2); ctx.fill();
   }
 }
+
+// ── Pro náhled na hlavním plátně (zmenšený editor, cncEditorLive.js) ──
+/** Svět plátna z bodu rozboru: soustruh (x=Z, y=poloměr), karusel (x=poloměr, y=Z). */
+export const W = (p, kar) => (kar ? { x: p.x, y: p.z } : { x: p.z, y: p.x });
+
+/**
+ * Body úseku ve světových souřadnicích plátna (oblouk navzorkovaný jako lomená čára –
+ * stejný vzorec jako cncDrawPreview.js, takže se nepočítá se směrem úhlů na obrazovce).
+ * @returns {{x:number,y:number}[]}
+ */
+export function movePoints(mv, kar) {
+  const s = W(mv.from, kar), e = W(mv.to, kar);
+  const a = mv.arc;
+  if (!a || a.err || a.cx === undefined) return [s, e];
+  const c = W({ x: a.cx, z: a.cz }, kar);
+  const n = Math.max(8, Math.min(64, Math.ceil(a.sweep / (Math.PI / 24))));
+  const pts = [s];
+  for (let k = 1; k < n; k++) {
+    const t = a.a1 + (a.ccw ? 1 : -1) * a.sweep * k / n;
+    pts.push({ x: c.x + a.r * Math.cos(t), y: c.y + a.r * Math.sin(t) });
+  }
+  pts.push(e);
+  return pts;
+}
+
+/** World AABB všech pohybů (null = nic). */
+export function movesBounds(an) {
+  const kar = !!an?.opts?.karusel;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const mv of an?.moves || []) {
+    for (const p of movePoints(mv, kar)) {
+      if (!isFinite(p.x) || !isFinite(p.y)) continue;
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    }
+  }
+  return minX <= maxX ? { minX, maxX, minY, maxY } : null;
+}
