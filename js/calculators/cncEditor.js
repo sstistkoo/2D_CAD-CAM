@@ -1095,7 +1095,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     // ručně mezi nimi klikat na "␣". Vynechá se pro pokračování stejného
     // tokenu (";" komentář, "=" přiřazení, samotnou mezeru/nový řádek).
     const prevChar = s > 0 ? v[s - 1] : '';
-    const needsSpace = prevChar && !/\s/.test(prevChar) && !/^[;=]/.test(actual) && actual !== ' ' && actual !== '\n';
+    const needsSpace = prevChar && !/\s/.test(prevChar) && !/^[;=]/.test(actual) && actual !== ' ' && actual !== '\n' && !/^[\d.-]$/.test(actual);   // číslice čísla: bez mezery
     const insert = (needsSpace ? ' ' : '') + actualIns;
     // Hned za vloženým kódem středník („Z0;…") → oddělit mezerou.
     const gap = v[e] === ';' && !/\s$/.test(actualIns) && !actualIns.startsWith(';') ? ' ' : '';

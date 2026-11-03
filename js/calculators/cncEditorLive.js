@@ -42,6 +42,17 @@ export function setupLiveView(overlay, { analysis, caretLine }) {
     bar?.insertBefore(b, bar.querySelector('.cne-sn-close'));
     return b;
   };
+  // Číselník 7 8 9 / 4 5 6 / 1 2 3 / − 0 . vpravo vedle kódu (jen telefon na výšku, CSS).
+  // data-ins → stejné vkládání jako klávesy dole (číslice bez automatické mezery).
+  const main = overlay.querySelector('.cne-main');
+  if (main) {
+    const pad = document.createElement('div');
+    pad.className = 'cne-side-numpad';
+    pad.innerHTML = '789456123-0.'.split('').map(c =>
+      `<button type="button" class="cne-np-key" data-ins="${c}" title="${c === '-' ? 'Mínus' : c === '.' ? 'Desetinná tečka' : 'Číslice ' + c}">${c === '-' ? '−' : c}</button>`).join('');
+    pad.addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });   // fokus zůstane v kódu
+    main.appendChild(pad);
+  }
   const barsBtn = mk('cne-sn-bars', 'bars', 'Rozbalit / sbalit lišty (panely ☰, hledání, kalkulačka, Údaje a nápověda)');
   const sizeBtn = mk('cne-sn-size', 'size', 'Přepnout editor: přes celý displej ↔ zmenšený, nad ním plátno s tím, co kreslíš');
 

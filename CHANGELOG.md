@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   „Údaje a nápověda", jinak sbalené) a **⇲/⇱** (editor přes celý displej ↔ dole na půl displeje, nad ním plátno
   s živým náhledem psaného kódu, řádek s kurzorem žlutě; výkres se nemění, kreslí se přes `bridge.renderCncLive`).
   Na výšku menší tlačítka rychlé lišty.
+- **CAD G-kód kreslení: číselník vpravo vedle kódu** (telefon na výšku, `cncEditorLive.js`): 7 8 9 / 4 5 6 / 1 2 3 / − 0 .
+  Číslice, tečka a mínus se vkládají bez automatické mezery (dřív klávesy číslic naležato psaly „X 1 2").
 - **Mobil na výšku: panel nástrojů CAD nižší o ~3 řady** (`css/style.css`): víc vidět plátno, v tlačítkách
   se roluje. Horní řádek Výběr / Kóta / Tl Kon / Smaž / ✕ zůstává při rolování přilepený nahoře.
 
