@@ -138,6 +138,8 @@ describe('ui.js — kód při načtení', () => {
         "js/canvas.js document touchend capture",
         "js/canvas.js document keydown capture",
         "js/canvas.js window resize",
+        "js/canvas.js window pointerdown capture",
+        "js/canvas.js window pointermove capture",
         "ui #sidebar focus capture",
         "ui #btnAddLayer click",
         "ui #btnDelLayer click",

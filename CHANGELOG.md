@@ -37,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAD mobil: snap na osy** (`canvas.js`): prstem se na osu Z/X skoro nedalo trefit (hrana i osa chytaly
+  jen 12 px). Při dotyku je poloměr zachycení větší (body 30 px, hrany a osy 30 px), myš beze změny.
+  Úhlový snap navíc konec čáry přichycený na osu z osy neodtáhne – bere průsečík úhlové přímky s osou.
 - **Úpravy výkresu → Uzavřít konturu/polotovar**: úsečky uzávěru ležící na ose (osa rotace, rovina Z0) jsou
   pomocné čáry v barvě vrstvy, do CAM nejdou. Dřív se uzavřená smyčka dostala do CAM a hrubování jelo přes celý
   díl až za osu (X−5,2). Opakované uzavření nic nezdvojí.

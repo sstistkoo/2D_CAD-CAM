@@ -8,7 +8,7 @@ import { renderAll } from './render.js';
 import { faceSnapPoints, faceSnapEdge, computeFaceOrigin } from './faceView/faceReference.js';
 import { faceViewMode, getFaceLayer, profileObjects } from './faceView/faceLayer.js';
 import { refSnapObjects } from './render/mirrorSnap.js';
-import { SNAP_POINT_THRESHOLD, SNAP_EDGE_THRESHOLD, VIBRATE_SNAP_POINT, VIBRATE_SNAP_EDGE, AUTO_CENTER_PADDING, ZOOM_MIN, ZOOM_MAX } from './constants.js';
+import { SNAP_POINT_THRESHOLD, SNAP_EDGE_THRESHOLD, SNAP_TOUCH_POINT_FACTOR, SNAP_TOUCH_EDGE_FACTOR, VIBRATE_SNAP_POINT, VIBRATE_SNAP_EDGE, AUTO_CENTER_PADDING, ZOOM_MIN, ZOOM_MAX } from './constants.js';
 import { shownIntersections } from './geometry/shownIntersections.js';
 
 export const wrap = document.getElementById("canvasWrap");
@@ -57,6 +57,19 @@ window.addEventListener("resize", resizeCanvases);
 // překážku a vycentrování skončilo z poloviny pod ním). `visualViewport` je
 // jediná událost, která tuhle změnu hlásí.
 window.visualViewport?.addEventListener("resize", resizeCanvases);
+
+// Poslední typ ukazatele (myš / prst) – podle něj se volí poloměr snapu.
+// Pointer události přicházejí i na mobilu dřív než touch* obsluhy v touch.js.
+let _touchInput = false;
+function trackPointerType(e) { _touchInput = e.pointerType === 'touch'; }
+window.addEventListener('pointerdown', trackPointerType, { capture: true, passive: true });
+window.addEventListener('pointermove', trackPointerType, { capture: true, passive: true });
+
+/** Násobitel poloměru snapu: 1 pro myš, větší pro prst. */
+function touchFactor(kind) {
+  if (!_touchInput) return 1;
+  return kind === 'edge' ? SNAP_TOUCH_EDGE_FACTOR : SNAP_TOUCH_POINT_FACTOR;
+}
 
 // ── Souřadnicové transformace ──
 /**
@@ -138,7 +151,7 @@ export function snapPt(wx, wy) {
 
   // Snap k bodům objektů a průsečíkům – větší poloměr zachycení
   if (state.snapToPoints) {
-    const threshold = SNAP_POINT_THRESHOLD / state.zoom;
+    const threshold = SNAP_POINT_THRESHOLD * touchFactor('point') / state.zoom;
 
     // Snap k počátku (0,0)
     const dOrigin = Math.hypot(wx, wy);
@@ -252,7 +265,7 @@ export function snapPt(wx, wy) {
 
   // Snap k nejbližšímu bodu na hraně objektu (nižší priorita než snap body)
   if (state.snapToPoints) {
-    const edgeThreshold = SNAP_EDGE_THRESHOLD / state.zoom;
+    const edgeThreshold = SNAP_EDGE_THRESHOLD * touchFactor('edge') / state.zoom;
     let edgeX = null, edgeY = null, edgeD = Infinity;
     for (const obj of state.objects) {
       if (obj.isDimension || obj.isCoordLabel) continue;
@@ -385,6 +398,24 @@ export function applyAngleSnap(wx, wy, refPoint) {
   // Projekce kurzoru na přichycenou úhlovou linii (délka = kolmý průmět, ne vzdálenost)
   const dirX = Math.cos(snappedAngle);
   const dirY = Math.sin(snappedAngle);
+  // Bod přichycený na osu: úhlový snap ho nesmí z osy odtáhnout (kolmý
+  // průmět by konec čáry posunul mimo osu). Vezme se průsečík úhlové
+  // přímky s osou; když leží daleko od kurzoru (přímka skoro rovnoběžná
+  // s osou), vyhraje osa a úhel se nevnucuje.
+  if (state.snapToPoints && state.mouse.snapType === 'edge'
+      && (state.mouse.onZAxis || state.mouse.onXAxis)) {
+    const isKarusel = state.machineType === 'karusel';
+    const horizontal = state.mouse.onZAxis ? !isKarusel : isKarusel;
+    const d = horizontal ? dirY : dirX;
+    const r = horizontal ? refPoint.y : refPoint.x;
+    if (Math.abs(d) < 1e-9) return [wx, wy];
+    const t = -r / d;
+    if (t <= 0) return [wx, wy];
+    const ix = refPoint.x + t * dirX, iy = refPoint.y + t * dirY;
+    const maxShift = 2 * SNAP_EDGE_THRESHOLD * touchFactor('edge') / (state.zoom || 1);
+    if (Math.hypot(ix - wx, iy - wy) > maxShift) return [wx, wy];
+    return [horizontal ? ix : 0, horizontal ? 0 : iy];
+  }
   const projDist = dx * dirX + dy * dirY;
   if (projDist < 0) return [wx, wy];
   return [

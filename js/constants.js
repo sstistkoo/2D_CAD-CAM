@@ -90,6 +90,10 @@ export const RAINBOW_PRESETS = [
 // ── Přichycení (snap) ───────────────────────────────────────
 export const SNAP_POINT_THRESHOLD = 20;   // px (děleno zoom) – přichycení k bodu
 export const SNAP_EDGE_THRESHOLD  = 12;   // px (děleno zoom) – přichycení k hraně
+// Prst je mnohem méně přesný než myš – při dotykovém ovládání se poloměry
+// zachycení násobí (12 px na hranu/osu se prstem trefit skoro nedalo).
+export const SNAP_TOUCH_POINT_FACTOR = 1.5; // body → 30 px
+export const SNAP_TOUCH_EDGE_FACTOR  = 2.5; // hrany a osy → 30 px
 
 // ── Zoom ────────────────────────────────────────────────────
 export const ZOOM_FACTOR = 1.15;
