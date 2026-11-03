@@ -418,6 +418,24 @@ describe('buildZAxisRefLine + polární úhel od osy Z', () => {
     expect(z.x1).toBeCloseTo(12.5, 4); // průsečík s Y=0
   });
 
+  it('karusel: osa Z je svislá (X=0), rameno k Z+ (svět +Y)', () => {
+    // stejná úsečka s prohozenými osami → průsečík s X=0 v y=12.5
+    const line = { id: 1, type: 'line', x1: -5, y1: 10, x2: 5, y2: 15 };
+    const z = buildZAxisRefLine(line, 'karusel');
+    expect(z._zAxis).toBe(true);
+    expect(z.x1).toBe(0);
+    expect(z.x2).toBe(0);
+    expect(z.y1).toBeCloseTo(12.5, 4);
+    expect(z.y2).toBeGreaterThan(z.y1);
+  });
+
+  it('karusel: 45° úsečka od svislé osy Z → 45°', () => {
+    const line = { id: 1, type: 'line', x1: 0, y1: 0, x2: 10, y2: 10 };
+    const z = buildZAxisRefLine(line, 'karusel');
+    addAngleDimForPlacement(line, z, 3, 8, { vsAxis: 'Z' });
+    expect(addObject.mock.calls[0][0].dimAngle * 180 / Math.PI).toBeCloseTo(45, 3);
+  });
+
   it('kóta polárního úhlu od osy Z: 45° úsečka → 45° s dimVsAxis', () => {
     // úsečka pod 45° od osy Z, procházející počátkem
     const line = { id: 1, type: 'line', x1: 0, y1: 0, x2: 10, y2: 10 };

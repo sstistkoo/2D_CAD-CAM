@@ -310,6 +310,35 @@ describe('snapPt', () => {
     expect(state.mouse.snapped).toBe(false);
   });
 
+  it('snap k ose X – soustruh: svislá čára X=0', () => {
+    state.machineType = 'soustruh';
+    const [rx, ry] = snapPt(3, 50);
+    expect(rx).toBe(0);
+    expect(ry).toBe(50);
+    expect(state.mouse.snapType).toBe('edge');
+    expect(state.mouse.onXAxis).toBe(true);
+    expect(state.mouse.onZAxis).toBe(false);
+  });
+
+  it('snap k ose X – karusel: vodorovná čára Y=0', () => {
+    state.machineType = 'karusel';
+    const [rx, ry] = snapPt(50, 3);
+    expect(rx).toBe(50);
+    expect(ry).toBe(0);
+    expect(state.mouse.onXAxis).toBe(true);
+    expect(state.mouse.onZAxis).toBe(false);
+    state.machineType = 'soustruh';
+  });
+
+  it('osa Z zůstává osou Z (soustruh Y=0)', () => {
+    state.machineType = 'soustruh';
+    const [rx, ry] = snapPt(50, 3);
+    expect(rx).toBe(50);
+    expect(ry).toBe(0);
+    expect(state.mouse.onZAxis).toBe(true);
+    expect(state.mouse.onXAxis).toBe(false);
+  });
+
   it('snap k průsečíku má prioritu (při shodné vzdálenosti)', () => {
     state.objects = [
       { type: 'point', x: 10, y: 10, id: 1, layer: 0 },

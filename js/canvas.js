@@ -134,6 +134,7 @@ export function snapPt(wx, wy) {
   // nemají, proto se u nich vždy vynuluje.
   let objSource = null;
   state.mouse.onZAxis = false;
+  state.mouse.onXAxis = false;
 
   // Snap k bodům objektů a průsečíkům – větší poloměr zachycení
   if (state.snapToPoints) {
@@ -284,16 +285,25 @@ export function snapPt(wx, wy) {
       edgeX = fe.x;
       edgeY = fe.y;
     }
-    // Snap k ose rotace soustruhu (Z-osa, Y=0) – čára je vizuální, ale snapuje jako hrana
+    // Snap k ose rotace Z (soustruh Y=0, karusel X=0) – čára je vizuální, ale snapuje jako hrana
     let snappedToAxis = false;
-    if (state.machineType !== 'karusel') {
-      const distToAxis = Math.abs(wy);
-      if (distToAxis < edgeThreshold && distToAxis < edgeD) {
-        edgeD = distToAxis;
-        edgeX = wx;
-        edgeY = 0;
-        snappedToAxis = true;
-      }
+    const isKarusel = state.machineType === 'karusel';
+    const distToAxis = Math.abs(isKarusel ? wx : wy);
+    if (distToAxis < edgeThreshold && distToAxis < edgeD) {
+      edgeD = distToAxis;
+      edgeX = isKarusel ? 0 : wx;
+      edgeY = isKarusel ? wy : 0;
+      snappedToAxis = true;
+    }
+    // Snap k ose X (soustruh X=0 svisle, karusel Y=0 vodorovně) – kolmá na osu Z
+    let snappedToXAxis = false;
+    const distToXAxis = Math.abs(isKarusel ? wy : wx);
+    if (distToXAxis < edgeThreshold && distToXAxis < edgeD) {
+      edgeD = distToXAxis;
+      edgeX = isKarusel ? wx : 0;
+      edgeY = isKarusel ? 0 : wy;
+      snappedToAxis = false;
+      snappedToXAxis = true;
     }
     if (edgeX !== null) {
       if (state.mouse.snapType !== 'edge') {
@@ -302,6 +312,7 @@ export function snapPt(wx, wy) {
       state.mouse.snapped = true;
       state.mouse.snapType = 'edge';
       state.mouse.onZAxis = snappedToAxis;
+      state.mouse.onXAxis = snappedToXAxis;
       state.mouse.snappedObject = null;
       return [edgeX, edgeY];
     }

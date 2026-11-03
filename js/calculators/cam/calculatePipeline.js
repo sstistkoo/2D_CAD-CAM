@@ -27,6 +27,7 @@ import { getInsert } from './inserts/index.js';
 import { makeHolderClamp, makeFinishTipGuard } from './toolEnvelope.js';
 import { buildFinishPath, clipFinishBand, finishPartingEnvelope } from './ops/finish.js';
 import { floorFinishZHi, floorFinishFace } from './ops/zigzagFloor.js';
+import { extendRoughOffsetBelowStockEnd } from './offsetStockEnd.js';
 import { mirrorCalcZ, mirrorParamsZ, mirrorPointChain, mirrorZLimits } from './zMirror.js';
 import { buildStockLoopRaw, insertExtent, stockPlanLoop } from './materialRemoval.js';
 import { resolveRangeX, xMaxWallZ } from './rangeX.js';
@@ -459,6 +460,10 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
 
   // 2. trimming + loop removal (shared helper handles all segment combos)
   let offsetPath = dropTinyArcs(trimAndRemoveLoops(rough.rawOffsets));
+  // Kontura končí na spodním konci polotovaru → hrubování nesmí pod dílem
+  // (pruh siluety rozšířené o R) jezdit vzduchem (offsetStockEnd.js).
+  extendRoughOffsetBelowStockEnd(offsetPath, contourSegments, stockPathSegments,
+    tipR + Math.max(allowanceX, allowanceZ) + finishAllowance);
 
   // ── Referenční HOTOVNÍ offset (jen rádius plátku, bez přídavků) ──
   // Čistě GEOMETRICKÁ čára „kam dojede střed plátku na hotovo" — kreslí se

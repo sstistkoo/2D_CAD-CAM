@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAD: přichycení k ose X** (`canvas.js`): kurzor se chytá i na osu X (soustruh svisle X = 0, karusel
+  vodorovně), stejně jako na osu Z; `state.mouse.onXAxis` hlásí, že bod leží na ose X.
+
 ### Changed
 
 - **CAD G-kód kreslení (editor z Kalkulaček): zmenšený editor nad plátnem** (`calculators/cncEditorLive.js`,
@@ -31,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM: kontura končí na spodním konci polotovaru** (`cam/offsetStockEnd.js`): karuselový díl na stole (poslední
+  bod kontury X846 Z0, polotovar od Z0) — silueta polotovaru rozšířená o R přečnívala pod díl a cik cak tam jel
+  425 obrácených vrstev vzduchem (`G0 Z-6 / G1 Z0.5`). Offset hrubování se z konce kontury protáhne svisle pod
+  polotovar; dokončování beze změny. Test `cam-contour-ends-on-stock-end`.
+- **CAD karusel — přichycení k ose rotace a kóta úhlu od osy Z** (`canvas.js`, `dialogs/dimension.js`): kurzor
+  se přichytí i ke svislé ose Z karuselu (X = 0) a klik na ni v nástroji Kóta dá polární úhel od osy Z —
+  dřív obojí fungovalo jen pro vodorovnou osu soustruhu.
 - **Karusel → CAM: kontura chodila obráceně** (`storage/fileIO.js` přenos do CAM): řetěz začínal na největším
   průměru (zadní konec dílu), protože se start hledal podle vodorovné osy výkresu — u karuselu je to X.
   Hrubování pak vyšlo jinak než u stejného dílu ze soustruhu (jiné průchody i kapsy). Start je teď na čele

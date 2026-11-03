@@ -228,6 +228,26 @@ describe('CAD ↔ CAM: smysl oblouku při zrcadlení a na karuselu (10. 10. 2026
     }
   }
 
+  it('přepnutí Soustruh → Karusel (machineSwap) pošle do CAM tutéž konturu i polotovar', async () => {
+    const { swapObjectsAxes } = await import('../js/machineSwap.js');
+    const objs = () => [
+      ...lathe(),
+      L(0, 0, 0, 25, { isStock: true }), L(0, 25, -60, 25, { isStock: true }),
+    ];
+    const parsed = () => P.parseContourAndStockGCode(bridge.buildCamTransfer().code);
+    const pick = c => (c || []).map(q => [q.type, +(+q.x).toFixed(6), +(+q.z).toFixed(6), q.r != null ? +(+q.r).toFixed(6) : null]);
+    reset('soustruh', false, false, objs());
+    const a = parsed();
+    const swapped = objs();
+    swapObjectsAxes(swapped);
+    reset('karusel', false, false, swapped);
+    const b = parsed();
+    expect(pick(b.contour)).toEqual(pick(a.contour));
+    expect(pick(b.stock)).toEqual(pick(a.stock));
+    expect(pick(a.contour).length).toBeGreaterThan(2);
+    expect(pick(a.stock).length).toBeGreaterThan(1);
+  });
+
   it('přenos do CAM nepíše „G2/G3 prohozeny", program v CAD panelu ano', () => {
     reset('soustruh', true, false, lathe());
     expect(bridge.buildCamTransfer().code).not.toMatch(/prohozeny/);

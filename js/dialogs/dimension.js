@@ -62,20 +62,25 @@ function _buildAngleDim(C, pt1, pt2, sweep, radius, reflex) {
 }
 
 /**
- * Sestaví virtuální vodorovnou úsečku představující osu Z (Y=0), procházející
- * průsečíkem se zadanou úsečkou. Rameno směřuje k Z+ (svět +X). Slouží jako
- * druhá „úsečka" pro kótu polárního úhlu úsečky od osy Z.
+ * Sestaví virtuální úsečku představující osu Z, procházející průsečíkem se
+ * zadanou úsečkou. Soustruh: vodorovná (Y=0), rameno k Z+ (svět +X); karusel:
+ * svislá (X=0), rameno k Z+ (svět +Y). Slouží jako druhá „úsečka" pro kótu
+ * polárního úhlu úsečky od osy Z.
  */
-export function buildZAxisRefLine(line1) {
-  const dy = line1.y2 - line1.y1;
-  let cx;
-  if (Math.abs(dy) < 1e-9) {
-    cx = (line1.x1 + line1.x2) / 2;   // rovnoběžná s osou Z
+export function buildZAxisRefLine(line1, machineType = state.machineType) {
+  // Karusel = soustruh s prohozenými osami (wx ↔ wy)
+  const car = machineType === 'karusel';
+  const a1 = car ? line1.x1 : line1.y1, a2 = car ? line1.x2 : line1.y2;   // kolmo k ose
+  const b1 = car ? line1.y1 : line1.x1, b2 = car ? line1.y2 : line1.x2;   // podél osy
+  let c;
+  if (Math.abs(a2 - a1) < 1e-9) {
+    c = (b1 + b2) / 2;   // rovnoběžná s osou Z
   } else {
-    const t = -line1.y1 / dy;
-    cx = line1.x1 + t * (line1.x2 - line1.x1);
+    c = b1 + (-a1 / (a2 - a1)) * (b2 - b1);
   }
-  return { type: 'line', x1: cx, y1: 0, x2: cx + 100, y2: 0, _zAxis: true, id: null };
+  return car
+    ? { type: 'line', x1: 0, y1: c, x2: 0, y2: c + 100, _zAxis: true, id: null }
+    : { type: 'line', x1: c, y1: 0, x2: c + 100, y2: 0, _zAxis: true, id: null };
 }
 
 /**
