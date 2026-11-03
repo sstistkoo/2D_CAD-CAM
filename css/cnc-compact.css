@@ -88,6 +88,16 @@
     color: var(--ctp-text); font: 700 17px/1 "Consolas","Courier New",monospace;
   }
   .cne-np-key:active { background: var(--ctp-surface1); transform: translateY(1px); }
+  /* Přes celý displej: číselník plave vpravo dole PŘES kód – nad ním je vidět
+     celý text (dřív zúžil sloupec kódu po celé výšce). Dole rezerva, aby šly
+     poslední řádky odrolovat nad číselník. */
+  .cne-overlay-draw:not(.cne-compact) .cne-side-numpad {
+    position: absolute; right: 0; bottom: 0; z-index: 3; height: 200px;
+    border-top: 1px solid var(--ctp-surface0); border-top-left-radius: 8px;
+    box-shadow: -2px -2px 10px rgba(0,0,0,.35);
+  }
+  .cne-overlay-draw:not(.cne-compact) .cne-backdrop,
+  .cne-overlay-draw:not(.cne-compact) .cne-textarea { padding-bottom: 210px; }
   /* Zmenšený: o něco vyšší pole kódu, ať jsou klávesy číselníku dost velké */
   .cne-overlay-draw.cne-compact .cne-main { height: clamp(132px, 22dvh, 180px); }
 }
