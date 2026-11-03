@@ -1551,6 +1551,11 @@ náhledem destičky a držáku. Pod náhledem je jeden přepínač
   dosadí R z kódu (u kulaté polovinu průměru z velikosti: RCMT 1204M0 → R6).
   **Hrubování (Podélně / Čelně) si každý plátek pamatuje:** kulatá podélně →
   upichovák (ten umí jen čelně) → zpět na kulatou vrátí podélně.
+  **Karusel – ⟲ Po X jako podélně** (Obrábění, výchozí zapnuto od 3. 11. 2026):
+  ↔ Čelně i ⇋ Cik cak jedou dlouhými průchody **po X** (vodorovně) vyladěným
+  podélným algoritmem, nůž svisle dolů ze smykadla. Vypnutím se vrátí staré
+  čelní hrubování. Závit, vrtání, vyvrtávání a upich počítají postaru.
+  Hlavička programu uvádí řídicí systém i stroj (… 840D - KARUSEL / - SOUSTRUH).
   **⇋ Cik cak** (jen kulatá destička v držáku užším než destička, 🔧 SRDPN
   úzký; 1. 11. 2026): jede jako Podélně podle všech pravidel (úseky, pořadí,
   zanořování). Jen **vrstva za hrbolem**, která by se zanořila a **vyjela do

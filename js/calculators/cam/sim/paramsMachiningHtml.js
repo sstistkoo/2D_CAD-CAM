@@ -63,7 +63,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
       })()}
     </div>
     ${_car ? `<div class="cam-sim-checkbox-row" data-tooltip="Karusel: hrubování v prohozených osách X ↔ Z — ↔ Čelně a ⇅ Cik cak jedou po X vyladěným podélným algoritmem (úseky kapes, hrby, zanořování, hlídání držáku), nůž svisle dolů ze smykadla. Zatím bez mezí čelistí/rozsahů a Po úsecích; závit, vrtání, vyvrtávání a upich počítají postaru (cam/xzSwap.js).">
-      <input type="checkbox" id="cam-sim-carousel-swap" ${prms.carouselSwapXZ ? 'checked' : ''}>
+      <input type="checkbox" id="cam-sim-carousel-swap" ${prms.carouselAlongX !== false ? 'checked' : ''}>
       <span>⟲ Po X jako podélně (nůž ze smykadla)</span>
     </div>` : ''}
     <div class="cam-sim-toggle-row">

@@ -17,7 +17,7 @@
 // (jako mirrorSegPath). Pole s pořadím-ČASEM (contourLeadIn/Out) se
 // neobracejí a smysl se prohodí.
 //
-// Zapíná se přepínačem `carouselSwapXZ` (jen karusel). Tlačítka strategií
+// Přepínač `carouselAlongX` (jen karusel, výchozí zapnuto — chybí-li, platí zapnuto). Tlačítka strategií
 // drží skutečný význam: ↔ Čelně (po X) = podélný algoritmus v prohozeném
 // světě, ↕ Podélně (po Z) = čelní, ⇅ Cik cak = cik cak po X.
 // Zatím se NEprohazuje: závit, vrtání, vyvrtávání, upich (prohození se
@@ -34,7 +34,7 @@ const STRATEGY = { face: 'longitudinal', longitudinal: 'face', zigzag: 'zigzag' 
 /** Počítá se v prohozených osách? (karusel + přepínač, ne u operací na ose). */
 export function swapsXZ(S) {
   const p = S && S.params;
-  if (!p || p.machineStructure !== 'carousel' || p.carouselSwapXZ !== true) return false;
+  if (!p || p.machineStructure !== 'carousel' || p.carouselAlongX === false) return false;
   const partOff = p.partOffZ != null && isFinite(parseFloat(p.partOffZ));
   return !p.threadActive && !p.drillActive && !p.boreActive && !partOff;
 }
@@ -285,7 +285,8 @@ export function emitSwapped(S, calc, emit, calcOf, cmt) {
   const lines = emit(xz.S, xz.calc);
   S.genNotes = xz.S.genNotes || [];
   const dia = S.params.mode === 'DIAMON';
-  const out = lines.map(l => ({ ...l, text: swapGCodeText(l.text, { toReal: true, dia }) }));
+  const out = lines.map(l => ({ ...l, text: swapGCodeText(l.text, { toReal: true, dia })
+    .replace(/(Vygenerovaný kód .*?)- SOUSTRUH/, '$1- KARUSEL') }));
   const at = out.findIndex(l => !/^\s*[;(]/.test(l.text));
   out.splice(at < 0 ? 0 : at, 0, { text: cmt(SWAP_NOTE), simIdx: null });
   return out;

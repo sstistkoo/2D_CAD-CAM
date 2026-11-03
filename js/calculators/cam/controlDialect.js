@@ -46,7 +46,10 @@ export function buildControlHeaderLines(ctrl, prms, flipX, flipZ) {
   const note = (text) => ` ${cmt(text)}`;
   const names = { sinumerik: 'SINUMERIK 840D', fanuc: 'FANUC', heidenhain: 'HEIDENHAIN ISO' };
   const lines = [];
-  lines.push(cmt(`Vygenerovaný kód ${names[ctrl] || names.sinumerik}`));
+  // Stroj v hlavičce (uživatel 3. 11. 2026): karusel má osy prohozené, program pro
+  // soustruh by na něm jel jinam. Prohozený svět karuselu po X opraví emitSwapped.
+  const machine = prms && prms.machineStructure === 'carousel' ? 'KARUSEL' : 'SOUSTRUH';
+  lines.push(cmt(`Vygenerovaný kód ${names[ctrl] || names.sinumerik} - ${machine}`));
   lines.push(cmt(`Datum: ${new Date().toLocaleDateString()}`));
   if (flipX) lines.push(cmt('Obrábění zespodu (X+ dolů) – G2/G3 prohozeny'));
   if (flipZ) lines.push(cmt('Otočená osa Z (Z+ vlevo) – G2/G3 prohozeny'));

@@ -130,6 +130,8 @@ describe('✕ → 📐 Zachovat a přenést: simulátor → plátno CAD', () => 
       expect(layers(o => o.type === 'camNote')).toEqual([0]);
     } finally { state.activeLayer = 0; }
   });
+  // Mezní čáry (constr) jsou od 3. 11. 2026 z dráhy karuselu po X (⟲ výchozí,
+  // cam/xzSwap.js) — spočtené v prohozeném světě a prohozené zpět.
   it('karusel: osy prohozené, oblouk opačně, vlastní tvar polotovaru', async () => {
     const objs = await sendToCanvas('karusel', (S) => {
       S.params.stockMode = 'casting';
@@ -148,10 +150,11 @@ describe('✕ → 📐 Zachovat a přenést: simulátor → plátno CAD', () => 
         "line 25 2 → 25 -67.4 stock",
         "line 25 -67.4 → 0 -67.4 stock",
         "constr 25 -10 → 25 5 finite",
-        "constr 29.94 238.838 → 24.625 219.001 finite",
-        "constr 33.551 143.791 → 26.544 117.638 finite",
-        "constr 37.397 69.162 → 29.657 40.275 finite",
-        "constr 41.978 0 → 39.031 -11 finite",
+        "constr 33.327 67.372 → 29.66 53.687 finite",
+        "constr 25.021 131.94 → 24.882 131.419 finite",
+        "constr 7.921 218.58 → -1 185.286 finite",
+        "constr 0 256.014 → -1 252.282 finite",
+        "constr 29.94 256.014 → -1 247.724 finite",
         "camNote gcode:true dirty:false key:string",
       ]
     `);

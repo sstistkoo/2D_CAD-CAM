@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > face-casting.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -364,7 +364,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > fa
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > face-cylinder.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -620,7 +620,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > fa
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > holder-casting-slanted-face.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -983,7 +983,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > ho
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > holder-region-roughing.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -1333,7 +1333,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > ho
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-1.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -1752,7 +1752,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-2.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -2171,7 +2171,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-4.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -2636,7 +2636,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-6.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -3101,7 +3101,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-8.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -3555,7 +3555,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-9.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -4008,7 +4008,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-10-zapich-casting.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -4376,7 +4376,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-23-face-neck-round-r10.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -5198,7 +5198,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-24-zleva-finish-ramp.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -5373,7 +5373,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > part-25-face-runout-reversed.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -5847,7 +5847,7 @@ exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pa
 `;
 
 exports[`CAM booleovská hrubovací větev — regrese (booleanRoughing=on) > pocket-wall-at-plunge-angle.camprog → stabilní booleovský G-kód > gcode-bool 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování

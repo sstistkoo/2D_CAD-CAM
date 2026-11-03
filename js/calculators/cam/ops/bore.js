@@ -260,6 +260,7 @@ export function boreMirrorParams(prms, g) {
   return {
     ...prms,
     boreActive: false, borePreDrill: false, drillActive: false, threadActive: false, partOffZ: null,
+    carouselAlongX: false,   // zrcadlo díry je svět soustruhu — karusel po X (xzSwap.js) sem nepatří
     roughingStrategy: 'longitudinal', roughingSide: 'right',
     // Jen dokončení (Hot. + ◎ Vnitřní): vnější Hot. v zrcadle nad vyhrubovanou
     // dírou — polotovar jako odlitek (boreMirrorState → stockPoints).

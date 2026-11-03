@@ -56,9 +56,9 @@ describe('prohození textu G-kódu', () => {
 describe('karusel po X na dílu uživatele', () => {
   let on, off;
   beforeAll(async () => {
-    const p1 = load(); p1.params.carouselSwapXZ = true; p1.params.roughingStrategy = 'face';
+    const p1 = load(); p1.params.carouselAlongX = true; p1.params.roughingStrategy = 'face';
     on = await runCamProg(p1);
-    const p2 = load(); p2.params.roughingStrategy = 'face';
+    const p2 = load(); p2.params.carouselAlongX = false; p2.params.roughingStrategy = 'face';
     off = await runCamProg(p2);
   }, 240000);
 
@@ -106,10 +106,13 @@ describe('karusel po X na dílu uživatele', () => {
     expect(off.gcode).not.toMatch(/prohozen/i);
   });
 
-  it('přepínač platí jen na karuselu', () => {
+  it('přepínač platí jen na karuselu, výchozí zapnuto', () => {
     const p = load().params;
-    expect(swapsXZ({ params: { ...p, carouselSwapXZ: true } })).toBe(true);
-    expect(swapsXZ({ params: { ...p, carouselSwapXZ: true, machineStructure: 'lathe' } })).toBe(false);
-    expect(swapsXZ({ params: { ...p, carouselSwapXZ: true, threadActive: true } })).toBe(false);
+    // Výchozí zapnuto (klíč chybí); starý `carouselSwapXZ: false` se ignoruje.
+    const q = { ...p }; delete q.carouselAlongX;
+    expect(swapsXZ({ params: { ...q, carouselSwapXZ: false } })).toBe(true);
+    expect(swapsXZ({ params: { ...p, carouselAlongX: false } })).toBe(false);
+    expect(swapsXZ({ params: { ...q, machineStructure: 'lathe' } })).toBe(false);
+    expect(swapsXZ({ params: { ...q, threadActive: true } })).toBe(false);
   });
 });

@@ -95,7 +95,9 @@ describe('Karusel v CAM — stejná kontura i stejné dráhy jako soustruh', () 
   it.each(['longitudinal', 'face'])('CAM (%s): pohled Karusel generuje tentýž G-kód jako Soustruh', async (strategy) => {
     const ids = (pts, base) => pts.map((p, i) => ({ id: base + i, mode: 'ABS', ...p }));
     const prog = (structure, t = karusel) => ({
-      params: { machineStructure: structure, roughingStrategy: strategy, mode: 'DIAMON', stockMode: 'casting', doFinishing: true },
+      // Karusel po X (⟲, výchozí od 3. 11. 2026) dráhy záměrně mění — tady se
+      // měří starý pohled bez prohození (cam-carousel-swap-xz.test.js měří ten nový).
+      params: { machineStructure: structure, roughingStrategy: strategy, mode: 'DIAMON', stockMode: 'casting', doFinishing: true, carouselAlongX: false },
       contourPoints: ids(t.contour, 1),
       stockPoints: ids(t.stock, 100),
     });
@@ -105,7 +107,7 @@ describe('Karusel v CAM — stejná kontura i stejné dráhy jako soustruh', () 
     expect(a.gcode).toBe(ref.gcode);
     expect(ref.gcode.split('\n').length).toBeGreaterThan(20);
     const b = await runCamProg(prog('carousel'));
-    expect(b.gcode).toBe(ref.gcode);
+    expect(b.gcode.replace(' - KARUSEL', ' - SOUSTRUH')).toBe(ref.gcode);   // hlavička uvádí stroj
   }, 120000);
 });
 
@@ -149,7 +151,7 @@ describe('Karusel v CAM — díra (vyvrtávání)', () => {
     const ref = await runCamProg(prog('lathe', lathe));
     expect(ref.gcode).toMatch(/VYVRT/i);
     const b = await runCamProg(prog('carousel'));
-    expect(b.gcode).toBe(ref.gcode);
+    expect(b.gcode.replace(' - KARUSEL', ' - SOUSTRUH')).toBe(ref.gcode);   // hlavička uvádí stroj
   }, 120000);
 });
 

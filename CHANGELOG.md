@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Karusel: ⟲ Po X jako podélně je výchozí zapnuté** (nový klíč `carouselAlongX`, starý `carouselSwapXZ` se
+  ignoruje): ↔ Čelně a ⇋ Cik cak na karuselu jedou vodorovně po X. Na dílu uživatele s Cik cak 15 porušení
+  pravidel místo 125, 0 kolizí. Soustruh beze změny.
+- **Hlavička G-kódu uvádí stroj**: `; Vygenerovaný kód SINUMERIK 840D - KARUSEL` / `- SOUSTRUH`.
+
 - **Typ čáry: barva zvlášť pro konturu a polotovar** (`lineStyles.js`, `lineStyleDialog.js`): barva zvolená pro
   polotovar se po přepnutí na konturu už nepřenese do kontury; starší uložená jediná barva se nepřebírá.
   Výchozí barva polotovaru je červená (dřív oranžová).

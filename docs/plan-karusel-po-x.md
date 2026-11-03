@@ -26,8 +26,9 @@ Stejný vzor jako hrubování zleva v Z-zrcadle (`cam/zMirror.js`):
 Kód: `js/calculators/cam/xzSwap.js`. Napojení má 2 řádky na začátku
 `computeCalculation` (calculatePipeline.js) a `generateAutoGCode`
 (gcodeEmit.js). Přepínač ⟲ „Po X jako podélně“ je v Obrábění, jen na
-karuselu (`params.carouselSwapXZ`, výchozí false). Vypnutá hodnota se do
-otisku `pathInputsKey` nepočítá.
+karuselu (`params.carouselAlongX`, **výchozí zapnuto** od 3. 11. 2026 večer;
+starý klíč `carouselSwapXZ` se ignoruje). Do otisku `pathInputsKey` se klíč
+počítá jen na karuselu, starý nikdy — soustruhové programy se nemění.
 
 ## Hotovo a ověřeno
 
@@ -94,5 +95,10 @@ otisku `pathInputsKey` nepočítá.
 10. **Pravidlo do `docs/cam-pravidla.md`:** připravit NÁVRH „Karusel po X =
     podélné v prohozených osách (x' = z, z' = x), nůž svisle ze smykadla;
     všechna pravidla platí v prohozeném světě“ a dát ho uživateli ke schválení.
-11. **Výchozí zapnutí** přepínače na karuselu až po schválení uživatelem
-    (paměť „Nic nepřepínat na výchozí bez kontrol“).
+11. ✅ **Výchozí zapnutí** — schválil uživatel 3. 11. 2026 večer („na karuselu
+    vždy po X“, Cik cak jel na jeho dílu svisle: 218 svislých řezů, 125
+    porušení; po X 130 vodorovných, 15 porušení, 0 kolizí). Nový klíč
+    `carouselAlongX`, aby se zapnulo i v dnes uložených projektech.
+12. ✅ **Hlavička programu** uvádí stroj: `Vygenerovaný kód SINUMERIK 840D -
+    KARUSEL` / `- SOUSTRUH` (controlDialect.js; v prohozeném světě opraví
+    emitSwapped).

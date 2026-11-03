@@ -28,7 +28,7 @@ if (!src) {
 }
 const prog = JSON.parse(readFileSync(src, 'utf8'));
 const S = {
-  params: { ...prog.params, carouselSwapXZ: true },
+  params: { ...prog.params, carouselAlongX: true },
   contourPoints: prog.contourPoints || [],
   stockPoints: prog.stockPoints || [],
   borePoints: prog.borePoints || [],

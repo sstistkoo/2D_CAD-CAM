@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`CAM pipeline regrese (G-kód + struktura) > face-casting.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -379,7 +379,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-casting.camprog → st
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -650,7 +650,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → s
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > face-parting-retract-holder.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -1457,7 +1457,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-parting-retract-holder
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > holder-casting-slanted-face.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -1836,7 +1836,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-casting-slanted-face
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > holder-region-roughing.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -2202,7 +2202,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-region-roughing.camp
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-1.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -2640,7 +2640,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-1.camprog → stabiln�
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-2.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -3078,7 +3078,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-2.camprog → stabiln�
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-4.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -3561,7 +3561,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-4.camprog → stabiln�
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-6.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -4044,7 +4044,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-6.camprog → stabiln�
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-8.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -4517,7 +4517,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-8.camprog → stabiln�
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-9.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -4988,7 +4988,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-9.camprog → stabiln�
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -5370,7 +5370,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camp
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -5705,7 +5705,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.campr
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -6087,7 +6087,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog 
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-13-zleva-flange.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -6262,7 +6262,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-13-zleva-flange.campro
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-14-finish-holder.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -6695,7 +6695,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-14-finish-holder.campr
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-15-finish-zprava.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -7088,7 +7088,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-15-finish-zprava.campr
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-16-face-holder.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -7931,7 +7931,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-16-face-holder.camprog
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-17-long-parting.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -8802,7 +8802,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-17-long-parting.campro
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-18-face-big-radius.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -9731,7 +9731,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-18-face-big-radius.cam
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-18-parting-90-ramp.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -10647,7 +10647,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-18-parting-90-ramp.cam
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-19-face-tilted-insert.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -11286,7 +11286,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-19-face-tilted-insert.
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-20-zleva-parting-taper.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -12206,7 +12206,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-20-zleva-parting-taper
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-21-zleva-insert-shadow.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -12779,7 +12779,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-21-zleva-insert-shadow
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-22-round-r10.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -13496,7 +13496,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-22-round-r10.camprog �
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-23-face-neck-round-r10.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -14334,7 +14334,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-23-face-neck-round-r10
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-24-zleva-finish-ramp.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -14531,7 +14531,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-24-zleva-finish-ramp.c
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-25-face-runout-reversed.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -15029,7 +15029,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-25-face-runout-reverse
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > pocket-wall-at-plunge-angle.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -15586,7 +15586,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > pocket-wall-at-plunge-angle
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-insert-shadow.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -15875,7 +15875,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-insert-shadow.c
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-steep-face.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
@@ -16051,7 +16051,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-steep-face.camp
 `;
 
 exports[`CAM pipeline regrese (G-kód + struktura) > range-end-leadout.camprog → stabilní G-kód > gcode 1`] = `
-"; Vygenerovaný kód SINUMERIK 840D
+"; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování

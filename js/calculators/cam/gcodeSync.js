@@ -56,9 +56,10 @@ export function pathInputsKey(S) {
   // neaktuální dráhy tam, kde se nic nezměnilo.
   // `live*` = poháněné nástroje (live/liveModel.js) — na soustružnické dráhy
   // nemají vliv, jejich úprava nesmí hlásit neaktuální dráhy ani přepočítávat.
-  // Vypnuté `carouselSwapXZ` (přibylo 3. 11. 2026) se nepočítá — otisk
-  // programů uložených před ním se nesmí změnit.
-  const params = Object.keys(p).filter(k => !k.startsWith('live') && !(k === 'carouselSwapXZ' && !p[k])).sort().map(k => [k, p[k]]);
+  // Karusel po X (3. 11. 2026): starý klíč `carouselSwapXZ` se nepočítá vůbec,
+  // `carouselAlongX` jen na karuselu — otisk soustruhových programů se nemění.
+  const params = Object.keys(p).filter(k => !k.startsWith('live') && k !== 'carouselSwapXZ'
+    && !(k === 'carouselAlongX' && p.machineStructure !== 'carousel')).sort().map(k => [k, p[k]]);
   return hash32(JSON.stringify([params, S.contourPoints, S.stockPoints, S.zLimits,
     S.xLimits, S.guideLines, S.flipX, S.flipZ, S.activeMagazineSlot]));
 }

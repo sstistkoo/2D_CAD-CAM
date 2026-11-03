@@ -41,7 +41,7 @@ export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange
     applyChange();
   });
   const swapCb = tabBody.querySelector('#cam-sim-carousel-swap');
-  if (swapCb) swapCb.addEventListener('change', () => { S.params.carouselSwapXZ = swapCb.checked; applyChange(); });
+  if (swapCb) swapCb.addEventListener('change', () => { S.params.carouselAlongX = swapCb.checked; applyChange(); });
   const respCb = tabBody.querySelector('#cam-sim-respect-insert');
   if (respCb) respCb.addEventListener('change', () => { S.params.respectInsertGeometry = respCb.checked; applyChange(); });
   const clearInsertGuidesBtn = tabBody.querySelector('[data-act="clear-insert-guides"]');
