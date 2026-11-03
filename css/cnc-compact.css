@@ -53,6 +53,8 @@
   .cne-overlay-draw .cne-quickbar--draw .cne-qb-num,
   .cne-overlay-draw .cne-quickbar--draw [data-act="pickFromCanvas"] { font-size: 15px; }
   /* Zmenšený: kratší oranžová lišta, víc místa na kód */
+  /* „X = poloměr" se tam už nevejde (tlačítko X dole ho říká taky) */
+  .cne-overlay-draw.cne-compact .cne-sn-mode { display: none; }
   .cne-overlay-draw.cne-compact .cne-sn-bar { min-height: 34px; padding-top: 2px; padding-bottom: 2px; }
   .cne-overlay-draw.cne-compact .cne-sn-close { width: 30px; height: 30px; top: 50%; }
 }
@@ -68,6 +70,9 @@
   }
   .cne-overlay-draw.cne-compact .cne-main { flex: 1 1 auto; height: auto; }
 }
+
+/* ⤢ zarámovat má smysl jen ve zmenšeném režimu (nad editorem je plátno) */
+.cne-overlay-draw:not(.cne-compact) .cne-sn-fit { display: none; }
 
 /* Malý náhled kontury nad kódem je ve zmenšeném režimu zbytečný – kreslí se na plátno */
 .cne-overlay-draw.cne-compact .cne-preview { display: none; }
@@ -120,7 +125,7 @@
 
 /* ── Číselné zadání: vlastní číselník na dotykových displejích (numPadBar.js) ── */
 .num-pad {
-  display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;
+  display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px;
   margin: 6px 0 8px;
 }
 .num-pad-key {
@@ -131,7 +136,8 @@
   touch-action: manipulation; -webkit-user-select: none; user-select: none;
 }
 .num-pad-key:active { background: var(--ctp-surface1); transform: translateY(1px); }
-.num-pad-next { grid-column: span 2; font: 700 14px/1 system-ui, sans-serif; color: var(--ctp-blue); }
+.num-pad-next { font: 700 14px/1 system-ui, sans-serif; color: var(--ctp-blue); }
+.num-pad-ok { font: 700 14px/1 system-ui, sans-serif; color: var(--ctp-base); background: var(--ctp-blue); border-color: var(--ctp-blue); }
 .num-pad-bs { color: var(--ctp-red); font: 700 22px/1 system-ui, sans-serif; }
 .num-pad-key[data-pad="kb"] { font: 400 22px/1 system-ui, sans-serif; color: var(--ctp-yellow); }
 .num-pad-key[data-pad="kb"].on { background: var(--ctp-yellow); color: var(--ctp-base); }

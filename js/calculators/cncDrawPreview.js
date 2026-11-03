@@ -135,3 +135,11 @@ export function movesBounds(an) {
   }
   return minX <= maxX ? { minX, maxX, minY, maxY } : null;
 }
+
+/** Vzdálenost bodu (x, y) od úsečky a–b (body jako [x, y]). */
+export function segDist(x, y, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const L = dx * dx + dy * dy;
+  const t = L ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / L)) : 0;
+  return Math.hypot(x - (a[0] + t * dx), y - (a[1] + t * dy));
+}

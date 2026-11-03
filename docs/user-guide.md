@@ -1463,6 +1463,8 @@ programů) to nedělá.
   G0 šedě, řádek s kurzorem žlutě). Plátno jde i posouvat a zoomovat. **⇱** vrátí
   editor přes celý displej. Výkres se tím nemění – přepíše se až po zavření / 🔄
   jako dřív. Volba obou tlačítek se pamatuje.
+  Ve zmenšeném režimu je navíc **⤢** – zarámuje celý náhled do plátna nad editorem. **Klepnutí
+  na čáru náhledu** na plátně skočí kurzorem na její řádek v kódu (na konec souřadnic).
 - **Lupa pro kurzor** (dotyk): podrž prst na kódu – nad prstem se ukáže okénko se
   zvětšeným textem a žlutým kurzorem; tahem prstu ho posuneš, puštěním tam kurzor zůstane.
 - **Číselník vpravo vedle kódu** (telefon na výšku): 7 8 9 / 4 5 6 / 1 2 3 / − 0 . –
@@ -2340,8 +2342,8 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   (přepínač nad poli): *Start + konec* (začátek, konec, poloměr a smysl —
   stejně jako `G02/G03 X.. Z.. R..`; navazuje na konec předchozího prvku)
   nebo *Střed + úhly* (střed, Start (°) + Konec (°), poloměr a smysl).
-  Na dotykovém displeji je pod poli **číselník** (1 2 3 4 5 6 7 8 / 9 0 . − ⌫ ⌨ Další ⇥):
-  píše do pole, do kterého jsi klepl, **Další ⇥** skočí na další pole. Systémová
+  Na dotykovém displeji je pod poli **číselník** (1 2 3 4 5 6 7 8 / 9 0 . − ⌫ ⌨ Další OK):
+  píše do pole, do kterého jsi klepl, **Další** skočí na další pole, **OK** vloží objekt (jako OK nahoře). Systémová
   klávesnice se nevysouvá; **⌨** ji zapne (třeba na výraz `200/3`).
   Když je poloměr kratší než půlka vzdálenosti obou bodů, oblouk nejde
   sestrojit a formulář napíše, jaké minimum je potřeba.

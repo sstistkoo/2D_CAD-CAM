@@ -4,6 +4,8 @@
 // ║   ▾  rozbalí / sbalí lišty (☰ panely, 🔍, 🔢… a Údaje)       ║
 // ║   ⇕  přepne editor přes celý displej ↔ zmenšený dole, nad     ║
 // ║      ním je vidět CAD plátno s živým náhledem psaného kódu    ║
+// ║   ⤢  (jen zmenšený) zarámuje náhled nad editor                ║
+// ║  Klepnutí na čáru náhledu na plátně → kurzor na její řádek    ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
 // Náhled se kreslí na hlavní plátno přes `bridge.renderCncLive` (volá ho
@@ -14,7 +16,7 @@
 import { bridge } from '../bridge.js';
 import { onOverlayRemoved } from '../dialogFactory.js';
 import { storageLoad, storageSave } from './gcodeEditorShared.js';
-import { W, movePoints, movesBounds } from './cncDrawPreview.js';
+import { W, movePoints, movesBounds, segDist } from './cncDrawPreview.js';
 import { setupLoupe } from './cncLoupe.js';
 
 const KEY_COMPACT = 'skica-cnc-editor-compact';
@@ -57,6 +59,8 @@ export function setupLiveView(overlay, { analysis, caretLine }) {
   setupLoupe(overlay);   // podržení prstu na kódu → lupa pro přesné umístění kurzoru
   const barsBtn = mk('cne-sn-bars', 'bars', 'Rozbalit / sbalit lišty (panely ☰, hledání, kalkulačka, Údaje a nápověda)');
   const sizeBtn = mk('cne-sn-size', 'size', 'Přepnout editor: přes celý displej ↔ zmenšený, nad ním plátno s tím, co kreslíš');
+  const fitBtn = mk('cne-sn-fit', 'fit', 'Zarámovat – celý náhled se vejde do plátna nad editorem');
+  fitBtn.textContent = '⤢';
 
   function render(c) {
     if (!compact || !data || !cv) return;
@@ -134,15 +138,69 @@ export function setupLiveView(overlay, { analysis, caretLine }) {
     const b = e.target.closest('[data-live-act]');
     if (!b) return;
     e.stopPropagation();
+    if (b.dataset.liveAct === 'fit') { fit(); bridge.renderAll?.(); return; }
     if (b.dataset.liveAct === 'bars') { barsOpen = !barsOpen; storageSave(KEY_BARS, barsOpen); apply(compact); }
     else { compact = !compact; storageSave(KEY_COMPACT, compact); apply(compact); }
   });
 
-  import('../canvas.js').then(m => { cv = m; apply(compact); }).catch(() => apply(false));
+  /** Řádek pohybu, jehož čára náhledu leží do `tol` px od bodu plátna (sx, sy), nebo -1. */
+  function lineAt(sx, sy, tol = 14) {
+    const an = data?.an;
+    if (!an || !cv) return -1;
+    const kar = !!an.opts?.karusel;
+    let best = -1, bestD = tol;
+    for (const mv of an.moves) {
+      const pts = movePoints(mv, kar).map(p => cv.worldToScreen(p.x, p.y));
+      for (let i = 1; i < pts.length; i++) {
+        const d = segDist(sx, sy, pts[i - 1], pts[i]);
+        // G1/G2/G3 má přednost před G0 se stejnou vzdáleností (G0 je jen nájezd)
+        if (d < bestD || (d === bestD && mv.g !== 0)) { bestD = d; best = mv.line; }
+      }
+    }
+    return best;
+  }
+
+  /** Kurzor na konec kódu řádku `ln` (před poznámku za středníkem). */
+  function caretToLine(ln) {
+    const ta = overlay.querySelector('.cne-textarea');
+    if (!ta) return;
+    const lines = ta.value.split('\n');
+    let idx = 0;
+    for (let i = 0; i < ln && i < lines.length; i++) idx += lines[i].length + 1;
+    const text = lines[ln] || '';
+    const semi = text.indexOf(';');
+    idx += semi >= 0 ? text.slice(0, semi).replace(/\s+$/, '').length : text.length;
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(idx, idx);
+    showCaret();
+    ta.dispatchEvent(new Event('keyup'));   // editor přepočte údaje i žlutou čáru
+  }
+
+  // Klepnutí (ne tah) na plátno ve zmenšeném režimu: čára náhledu → její řádek v kódu.
+  let tap = null;
+  const onDown = (e) => { tap = compact ? { x: e.clientX, y: e.clientY, t: Date.now() } : null; };
+  const onUp = (e) => {
+    if (!tap || !compact || !cv) return;
+    const moved = Math.hypot(e.clientX - tap.x, e.clientY - tap.y), dt = Date.now() - tap.t;
+    tap = null;
+    if (moved > 10 || dt > 500) return;
+    const r = cv.drawCanvas.getBoundingClientRect();
+    const ln = lineAt(e.clientX - r.left, e.clientY - r.top);
+    if (ln >= 0) caretToLine(ln);
+  };
+
+  import('../canvas.js').then(m => {
+    cv = m;
+    cv.drawCanvas?.addEventListener('pointerdown', onDown);
+    cv.drawCanvas?.addEventListener('pointerup', onUp);
+    apply(compact);
+  }).catch(() => apply(false));
   apply(false);
 
   onOverlayRemoved(overlay, () => {
     if (bridge.renderCncLive === render) bridge.renderCncLive = null;
+    cv?.drawCanvas?.removeEventListener('pointerdown', onDown);
+    cv?.drawCanvas?.removeEventListener('pointerup', onUp);
     data = null;
     bridge.renderAll?.();
   });

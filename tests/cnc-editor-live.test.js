@@ -1,6 +1,6 @@
 // Zmenšený CNC editor: geometrie živého náhledu na plátně (cncDrawPreview.js → cncEditorLive.js).
 import { describe, it, expect } from 'vitest';
-import { movePoints, movesBounds } from '../js/calculators/cncDrawPreview.js';
+import { movePoints, movesBounds, segDist } from '../js/calculators/cncDrawPreview.js';
 import { analyzeDrawCode } from '../js/calculators/cncDrawTools.js';
 
 const opts = { diam: false, karusel: false, flip: false };
@@ -28,5 +28,13 @@ describe('cncEditorLive – náhled na plátně', () => {
     const an = analyzeDrawCode('G0 X0 Z0\nG1 X40', { ...opts, karusel: true });
     expect(movesBounds(an)).toEqual({ minX: 0, maxX: 40, minY: 0, maxY: 0 });
     expect(movesBounds(analyzeDrawCode('', opts))).toBeNull();
+  });
+});
+
+describe('segDist (klepnutí na čáru náhledu)', () => {
+  it('vzdálenost od úsečky i za jejími konci', () => {
+    expect(segDist(5, 3, [0, 0], [10, 0])).toBe(3);
+    expect(segDist(13, 4, [0, 0], [10, 0])).toBe(5);
+    expect(segDist(1, 1, [0, 0], [0, 0])).toBeCloseTo(Math.SQRT2);
   });
 });

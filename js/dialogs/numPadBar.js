@@ -1,6 +1,6 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  SKICA – Číselné zadání: vlastní číselník (dotykové displeje) ║
-// ║  1 2 3 4 5 6 7 8 / 9 0 . − ⌫ ⌨ Další ⇥                       ║
+// ║  1 2 3 4 5 6 7 8 / 9 0 . − ⌫ ⌨ Další OK                      ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
 // Píše do posledního pole, do kterého uživatel klepl (X1, Z1, Délka…, nebo do
@@ -44,11 +44,11 @@ export function attachNumPad(container) {
 
   const pad = document.createElement('div');
   pad.className = 'num-pad';
-  const keys = [..."12345678", '9', '0', '.', '-', 'bs', 'kb', 'next'];   // číslice postupně 1…0
-  const label = { '-': '−', bs: '⌫', kb: '⌨', next: 'Další ⇥' };
-  const title = { '-': 'Mínus', '.': 'Desetinná tečka', bs: 'Smazat znak', kb: 'Systémová klávesnice zap / vyp', next: 'Další pole' };
+  const keys = [..."12345678", '9', '0', '.', '-', 'bs', 'kb', 'next', 'ok'];   // číslice postupně 1…0
+  const label = { '-': '−', bs: '⌫', kb: '⌨', next: 'Další', ok: 'OK' };
+  const title = { '-': 'Mínus', '.': 'Desetinná tečka', bs: 'Smazat znak', kb: 'Systémová klávesnice zap / vyp', next: 'Další pole', ok: 'OK – vloží objekt (jako tlačítko OK nahoře)' };
   pad.innerHTML = keys.map(k =>
-    `<button type="button" class="num-pad-key${k === 'next' ? ' num-pad-next' : ''}${k === 'bs' ? ' num-pad-bs' : ''}" data-pad="${k}" title="${title[k] || 'Číslice ' + k}">${label[k] || k}</button>`).join('');
+    `<button type="button" class="num-pad-key${k === 'next' ? ' num-pad-next' : ''}${k === 'ok' ? ' num-pad-ok' : ''}${k === 'bs' ? ' num-pad-bs' : ''}" data-pad="${k}" title="${title[k] || 'Číslice ' + k}">${label[k] || k}</button>`).join('');
   fields.after(pad);
 
   const syncKbBtn = () => pad.querySelector('[data-pad="kb"]').classList.toggle('on', sysKb);
@@ -69,6 +69,7 @@ export function attachNumPad(container) {
     const b = e.target.closest('[data-pad]');
     if (!b) return;
     const k = b.dataset.pad;
+    if (k === 'ok') { container.querySelector('#numOk')?.click(); return; }
     if (!target || !container.contains(target)) target = inputs()[0] || null;
     if (!target) return;
     if (k === 'kb') {
