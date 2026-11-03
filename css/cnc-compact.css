@@ -117,3 +117,24 @@
   position: absolute; width: 2px; margin-left: -1px;
   background: var(--ctp-yellow); box-shadow: 0 0 3px var(--ctp-yellow);
 }
+
+/* ── Číselné zadání: vlastní číselník na dotykových displejích (numPadBar.js) ── */
+.num-pad {
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;
+  margin: 6px 0 8px;
+}
+.num-pad-key {
+  all: unset; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  min-height: 38px; border-radius: 7px;
+  background: var(--ctp-surface0); border: 1px solid var(--ctp-surface1);
+  color: var(--ctp-text); font: 700 18px/1 "Consolas","Courier New",monospace;
+  touch-action: manipulation; -webkit-user-select: none; user-select: none;
+}
+.num-pad-key:active { background: var(--ctp-surface1); transform: translateY(1px); }
+.num-pad-next { grid-column: span 2; font: 700 14px/1 system-ui, sans-serif; color: var(--ctp-blue); }
+.num-pad-bs { color: var(--ctp-red); font: 700 22px/1 system-ui, sans-serif; }
+.num-pad-key[data-pad="kb"] { font: 400 22px/1 system-ui, sans-serif; color: var(--ctp-yellow); }
+.num-pad-key[data-pad="kb"].on { background: var(--ctp-yellow); color: var(--ctp-base); }
+@media (orientation: landscape) and (max-height: 500px) {
+  .num-pad-key { min-height: 30px; font-size: 15px; }
+}

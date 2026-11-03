@@ -13,6 +13,7 @@ import { openLineStyleDialog } from './lineStyleDialog.js';
 import { activeLineProps, activeLineStyle, lineContinuationProps, getLineStyle } from '../lineStyles.js';
 import { bridge } from '../bridge.js';
 import { worldToScreen, screenAngle, screenCCW, fitViewToWorldBounds, autoCenterView } from '../canvas.js';
+import { attachNumPad } from './numPadBar.js';
 
 // ── Numerický vstup – dialog pro přesné zadání souřadnic ──
 // Drátování spouštěcích tlačítek žije v js/ui.js (btnNumInput,
@@ -296,6 +297,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
   const root = container.closest('.calc-overlay') || container.closest('.input-overlay') || container;
   const typeSelect = container.querySelector("#numType");
   const fieldsDiv = container.querySelector("#numFields");
+  attachNumPad(container);   // dotyk: vlastní číselník místo systémové klávesnice (numPadBar.js)
 
   // Úsečka/konstr.: která dvojice polí je autoritativní pro createObject().
   // updateLineInfo() PŘEPISUJE nlen/nang jako informační zobrazení pokaždé,
