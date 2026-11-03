@@ -101,3 +101,19 @@
   /* Zmenšený: o něco vyšší pole kódu, ať jsou klávesy číselníku dost velké */
   .cne-overlay-draw.cne-compact .cne-main { height: clamp(132px, 22dvh, 180px); }
 }
+
+/* ── Lupa pro umístění kurzoru (podržení prstu na kódu, cncLoupe.js) ── */
+.cne-overlay-draw .cne-textarea { -webkit-touch-callout: none; }
+.cne-loupe {
+  position: fixed; z-index: 1000; overflow: hidden; pointer-events: none;
+  border-radius: 12px; border: 2px solid var(--ctp-yellow);
+  background: var(--ctp-base); box-shadow: 0 6px 20px rgba(0,0,0,.55);
+}
+.cne-loupe-inner {
+  position: absolute; transform-origin: 0 0;
+  white-space: pre; color: var(--ctp-text);
+}
+.cne-loupe-caret {
+  position: absolute; width: 2px; margin-left: -1px;
+  background: var(--ctp-yellow); box-shadow: 0 0 3px var(--ctp-yellow);
+}

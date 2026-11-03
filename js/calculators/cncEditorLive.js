@@ -15,6 +15,7 @@ import { bridge } from '../bridge.js';
 import { onOverlayRemoved } from '../dialogFactory.js';
 import { storageLoad, storageSave } from './gcodeEditorShared.js';
 import { W, movePoints, movesBounds } from './cncDrawPreview.js';
+import { setupLoupe } from './cncLoupe.js';
 
 const KEY_COMPACT = 'skica-cnc-editor-compact';
 const KEY_BARS = 'skica-cnc-editor-bars';
@@ -53,6 +54,7 @@ export function setupLiveView(overlay, { analysis, caretLine }) {
     pad.addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });   // fokus zůstane v kódu
     main.appendChild(pad);
   }
+  setupLoupe(overlay);   // podržení prstu na kódu → lupa pro přesné umístění kurzoru
   const barsBtn = mk('cne-sn-bars', 'bars', 'Rozbalit / sbalit lišty (panely ☰, hledání, kalkulačka, Údaje a nápověda)');
   const sizeBtn = mk('cne-sn-size', 'size', 'Přepnout editor: přes celý displej ↔ zmenšený, nad ním plátno s tím, co kreslíš');
 

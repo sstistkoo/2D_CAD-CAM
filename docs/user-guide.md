@@ -1463,6 +1463,8 @@ programů) to nedělá.
   G0 šedě, řádek s kurzorem žlutě). Plátno jde i posouvat a zoomovat. **⇱** vrátí
   editor přes celý displej. Výkres se tím nemění – přepíše se až po zavření / 🔄
   jako dřív. Volba obou tlačítek se pamatuje.
+- **Lupa pro kurzor** (dotyk): podrž prst na kódu – nad prstem se ukáže okénko se
+  zvětšeným textem a žlutým kurzorem; tahem prstu ho posuneš, puštěním tam kurzor zůstane.
 - **Číselník vpravo vedle kódu** (telefon na výšku): 7 8 9 / 4 5 6 / 1 2 3 / − 0 . –
   vkládá na kurzor, číslice za sebou bez mezer (X−12.5). Totéž platí pro číslice naležato.
 - **Průsečíky na plátně** (pravý panel): klepnutím se souřadnice vloží na kurzor.
