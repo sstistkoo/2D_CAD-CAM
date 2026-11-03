@@ -47,6 +47,7 @@ import { handleSendToCanvas as _handleSendToCanvas } from './cam/sim/sendToCanva
 import { openTangentLineModal as _openTangentLineModal } from './cam/sim/tangentLineModal.js';
 import { openInsertSegmentModal as _openInsertSegmentModal } from './cam/sim/insertSegmentModal.js';
 import { createCollisionValidation, createHolderGougeView } from './cam/sim/collisionWarnings.js';
+import { createXzSimView } from './cam/sim/xzSim.js';
 import { createSnap } from './cam/sim/snap.js';
 import { dropInsaneSavedProgram } from './cam/sim/programSanity.js';
 import { paramsPanelsHtml } from './cam/sim/paramsPanelsHtml.js';
@@ -76,22 +77,6 @@ import { nextBlockTarget } from './cam/sim/singleBlock.js'; import { sectionFini
 // nepřepočítává, dokud není prázdný nebo se neklikne „🔄 Dráhy"). Ruční úpravy
 // G-kódu ve STEJNÉ verzi zůstávají zachované.
 const PATH_LOGIC_VERSION = 3;
-
-// ── MATH HELPERS ───────────────────────────────────────────────
-// arcSteps, dist, EPSILON, TRIM_TOL, LOOP_INTERIOR_MIN, getNormal, vecAngle, normalizeAngle → přesunuto do cam/camMath.js
-// getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePocketGuides,
-// markDominatedGuides, bridgeBetweenContourPoints, bridgeFromContourToStock, buildMachinableContour,
-// normalizeContourDirection, spliceBridgeSegments, resolveOuterProfile, removeContourSelfIntersections,
-// trimAndRemoveLoops, extendOffsetStartToAxis, resolvePointsToAbsolute, foldContourToMachiningSide
-// → přesunuto do cam/contourBuild.js
-
-// drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal,
-// holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML,
-// chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses,
-// _renderInsertShapeFieldsHTML → přesunuto do cam/insertPreview.js
-
-// CAM_TOOL_KEYS, getCamToolGeometry, applyCamToolGeometry, DEFAULT_TOOL_MAGAZINE
-// → přesunuto do cam/camToolPicker.js
 
 export function openCamSimulator(initialContour, initialGCode) {
   // Během kreslení držáku na CAD plátně je CAM overlay schovaný a plátno
@@ -1452,6 +1437,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // hlídaly proti zrcadlovému obrazu. `tests/cam-collision-free` už správně
   // používá `roughingSide === 'left'`.
   const toolMirrored = () => (S.params.roughingSide || 'right') === 'left';
+  const xzSim = createXzSimView({ S, toolMirrored });   // karusel po X: simulace v prohozených osách
   // POZNÁMKA K VÝKONU (27. 8. 2026): `calculate()` volá dvacítka míst v UI
   // a každé spustí CELÝ výpočet (na reálném díle ~2,3 s). Memoizace přes
   // `pathInputsKey` byla ZKOUŠENA a ZAMÍTNUTA: sama o sobě rozbila 9 souborů
@@ -1520,7 +1506,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // (showSidebar je const až v EVENT WIRING → předává se líně)
   const { scheduleCollisionValidation } = createCollisionValidation({
     S, showSidebar: () => showSidebar(), renderTab, sidebar, showErrors, roughingKey, toolMirrored,
-    boreSimFor, preDrillPhase, boreRealIssues, borePhases,
+    boreSimFor, preDrillPhase, boreRealIssues, borePhases, xzSim,
   });
 
   // ── Vizuální úběr materiálu (Fáze 1 migrace na Clipper2) ──────
@@ -1533,6 +1519,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       _removal = null; _removalCalcRef = null; _removalOuter = null;
       return null;
     }
+    if (xzSim.active(calc)) return xzSim.removal(calc);
     const bs = boreSimFor(calc);
     if (bs) return inPreDrill(calc) ? preDrillRemoval(calc) : boreRemovalView(bs, calc);
     if (!_removal || _removalCalcRef !== calc) {
@@ -1561,6 +1548,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   function getRemovalOuterModel(calc, rm) {
     if (!rm || stockClearanceIsZero(S.params)) return null;   // čáry splývají
     if (S.params.boreActive) return null;   // vyvrtávání: pás patří vnějšímu polotovaru
+    if (xzSim.active(calc)) return xzSim.removalOuter(calc);
     if (!_removalOuter) {
       _removalOuter = new MaterialRemoval(S.params, calc.stockPathSegments, { planningOutline: true });
     }
@@ -1570,7 +1558,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
 
   // ── Kolize držáku s materiálem (oranžové varování) ── → cam/sim/collisionWarnings.js
-  const { getHolderGouge } = createHolderGougeView({ S, boreSimFor, inPreDrill, borePhases, boreLocalIdx, toolMirrored });
+  const { getHolderGouge } = createHolderGougeView({ S, boreSimFor, inPreDrill, borePhases, boreLocalIdx, toolMirrored, xzSim });
 
   // ── Zajetí do HOTOVÉ KONTURY (červené varování) ────────────────
   // Simulace ubrala materiál i tam, kde má stát hotový díl. Do 1. 9. 2026 to
@@ -1586,6 +1574,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (S.simProgress <= 0 || !calc || !calc.simPath || calc.simPath.length < 2 || radialFlip(S.params)) {   // zápich v díře: zápich na výkrese být nemusí
       return null;
     }
+    if (xzSim.active(calc)) return xzSim.contourGouge(calc);
     const bs = boreSimFor(calc);
     if (bs) {
       // Během vrtání se zajetí neukazuje: vnější kontura díru nemá (vyjmula ji

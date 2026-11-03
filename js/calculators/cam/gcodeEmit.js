@@ -46,8 +46,7 @@ export { ctrlCmt, buildControlHeaderLines, buildControlTailLines,
 // Volá se jen z tlačítka "🔄 Autorefresh drah" — výsledek přepíše
 // S.manualGCode (a tedy i editor a simulační dráhu).
 export function generateAutoGCode(S, calc) {
-  // Karusel „po X": program vznikne v prohozených osách a prohodí se zpět (cam/xzSwap.js).
-  if (swapsXZ(S)) return emitSwapped(S, calc, generateAutoGCode, computeCalculation, ctrlCmt(S.params.controlSystem));
+  if (swapsXZ(S)) return emitSwapped(S, calc, generateAutoGCode, computeCalculation, ctrlCmt(S.params.controlSystem));   // karusel po X (xzSwap.js)
   const prms = S.params;
   // Hlášení, na která se přijde až při EMISI (znají pořadí obrábění a
   // zbytkový polotovar, což calculate() ještě neví). S.errors sem psát

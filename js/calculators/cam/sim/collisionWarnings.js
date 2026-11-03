@@ -14,7 +14,7 @@ import { simStockArgs } from './grooveSim.js';
  * Validace kolizí držáku/destičky (Fáze 2 migrace na Clipper2).
  * @returns {{ scheduleCollisionValidation: () => void }}
  */
-export function createCollisionValidation({ S, showSidebar, renderTab, sidebar, showErrors, roughingKey, toolMirrored, boreSimFor, preDrillPhase, boreRealIssues, borePhases }) {
+export function createCollisionValidation({ S, showSidebar, renderTab, sidebar, showErrors, roughingKey, toolMirrored, boreSimFor, preDrillPhase, boreRealIssues, borePhases, xzSim = null }) {
   // Nezávislá křížová kontrola vygenerovaných drah: běží debounced po
   // fullUpdate(), výsledky přidává do S.errors (⚠ panel). Broad-phase je
   // AABB — SAT přes Detect-Collisions odtud 26. 8. 2026 zmizel, protože
@@ -90,12 +90,16 @@ export function createCollisionValidation({ S, showSidebar, renderTab, sidebar, 
       JSON.stringify(p.holderProfile || null),
       p.stockMode, p.stockDiameter, p.stockLength, p.stockFace,
       roughingKey(), toolMirrored(), (calc.stockPathSegments || []).length,
+      !!(xzSim && xzSim.active(calc)),
     ].join('');
     if (key !== _validatedKey) {
       _validatedKey = key;
       let trunc = null;
       const tr = (a) => { if (a && a.truncated && trunc !== 'blocks') trunc = a.truncated; return a; };
       try {
+        // Karusel po X: validuje se v prohozených osách se svislým držákem
+        // (cam/sim/xzSim.js), nálezy se prohodí zpátky.
+        const xz = xzSim && xzSim.active(calc) ? xzSim.validate(calc) : null;
         // Vyvrtávání: validuje se v zrcadle drah (viz boreSimFor), souřadnice
         // nálezů se překlopí zpátky.
         const bs = boreSimFor(calc);
@@ -104,7 +108,7 @@ export function createCollisionValidation({ S, showSidebar, renderTab, sidebar, 
         const drillIssues = pre
           ? tr(validateToolpath(calc.simPath.slice(0, pre.iSplit + 1), pre.params, calc.stockPathSegments, { backside: toolMirrored(), planStock: true }))
           : [];
-        _lastIssues = bs
+        _lastIssues = xz ? tr(xz.issues) : bs
           ? drillIssues.concat(tr(boreRealIssues(bs, calc)).map(it => ({ kind: it.kind, lineIdx: it.lineIdx, x: it.x, z: it.z, area: it.area })), borePhases(bs).flatMap(b => tr(validateToolpath(b.calcM.simPath, b.params, b.calcM.stockPathSegments, { backside: false, planStock: true }))
             .map(it => ({ ...it, x: b.g.rRef - it.x }))))
           // Zápich v díře: polotovar bez díry (grooveSim.js), nástroj obrácený radiálně.
@@ -118,7 +122,7 @@ export function createCollisionValidation({ S, showSidebar, renderTab, sidebar, 
         _issuesTruncated = trunc;
         // Nástroj nesmí začínat v materiálu (cam/startCheck.js) — okno s odkazem
         // na Bezpečnou polohu se ukáže jen při změně vstupů, ne při každém překreslení.
-        const st = bs ? null : startInMaterial(p, calc, { backside: toolMirrored() });
+        const st = xz ? xz.start : bs ? null : startInMaterial(p, calc, { backside: toolMirrored() });
         if (st) {
           _lastIssues = _lastIssues.concat([{ kind: 'start', lineIdx: null, x: st.x, z: st.z, area: st.area, what: st.what }]);
           // Okno jen při PŘECHODU „mimo → v materiálu" — při ladění Bp (psaní čísla)
@@ -167,7 +171,7 @@ export function createCollisionValidation({ S, showSidebar, renderTab, sidebar, 
  * Kolize držáku s materiálem (oranžové varování) pro kreslení simulace.
  * @returns {{ getHolderGouge: (calc) => ({ hard, band } | null) }}
  */
-export function createHolderGougeView({ S, boreSimFor, inPreDrill, borePhases, boreLocalIdx, toolMirrored }) {
+export function createHolderGougeView({ S, boreSimFor, inPreDrill, borePhases, boreLocalIdx, toolMirrored, xzSim = null }) {
   // AKUMULOVANÁ stopa vnoření: stopa obrysu držáku podél projeté dráhy ×
   // zbývající materiál v daném okamžiku (HolderGouge). Na rozdíl od okamžité
   // kontroly oblast ZŮSTANE oranžová i po přejetí — je to záznam, kde všude
@@ -185,6 +189,7 @@ export function createHolderGougeView({ S, boreSimFor, inPreDrill, borePhases, b
     if (S.simProgress <= 0 || !calc || !calc.simPath || calc.simPath.length < 2) {
       return null;
     }
+    if (xzSim && xzSim.active(calc)) return xzSim.holderGouge(calc);   // karusel po X (xzSim.js)
     const bs = boreSimFor(calc);
     if (bs) {
       if (inPreDrill(calc)) return null;   // vrták: pouzdro jede jen v ose (⛔ hlídá validátor)

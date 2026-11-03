@@ -12,7 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CAM karusel: ⟲ Po X jako podélně** (`cam/xzSwap.js`, přepínač v Obrábění, jen karusel, výchozí vypnuto):
   hrubování v prohozených osách X ↔ Z – ↔ Čelně a ⇅ Cik cak jedou po X vyladěným podélným algoritmem, nůž
   svisle ze smykadla; G-kód se prohodí zpět (X↔Z, G2↔G3). Na dílu uživatele 29 porušení pravidel místo 44,
-  0 kolizí místo 10. Zatím bez mezí, Po úsecích a otočeného náhledu držáku – plán v `docs/plan-karusel-po-x.md`.
+  0 kolizí místo 10. Zatím bez mezí a Po úsecích – plán v `docs/plan-karusel-po-x.md`.
+- **CAM karusel po X: simulace se svislým držákem** (`cam/sim/xzSim.js`): úběr, ⛔ kontrola kolizí, start
+  v materiálu, oranžová stopa držáku i zajetí do kontury se počítají v prohozených osách (jako vyvrtávání
+  v zrcadle) a výsledek se prohodí zpět – zmizelo 12 falešných kolizí vodorovného držáku soustruhu.
+  Skript `scripts/cam_swap_xz.mjs` uloží prohozený `.camprog` pro `cam_rules_check`.
 - **CAD: 🛠 Úpravy výkresu** (`dialogs/drawingEditsDialog.js`, `drawingEditOps.js`, `render/straightCheck.js`):
   tlačítko v liště místo *Smaž vše* (to zůstává v Nastavení). Okno: uzavřít konturu po osách X/Z, uzavřít
   polotovar ke kontuře, kontrola a oprava (mezery, nepřesnosti, zdvojení), 📏 zvýraznění vodorovných/svislých

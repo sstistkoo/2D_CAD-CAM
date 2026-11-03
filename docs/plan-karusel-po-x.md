@@ -51,27 +51,32 @@ otisku `pathInputsKey` nepočítá.
 
 ## Neověřeno
 
-- **`npm test` (celá sada vč. CAM) jsem nepustil.** Uživatel testy zastavil.
-  Zásah do `cam/**` ji vyžaduje, pustit ji jako první krok.
-- V aplikaci (prohlížeč) jsem to nezkoušel.
+- V aplikaci (prohlížeč) to zatím nikdo nezkoušel.
 
 ## Další kroky (pořadí podle důležitosti)
 
-1. **`npm test`** – celá sada jednou. Padající test nejdřív ověřit proti HEAD
-   (worktree), viz paměť „HEAD může být červený“.
-2. **Simulátor kreslí nůž a držák po staru (vodorovně).** Dráhy počítají se
-   svislým držákem, ale náhled destičky/držáku a validátor kolizí v reálném
-   světě (`holderWorldLoop`, `collisionValidator.js`, kreslení v `cam/sim/`)
-   berou držák soustruhu. Při `swapsXZ` je musí otočit (prohodit X ↔ Z),
-   jinak se v ⚠ panelu objeví falešné kolize a náhled nesedí.
+1. ✅ **`npm test`** – 3. 11. 2026 večer celá sada zelená (299 souborů, 3628 testů).
+   HEAD byl červený jen v `file-size-budget` (gcodeEmit.js o 1 ř. nad stropem) – opraveno.
+2. ✅ **Simulace se svislým držákem** (3. 11. 2026, `cam/sim/xzSim.js`). Úběr,
+   ⛔ validátor, start v materiálu, stopa držáku (`HolderGouge`) i zajetí do
+   kontury (`ContourGouge`) se při `swapsXZ` počítají v prohozeném světě nad
+   `calc._xz` (vzor jako vyvrtávání v zrcadle, `boreSimFor`). Dráha = skutečná
+   `calc.simPath` prohozená bod po bodu (shodná s dráhou parsovanou v
+   prohozeném světě, hlídá test). Na dílu uživatele: skutečný svět 12 nálezů,
+   prohozený 0; zůstává start v materiálu (Bp X150 Z5) a zajetí do dílu
+   závěrečným přejezdem do Bp (svislý pruh u X150). Kreslení nože se neměnilo:
+   lokální obrys (profil z nahoru) v pohledu karuselu (X vodorovně, Z svisle)
+   už odpovídá svislému noži — ověřit okem v aplikaci (krok 3).
 3. **Vyzkoušet v aplikaci** na `projekt_2026-11-03 (2)`. Uživatel musí opravit
    **bezpečnou polohu X150 Z5**: leží v materiálu a program na konci sjede
    přes díl. Bez prohození tam jel dokonce rychloposuvem. Nastavit Z nad díl.
-4. **Nástroj na měření pravidel v prohozeném světě:** skript
-   `scripts/cam_swap_xz.mjs soubor.camprog` uloží prohozený `.camprog`
-   (`swapState`), na který jde pustit `cam_rules_check`. Kontrola v reálném
-   světě měří s vodorovným držákem, dokud se neudělá krok 2.
-5. **Zbylá porušení (29)** řešit po jednom pravidle (1 sezení = 1 pravidlo,
+4. ✅ **Měření pravidel v prohozeném světě:** `node scripts/cam_swap_xz.mjs
+   soubor.camprog` uloží `soubor.swapxz.camprog` (`swapState`), na něj
+   `cam_rules_check`. Měření 3. 11. večer (fixture `carousel-face-swap-xz`,
+   ↔ Čelně): **33** porušení, 0 kolizí — P5 posuv vzduchem 22, P3 zbytek na
+   dně 5, P3 tenká vrstva 2, P3 tříska > ap 1, P7 přes hrb 2, P6 zanoření 1.
+   (Odpoledních 29 bylo měřeno jinou cestou; výchozí hodnota pro krok 5 je 33.)
+5. **Zbylá porušení (33)** řešit po jednom pravidle (1 sezení = 1 pravidlo,
    `docs/cam-pravidla.md`). Jde o tentýž podélný algoritmus jako na soustruhu,
    takže oprava pomůže oběma. Hlídat otisk soustruhových fixtures.
 6. **Meze a rozsahy:** dnes jsou v prohozeném světě vypnuté (varování v ⚠).

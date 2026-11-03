@@ -9,6 +9,8 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { swapGCodeText, swapsXZ, swapPointsIn } from '../js/calculators/cam/xzSwap.js';
+import { createXzSimView } from '../js/calculators/cam/sim/xzSim.js';
+import { validateToolpath } from '../js/calculators/cam/collisionValidator.js';
 
 const FIX = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'cam-cases', 'carousel-face-swap-xz.camprog');
 const load = () => JSON.parse(readFileSync(FIX, 'utf8'));
@@ -77,6 +79,27 @@ describe('karusel po X na dílu uživatele', () => {
     expect(Math.max(...on.calc.worldPoints.map(p => p.zReal))).toBeCloseTo(189, 3);
     // Bezpečná poloha X150 Z5 leží v polotovaru → varování.
     expect(on.errors.some(e => /Bezpečná poloha/.test(e.msg || ''))).toBe(true);
+  });
+
+  it('simulace v prohozených osách (sim/xzSim.js): svislý držák, žádné falešné kolize', () => {
+    const c = on.calcSim;
+    const v = createXzSimView({ S: { params: on.params, simProgress: 1 }, toolMirrored: () => false });
+    expect(v.active(c)).toBe(true);
+    // Prohozená skutečná dráha = dráha parsovaná v prohozeném světě.
+    const a = c._xz.calc.simPath;
+    expect(a.length).toBe(c.simPath.length);
+    for (let i = 0; i < a.length; i++) expect(Math.hypot(a[i].x - c.simPath[i].z, a[i].z - c.simPath[i].x)).toBeLessThan(1e-9);
+    // Vodorovný držák soustruhu ve skutečném světě hlásí falešné kolize,
+    // svislý v prohozeném žádné. Start v materiálu (Bp X150 Z5) zůstává.
+    expect(validateToolpath(c.simPath, on.params, c.stockPathSegments, { planStock: true }).length).toBeGreaterThan(0);
+    const r = v.validate(c);
+    expect(r.issues).toEqual([]);
+    expect(r.start).toMatchObject({ x: 150, z: 5 });
+    // Úběr a zajetí do kontury se vrací ve skutečných osách: jediné zajetí
+    // je závěrečný přejezd do Bp X150 skrz díl (svislý pruh kolem X150).
+    expect(v.removal(c).model.loops.length).toBeGreaterThan(0);
+    const cg = v.contourGouge(c) || [];
+    for (const l of cg) for (const p of l) expect(Math.abs(p.x - 150)).toBeLessThan(6);
   });
 
   it('vypnuto: beze změny (žádné prohození)', () => {
