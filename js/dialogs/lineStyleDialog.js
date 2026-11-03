@@ -27,7 +27,10 @@ function previewSvg(st) {
 export function openLineStyleDialog({ active = false, onApply, onDeactivate } = {}) {
   // Pracovní kopie – při „Zrušit" se nic nemění
   let key = getLineStyle(state.lineStyle.key).key;
-  let color = state.lineStyle.color;
+  // Barva zvlášť pro konturu a polotovar – swatche ukazují barvu režimu,
+  // který je v hlavičce právě zvolený.
+  const colors = { contour: state.lineStyle.color || null, stock: state.lineStyle.stockColor || null };
+  const modeKey = () => (state.drawStockMode ? 'stock' : 'contour');
   let aux = state.lineStyle.aux;
 
   const rows = LINE_STYLES.map(st => `
@@ -56,12 +59,12 @@ export function openLineStyleDialog({ active = false, onApply, onDeactivate } = 
       <label class="line-style-section-label">Barva</label>
       <div class="color-swatch-row line-style-swatches">
         <button type="button" class="color-swatch-btn line-style-swatch-auto" data-color=""
-                title="Podle vrstvy">A</button>
+                title="Podle vrstvy (kontura modře, polotovar červeně)">A</button>
         ${swatches}
       </div>
       <div class="line-style-custom">
         <label for="lsCustom">Vlastní:</label>
-        <input type="color" id="lsCustom" value="${color || '#89b4fa'}">
+        <input type="color" id="lsCustom" value="${colors[modeKey()] || '#89b4fa'}">
       </div>
       <label class="line-style-aux">
         <input type="checkbox" id="lsAux"${aux ? ' checked' : ''}>
@@ -90,7 +93,9 @@ export function openLineStyleDialog({ active = false, onApply, onDeactivate } = 
   }
 
   function syncSwatches() {
+    const color = colors[modeKey()];
     swatchBtns.forEach(b => b.classList.toggle('active', (b.dataset.color || '') === (color || '')));
+    if (color) customInp.value = color;
   }
 
   // Výběr typu čáry – přepne i výchozí příznak „pomocná čára"
@@ -106,14 +111,13 @@ export function openLineStyleDialog({ active = false, onApply, onDeactivate } = 
 
   swatchBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      color = btn.dataset.color || null;
-      if (color) customInp.value = color;
+      colors[modeKey()] = btn.dataset.color || null;
       syncSwatches();
     });
   });
 
   customInp.addEventListener('input', () => {
-    color = customInp.value;
+    colors[modeKey()] = customInp.value;
     syncSwatches();
   });
 
@@ -129,13 +133,15 @@ export function openLineStyleDialog({ active = false, onApply, onDeactivate } = 
     state.drawStockMode = !state.drawStockMode;
     stockLabel.textContent = state.drawStockMode ? 'Polotovar' : 'Kontura';
     stockToggle.classList.toggle('active', state.drawStockMode);
+    syncSwatches();
     // Aktualizovat popisek tlačítka Typ čáry
     refreshLineStyleBtn();
   });
 
   function accept() {
     state.lineStyle.key = key;
-    state.lineStyle.color = color;
+    state.lineStyle.color = colors.contour;
+    state.lineStyle.stockColor = colors.stock;
     state.lineStyle.aux = aux;
     saveLineStylePref();
     refreshLineStyleBtn();

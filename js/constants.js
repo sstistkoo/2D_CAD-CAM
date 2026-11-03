@@ -28,7 +28,7 @@ const DARK_COLORS = {
   surfaceHover:  '#45475a',
   border:        '#585b70',
   yellow:        '#f9e2af',
-  stock:         '#fab387',
+  stock:         '#e53935',   // polotovar červeně (uživatel 3. 11. 2026; dřív peach)
 };
 
 // ── Catppuccin Latte – světlé barvy ─────────────────────────
@@ -53,7 +53,7 @@ const LIGHT_COLORS = {
   surfaceHover:  '#bcc0cc',
   border:        '#acb0be',
   yellow:        '#df8e1d',
-  stock:         '#fe640b',
+  stock:         '#d20f39',
 };
 
 export const COLORS = { ...DARK_COLORS };

@@ -13,6 +13,7 @@ import { bridge } from '../bridge.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { setMachineType } from './statusButtons.js';
 import { showHistoryDialog } from './drawingHistory.js';
+import { contourDefaultColor, stockDefaultColor, setDrawColorPrefs } from '../drawColorPrefs.js';
 import { fullscreenButtonHTML, wireFullscreenButton } from '../fullscreen.js';
 import { applyTheme, persistSettings, toggleAngleSnap, toggleSnapGrid, updateCoordModeBtn, updateDimsBtn, updateXDisplayBtn } from '../ui.js';
 
@@ -94,6 +95,11 @@ export function showSettingsDialog() {
         <div style="display:flex;gap:6px;margin-top:6px">
           <button class="calc-btn" id="settContourGaps" style="${btnS}${act(state.showContourGaps)}" title="Zvýraznit mezery/přerušení v kontuře na plátně">⊗ Mezery v kontuře: ${state.showContourGaps ? 'ON' : 'OFF'}</button>
           <button class="calc-btn" id="settCheckDrawing" style="${btnS}${act(false)}" title="Najít drobné chyby (mezery, konce u osy, skoro rovné čáry) a nabídnout opravu">🔧 Zkontrolovat výkres</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:6px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--ctp-subtext0)" title="Výchozí barva vrstev Kontura a Polotovar (pamatuje si zařízení) – i pro „A“ v Typu čáry a Normalizovat barvy">
+          <label style="display:flex;align-items:center;gap:4px">Kontura <input type="color" id="settContourColor" value="${contourDefaultColor()}" style="width:36px;height:26px;padding:0;border:none;background:none"></label>
+          <label style="display:flex;align-items:center;gap:4px">Polotovar <input type="color" id="settStockColor" value="${stockDefaultColor()}" style="width:36px;height:26px;padding:0;border:none;background:none"></label>
+          <button class="calc-btn" id="settDrawColorsReset" style="${btnS}${act(false)};flex:0 0 auto" title="Vrátit výchozí barvy (kontura modrá, polotovar červená)">↺ Výchozí</button>
         </div>
       </fieldset>
 
@@ -270,6 +276,20 @@ export function showSettingsDialog() {
     renderAll();
     persistSettings();
     showToast(state.showContourGaps ? 'Zvýraznění mezer v kontuře: ON' : 'Zvýraznění mezer v kontuře: OFF');
+  });
+
+  // ── Výchozí barvy kontury a polotovaru (drawColorPrefs.js) ──
+  const cInp = overlay.querySelector('#settContourColor');
+  const sInp = overlay.querySelector('#settStockColor');
+  cInp.addEventListener('change', () => { setDrawColorPrefs({ contour: cInp.value }); bridge.updateLayerList?.(); renderAll(); showToast('Barva kontury uložena'); });
+  sInp.addEventListener('change', () => { setDrawColorPrefs({ stock: sInp.value }); bridge.updateLayerList?.(); renderAll(); showToast('Barva polotovaru uložena'); });
+  overlay.querySelector('#settDrawColorsReset').addEventListener('click', () => {
+    setDrawColorPrefs({ contour: null, stock: null });
+    cInp.value = contourDefaultColor();
+    sInp.value = stockDefaultColor();
+    bridge.updateLayerList?.();
+    renderAll();
+    showToast('Barvy kontury a polotovaru: výchozí');
   });
 
   // ── Kontrola výkresu (dialogs/drawingFixes.js) — i dřív odmítnuté opravy ──

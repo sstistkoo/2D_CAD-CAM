@@ -4,6 +4,7 @@
 
 import { state, showToast, pushUndo, ensureStockLayer } from '../state.js';
 import { COLORS } from '../constants.js';
+import { contourDefaultColor, stockDefaultColor } from '../drawColorPrefs.js';
 import { updateObjectList, updateProperties, updateLayerList, updateStatusProject, updateMachineTypeBtn, updateXDisplayBtn, updateNullPointUI, updateDimsBtn } from '../ui.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { saveProjectToDB, loadProjectFromDB, deleteProjectFromDB, getAllProjects, setMeta, getMeta } from '../idb.js';
@@ -226,10 +227,10 @@ export function newProject() {
   state.intersections = [];
   state.projectName = 'Bez názvu';
   state.layers = [
-    { id: 0, name: 'Kontura', color: COLORS.primary, visible: true, locked: false },
+    { id: 0, name: 'Kontura', color: contourDefaultColor(), visible: true, locked: false },
     { id: 1, name: 'Konstrukce', color: COLORS.construction, visible: true, locked: false },
     { id: 2, name: 'Kóty', color: COLORS.dimension, visible: true, locked: false },
-    { id: 3, name: 'Polotovar', color: COLORS.stock, visible: true, locked: false },
+    { id: 3, name: 'Polotovar', color: stockDefaultColor(), visible: true, locked: false },
   ];
   state.activeLayer = 0;
   state.nextLayerId = 4;

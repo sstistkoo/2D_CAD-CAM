@@ -135,6 +135,20 @@ describe('simulátor — záložka Parametry', () => {
     expect(S.params.respectInsertGeometry).toBe(!was);
   });
 
+  it('karusel: Podélně první, Čelně druhé, šipky otočené o 90° (uživatel 3. 11. 2026)', async () => {
+    const { S } = sim;
+    const was = S.params.machineStructure;
+    S.machiningConfigOpen = true; S.machiningSubTab = 'hrub';
+    const rough = () => [...tab().querySelectorAll('[data-rough]')].map(b => b.textContent.trim());
+    S.params.machineStructure = 'carousel';
+    await showParams();
+    expect(rough().slice(0, 2)).toEqual(['↕ Podélně (Z)', '↔ Čelně (X)']);
+    S.params.machineStructure = 'lathe';
+    await showParams();
+    expect(rough().slice(0, 2)).toEqual(['↓ Čelně (X)', '↔ Podélně (Z)']);
+    S.params.machineStructure = was;
+  });
+
   it('nůž: tvar destičky z tlačítek tvaru', async () => {
     const { S } = sim;
     S.toolConfigOpen = true;

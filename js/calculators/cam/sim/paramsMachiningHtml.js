@@ -21,7 +21,12 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
   let html = '';
   const _machOpen = S.machiningConfigOpen;
   const _fmtNum = (v) => String(v).replace('.', ',');
-  const _stratIcon = prms.roughingStrategy === 'face' ? '↓' : prms.roughingStrategy === 'zigzag' ? '⇋' : '↔';
+  // Karusel = plátno otočené o 90° proti soustruhu: čelně (po X) jede
+  // vodorovně, podélně (po Z) svisle — šipky i pořadí tlačítek podle toho
+  // (uživatel 3. 11. 2026). Strategie samy se nemění.
+  const _car = prms.machineStructure === 'carousel';
+  const _ico = _car ? { face: '↔', longitudinal: '↕', zigzag: '⇅' } : { face: '↓', longitudinal: '↔', zigzag: '⇋' };
+  const _stratIcon = _ico[prms.roughingStrategy] || _ico.longitudinal;
   const _sideIcon = prms.roughingSide === 'left' ? '→' : '←';
   const _surfIcon = programInner(prms) ? '◎' : '';
   const _machSubTab = S.machiningSubTab || 'hrub';
@@ -50,10 +55,17 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
   </button>
   <div class="cam-sim-machine-body${_machOpen ? '' : ' cam-sim-collapsed'}">
     <div class="cam-sim-toggle-row">
-      <button data-rough="face" class="${prms.roughingStrategy === 'face' ? 'cam-sim-active' : ''}">↓ Čelně (X)</button>
-      ${getInsert(prms).longRoughing === false ? '' : `<button data-rough="longitudinal" class="${prms.roughingStrategy === 'longitudinal' ? 'cam-sim-active' : ''}">↔ Podélně (Z)</button>`}
-      ${getInsert(prms).zigzagPockets ? `<button data-rough="zigzag" class="${prms.roughingStrategy === 'zigzag' ? 'cam-sim-active' : ''}" title="Jako Podélně, ale vrstva za hrbolem, která by vyjela do prázdného prostoru, se vezme obráceně — ze vzduchu ke stěně, bez zanoření. Jen kulatá destička v držáku užším než destička (🔧 SRDPN úzký)">⇋ Cik cak</button>` : ''}
+      ${(() => {
+        const face = `<button data-rough="face" class="${prms.roughingStrategy === 'face' ? 'cam-sim-active' : ''}" title="Průchody po ose X (${_car ? 'na karuselu vodorovně' : 'svisle'})">${_ico.face} Čelně (X)</button>`;
+        const long = getInsert(prms).longRoughing === false ? '' : `<button data-rough="longitudinal" class="${prms.roughingStrategy === 'longitudinal' ? 'cam-sim-active' : ''}" title="Průchody po ose Z (${_car ? 'na karuselu svisle' : 'vodorovně'})">${_ico.longitudinal} Podélně (Z)</button>`;
+        const zig = getInsert(prms).zigzagPockets ? `<button data-rough="zigzag" class="${prms.roughingStrategy === 'zigzag' ? 'cam-sim-active' : ''}" title="Jako Podélně, ale vrstva za hrbolem, která by vyjela do prázdného prostoru, se vezme obráceně — ze vzduchu ke stěně, bez zanoření. Jen kulatá destička v držáku užším než destička (🔧 SRDPN úzký)">${_ico.zigzag} Cik cak</button>` : '';
+        return _car ? long + face + zig : face + long + zig;
+      })()}
     </div>
+    ${_car ? `<div class="cam-sim-checkbox-row" data-tooltip="Karusel: hrubování v prohozených osách X ↔ Z — ↔ Čelně a ⇅ Cik cak jedou po X vyladěným podélným algoritmem (úseky kapes, hrby, zanořování, hlídání držáku), nůž svisle dolů ze smykadla. Zatím bez mezí čelistí/rozsahů a Po úsecích; závit, vrtání, vyvrtávání a upich počítají postaru (cam/xzSwap.js).">
+      <input type="checkbox" id="cam-sim-carousel-swap" ${prms.carouselSwapXZ ? 'checked' : ''}>
+      <span>⟲ Po X jako podélně (nůž ze smykadla)</span>
+    </div>` : ''}
     <div class="cam-sim-toggle-row">
       <button data-side="left" class="${prms.roughingSide === 'left' ? 'cam-sim-active' : ''}" title="Druhá strana — zaber zleva doprava (zprava nelze, narazil by držák / geometrie destičky), omezeno 📐 Rozsahem obrábění">→ Zleva</button>
       <button data-side="right" class="${(prms.roughingSide || 'right') === 'right' ? 'cam-sim-active' : ''}" title="Zaber zprava doleva (standard)">← Zprava</button>

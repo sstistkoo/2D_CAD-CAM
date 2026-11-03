@@ -331,9 +331,14 @@ export const state = {
   // Režim kreslení polotovaru – nové objekty se značí isStock a kreslí se jinou barvou
   drawStockMode: false,
   // Volba nástroje „Typ čáry" (tlačítko v liště) – viz js/lineStyles.js.
-  // `key` = typ dle ČSN EN ISO 128, `color` = null → podle vrstvy,
-  // `aux` = pomocná čára (zakládá se jako 'constr', mimo konturu a CAM).
-  lineStyle: { key: 'constr', color: null, aux: true },
+  // `key` = typ dle ČSN EN ISO 128, `color` / `stockColor` = barva pro
+  // kreslení kontury / polotovaru (null → podle vrstvy), `aux` = pomocná
+  // čára (zakládá se jako 'constr', mimo konturu a CAM).
+  lineStyle: { key: 'constr', color: null, stockColor: null, aux: true },
+  // 📏 Kontrola rovných čar (dialog Úpravy výkresu): vodorovné/svislé úsečky
+  // zeleně, skoro rovné červeně – jen překryv při vykreslení, barvy objektů
+  // se nemění (render/straightCheck.js).
+  straightCheck: false,
   // Zapnuto po potvrzení dialogu „Typ čáry" – zvolený typ/barva se pak
   // uplatní na VŠECHNY nově kreslené objekty (úsečka, kružnice, oblouk,
   // obdélník, kontura), ne jen na úsečku. Vypíná se tlačítkem „Vypnout".

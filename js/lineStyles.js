@@ -98,6 +98,17 @@ export function activeLineStyle() {
   return getLineStyle(state.lineStyle.key);
 }
 
+/**
+ * Zvolená barva pro AKTUÁLNÍ režim kreslení – kontura a polotovar si barvu
+ * pamatují každý zvlášť (null = podle vrstvy: Kontura modrá, Polotovar
+ * červená). Uživatel 3. 11. 2026: barva zvolená pro polotovar se po
+ * přepnutí zpět na konturu přenesla i do kontury.
+ * @returns {string|null}
+ */
+export function modeColor() {
+  return (state.drawStockMode ? state.lineStyle.stockColor : state.lineStyle.color) || null;
+}
+
 // ── Vykreslování ────────────────────────────────────────────
 
 /**
@@ -139,7 +150,8 @@ export function activeLineProps() {
     dashed: st.dash.length > 0,
   };
   if (aux && !st.infinite) props.finite = true;
-  if (state.lineStyle.color) props.color = state.lineStyle.color;
+  const color = modeColor();
+  if (color) props.color = color;
   return props;
 }
 
@@ -183,13 +195,18 @@ export function activeShapeStyleProps() {
   const st = activeLineStyle();
   /** @type {Record<string, any>} */
   const props = { lineStyle: st.key, dashed: st.dash.length > 0 };
-  if (state.lineStyle.color) props.color = state.lineStyle.color;
+  const color = modeColor();
+  if (color) props.color = color;
   return props;
 }
 
 // ── Perzistence volby (localStorage) ────────────────────────
 
 const LS_KEY = 'skica-line-style';
+// v2 = barva zvlášť pro konturu (`color`) a polotovar (`stockColor`). Starší
+// uložená jediná barva se nepřebírá – platila pro oba režimy a právě ta
+// přebarvovala konturu (výchozí je zas barva podle vrstvy).
+const LS_VERSION = 2;
 
 /** Načte poslední volbu typu čáry z localStorage do `state.lineStyle`. */
 export function loadLineStylePref() {
@@ -199,7 +216,9 @@ export function loadLineStylePref() {
     const saved = JSON.parse(raw);
     const st = getLineStyle(saved.key);
     state.lineStyle.key = st.key;
-    state.lineStyle.color = typeof saved.color === 'string' ? saved.color : null;
+    const v2 = saved.v === LS_VERSION;
+    state.lineStyle.color = v2 && typeof saved.color === 'string' ? saved.color : null;
+    state.lineStyle.stockColor = v2 && typeof saved.stockColor === 'string' ? saved.stockColor : null;
     state.lineStyle.aux = typeof saved.aux === 'boolean' ? saved.aux : st.aux;
   } catch { /* neplatná/nedostupná předvolba – zůstane výchozí */ }
 }
@@ -207,7 +226,7 @@ export function loadLineStylePref() {
 /** Uloží aktuální volbu typu čáry do localStorage. */
 export function saveLineStylePref() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(state.lineStyle));
+    localStorage.setItem(LS_KEY, JSON.stringify({ ...state.lineStyle, v: LS_VERSION }));
   } catch { /* localStorage nedostupné (private mode) */ }
 }
 
@@ -234,7 +253,7 @@ export function refreshLineStyleBtn() {
     seg.setAttribute('stroke-dasharray', st.dash.length ? st.dash.map(d => d / 2).join(' ') : 'none');
     seg.setAttribute('stroke-width', String(st.width >= 2 ? 3 : 1.5));
   }
-  if (icon) icon.style.color = state.lineStyle.color || '';
+  if (icon) icon.style.color = modeColor() || '';
 
   btn.title = `${st.label} – ${st.use}`
     + (state.lineStyle.aux ? ' · pomocná čára (mimo konturu a CAM)' : ' · součást kontury')

@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v719';
+const CACHE_NAME = 'skica-v722';
 const ASSETS = [
   './',
   './index.html',
@@ -204,6 +204,7 @@ const ASSETS = [
   './js/calculators/cam/toolOffset.js',
   './js/calculators/cam/toolRadialFlip.js',
   './js/calculators/cam/toolSlotPreview.js',
+  './js/calculators/cam/xzSwap.js',
   './js/calculators/cam/zMirror.js',
   './js/calculators/camEditor.js',
   './js/calculators/camSimulator.js',
@@ -324,6 +325,8 @@ const ASSETS = [
   './js/dialogs/combinedModal.js',
   './js/dialogs/contourCheck.js',
   './js/dialogs/dimension.js',
+  './js/dialogs/drawingEditOps.js',
+  './js/dialogs/drawingEditsDialog.js',
   './js/dialogs/drawingFixes.js',
   './js/dialogs/fixShared.js',
   './js/dialogs/gearDialog.js',
@@ -346,6 +349,7 @@ const ASSETS = [
   './js/dialogs/textDialog.js',
   './js/dialogs/threadDialog.js',
   './js/dimensionDedup.js',
+  './js/drawColorPrefs.js',
   './js/dxf.js',
   './js/errorReport.js',
   './js/events.js',
@@ -407,6 +411,7 @@ const ASSETS = [
   './js/render/objects.js',
   './js/render/overlays.js',
   './js/render/primitives.js',
+  './js/render/straightCheck.js',
   './js/render/text.js',
   './js/render/view.js',
   './js/state.js',

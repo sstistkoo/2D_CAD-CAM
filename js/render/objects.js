@@ -12,6 +12,7 @@ import { drawDimArrow, drawDimension, drawIntersectionNumbers, drawObjectNumbers
 import { objDash, objWidthMul } from '../lineStyles.js';
 import { drawFills, renderMirrorPreview } from './mirrorFills.js';
 import { drawContourGapMarkers, drawContourHighlights, drawSelectedPointIndicator, drawSelectionCounter, drawSnapIndicator } from './overlays.js';
+import { drawStraightCheck } from './straightCheck.js';
 import { drawArc, drawCenterMark, drawCircle, drawLine, drawPoint, drawPolyline, drawRect } from './primitives.js';
 import { fmtCoordLabel, fmtNum, state } from '../state.js';
 import { drawText } from './text.js';
@@ -77,7 +78,8 @@ export function renderObjects() {
     const baseColor = resolveObjectColor(obj);
     // Pomocné čáry bez vlastní barvy kreslit šedě; s vlastní barvou (výběr
     // v dialogu Typ čáry) se respektuje zvolená barva.
-    const drawColor = (isConstr && !obj.color) ? COLORS.construction : baseColor;
+    // Uzávěr tvaru na ose (Úpravy výkresu → Uzavřít) v barvě své vrstvy.
+    const drawColor = (isConstr && !obj.color && !obj.axisClose) ? COLORS.construction : baseColor;
     ctx.strokeStyle = (isSel || isConnectedDim) ? COLORS.selected : drawColor;
     ctx.fillStyle = (isSel || isConnectedDim) ? COLORS.selected : drawColor;
     const baseWidth = (layer?.lineWidth ?? LINE_WIDTH) * objWidthMul(obj);
@@ -902,6 +904,8 @@ export function renderObjects() {
   drawContourGapMarkers();
   // Zdvojené čáry (žlutě) a čáry mimo profil při přenosu do CAM (fialově)
   drawContourHighlights();
+  // 📏 Kontrola rovných čar (Úpravy výkresu)
+  drawStraightCheck();
 
   // Snap indikátor
   drawSnapIndicator();

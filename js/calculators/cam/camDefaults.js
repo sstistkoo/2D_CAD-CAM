@@ -28,6 +28,8 @@ export function _defaultCamParams() {
     stockMode: 'cylinder', stockMargin: 5.0, stockDiameter: 100,
     stockLength: 100, stockFace: 2.0, safeX: 150, safeZ: 5,
     machineStructure: 'lathe', controlSystem: 'sinumerik', autoProfile: true,
+    // Karusel: hrubování po X v prohozených osách (cam/xzSwap.js).
+    carouselSwapXZ: false,
     toolShape: 'round', toolLength: 10, toolAngle: 15, toolTipAngle: 90,
     // Na kterou stranu od Natočení se otevírá vrcholový úhel destičky.
     // false = 2. hrana na Natočení−ε (výchozí), true = na Natočení+ε.

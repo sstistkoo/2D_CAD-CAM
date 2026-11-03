@@ -9,11 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM karusel: ⟲ Po X jako podélně** (`cam/xzSwap.js`, přepínač v Obrábění, jen karusel, výchozí vypnuto):
+  hrubování v prohozených osách X ↔ Z – ↔ Čelně a ⇅ Cik cak jedou po X vyladěným podélným algoritmem, nůž
+  svisle ze smykadla; G-kód se prohodí zpět (X↔Z, G2↔G3). Na dílu uživatele 29 porušení pravidel místo 44,
+  0 kolizí místo 10. Zatím bez mezí, Po úsecích a otočeného náhledu držáku – plán v `docs/plan-karusel-po-x.md`.
+- **CAD: 🛠 Úpravy výkresu** (`dialogs/drawingEditsDialog.js`, `drawingEditOps.js`, `render/straightCheck.js`):
+  tlačítko v liště místo *Smaž vše* (to zůstává v Nastavení). Okno: uzavřít konturu po osách X/Z, uzavřít
+  polotovar ke kontuře, kontrola a oprava (mezery, nepřesnosti, zdvojení), 📏 zvýraznění vodorovných/svislých
+  čar (skoro rovné červeně s odchylkou), normalizace barev, smazání pomocných čar.
+- **Nastavení → Zobrazení: výchozí barva kontury a polotovaru** (`drawColorPrefs.js`), pamatuje si zařízení;
+  stejný výběr i v okně Úpravy výkresu spolu s tloušťkou (Tenká/Tlustá) — 🎨 Normalizovat sjednotí barvu i
+  tloušťku čar kontury a polotovaru.
 - **CAD: přichycení k ose X** (`canvas.js`): kurzor se chytá i na osu X (soustruh svisle X = 0, karusel
   vodorovně), stejně jako na osu Z; `state.mouse.onXAxis` hlásí, že bod leží na ose X.
 
 ### Changed
 
+- **Typ čáry: barva zvlášť pro konturu a polotovar** (`lineStyles.js`, `lineStyleDialog.js`): barva zvolená pro
+  polotovar se po přepnutí na konturu už nepřenese do kontury; starší uložená jediná barva se nepřebírá.
+  Výchozí barva polotovaru je červená (dřív oranžová).
+- **CAM na karuselu: tlačítka hrubování podle os** (`cam/sim/paramsMachiningHtml.js`): pořadí ↕ Podélně (Z),
+  ↔ Čelně (X), ⇅ Cik cak – šipky odpovídají plátnu otočenému o 90°; soustruh beze změny.
+
+### Fixed
+
+- **Úpravy výkresu → Uzavřít konturu/polotovar**: úsečky uzávěru ležící na ose (osa rotace, rovina Z0) jsou
+  pomocné čáry v barvě vrstvy, do CAM nejdou. Dřív se uzavřená smyčka dostala do CAM a hrubování jelo přes celý
+  díl až za osu (X−5,2). Opakované uzavření nic nezdvojí.
 - **CAD G-kód kreslení (editor z Kalkulaček): zmenšený editor nad plátnem** (`calculators/cncEditorLive.js`,
   `css/cnc-compact.css`): v oranžové liště vedle ✕ přibyly **▾** (rozbalí lištu ☰/🔗/G90/🔍/🔢/🔄 a řádek
   „Údaje a nápověda", jinak sbalené) a **⇲/⇱** (editor přes celý displej ↔ dole na půl displeje, nad ním plátno

@@ -36,6 +36,8 @@ import './touch.js';
 import './toolbarCollapse.js'; // mobil na výšku: ▴ sbalí řádky nad Více
 import './dialogs.js';
 import './dialogs/contourCheck.js'; // zdvojené čáry + jen hlavní profil do CAM (bridge)
+import './drawColorPrefs.js'; // výchozí barvy kontury/polotovaru z Nastavení (před auto-load)
+import './dialogs/drawingEditsDialog.js'; // 🛠 Úpravy výkresu (tlačítko v liště)
 import './faceView/faceView.js'; // ◎ bokorys (pohled na čelo) pro poháněné nástroje
 import './calculators/calcLaunchers.js'; // tlačítka novějších kalkulaček (Oblouk, Roztažnost, Objem)
 import { initFullscreen } from './fullscreen.js'; // ⛶ celá obrazovka + okraje kolem výřezu kamery

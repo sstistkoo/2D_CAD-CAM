@@ -1,0 +1,92 @@
+// Karusel „⟲ Po X jako podélně" (cam/xzSwap.js, uživatel 3. 11. 2026):
+// hrubování v prohozených osách X ↔ Z — díl karuselu je velký v X, nízký
+// v Z, takže ↔ Čelně má jet po X vyladěným podélným algoritmem, nůž svisle
+// ze smykadla. Fixture = díl uživatele `projekt_2026-11-03 (2)` bez uzávěru
+// kontury po osách.
+import { describe, it, expect, beforeAll } from 'vitest';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { runCamProg } from './helpers/camHeadless.mjs';
+import { swapGCodeText, swapsXZ, swapPointsIn } from '../js/calculators/cam/xzSwap.js';
+
+const FIX = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'cam-cases', 'carousel-face-swap-xz.camprog');
+const load = () => JSON.parse(readFileSync(FIX, 'utf8'));
+
+/** Řezné přímky G1 delší než 5 mm: kolik jich jede po X (vodorovně) a po Z. */
+function cutDirections(gcode) {
+  let cur = { x: 0, z: 0 }, h = 0, v = 0;
+  for (const l of gcode.split('\n')) {
+    const c = l.split(';')[0];
+    const mx = c.match(/X(-?\d+\.?\d*)/), mz = c.match(/Z(-?\d+\.?\d*)/);
+    const n = { x: mx ? +mx[1] : cur.x, z: mz ? +mz[1] : cur.z };
+    if (/\bG0?1\b/.test(c) && Math.hypot(n.x - cur.x, n.z - cur.z) > 5) {
+      if (Math.abs(n.z - cur.z) < 1e-3) h++; else if (Math.abs(n.x - cur.x) < 1e-3) v++;
+    }
+    cur = n;
+  }
+  return { h, v };
+}
+
+describe('prohození textu G-kódu', () => {
+  it('X ↔ Z, G2 ↔ G3, komentáře a název nástroje beze změny; dvakrát = původní', () => {
+    const t = 'N10 G2 X10.5 Z-3 CR=5.000 ; Výjezd v X\nN20 T="X12 nůž" D1\nN30 G03 X1 Z2 (pozn X9)';
+    const s = swapGCodeText(t);
+    expect(s).toBe('N10 G3 Z10.5 X-3 CR=5.000 ; Výjezd v X\nN20 T="X12 nůž" D1\nN30 G02 Z1 X2 (pozn X9)');
+    expect(swapGCodeText(s)).toBe(t);
+  });
+
+  it('průměrový zápis: skutečné X ×2, DIAMOF → DIAMON; reference kontury a hlavička hrubování', () => {
+    expect(swapGCodeText('N1 G1 X5 Z20\nN2 DIAMOF ; Programování poloměru', { dia: true }))
+      .toBe('N1 G1 Z5 X40.000\nN2 DIAMON ; Programování průměru');
+    expect(swapGCodeText('; G1 X39 Z842')).toBe('; G1 Z39 X842');
+    expect(swapGCodeText('; --- HRUBOVANI (PODELNE) ---')).toBe('; --- HRUBOVANI (CELNI, OSY X-Z PROHOZENE) ---');
+    expect(swapGCodeText('; --- HRUBOVANI (PODELNE CIK CAK) ---')).toBe('; --- HRUBOVANI (CELNI CIK CAK, OSY X-Z PROHOZENE) ---');
+  });
+
+  it('řetěz bodů: prohozený a obrácený (typ úseku se posune s ním), průměr → poloměr', () => {
+    const pts = [{ type: 'G0', x: 20, z: 0 }, { type: 'G1', x: 20, z: -10 }, { type: 'G2', x: 40, z: -20, r: 10 }];
+    expect(swapPointsIn(pts, true).map(p => [p.type, p.x, p.z, p.r])).toEqual([
+      ['G0', -20, 20, 0], ['G2', -10, 10, 10], ['G1', 0, 10, 0]]);
+  });
+});
+
+describe('karusel po X na dílu uživatele', () => {
+  let on, off;
+  beforeAll(async () => {
+    const p1 = load(); p1.params.carouselSwapXZ = true; p1.params.roughingStrategy = 'face';
+    on = await runCamProg(p1);
+    const p2 = load(); p2.params.roughingStrategy = 'face';
+    off = await runCamProg(p2);
+  }, 240000);
+
+  it('zapnuto: program v prohozených osách, řezy jedou převážně po X', () => {
+    expect(on.gcode).toMatch(/Karusel - hrubování po X v prohozených osách/);
+    expect(on.gcode).toMatch(/HRUBOVANI \(CELNI, OSY X-Z PROHOZENE\)/);
+    const d = cutDirections(on.gcode);
+    expect(d.h).toBeGreaterThan(50);
+    expect(d.h).toBeGreaterThan(10 * d.v);
+    // Nic pod stůl (Z < 0) ani víc než 1 mm za střed.
+    const xs = [...on.gcode.matchAll(/^N\d+ G0?[0-3]\b[^;]*?X(-?\d+\.?\d*)/gm)].map(m => +m[1]);
+    const zs = [...on.gcode.matchAll(/^N\d+ G0?[0-3]\b[^;]*?Z(-?\d+\.?\d*)/gm)].map(m => +m[1]);
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(-1.001);
+    expect(Math.min(...zs)).toBeGreaterThanOrEqual(-1e-3);
+    // Dráha simulace je z reálného programu a body kontury v reálných osách.
+    expect(on.calcSim.simPath.length).toBeGreaterThan(100);
+    expect(Math.max(...on.calc.worldPoints.map(p => p.xReal))).toBeCloseTo(846, 3);
+    expect(Math.max(...on.calc.worldPoints.map(p => p.zReal))).toBeCloseTo(189, 3);
+    // Bezpečná poloha X150 Z5 leží v polotovaru → varování.
+    expect(on.errors.some(e => /Bezpečná poloha/.test(e.msg || ''))).toBe(true);
+  });
+
+  it('vypnuto: beze změny (žádné prohození)', () => {
+    expect(off.gcode).not.toMatch(/prohozen/i);
+  });
+
+  it('přepínač platí jen na karuselu', () => {
+    const p = load().params;
+    expect(swapsXZ({ params: { ...p, carouselSwapXZ: true } })).toBe(true);
+    expect(swapsXZ({ params: { ...p, carouselSwapXZ: true, machineStructure: 'lathe' } })).toBe(false);
+    expect(swapsXZ({ params: { ...p, carouselSwapXZ: true, threadActive: true } })).toBe(false);
+  });
+});

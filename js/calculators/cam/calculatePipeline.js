@@ -29,6 +29,7 @@ import { buildFinishPath, clipFinishBand, finishPartingEnvelope } from './ops/fi
 import { floorFinishZHi, floorFinishFace } from './ops/zigzagFloor.js';
 import { extendRoughOffsetBelowStockEnd } from './offsetStockEnd.js';
 import { mirrorCalcZ, mirrorParamsZ, mirrorPointChain, mirrorZLimits } from './zMirror.js';
+import { swapsXZ, swapState, finishSwappedCalc } from './xzSwap.js';
 import { buildStockLoopRaw, insertExtent, stockPlanLoop } from './materialRemoval.js';
 import { resolveRangeX, xMaxWallZ } from './rangeX.js';
 import { splitBoreFromSegments } from './boreContour.js';
@@ -115,6 +116,11 @@ export function computeSimPath(S, prms = null) {
 }
 
 export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
+  // Karusel „po X": celý výpočet v prohozených osách X ↔ Z (cam/xzSwap.js).
+  if (swapsXZ(S)) {
+    const S2 = swapState(S);
+    return finishSwappedCalc(S, S2, computeCalculation(S2, lightOnly, skipRoughing), lightOnly, computeSimPath);
+  }
   // „Dobrat naráz" odstraněno z UI (Fáze 5): kapsu je vždy potřeba
   // dobrat až na dno (postupné dotahování mělčími průchody dno hluboké
   // úzké kapsy nedosáhne — rampa z rohu je omezená šířkou kapsy). Proto

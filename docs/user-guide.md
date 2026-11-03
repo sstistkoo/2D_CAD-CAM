@@ -182,7 +182,11 @@ zvoleného typu (`Tlustá`, `Tenká`, `Čárk.`, `Čerch.`, `2čerch`, `Konstr`)
 | Dvoječerchovaná    | `─ ∙ ∙ ─ ∙ ∙` | Sousední díly, krajní polohy           |
 | Konstrukční        | `- - - - - -` | Nekonečná pomocná čára (2 body)        |
 
-- **Barva** – sedm základních barev, vlastní barva, nebo `A` = podle vrstvy.
+- **Barva** – sedm základních barev, vlastní barva, nebo `A` = podle vrstvy
+  (kontura modře, polotovar červeně). Barva se pamatuje **zvlášť pro konturu
+  a zvlášť pro polotovar** (přepínač Kontura/Polotovar v hlavičce dialogu) –
+  barva zvolená pro polotovar se do kontury nepřenese. Výchozí barvy obou
+  vrstev jdou změnit v *Nastavení → Zobrazení* (↺ Výchozí je vrátí).
 - **Pomocná čára – mimo konturu a CAM** – zaškrtnuté čáry se ukládají jako
   pomocná geometrie do vrstvy *Konstrukce*: nevstupují do kontury ani do
   G-kódu. Přednastavuje se podle typu čáry (souvislá tlustá = skutečná
@@ -286,6 +290,31 @@ poloměr oblouku, takový segment zanikne.
 2. Vyber první tvar
 3. Vyber druhý tvar
 4. Zvol operaci: Sjednocení, Průnik, Odečtení
+
+### 🛠 Úpravy výkresu
+Tlačítko **🛠 Úpravy** v liště nástrojů (na místě dřívějšího *Smaž vše*;
+smazání výkresu je v *Nastavení → Smazat aktuální výkres*) otevře okno:
+
+- **🔒 Uzavřít konturu** – volné konce kontury se spojí po osách X a Z (přes
+  počátek 0,0), např. obrobek nakreslený v jednom kvadrantu se zrcadlením.
+  Konec mimo osu se spustí kolmo na bližší osu (to je skutečná plocha).
+  Úsečky ležící **na ose** jsou jen pomocné (tenké, v barvě vrstvy) – osa
+  rotace ani rovina Z0 se neobrábí, do CAM nejdou.
+- **🔒 Uzavřít polotovar** – konce polotovaru se po ose napojí na nejbližší
+  bod kontury na téže ose (obrys materiálu k obrobení).
+- **🔧 Kontrola a oprava** – mezery, konce u osy, skoro rovné čáry (třeba
+  o 0,001), zdvojené čáry; stejná kontrola jako při přechodu do CAM.
+- **📏 Rovné čáry ZAP/VYP** – vodorovné a svislé úsečky zeleně, skoro rovné
+  (pod 3°) červeně s odchylkou. Barvy objektů se nemění, vypnutí vrátí vzhled.
+- **Kontura [barva] · Polotovar [barva] · Tenká | Tlustá** – výchozí barvy
+  vrstev (mění se hned, stejné jako v Nastavení → Zobrazení) a tloušťka čar
+  pro normalizaci (výchozí Tlustá = viditelné hrany).
+- **🎨 Normalizovat barvy a tloušťku** – kontura i polotovar bez vlastních
+  barev (barva vrstvy), jedna tloušťka souvislé čáry, polotovar do vrstvy
+  Polotovar, vrstvám výchozí barvy.
+- **🧹 Smazat pomocné čáry** – konstrukční/pomocné čáry.
+
+Každá úprava jde vrátit tlačítkem Zpět.
 
 ---
 

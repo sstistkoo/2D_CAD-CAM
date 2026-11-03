@@ -17,6 +17,7 @@ import { getInsert } from './inserts/index.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { roughingKey, mirrorsWorldZ, computeCalculation } from './calculatePipeline.js';
 import { mergeCollinearMoves } from './gcodeCollapse.js';
+import { swapsXZ, emitSwapped } from './xzSwap.js';
 import { ctrlCmt, buildControlHeaderLines, buildControlTailLines,
   controlArcFormatter, renumberGCodeLines, convertGCodeControlSystem } from './controlDialect.js';
 import { emitThread } from './ops/thread.js';
@@ -45,6 +46,8 @@ export { ctrlCmt, buildControlHeaderLines, buildControlTailLines,
 // Volá se jen z tlačítka "🔄 Autorefresh drah" — výsledek přepíše
 // S.manualGCode (a tedy i editor a simulační dráhu).
 export function generateAutoGCode(S, calc) {
+  // Karusel „po X": program vznikne v prohozených osách a prohodí se zpět (cam/xzSwap.js).
+  if (swapsXZ(S)) return emitSwapped(S, calc, generateAutoGCode, computeCalculation, ctrlCmt(S.params.controlSystem));
   const prms = S.params;
   // Hlášení, na která se přijde až při EMISI (znají pořadí obrábění a
   // zbytkový polotovar, což calculate() ještě neví). S.errors sem psát
