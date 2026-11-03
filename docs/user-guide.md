@@ -2340,7 +2340,7 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   (přepínač nad poli): *Start + konec* (začátek, konec, poloměr a smysl —
   stejně jako `G02/G03 X.. Z.. R..`; navazuje na konec předchozího prvku)
   nebo *Střed + úhly* (střed, Start (°) + Konec (°), poloměr a smysl).
-  Na dotykovém displeji je pod poli **číselník** (7 8 9 4 5 6 − ⌫ / 1 2 3 0 . ⌨ Další ⇥):
+  Na dotykovém displeji je pod poli **číselník** (1 2 3 4 5 6 7 8 / 9 0 . − ⌫ ⌨ Další ⇥):
   píše do pole, do kterého jsi klepl, **Další ⇥** skočí na další pole. Systémová
   klávesnice se nevysouvá; **⌨** ji zapne (třeba na výraz `200/3`).
   Když je poloměr kratší než půlka vzdálenosti obou bodů, oblouk nejde

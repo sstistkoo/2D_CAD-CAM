@@ -1,6 +1,6 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  SKICA – Číselné zadání: vlastní číselník (dotykové displeje) ║
-// ║  7 8 9 4 5 6 − ⌫ / 1 2 3 0 . ⌨ Další ⇥                       ║
+// ║  1 2 3 4 5 6 7 8 / 9 0 . − ⌫ ⌨ Další ⇥                       ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
 // Píše do posledního pole, do kterého uživatel klepl (X1, Z1, Délka…, nebo do
@@ -44,7 +44,7 @@ export function attachNumPad(container) {
 
   const pad = document.createElement('div');
   pad.className = 'num-pad';
-  const keys = [..."789456", '-', 'bs', ..."1230.", 'kb', 'next'];
+  const keys = [..."12345678", '9', '0', '.', '-', 'bs', 'kb', 'next'];   // číslice postupně 1…0
   const label = { '-': '−', bs: '⌫', kb: '⌨', next: 'Další ⇥' };
   const title = { '-': 'Mínus', '.': 'Desetinná tečka', bs: 'Smazat znak', kb: 'Systémová klávesnice zap / vyp', next: 'Další pole' };
   pad.innerHTML = keys.map(k =>

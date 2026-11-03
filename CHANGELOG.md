@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   „Údaje a nápověda", jinak sbalené) a **⇲/⇱** (editor přes celý displej ↔ dole na půl displeje, nad ním plátno
   s živým náhledem psaného kódu, řádek s kurzorem žlutě; výkres se nemění, kreslí se přes `bridge.renderCncLive`).
   Na výšku menší tlačítka rychlé lišty.
-- **Číselné zadání: číselník pro dotyk** (`dialogs/numPadBar.js`): pod poli 7 8 9 4 5 6 − ⌫ / 1 2 3 0 . ⌨ Další ⇥,
+- **Číselné zadání: číselník pro dotyk** (`dialogs/numPadBar.js`): pod poli 1 2 3 4 5 6 7 8 / 9 0 . − ⌫ ⌨ Další ⇥,
   píše do posledního pole (i do zápisu G-kódu), systémová klávesnice se nevysouvá (⌨ ji vrátí, volba se pamatuje).
 - **CAD G-kód kreslení: lupa pro umístění kurzoru** (`calculators/cncLoupe.js`): podržení prstu na kódu ukáže nad
   prstem zvětšený text s kurzorem, tahem se kurzor posouvá, puštěním zůstane (výpočet pozice z řádku × sloupce).
