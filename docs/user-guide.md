@@ -1556,6 +1556,9 @@ náhledem destičky a držáku. Pod náhledem je jeden přepínač
   podélným algoritmem, nůž svisle dolů ze smykadla. Vypnutím se vrátí staré
   čelní hrubování. Závit, vrtání, vyvrtávání a upich počítají postaru.
   Hlavička programu uvádí řídicí systém i stroj (… 840D - KARUSEL / - SOUSTRUH).
+  Rozsah 📐 X = pás poloměrů, rozsah Z = výška nad stolem (nad Z max se neobrábí
+  ani se pod materiál nepodjíždí). ✂ Po úsecích dělí díl po X. Strana: ← Od obvodu
+  (standard) / → Od středu. Čelisti a koník se v tomto režimu zatím neuplatní.
   **⇋ Cik cak** (jen kulatá destička v držáku užším než destička, 🔧 SRDPN
   úzký; 1. 11. 2026): jede jako Podélně podle všech pravidel (úseky, pořadí,
   zanořování). Jen **vrstva za hrbolem**, která by se zanořila a **vyjela do

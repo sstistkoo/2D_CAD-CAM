@@ -37,17 +37,17 @@ import { drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, d
 import { CAM_TOOL_KEYS, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { migrateLegacyMagazine, isoDefaultsAddedSince, MAGAZINE_DEFAULTS_REV } from './magazineDefaults.js';
 import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
-import { xBoundOn, xBoundValue, xRangeAnyOn } from './cam/rangeX.js';
+import { xRangeAnyOn } from './cam/rangeX.js';
 import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, cycleModeActive as _cycleModeActive, decideChange } from './cam/gcodeSync.js';
 import { generateAutoGCode as _generateAutoGCode, generateGCode as _generateGCode, convertGCodeControlSystem as _convertGCodeControlSystem } from './cam/gcodeEmit.js';
-import { applyPartToState, buildCombinedProgram, machinedStockPoints, makePart, partsAsMergeItems, partToolLabel, syncPartFromState, STOCK_PARAM_KEYS } from './cam/opParts.js';
+import { applyPartToState, buildCombinedProgram, makePart, partsAsMergeItems, partToolLabel, syncPartFromState, STOCK_PARAM_KEYS } from './cam/opParts.js';
 import { setEditorMergeQueue } from './camEditor.js';
 import { handleAutoStock as _handleAutoStock, generateDefaultStock as _generateDefaultStock } from './cam/sim/autoStock.js';
 import { handleSendToCanvas as _handleSendToCanvas } from './cam/sim/sendToCanvas.js';
 import { openTangentLineModal as _openTangentLineModal } from './cam/sim/tangentLineModal.js';
 import { openInsertSegmentModal as _openInsertSegmentModal } from './cam/sim/insertSegmentModal.js';
 import { createCollisionValidation, createHolderGougeView } from './cam/sim/collisionWarnings.js';
-import { createXzSimView } from './cam/sim/xzSim.js';
+import { createXzSimView } from './cam/sim/xzSim.js'; import { xzSectionSteps, sectionStepLimits, machinedFor, noSections } from './cam/sim/xzSections.js';
 import { createSnap } from './cam/sim/snap.js';
 import { dropInsaneSavedProgram } from './cam/sim/programSanity.js';
 import { paramsPanelsHtml } from './cam/sim/paramsPanelsHtml.js';
@@ -1205,7 +1205,7 @@ export function openCamSimulator(initialContour, initialGCode) {
 
     // 2) Obrobený polotovar = polotovar části − vše, co její dráha odebrala.
     const calc = S._cachedCalc || calculate();
-    const machined = machinedStockPoints(S.params, calc.stockPathSegments, calc.simPath);
+    const machined = machinedFor(S, calc);
     if (!machined.points || machined.points.length < 2) {
       showToast(machined.noAxis
         ? 'Obrobený polotovar nejde zapsat profilem (nedotýká se osy) — další část začne na stejném polotovaru.'
@@ -1273,6 +1273,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // proč to nejde. Tutéž podmínku čte viditelnost tlačítka (updateGenButtons),
   // takže je tlačítko vidět přesně tehdy, když funguje.
   function sectionSteps(calc) {
+    const xs = xzSectionSteps(S, calc); if (xs) return xs;   // karusel po X
     const plan = calc && calc.sectionPlan;
     if (!plan || !plan.sections || plan.sections.length === 0)
       return { error: 'Úseky nejsou — dráhy po úsecích jen pro podélné hrubování kulatou/polygonem.' };
@@ -1313,21 +1314,11 @@ export function openCamSimulator(initialContour, initialGCode) {
         setBusyText(`Generuji dráhy po úsecích — ${st.name} (${i + 1}/${steps.length})…`);
         await nextPaint();
       }
-      S.zLimits = { ...baseLimits.z, rangeStart: st.zHi, rangeEnd: st.zLo, rangeActive: true };
-      // Dno úseku (`xTo`) se SKLÁDÁ s rozsahem X uživatele — platí vyšší
-      // z obou den, strop X max zůstává jeho. Do 30. 9. 2026 se tu X max
-      // přepsal na 1e4, takže se v úsecích se dnem tiše ztratil.
-      if (st.xTo !== null) {
-        const bx = baseLimits.x, uMin = xBoundValue(bx, 'min');
-        S.xLimits = { ...bx, rangeXMin: uMin !== null ? Math.max(uMin, st.xTo) : st.xTo,
-          minActive: true, maxActive: xBoundOn(bx, 'max'), active: true };
-      } else {
-        S.xLimits = { ...baseLimits.x };
-      }
+      ({ zLimits: S.zLimits, xLimits: S.xLimits } = sectionStepLimits(S, st, baseLimits));   // cam/sim/xzSections.js
       _regenGCode();
       const calc = S._cachedCalc;
       parts.push(makePart(S, { name: st.name, gcode: S.manualGCode }));
-      const machined = machinedStockPoints(S.params, calc.stockPathSegments, calc.simPath);
+      const machined = machinedFor(S, calc);
       if (!baseLoop && machined.baseLoop) baseLoop = machined.baseLoop;
       if (machined.points && machined.points.length >= 2) {
         S.stockPoints = machined.points;
@@ -2248,7 +2239,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Vidět jsou jen tlačítka, která teď opravdu jdou použít — pravidla v cam/genButtons.js.
   function updateGenButtons() {
     const h = genButtonsHidden({ hasParts: partsActive(), allView: S.opView === 'all',
-      fromSections: partsActive() && !!S.opParts[0].baseLimits, face: roughingKey() === 'face', op: S.machiningSubTab, tool: S.params.toolShape,
+      fromSections: partsActive() && !!S.opParts[0].baseLimits, face: noSections(S, roughingKey()), op: S.machiningSubTab, tool: S.params.toolShape,
       sectionsOk: !sectionSteps(S._cachedCalc).error });
     refreshBtn.hidden = h.refresh; sectionBtn.hidden = h.section; resetPartsBtn.hidden = h.reset;
   }

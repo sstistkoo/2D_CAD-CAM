@@ -8,7 +8,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { runCamProg } from './helpers/camHeadless.mjs';
-import { swapGCodeText, swapsXZ, swapPointsIn } from '../js/calculators/cam/xzSwap.js';
+import { swapGCodeText, swapsXZ, swapPointsIn, swapLimits, swapAxisWords } from '../js/calculators/cam/xzSwap.js';
 import { createXzSimView } from '../js/calculators/cam/sim/xzSim.js';
 import { validateToolpath } from '../js/calculators/cam/collisionValidator.js';
 
@@ -31,10 +31,10 @@ function cutDirections(gcode) {
 }
 
 describe('prohození textu G-kódu', () => {
-  it('X ↔ Z, G2 ↔ G3, komentáře a název nástroje beze změny; dvakrát = původní', () => {
+  it('X ↔ Z, G2 ↔ G3, v komentáři jen osa za předložkou, název nástroje beze změny; dvakrát = původní', () => {
     const t = 'N10 G2 X10.5 Z-3 CR=5.000 ; Výjezd v X\nN20 T="X12 nůž" D1\nN30 G03 X1 Z2 (pozn X9)';
     const s = swapGCodeText(t);
-    expect(s).toBe('N10 G3 Z10.5 X-3 CR=5.000 ; Výjezd v X\nN20 T="X12 nůž" D1\nN30 G02 Z1 X2 (pozn X9)');
+    expect(s).toBe('N10 G3 Z10.5 X-3 CR=5.000 ; Výjezd v Z\nN20 T="X12 nůž" D1\nN30 G02 Z1 X2 (pozn X9)');
     expect(swapGCodeText(s)).toBe(t);
   });
 
@@ -51,6 +51,35 @@ describe('prohození textu G-kódu', () => {
     expect(swapPointsIn(pts, true).map(p => [p.type, p.x, p.z, p.r])).toEqual([
       ['G0', -20, 20, 0], ['G2', -10, 10, 10], ['G1', 0, 10, 0]]);
   });
+});
+
+describe('rozsahy 📐 a texty v prohozených osách', () => {
+  it('rozsah X (poloměry) → rozsah Z\', rozsah Z (výška) → X\' min/max; čelisti a koník vypnuté', () => {
+    const r = swapLimits(
+      { rangeStart: 150, rangeEnd: 100, rangeActive: true, chuck: -5, chuckActive: true },
+      { rangeXMin: null, rangeXMax: 500, active: true, minActive: false, maxActive: true });
+    expect(r.zLimits).toMatchObject({ rangeActive: true, rangeStart: 500, rangeEnd: -1e4, chuckActive: false, tailActive: false });
+    expect(r.xLimits).toMatchObject({ rangeXMin: 100, rangeXMax: 150, minActive: true, maxActive: true });
+    const off = swapLimits({}, {});
+    expect(off.zLimits.rangeActive).toBe(false);
+    expect(off.xLimits.active).toBe(false);
+  });
+
+  it('osa v hlášce: jen za předložkou / „Rozsah"', () => {
+    expect(swapAxisWords('Rozsah X max 150: od Z 12.00 stojí polotovar nad X max'))
+      .toBe('Rozsah Z max 150: od X 12.00 stojí polotovar nad Z max');
+    expect(swapAxisWords('X = PRŮMĚR, diametrální zápis')).toBe('X = PRŮMĚR, diametrální zápis');
+  });
+
+  it('díl uživatele s rozsahem X max 500: nic se neřeže za poloměrem 500', async () => {
+    const p = load(); p.params.roughingStrategy = 'face'; p.params.carouselAlongX = true;
+    p.xLimits = { rangeXMin: null, rangeXMax: 500, active: true, minActive: false, maxActive: true };
+    const r = await runCamProg(p);
+    const cut = r.calcSim.simPath.filter(q => q.type !== 'G0');
+    expect(cut.length).toBeGreaterThan(50);
+    expect(Math.max(...cut.map(q => q.x))).toBeLessThanOrEqual(500 + 1e-6);
+    expect(r.errors.some(e => /rozsahy 📐 se zatím/.test(e.msg || ''))).toBe(false);
+  }, 240000);
 });
 
 describe('karusel po X na dílu uživatele', () => {

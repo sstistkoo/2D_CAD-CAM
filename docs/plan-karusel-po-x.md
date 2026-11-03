@@ -80,18 +80,24 @@ počítá jen na karuselu, starý nikdy — soustruhové programy se nemění.
 5. **Zbylá porušení (33)** řešit po jednom pravidle (1 sezení = 1 pravidlo,
    `docs/cam-pravidla.md`). Jde o tentýž podélný algoritmus jako na soustruhu,
    takže oprava pomůže oběma. Hlídat otisk soustruhových fixtures.
-6. **Meze a rozsahy:** dnes jsou v prohozeném světě vypnuté (varování v ⚠).
-   Rozsah X 📐 → rozsah Z' a rozsah Z → X'. Čelisti a koník na karuselu
-   rozmyslet s uživatelem.
-7. **✂ Po úsecích:** `sectionPlan` se dnes do reálného `calc` nevrací
-   (tlačítko ohlásí „Úseky nejsou“). Úseky v Z' jsou úseky po skutečném X,
-   a `sectionSteps` (camSimulator.js) by je musel brát z `xLimits`.
-8. **Náhled průchodů** (`calc.passes`, kreslí se jen bez G-kódu) se dnes
-   vrací prázdný. Prohodit podle tvaru průchodu.
-9. **Drobnosti:** komentáře „Výjezd v X/Z“ v prohozeném programu mluví
-   o prohozených osách. Na karuselu přejmenovat Zleva/Zprava (spíš „od středu /
-   od obvodu“). Prohodit také závit, vrtání, vyvrtávání a upich, nebo je nechat
-   postaru (dnes se při nich prohození vypne).
+6. ✅ **Rozsahy 📐** (3. 11. 2026, `swapLimits` v xzSwap.js): rozsah X
+   (poloměry) → rozsah Z' (pás), rozsah Z (výška) → X' min/max. Strop X' max
+   je pravidlo 12 = „nad výškou se neobrábí a pod materiál se nepodjíždí" —
+   na noži shora přesně fyzika. Hlášky ⚠ a komentáře programu mají osy
+   prohozené zpět (`swapAxisWords`: jen písmeno za předložkou / „Rozsah").
+   **Čelisti a koník** zůstávají vypnuté (varování) — rozmyslet s uživatelem,
+   co na karuselu znamenají (upínky na stole?).
+7. ✅ **✂ Po úsecích a ➕ Operace** (`cam/sim/xzSections.js`): kroky z plánu
+   v prohozeném světě (`calc._xz`), do skutečného stavu jako rozsahy (pás =
+   rozsah X, dno = Z od výšky), obrobený polotovar = profil od stolu
+   v prohozeném světě prohozený zpět, náhled úseků přes prohozený toScreen.
+   Tlačítko ✂ se na karuselu schová u ↕ Podélně (to je čelní). Lathe kód
+   (rozsahy kroku) jen přesunutý z camSimulator.js beze změny.
+   Neověřeno na dílu s víc úseky (oba testovací díly mají jediný úsek).
+8. ✅ **Náhled průchodů** (`swapPasses`, typ 'xz' v drawToolpath.js).
+9. ✅ částečně: komentáře „Výjezd v X/Z" prohozené, tlačítka strany na
+   karuselu po X „← Od obvodu" / „→ Od středu". Závit, vrtání,
+   vyvrtávání a upich dál postaru (prohození se vypne) — zatím bez potřeby.
 10. **Pravidlo do `docs/cam-pravidla.md`:** připravit NÁVRH „Karusel po X =
     podélné v prohozených osách (x' = z, z' = x), nůž svisle ze smykadla;
     všechna pravidla platí v prohozeném světě“ a dát ho uživateli ke schválení.

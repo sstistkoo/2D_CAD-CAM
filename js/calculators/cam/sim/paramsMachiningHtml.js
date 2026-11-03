@@ -25,6 +25,8 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
   // vodorovně, podélně (po Z) svisle — šipky i pořadí tlačítek podle toho
   // (uživatel 3. 11. 2026). Strategie samy se nemění.
   const _car = prms.machineStructure === 'carousel';
+  // Karusel po X (xzSwap.js): „zprava" = od obvodu ke středu, „zleva" = od středu.
+  const _xz = _car && prms.carouselAlongX !== false;
   const _ico = _car ? { face: '↔', longitudinal: '↕', zigzag: '⇅' } : { face: '↓', longitudinal: '↔', zigzag: '⇋' };
   const _stratIcon = _ico[prms.roughingStrategy] || _ico.longitudinal;
   const _sideIcon = prms.roughingSide === 'left' ? '→' : '←';
@@ -67,8 +69,8 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
       <span>⟲ Po X jako podélně (nůž ze smykadla)</span>
     </div>` : ''}
     <div class="cam-sim-toggle-row">
-      <button data-side="left" class="${prms.roughingSide === 'left' ? 'cam-sim-active' : ''}" title="Druhá strana — zaber zleva doprava (zprava nelze, narazil by držák / geometrie destičky), omezeno 📐 Rozsahem obrábění">→ Zleva</button>
-      <button data-side="right" class="${(prms.roughingSide || 'right') === 'right' ? 'cam-sim-active' : ''}" title="Zaber zprava doleva (standard)">← Zprava</button>
+      <button data-side="left" class="${prms.roughingSide === 'left' ? 'cam-sim-active' : ''}" title="${_xz ? 'Druhá strana — od středu k obvodu, omezeno 📐 Rozsahem obrábění' : 'Druhá strana — zaber zleva doprava (zprava nelze, narazil by držák / geometrie destičky), omezeno 📐 Rozsahem obrábění'}">${_xz ? '→ Od středu' : '→ Zleva'}</button>
+      <button data-side="right" class="${(prms.roughingSide || 'right') === 'right' ? 'cam-sim-active' : ''}" title="${_xz ? 'Od obvodu ke středu (standard)' : 'Zaber zprava doleva (standard)'}">${_xz ? '← Od obvodu' : '← Zprava'}</button>
     </div>
     ${SURFACE_TABS.has(_machSubTab) ? `<div class="cam-sim-toggle-row">
       <button data-surface="outer" class="${surfaceMode(prms, _machSubTab) === 'outer' ? 'cam-sim-active' : ''}" title="${_machSubTab === 'zavit' ? 'Vnější závit — přísuv z povrchu ⌀D dolů na dno profilu' : _machSubTab === 'upich' ? 'Upichnutí / zápich zvenku — upichovák' : 'Vnější obrábění — obrys dílu zvenku (soustružnický nůž)'}">◯ Vnější</button>

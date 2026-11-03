@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Karusel: ⟲ Po X jako podélně je výchozí zapnuté** (nový klíč `carouselAlongX`, starý `carouselSwapXZ` se
   ignoruje): ↔ Čelně a ⇋ Cik cak na karuselu jedou vodorovně po X. Na dílu uživatele s Cik cak 15 porušení
   pravidel místo 125, 0 kolizí. Soustruh beze změny.
+- **Karusel po X: rozsahy 📐, ✂ Po úsecích, ➕ Operace a náhled průchodů** (`cam/sim/xzSections.js`,
+  `swapLimits`, `swapPasses`): rozsah X = pás poloměrů, rozsah Z = výška (strop shora); úseky po X s dnem ve
+  výšce; obrobený polotovar od stolu. Hlášky a komentáře programu s osami prohozenými zpět, tlačítka strany
+  „← Od obvodu / → Od středu".
 - **Hlavička G-kódu uvádí stroj**: `; Vygenerovaný kód SINUMERIK 840D - KARUSEL` / `- SOUSTRUH`.
 
 - **Typ čáry: barva zvlášť pro konturu a polotovar** (`lineStyles.js`, `lineStyleDialog.js`): barva zvolená pro

@@ -21,10 +21,10 @@
 // drží skutečný význam: ↔ Čelně (po X) = podélný algoritmus v prohozeném
 // světě, ↕ Podélně (po Z) = čelní, ⇅ Cik cak = cik cak po X.
 // Zatím se NEprohazuje: závit, vrtání, vyvrtávání, upich (prohození se
-// vypne), meze čelistí/koníku a rozsahy 📐 (v prohozeném světě neplatí) a
-// plán úseků „✂ Po úsecích" (v reálném calc chybí → tlačítko ohlásí proč).
+// vypne) a meze čelistí/koníku. Rozsahy 📐 ano (swapLimits). Plán úseků „✂ Po úsecích" (v reálném calc chybí → tlačítko ohlásí proč).
 
 import { resolvePointsToAbsolute } from './contourBuild.js';
+import { resolveRangeX } from './rangeX.js';
 
 const flipDir = (d) => (d === 'G2' ? 'G3' : d === 'G3' ? 'G2' : d);
 const swA = (a) => (typeof a === 'number' ? Math.PI / 2 - a : a);
@@ -150,7 +150,33 @@ export function swapParams(p) {
   };
 }
 
-/** Stav simulátoru v prohozeném světě (mělká kopie; meze vypnuté). */
+const BIG = 1e4;   // chybějící mez rozsahu = neomezeno (rozsah Z chce čísla)
+
+/**
+ * Rozsahy 📐 do prohozeného světa. Rozsah X (poloměry) = pás po skutečném X
+ * → rozsah Z'. Rozsah Z (výška nad stolem) → rozsah X': dno = X' min, strop
+ * = X' max — pravidlo 12 (nad X max se neobrábí a pod materiál nad ním se
+ * nepodjíždí) tak na karuselu znamená „nad výškou se neobrábí", což přesně
+ * sedí na nůž shora. Čelisti a koník se zatím neuplatní (stůl karuselu).
+ */
+export function swapLimits(zl = {}, xl = {}) {
+  const rx = resolveRangeX(xl);
+  const rS = zl.rangeStart, rE = zl.rangeEnd;
+  const rz = zl.rangeActive && Number.isFinite(rS) && Number.isFinite(rE)
+    ? { lo: Math.min(rS, rE), hi: Math.max(rS, rE) } : null;
+  const fin = (v, d) => (Number.isFinite(v) ? v : d);
+  return {
+    zLimits: {
+      ...zl, chuckActive: false, tailActive: false, rangeActive: !!rx,
+      rangeStart: rx ? fin(rx.xHi, BIG) : null, rangeEnd: rx ? fin(rx.xLo, -BIG) : null,
+    },
+    xLimits: rz
+      ? { rangeXMin: rz.lo, rangeXMax: rz.hi, minActive: true, maxActive: true, active: true }
+      : { rangeXMin: null, rangeXMax: null, minActive: false, maxActive: false, active: false },
+  };
+}
+
+/** Stav simulátoru v prohozeném světě (mělká kopie; rozsahy prohozené, čelisti/koník vypnuté). */
 export function swapState(S) {
   const p = S.params;
   const dia = p.mode === 'DIAMON';
@@ -164,10 +190,29 @@ export function swapState(S) {
     guideLines: [],
     opParts: [],
     flipX: S.flipZ, flipZ: S.flipX,
-    zLimits: { ...(S.zLimits || {}), chuckActive: false, tailActive: false, rangeActive: false },
-    xLimits: { ...(S.xLimits || {}), active: false },
+    ...swapLimits(S.zLimits || {}, S.xLimits || {}),
     manualGCode: swapGCodeText(S.manualGCode || '', { toReal: false, dia }),
   };
+}
+
+/**
+ * Průchody (`calc.passes`) do reálného světa jako typ 'xz': `moves` = lomená
+ * čára {x,z}, `traces` = trasování kontury (x1/z1…, oblouky). Tvary long /
+ * face / zigzag se na karuselu po prohození navzájem kříží, proto obecný tvar.
+ */
+export function swapPasses(passes) {
+  if (!Array.isArray(passes)) return [];
+  const P = (x, z) => ({ x: z, z: x });
+  return passes.map(p => {
+    const traces = [p.contourLeadIn, p.contourLeadOut].filter(Array.isArray).map(swapTraceSegs);
+    let moves;
+    if (p.type === 'zigzag' && Array.isArray(p.moves)) moves = p.moves.map(m => P(m.x, m.z));
+    else if (p.type === 'long') {
+      moves = [P(p.x, p.zStart), P(p.x, p.zEnd)];
+      if (p.ramp) traces.push([{ type: 'line', x1: p.ramp.z0, z1: p.ramp.x0, x2: p.zStart, z2: p.x }]);
+    } else moves = [P(p.xStart, p.z), P(p.xEnd, p.z)];
+    return { type: 'xz', moves, traces };
+  }).filter(p => p.moves.every(m => Number.isFinite(m.x) && Number.isFinite(m.z)));
 }
 
 /** Výsledek výpočtu z prohozeného světa zpět do reálného (kreslení simulátoru). */
@@ -180,9 +225,9 @@ export function swapCalcOut(calc, dia) {
     if (calc[key]) out[key] = swapSegPath(calc[key]);
   }
   if (calc.interferenceGuides) out.interferenceGuides = _swapGuides(calc.interferenceGuides);
-  // Průchody jsou jen před-emisní náhled (drawToolpath.js, kreslí se bez G-kódu)
-  // ve tvaru konkrétní strategie — reálná dráha je ze simPath prohozeného G-kódu.
-  out.passes = [];
+  // Průchody jsou jen před-emisní náhled (drawToolpath.js, kreslí se bez
+  // G-kódu) — prohodí se do obecného tvaru 'xz' (lomená čára + trasování).
+  out.passes = swapPasses(calc.passes);
   out.sectionPlan = null;
   out.rangeEndZ = null;
   const xs = (out.stockWorldPoints || []).map(q => q.xReal).filter(Number.isFinite);
@@ -191,6 +236,17 @@ export function swapCalcOut(calc, dia) {
 }
 
 // ── G-kód ──────────────────────────────────────────────────────
+
+/**
+ * Osa v TEXTU (komentář programu, hláška ⚠): „Výjezd v X" v prohozeném světě je
+ * ve skutečnosti výjezd v Z. Jen písmeno osy za předložkou nebo slovem
+ * „Rozsah" (jinde může X/Z znamenat něco jiného — „X = PRŮMĚR" v hlavičce).
+ */
+export function swapAxisWords(text) {
+  if (!text) return text;
+  return text.replace(/(\b(?:[vV]e?|[pP]o|[nN]ad|[pP]od|[oO]d|[dD]o|[rR]ozsah|[rR]ozsahu|bezpečné|bezpečná)\s+)([XZ])(?![\w=])/g,
+    (m, pre, ax) => pre + (ax === 'X' ? 'Z' : 'X'));
+}
 
 const _num = (v) => {
   const s = (Math.round(v * 1000) / 1000).toFixed(3);
@@ -232,12 +288,12 @@ export function swapGCodeText(text, { toReal = true, dia = false } = {}) {
     const flush = () => { out += _swapCode(code, toReal, dia); code = ''; };
     while (i < line.length) {
       const ch = line[i];
-      if (ch === ';') { flush(); out += line.slice(i); i = line.length; break; }
+      if (ch === ';') { flush(); out += swapAxisWords(line.slice(i)); i = line.length; break; }
       if (ch === '(' || ch === '"') {   // komentář Fanuc/Heidenhain, název nástroje T="…"
         flush();
         const j = line.indexOf(ch === '(' ? ')' : '"', i + 1);
         const end = j < 0 ? line.length : j + 1;
-        out += line.slice(i, end); i = end; continue;
+        out += ch === '(' ? swapAxisWords(line.slice(i, end)) : line.slice(i, end); i = end; continue;
       }
       code += ch; i++;
     }
@@ -258,10 +314,10 @@ const SWAP_NOTE = 'Karusel - hrubování po X v prohozených osách, nůž svisl
  */
 export function finishSwappedCalc(S, S2, calc2, lightOnly, simOf) {
   const out = swapCalcOut(calc2, S.params.mode === 'DIAMON');
-  const zl = S.zLimits || {}, xl = S.xLimits || {};
-  S.errors = [...(S2.errors || [])];
-  if (zl.chuckActive || zl.tailActive || zl.rangeActive || xl.active) {
-    S.errors.push({ type: 'warning', msg: 'Karusel v prohozených osách: meze čelistí/koníku a rozsahy 📐 se zatím neuplatní.' });
+  const zl = S.zLimits || {};
+  S.errors = (S2.errors || []).map(e => (e && typeof e.msg === 'string' ? { ...e, msg: swapAxisWords(e.msg) } : e));
+  if (zl.chuckActive || zl.tailActive) {
+    S.errors.push({ type: 'warning', msg: 'Karusel v prohozených osách: meze čelistí/koníku se zatím neuplatní (rozsahy 📐 ano).' });
   }
   // Bezpečná poloha uvnitř obrysu polotovaru: program by do ní na konci
   // sjel přes díl (na karuselu typicky Z pod vrchem dílu).
@@ -283,7 +339,8 @@ export function finishSwappedCalc(S, S2, calc2, lightOnly, simOf) {
 export function emitSwapped(S, calc, emit, calcOf, cmt) {
   const xz = (calc && calc._xz) || (() => { const S2 = swapState(S); return { S: S2, calc: calcOf(S2) }; })();
   const lines = emit(xz.S, xz.calc);
-  S.genNotes = xz.S.genNotes || [];
+  S.genNotes = (xz.S.genNotes || []).map(n => (typeof n === 'string' ? swapAxisWords(n)
+    : n && typeof n.msg === 'string' ? { ...n, msg: swapAxisWords(n.msg) } : n));
   const dia = S.params.mode === 'DIAMON';
   const out = lines.map(l => ({ ...l, text: swapGCodeText(l.text, { toReal: true, dia })
     .replace(/(Vygenerovaný kód .*?)- SOUSTRUH/, '$1- KARUSEL') }));

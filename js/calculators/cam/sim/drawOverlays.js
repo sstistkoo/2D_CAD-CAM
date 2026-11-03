@@ -5,6 +5,7 @@
 // skládá drawCanvas.js.
 import { drawSectionPlan } from '../ops/sections/drawSections.js';
 import { sectionPlanForView } from './zigzagView.js';
+import { xzSectionView } from './xzSections.js';
 import { xBoundOn } from '../rangeX.js';
 
 /** @param f snímek kreslení z drawCanvas(): { S, ctx, calc, prms, w, h, C, toScreen, _draggingStock, _hoverContourSeg, _draggedContourSeg, _draggingStockPt, _camAutoSegs, _camAutoRevealCount, getSectionLeftover } */
@@ -169,7 +170,11 @@ export function drawOverlayLayer(f) {
   }
 
   // Úseky podélného hrubování (pravidla 1 a 8) — čáry hranic a pořadí.
-  if (S.showSections !== false) drawSectionPlan(ctx, sectionPlanForView(calc), toScreen, getSectionLeftover(calc));
+  if (S.showSections !== false) {
+    const xv = xzSectionView(S, calc, toScreen);   // karusel po X: plán z prohozeného světa
+    if (xv) drawSectionPlan(ctx, xv.plan, xv.toScreen, xv.leftover);
+    else drawSectionPlan(ctx, sectionPlanForView(calc), toScreen, getSectionLeftover(calc));
+  }
 
   // Z-limity (čelisti, koník, rozsah obrábění)
   if (S.showZLimits && S.showZLimits !== 'off') {
