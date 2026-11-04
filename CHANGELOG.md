@@ -49,9 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cik cak: podélný kus pod obrácenou vrstvou jel dřív než ona** (`ops/zigzagReverse.js`): po seskupení
   obrácených vrstev zůstaly kusy vrstev pod nimi na původním místě a zanořovaly se svisle do neubraného
   materiálu (na karuselu G1 10 mm dolů, tříska 8,9 mm při ap 2). Teď se zařadí mezi ně podle výšky.
-- **Cik cak: obrácená vrstva přes vršek končila uprostřed svahu** (`ops/zigzagReverse.js`): přejela jen
-  4R + 4ap a zbytek téže vrstvy jel zvlášť (na karuselu 27,5 mm posuvem po ubraném). Teď dojede zpět na
-  svou výšku a ke stěně, zbytek odpadá. Kontrola pravidla 7 uznává i obrácené vrstvy.
+- **Cik cak: klín u paty stěny** (`ops/zigzagReverse.js`): obrácená vrstva skončila za malým hrbem, zbytek
+  vrstvy sjel ke stěně rampou 45° a pod ní zůstal klín (karusel, ap 6: „nedojeto 23 mm²", 4 mm). Teď se
+  napojí na KRÁTKÝ zbytek u stěny (≤ 2R + 2ap, hned za návratem na výšku) a dojede k ní. Verze z téže noci,
+  která vrstvu prodlužovala i přes dlouhý vršek, stáhla k sobě vrstvy pravé strany a program skákal mezi
+  svahy s výjezdy rychloposuvem nad hrb — vráceno. Kontrola pravidla 7 uznává i obrácené vrstvy.
 - **CAD mobil: snap na osy** (`canvas.js`): prstem se na osu Z/X skoro nedalo trefit (hrana i osa chytaly
   jen 12 px). Při dotyku je poloměr zachycení větší (body 30 px, hrany a osy 30 px), myš beze změny.
   Úhlový snap navíc konec čáry přichycený na osu z osy neodtáhne – bere průsečík úhlové přímky s osou.

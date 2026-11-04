@@ -86,12 +86,14 @@ počítá jen na karuselu, starý nikdy — soustruhové programy se nemění.
      8,9 mm. Oprava v `ops/zigzagReverse.js`: závislé kusy (níž, překryv v Z,
      uzávěr) se zařadí do skupiny podle výšky. 15 → 10 porušení, otisk
      soustruhu shodný, testy Cik cak beze změny.
-   - ✅ 4. 11. 2026: **P5 posuv vzduchem (1) a P7 vrstva přes hrb (2)** —
-     obrácená vrstva X107 přejížděla vršek jen 4R + 4ap a zbytek téže vrstvy
-     jel zvlášť (27,5 mm posuvem po ubraném). Teď dojede po offsetu až zpět
-     na X a ke stěně, pokud tam čeká zbytek té vrstvy (ten odpadá); jinak jako
-     dřív. Kontrola P7 (`scripts/lib/camRuleHump.mjs`) uznává souvislost
-     i pozpátku v čase (obrácené vrstvy jedou opačně, pravidlo 20). 10 → 7.
+   - ⚠ 4. 11. 2026 v noci: prodloužení obrácené vrstvy přes vršek až ke stěně
+     (commit 3771a81) na dílu uživatele s **ap 6** stáhlo k sobě vrstvy pravé
+     strany → program skákal mezi svahy, 23× rychloposuvem nad hrb. Vráceno.
+     Teď se obrácená vrstva napojí JEN na krátký zbytek u stěny (≤ 2R + 2ap)
+     hned za návratem na výšku (do 4R + 4ap) — u ap 6 zmizel klín u paty
+     stěny („nedojeto", 4,15 → 0,53 mm). Test `carousel-zigzag-ap6`. U ap 2
+     (fixture `carousel-zigzag-po-x`) zůstává P5 27,5 mm a P7 přes hrb jako
+     dřív. Kontrola P7 (`camRuleHump.mjs`) uznává i obrácený směr.
      Pravidlo 20 schváleno uživatelem 4. 11. 2026.
    - ✅ 4. 11. 2026: **P7 přes hrb dřív (1)** — planý poplach kontroly:
      hlásila začátek obrácené vrstvy X109 (jede zleva KE stěně, materiál

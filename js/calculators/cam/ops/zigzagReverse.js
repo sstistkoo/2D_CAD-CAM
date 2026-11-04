@@ -150,14 +150,18 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
         return { pts, back: null, end: zz };
       };
       const lim = Math.min(zHi, lz + 4 * noseR + 4 * step);
-      const w1 = walk(lz, lim);
-      let w = w1, viaTarget = false;
-      if (target && w1.back === null && w1.end >= lim - 1e-9 && target.zStart > lim) {
-        const w2 = walk(lim, Math.min(zHi, target.zStart));
-        const near = w2.back !== null && Math.abs(target.zEnd - w2.back) <= noseR + step
-          && (() => { const zw2 = wallRight(X + 0.02, w2.back, target.zStart); return zw2 === null || zw2 >= target.zStart - 0.05; })();
-        if (near) { w = { pts: [...w1.pts, ...w2.pts], back: w2.back }; viaTarget = true; }
-      }
+      const w = walk(lz, lim);
+      // Napojení na zbytek vrstvy JEN když vrstva sjede zpět na X v obvyklé
+      // vzdálenosti (4R + 4ap) a zbytek začíná hned tam. Přes dlouhý vršek
+      // velkého hrbu NE: tam zbytek patří pravé straně, která jede dřív
+      // (pravidlo 7) — prodloužení přes vršek k sobě stáhlo vrstvy pravého
+      // svahu a program skákal mezi svahy (díl uživatele s ap 6, 4. 11. 2026).
+      // Zbytek musí být KRÁTKÝ kus u stěny (≤ 2R + 2ap) — dlouhá vrstva přes
+      // vršek (díl s ap 2: X157 61 mm na pravou stranu) patří pravé straně.
+      const viaTarget = !!target && w.back !== null && target.zStart > w.back
+        && Math.abs(target.zEnd - w.back) <= noseR + step
+        && target.zStart - target.zEnd <= 2 * noseR + 2 * step
+        && (() => { const zw2 = wallRight(X + 0.02, w.back, target.zStart); return zw2 === null || zw2 >= target.zStart - 0.05; })();
       moves.push(...w.pts);
       if (w.back === null) break;
       moves.push({ g: 'G1', x: X, z: w.back });

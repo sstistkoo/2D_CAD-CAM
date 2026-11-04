@@ -90,19 +90,35 @@ describe('díl uživatele (Cik cak po X)', () => {
     expect(bad).toEqual([]);
   });
 
-  it('obrácená vrstva přejede vršek a dojede ke stěně; zbytek téže vrstvy zvlášť nejede (zigzagReverse.js)', () => {
-    // Do 4. 11. 2026: vrstva X107 skončila po pevných 4R + 4ap uprostřed svahu
-    // (Z170) a zbytek vrstvy jel zvlášť → 27,5 mm posuvem po už ubraném.
-    const ps = r.calc._xz.calc.passes;
-    const rev = ps.find(p => p.reversedLayer && Math.abs(p.moves[0].x - 107.0618) < 1e-3);
-    expect(Math.max(...rev.moves.map(m => m.z))).toBeGreaterThan(188);
-    expect(ps.filter(p => p.type === 'long' && Math.abs(p.x - 107.0618) < 1e-3 && p.zStart > 184 && p.zEnd < 190)).toEqual([]);
-  });
-
   it('bez prohození = machinedStockPoints jako dřív', () => {
     const L = { ...S, params: { ...S.params, carouselAlongX: false } };
     const calc = { stockPathSegments: r.calcSim.stockPathSegments, simPath: r.calcSim.simPath };
     const noId = (m) => ({ ...m, points: m.points.map(({ id, ...q }) => q) });   // eslint-disable-line no-unused-vars
     expect(noId(machinedFor(L, calc))).toEqual(noId(machinedStockPoints(L.params, calc.stockPathSegments, calc.simPath)));
   });
+});
+
+describe('díl uživatele s ap 6 (Cik cak po X)', () => {
+  it('nejdřív celá pravá strana, pak levá — žádné střídání přes vršek', async () => {
+    // 4. 11. 2026: obrácená vrstva přejela po vršku na pravou stranu a stáhla
+    // k sobě vrstvy pravého svahu → program skákal mezi svahy a pokaždé
+    // vyjel rychloposuvem nad hrb (23× G0 nahoru o víc než 8 mm).
+    const r = await runCamProg(load('carousel-zigzag-ap6.camprog'));
+    let x = null, z = null, ups = 0;
+    for (const l of r.gcode.split('\n')) {
+      const c = l.split(';')[0];
+      const mx = c.match(/\bX(-?\d+\.?\d*)/), mz = c.match(/\bZ(-?\d+\.?\d*)/);
+      const nz = mz ? +mz[1] : z;
+      if (/^N\d+ G0\b/.test(c) && z !== null && nz - z > 8) ups++;
+      if (mx) x = +mx[1];
+      z = nz;
+    }
+    expect(x).not.toBeNull();
+    expect(ups).toBeLessThanOrEqual(3);
+    // Klín u paty stěny („nedojeto"): obrácená vrstva X107 se napojí na krátký
+    // zbytek vrstvy u stěny a dojede k ní (dřív skončila za malým hrbem, zbytek
+    // sjel rampou 45° a pod ní zůstal klín 4 mm).
+    const rev = r.calc._xz.calc.passes.find(p => p.reversedLayer && Math.abs(p.moves[0].x - 107.0618) < 1e-3);
+    expect(Math.max(...rev.moves.map(m => m.z))).toBeGreaterThan(188);
+  }, 240000);
 });
