@@ -93,8 +93,20 @@ počítá jen na karuselu, starý nikdy — soustruhové programy se nemění.
      dřív. Kontrola P7 (`scripts/lib/camRuleHump.mjs`) uznává souvislost
      i pozpátku v čase (obrácené vrstvy jedou opačně, pravidlo 20). 10 → 7.
      Pravidlo 20 schváleno uživatelem 4. 11. 2026.
-   - Zbývá 7 — tytéž jako u čistého Podélně (společný kód se soustruhem):
-     P3 tenká vrstva 2, P3 zbytek na dně 4, P7 přes hrb dřív 1.
+   - ✅ 4. 11. 2026: **P7 přes hrb dřív (1)** — planý poplach kontroly:
+     hlásila začátek obrácené vrstvy X109 (jede zleva KE stěně, materiál
+     u paty stěny ubírá sama a vrstvy pod ní). `cam_rules_check` teď P7/P8
+     u obrácených vrstev Cik cak nehodnotí. 7 → 6. (U čistého Podélně je
+     tamtéž skutečný klín pod čarou zanoření, 4,1 mm — z pravidla 6 neodstranitelný
+     zprava; řeší ho právě Cik cak nebo obrábění zleva.)
+   - Zbývá 6, společné se soustruhem:
+     - **P3 tenká vrstva (2):** první vrstva shora ubírá jen 1,0 mm — vrstvy se
+       počítají od dna, zbytek zůstane nahoře. Pravidlo 3 chce tenčí jen
+       poslední. Oprava = počítat vrstvy od vrchu polotovaru; pohne
+       s drahami všech dílů (i soustruhu) → **rozhodne uživatel**.
+     - **P3 zbytek na dně (4):** 0,16–0,62 mm nad přídavkem v rozích.
+     - Pro srovnání soustruhové fixtures (`cam_rules_check`): part-1/2 po
+       42 porušeních, part-4 45, holder-region-roughing 12.
 6. ✅ **Rozsahy 📐** (3. 11. 2026, `swapLimits` v xzSwap.js): rozsah X
    (poloměry) → rozsah Z' (pás), rozsah Z (výška) → X' min/max. Strop X' max
    je pravidlo 12 = „nad výškou se neobrábí a pod materiál se nepodjíždí" —

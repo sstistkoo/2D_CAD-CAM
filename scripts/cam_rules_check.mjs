@@ -182,7 +182,10 @@ async function check(file) {
         if (deg > plungeLimit + 1) found.plunge.push({ i, v: deg, lim: plungeLimit });
       }
       // P7/P8 — posuzuje se na první vrstvě (posuv v Z) po rychloposuvu.
-      if (afterRapid && Math.abs(dx) < 1e-6 && Math.abs(dz) > 1) {
+      // Obrácená vrstva Cik cak (pravidlo 20) jede ze vzduchu za hrbem KE stěně
+      // (proti směru obrábění) — přes hrb nepřejíždí, P7/P8 se na ni nevztahuje.
+      const reversed = P.roughingStrategy === 'zigzag' && dz * dir > 0;
+      if (afterRapid && Math.abs(dx) < 1e-6 && Math.abs(dz) > 1 && !reversed) {
         order.onPassStart(i, b.x, a.z, b.x - lift, loopsBefore);
         afterRapid = false;
       }
