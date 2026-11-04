@@ -77,9 +77,18 @@ počítá jen na karuselu, starý nikdy — soustruhové programy se nemění.
    ↔ Čelně): **33** porušení, 0 kolizí — P5 posuv vzduchem 22, P3 zbytek na
    dně 5, P3 tenká vrstva 2, P3 tříska > ap 1, P7 přes hrb 2, P6 zanoření 1.
    (Odpoledních 29 bylo měřeno jinou cestou; výchozí hodnota pro krok 5 je 33.)
-5. **Zbylá porušení (33)** řešit po jednom pravidle (1 sezení = 1 pravidlo,
-   `docs/cam-pravidla.md`). Jde o tentýž podélný algoritmus jako na soustruhu,
-   takže oprava pomůže oběma. Hlídat otisk soustruhových fixtures.
+5. **Zbylá porušení** — měří se na dílu uživatele s Cik cak
+   (`tests/fixtures/cam-cases/carousel-zigzag-po-x.camprog` → `cam_swap_xz` →
+   `cam_rules_check`), 1 sezení = 1 pravidlo, hlídat otisk soustruhu.
+   - ✅ 4. 11. 2026: **P3 tříska > ap (4) a P6 svislé zanoření (1)** — Cik cak
+     seskupoval obrácené vrstvy na místo poslední z nich, ale podélné kusy pod
+     nimi (X117, X107) zůstaly dřív → G1 svisle 10 mm do materiálu, tříska
+     8,9 mm. Oprava v `ops/zigzagReverse.js`: závislé kusy (níž, překryv v Z,
+     uzávěr) se zařadí do skupiny podle výšky. 15 → 10 porušení, otisk
+     soustruhu shodný, testy Cik cak beze změny.
+   - Zbývá 10: P5 posuv vzduchem 1, P7 vrstva přes hrb vcelku 2 (obojí jen
+     Cik cak), P3 tenká vrstva 2, P3 zbytek na dně 4, P7 přes hrb dřív 1
+     (tytéž i u čistého Podélně — společný kód se soustruhem).
 6. ✅ **Rozsahy 📐** (3. 11. 2026, `swapLimits` v xzSwap.js): rozsah X
    (poloměry) → rozsah Z' (pás), rozsah Z (výška) → X' min/max. Strop X' max
    je pravidlo 12 = „nad výškou se neobrábí a pod materiál se nepodjíždí" —

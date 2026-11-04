@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Cik cak: podélný kus pod obrácenou vrstvou jel dřív než ona** (`ops/zigzagReverse.js`): po seskupení
+  obrácených vrstev zůstaly kusy vrstev pod nimi na původním místě a zanořovaly se svisle do neubraného
+  materiálu (na karuselu G1 10 mm dolů, tříska 8,9 mm při ap 2). Teď se zařadí mezi ně podle výšky.
 - **CAD mobil: snap na osy** (`canvas.js`): prstem se na osu Z/X skoro nedalo trefit (hrana i osa chytaly
   jen 12 px). Při dotyku je poloměr zachycení větší (body 30 px, hrany a osy 30 px), myš beze změny.
   Úhlový snap navíc konec čáry přichycený na osu z osy neodtáhne – bere průsečík úhlové přímky s osou.

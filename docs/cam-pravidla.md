@@ -427,7 +427,10 @@ stěně vyjede o vrstvu nahoru.**
 - Obrácené vrstvy téhož místa za hrbolem jdou za sebou shora dolů, až po
   pravé straně (pravidlo 7). Mezi nimi: odskok šikmo od stěny, rychloposuv
   v téže výšce rovnou nad další vjezd, dolů ve vzduchu (posledních 0,5
-  posuvem) a nové ap.
+  posuvem) a nové ap. Podélný kus vrstvy, který leží pod některou z nich
+  (níž, přes totéž Z), jede až po ní — zařadí se mezi ně podle výšky
+  (doplněno 4. 11. 2026, karusel po X: kus pod hrbem jel dřív a zanořil se
+  svisle do neubraného materiálu).
 - Kde podélné hrubování pod poslední obrácenou vrstvou žádnou vrstvu nemá
   (ořízla ji čára zanoření), přidají se další obrácené vrstvy po ap, dokud
   vpravo stojí materiál a vlevo je volno — až na úroveň polotovaru (S6).

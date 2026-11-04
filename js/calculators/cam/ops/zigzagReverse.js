@@ -242,13 +242,39 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
     }));
     if (g) g.push(i); else groups.push([i]);
   }
+  // ZÁVISLÉ PODÉLNÉ KUSY: podélný průchod, který leží mezi členy skupiny a pod
+  // některou její vrstvou (níž v X, přes Z ± R + ap), musí jet AŽ PO ní — jinak
+  // by se zanořil do materiálu, který skupina teprve ubere (karusel po X,
+  // uživatel 4. 11. 2026: G1 X109 svisle a tříska 8,9 mm při ap 2). Zařadí se
+  // do skupiny podle výšky. Překryv v Z bez přídavku: s rezervou R + ap se
+  // přesouvaly i nezávislé kusy a trhal se řetěz obrácených vrstev.
+  const xOf = (q) => (q.type === 'zigzag' ? q.moves[0].x : q.x);
+  const zrLong = (q) => {
+    const zs = [q.zStart, q.zEnd, q.ramp && q.ramp.z0].filter(Number.isFinite);
+    return [Math.min(...zs), Math.max(...zs)];
+  };
   const remove = new Set(), insertAt = new Map();
   for (const G of groups) {
     if (G.length < 2) continue;
-    const items = G.map((j) => passes[j]).sort((a, b) => b.moves[0].x - a.moves[0].x)
-      .map((q, k) => ({ ...q, chain: k > 0 }));
-    const last = Math.max(...G);
+    const first = Math.min(...G), last = Math.max(...G);
+    // Uzávěr: kus pod už přesunutým kusem musí jet po něm taky.
+    const deps = [], moved = [...G];
+    const zrOf = (q) => (q.type === 'zigzag' ? zr(q) : zrLong(q));
+    for (let grew = true; grew;) {
+      grew = false;
+      for (let j = first + 1; j < last; j++) {
+        const p = passes[j];
+        if (!p || p.reversedLayer || p.type !== 'long' || moved.includes(j) || !Number.isFinite(p.x)) continue;
+        const [pl, ph] = zrLong(p);
+        if (moved.some((g) => { const q = passes[g], [l2, h2] = zrOf(q); return xOf(q) > p.x + 1e-6 && pl < h2 && ph > l2; })) {
+          deps.push(j); moved.push(j); grew = true;
+        }
+      }
+    }
+    const items = [...G, ...deps].sort((a, b) => (xOf(passes[b]) - xOf(passes[a])) || (a - b)).map((j) => passes[j])
+      .map((q, k, arr) => (q.reversedLayer ? { ...q, chain: k > 0 && !!arr[k - 1].reversedLayer } : q));
     G.forEach((j) => remove.add(j));
+    deps.forEach((j) => remove.add(j));
     insertAt.set(last, items);
   }
   if (remove.size) {

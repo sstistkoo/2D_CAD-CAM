@@ -72,6 +72,24 @@ describe('díl uživatele (Cik cak po X)', () => {
     expect(Math.max(...xs)).toBeLessThanOrEqual(428.5);   // obvod odlitku
   });
 
+  it('podélný kus pod obrácenou vrstvou jede až po ní (zigzagReverse.js)', () => {
+    // Do 4. 11. 2026 jel kus vrstvy X107 pod hrbem dřív než obrácené vrstvy
+    // nad ním: G1 svisle do materiálu, tříska 8,9 mm při ap 2.
+    const ps = r.calc._xz.calc.passes;
+    const zr = (q) => (q.type === 'zigzag' ? q.moves.map(m => m.z) : [q.zStart, q.zEnd]);
+    const bad = [];
+    ps.forEach((p, i) => {
+      if (p.type !== 'long') return;
+      const [pl, ph] = [Math.min(...zr(p)), Math.max(...zr(p))];
+      for (const q of ps.slice(i + 1)) {
+        if (!q.reversedLayer) continue;
+        const [l2, h2] = [Math.min(...zr(q)), Math.max(...zr(q))];
+        if (q.moves[0].x > p.x + 1e-6 && pl < h2 && ph > l2) bad.push(`X${p.x.toFixed(2)} před X${q.moves[0].x.toFixed(2)}`);
+      }
+    });
+    expect(bad).toEqual([]);
+  });
+
   it('bez prohození = machinedStockPoints jako dřív', () => {
     const L = { ...S, params: { ...S.params, carouselAlongX: false } };
     const calc = { stockPathSegments: r.calcSim.stockPathSegments, simPath: r.calcSim.simPath };
