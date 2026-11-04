@@ -36,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `swapLimits`, `swapPasses`): rozsah X = pás poloměrů, rozsah Z = výška (strop shora); úseky po X s dnem ve
   výšce; obrobený polotovar od stolu. Hlášky a komentáře programu s osami prohozenými zpět, tlačítka strany
   „← Od obvodu / → Od středu".
+- **Karusel po X: čelisti a koník jako výšky** (`swapLimits`, uživatel 4. 11. 2026): limity otočené o 90° proti
+  soustruhu. Čelisti dole na stole = pod jejich výšku plátek nesjede; koník = horní mez, nad ní se neobrábí
+  a výjezd programu nad ni (bezpečná poloha, výjezdy) se hlásí varováním.
 - **Hlavička G-kódu uvádí stroj**: `; Vygenerovaný kód SINUMERIK 840D - KARUSEL` / `- SOUSTRUH`.
 
 - **Typ čáry: barva zvlášť pro konturu a polotovar** (`lineStyles.js`, `lineStyleDialog.js`): barva zvolená pro

@@ -21,7 +21,7 @@
 // drží skutečný význam: ↔ Čelně (po X) = podélný algoritmus v prohozeném
 // světě, ↕ Podélně (po Z) = čelní, ⇅ Cik cak = cik cak po X.
 // Zatím se NEprohazuje: závit, vrtání, vyvrtávání, upich (prohození se
-// vypne) a meze čelistí/koníku. Rozsahy 📐 ano (swapLimits). Plán úseků „✂ Po úsecích" (v reálném calc chybí → tlačítko ohlásí proč).
+// vypne). Rozsahy 📐, čelisti (dno) a koník (horní mez) ano (swapLimits). Plán úseků „✂ Po úsecích" (v reálném calc chybí → tlačítko ohlásí proč).
 
 import { resolvePointsToAbsolute } from './contourBuild.js';
 import { resolveRangeX } from './rangeX.js';
@@ -157,7 +157,7 @@ const BIG = 1e4;   // chybějící mez rozsahu = neomezeno (rozsah Z chce čísl
  * → rozsah Z'. Rozsah Z (výška nad stolem) → rozsah X': dno = X' min, strop
  * = X' max — pravidlo 12 (nad X max se neobrábí a pod materiál nad ním se
  * nepodjíždí) tak na karuselu znamená „nad výškou se neobrábí", což přesně
- * sedí na nůž shora. Čelisti a koník se zatím neuplatní (stůl karuselu).
+ * sedí na nůž shora.
  */
 export function swapLimits(zl = {}, xl = {}) {
   const rx = resolveRangeX(xl);
@@ -165,18 +165,28 @@ export function swapLimits(zl = {}, xl = {}) {
   const rz = zl.rangeActive && Number.isFinite(rS) && Number.isFinite(rE)
     ? { lo: Math.min(rS, rE), hi: Math.max(rS, rE) } : null;
   const fin = (v, d) => (Number.isFinite(v) ? v : d);
+  // Čelisti a koník otočené o 90° (uživatel 4. 11. 2026): na karuselu jsou
+  // to VÝŠKY. Čelisti dole na stole = dno (pod jejich výšku plátek nesmí,
+  // pravidlo 16), koník = horní mez (nad ní se neobrábí; výjezd nad ni hlásí
+  // finishSwappedCalc). V prohozeném světě obojí = X' min / X' max.
+  const ch = zl.chuckActive && Number.isFinite(zl.chuck) ? zl.chuck : null;
+  const tl = zl.tailActive && Number.isFinite(zl.tail) ? zl.tail : null;
+  const lo = Math.max(rz ? rz.lo : -Infinity, ch ?? -Infinity);
+  const hi = Math.min(rz ? rz.hi : Infinity, tl ?? Infinity);
+  const loOn = Number.isFinite(lo), hiOn = Number.isFinite(hi);
   return {
     zLimits: {
       ...zl, chuckActive: false, tailActive: false, rangeActive: !!rx,
       rangeStart: rx ? fin(rx.xHi, BIG) : null, rangeEnd: rx ? fin(rx.xLo, -BIG) : null,
     },
-    xLimits: rz
-      ? { rangeXMin: rz.lo, rangeXMax: rz.hi, minActive: true, maxActive: true, active: true }
-      : { rangeXMin: null, rangeXMax: null, minActive: false, maxActive: false, active: false },
+    xLimits: {
+      rangeXMin: loOn ? lo : null, rangeXMax: hiOn ? hi : null,
+      minActive: loOn, maxActive: hiOn, active: loOn || hiOn,
+    },
   };
 }
 
-/** Stav simulátoru v prohozeném světě (mělká kopie; rozsahy prohozené, čelisti/koník vypnuté). */
+/** Stav simulátoru v prohozeném světě (mělká kopie; rozsahy, čelisti a koník prohozené). */
 export function swapState(S) {
   const p = S.params;
   const dia = p.mode === 'DIAMON';
@@ -316,9 +326,7 @@ export function finishSwappedCalc(S, S2, calc2, lightOnly, simOf) {
   const out = swapCalcOut(calc2, S.params.mode === 'DIAMON');
   const zl = S.zLimits || {};
   S.errors = (S2.errors || []).map(e => (e && typeof e.msg === 'string' ? { ...e, msg: swapAxisWords(e.msg) } : e));
-  if (zl.chuckActive || zl.tailActive) {
-    S.errors.push({ type: 'warning', msg: 'Karusel v prohozených osách: meze čelistí/koníku se zatím neuplatní (rozsahy 📐 ano).' });
-  }
+
   // Bezpečná poloha uvnitř obrysu polotovaru: program by do ní na konci
   // sjel přes díl (na karuselu typicky Z pod vrchem dílu).
   const sp = out.stockWorldPoints || [];
@@ -327,6 +335,11 @@ export function finishSwappedCalc(S, S2, calc2, lightOnly, simOf) {
     S.errors.push({ type: 'warning', msg: `Bezpečná poloha X${S.params.safeX} Z${S.params.safeZ} leží v obrysu polotovaru — nastavte Z nad díl (nebo X za polotovar), jinak program na konci sjede přes díl.` });
   }
   if (!lightOnly) Object.assign(out, simOf(S));
+  // Koník na karuselu = horní mez: program nad ni nemá vyjíždět.
+  if (zl.tailActive && Number.isFinite(zl.tail)) {
+    const zTop = Math.max(sz, ...(out.simPath || []).map(q => q.z).filter(Number.isFinite));
+    if (zTop > zl.tail + 1e-3) S.errors.push({ type: 'warning', msg: `Program vyjíždí nad horní mez (koník Z${zl.tail}) až na Z${zTop.toFixed(1)} — snižte Bezpečnou polohu Z nebo zvedněte mez.` });
+  }
   Object.defineProperty(out, '_xz', { value: { S: S2, calc: calc2 }, enumerable: false });
   return out;
 }

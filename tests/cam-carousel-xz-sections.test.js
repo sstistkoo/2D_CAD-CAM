@@ -122,3 +122,16 @@ describe('díl uživatele s ap 6 (Cik cak po X)', () => {
     expect(Math.max(...rev.moves.map(m => m.z))).toBeGreaterThan(188);
   }, 240000);
 });
+
+describe('čelisti a koník na karuselu = výšky (otočené o 90°)', () => {
+  it('pod čelisti plátek nesjede, výjezd nad koník se hlásí', async () => {
+    const p = load('carousel-zigzag-ap6.camprog');
+    p.zLimits = { ...p.zLimits, chuck: 20, chuckActive: true, tail: 300, tailActive: true };
+    const r = await runCamProg(p);
+    const cut = r.calcSim.simPath.filter(q => q.type !== 'G0');
+    expect(cut.length).toBeGreaterThan(50);
+    expect(Math.min(...cut.map(q => q.z))).toBeGreaterThanOrEqual(20 + 5 - 1e-6);   // spodek nosu R5 na Z20
+    expect(r.errors.some(e => /koník Z300/.test(e.msg || ''))).toBe(true);
+  }, 240000);
+});
+

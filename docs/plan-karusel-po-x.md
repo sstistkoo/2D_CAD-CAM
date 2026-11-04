@@ -117,8 +117,10 @@ počítá jen na karuselu, starý nikdy — soustruhové programy se nemění.
    je pravidlo 12 = „nad výškou se neobrábí a pod materiál se nepodjíždí" —
    na noži shora přesně fyzika. Hlášky ⚠ a komentáře programu mají osy
    prohozené zpět (`swapAxisWords`: jen písmeno za předložkou / „Rozsah").
-   **Čelisti a koník** zůstávají vypnuté (varování) — rozmyslet s uživatelem,
-   co na karuselu znamenají (upínky na stole?).
+   **Čelisti a koník** (4. 11. 2026, uživatel: „limity jenom otočit o 90°"):
+   výšky. Čelisti dole na stole = X' min (pod ně plátek nesjede, pravidlo 16),
+   koník = horní mez X' max (nad ní se neobrábí) + varování, když program nad
+   ni vyjede (bezpečná poloha, výjezdy).
 7. ✅ **✂ Po úsecích a ➕ Operace** (`cam/sim/xzSections.js`): kroky z plánu
    v prohozeném světě (`calc._xz`), do skutečného stavu jako rozsahy (pás =
    rozsah X, dno = Z od výšky), obrobený polotovar = profil od stolu

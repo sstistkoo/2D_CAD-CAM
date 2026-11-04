@@ -1558,7 +1558,9 @@ náhledem destičky a držáku. Pod náhledem je jeden přepínač
   Hlavička programu uvádí řídicí systém i stroj (… 840D - KARUSEL / - SOUSTRUH).
   Rozsah 📐 X = pás poloměrů, rozsah Z = výška nad stolem (nad Z max se neobrábí
   ani se pod materiál nepodjíždí). ✂ Po úsecích dělí díl po X. Strana: ← Od obvodu
-  (standard) / → Od středu. Čelisti a koník se v tomto režimu zatím neuplatní.
+  (standard) / → Od středu. Čelisti a koník jsou výšky (otočené o 90°): čelisti dole
+  na stole — pod ně plátek nesjede; koník = horní mez — nad ní se neobrábí a výjezd
+  programu nad ni se hlásí.
   **⇋ Cik cak** (jen kulatá destička v držáku užším než destička, 🔧 SRDPN
   úzký; 1. 11. 2026): jede jako Podélně podle všech pravidel (úseky, pořadí,
   zanořování). Jen **vrstva za hrbolem**, která by se zanořila a **vyjela do

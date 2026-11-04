@@ -54,12 +54,17 @@ describe('prohození textu G-kódu', () => {
 });
 
 describe('rozsahy 📐 a texty v prohozených osách', () => {
-  it('rozsah X (poloměry) → rozsah Z\', rozsah Z (výška) → X\' min/max; čelisti a koník vypnuté', () => {
+  it('rozsah X (poloměry) → rozsah Z\', rozsah Z (výška), čelisti a koník → X\' min/max', () => {
     const r = swapLimits(
       { rangeStart: 150, rangeEnd: 100, rangeActive: true, chuck: -5, chuckActive: true },
       { rangeXMin: null, rangeXMax: 500, active: true, minActive: false, maxActive: true });
     expect(r.zLimits).toMatchObject({ rangeActive: true, rangeStart: 500, rangeEnd: -1e4, chuckActive: false, tailActive: false });
     expect(r.xLimits).toMatchObject({ rangeXMin: 100, rangeXMax: 150, minActive: true, maxActive: true });
+    // Čelisti (dole) a koník (nahoře) = výšky; s rozsahem Z platí užší.
+    const c = swapLimits({ chuck: 20, chuckActive: true, tail: 300, tailActive: true }, {});
+    expect(c.xLimits).toMatchObject({ rangeXMin: 20, rangeXMax: 300, minActive: true, maxActive: true });
+    const c2 = swapLimits({ chuck: 120, chuckActive: true, rangeStart: 150, rangeEnd: 100, rangeActive: true }, {});
+    expect(c2.xLimits).toMatchObject({ rangeXMin: 120, rangeXMax: 150 });
     const off = swapLimits({}, {});
     expect(off.zLimits.rangeActive).toBe(false);
     expect(off.xLimits.active).toBe(false);
