@@ -477,3 +477,22 @@ stěně vyjede o vrstvu nahoru.**
 - Kde za vrstvou materiál je (tyč), platí Podélně beze změny.
 - Kontrola: `tests/cam-zigzag-reverse.test.js` (směr vrstev, validátor
   kolizí 0, úběr ≥ podélně, na tyči G-kód shodný s Podélně).
+
+## Pravidlo 21 — Karusel: hrubování po X = podélné v prohozených osách ✅ schváleno
+
+**Na karuselu se ↔ Čelně a ⇅ Cik cak hrubují po X tím samým podélným
+algoritmem, jaký se na soustruhu používá po Z. Nůž jde svisle dolů ze
+smykadla. Všechna pravidla platí v prohozeném světě (x' = z, z' = x).**
+
+- Schváleno uživatelem 4. 11. 2026 („po ose X je podélné hrubování, které se
+  používá pro soustruh, které je Z pro ten soustruh"; nůž svisle ověřen
+  v simulaci).
+- Stůl (Z0) je v prohozeném světě „osa", „zprava" = od obvodu ke středu.
+- Výchozí zapnuto (přepínač ⟲ „Po X jako podélně", `carouselAlongX`);
+  vypnutím se vrátí čelní hrubování postaru.
+- Meze otočené o 90°: rozsah X = poloměry, rozsah Z = výška; čelisti dole
+  na stole (pod jejich výšku plátek nesjede), koník = horní mez (nad ní se
+  neobrábí, výjezd nad ni se hlásí).
+- Kód: `cam/xzSwap.js` (výpočet, G-kód), `cam/sim/xzSim.js` (simulace,
+  kolize), `cam/sim/xzSections.js` (úseky, operace). Kontrola:
+  `tests/cam-carousel-swap-xz.test.js`, `tests/cam-carousel-xz-sections.test.js`.

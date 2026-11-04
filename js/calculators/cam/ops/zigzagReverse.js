@@ -122,7 +122,7 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
   // dojede k jeho stěně a vyjede po ní — kus pak odpadá (uživatel 4. 11. 2026,
   // karusel po X: vrstva X107 skončila po pevných 4R + 4ap uprostřed svahu a
   // zbytek jel zvlášť → 27 mm posuvem vzduchem, vrstva přes hrb přerušená).
-  const layerMoves = (X, zAir, zw, target = null) => {
+  const layerMoves = (X, zAir, zw, target = null, self = null) => {
     const moves = [{ g: 'G0', x: X, z: zAir }, { g: 'G1', x: X, z: zw }];
     const k = Math.max(1, Math.ceil(step / WALL_STEP));
     let zCur = zw;
@@ -138,11 +138,28 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
       // Přes vršek po offsetu nejdál 4R + 4ap (jako dřív). Jen když za ním
       // čeká zbytek téže vrstvy, smí se jet dál — a přijme se to, jen když
       // vrstva sjede zpět na X hned u jeho začátku a mezi nimi není stěna.
-      const walk = (from, to) => {
+      // Přes vršek nejede tam, kde v téže výšce už řezal jiný kus téže vrstvy
+      // (pravá strana jede dřív, pravidlo 7) — jinak posuv vzduchem (karusel,
+      // ap 6: 43 mm po vršku hrbu, 4. 11. 2026). Krátký zbytek k napojení
+      // (`target`, ≤ 2R + 2ap) se nepočítá — ten se projede schválně.
+      // Přes vršek se nejede tam, kde v téže výšce už řezal jiný kus téže vrstvy
+      // (i jeho dojezdem po offsetu) — jinak posuv vzduchem (karusel, ap 6:
+      // 43 mm po vršku hrbu, 4. 11. 2026). Výjimka: zbytek, na který se vrstva
+      // napojí (`target`) — ten pak odpadá, takže jeho úsek projede ona.
+      const isTarget = (q) => target && Math.abs(q.zEnd - target.zEnd) < 1e-9 && Math.abs(q.zStart - target.zStart) < 1e-9;
+      const span = (q) => {
+        const zs = [q.zEnd, q.zStart];
+        for (const sg of [...(q.contourLeadIn || []), ...(q.contourLeadOut || [])]) zs.push(sg.z1, sg.z2);
+        const f = zs.filter(Number.isFinite);
+        return [Math.min(...f), Math.max(...f)];
+      };
+      const same = passes.filter((q) => q && q !== self && q.type === 'long' && Math.abs(q.x - X) < 1e-3 && q.zStart > q.zEnd);
+      const walk = (from, to, covered) => {
         const pts = [];
         let zz = from;
         while (zz < to) {
           zz = Math.min(to, zz + 0.5);
+          if (covered.some(([c0, c1]) => zz > c0 + 1e-6 && zz < c1)) return { pts, back: null, end: zz };
           const f = fR(zz);
           if (!(f > X + 0.02) || f > X + step) return { pts, back: f <= X + 0.02 ? zz : null, end: zz };
           pts.push({ g: 'G1', x: f, z: zz });
@@ -150,7 +167,7 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
         return { pts, back: null, end: zz };
       };
       const lim = Math.min(zHi, lz + 4 * noseR + 4 * step);
-      const w = walk(lz, lim);
+      let w = walk(lz, lim, same.filter((q) => !isTarget(q)).map(span));
       // Napojení na zbytek vrstvy JEN když vrstva sjede zpět na X v obvyklé
       // vzdálenosti (4R + 4ap) a zbytek začíná hned tam. Přes dlouhý vršek
       // velkého hrbu NE: tam zbytek patří pravé straně, která jede dřív
@@ -162,6 +179,8 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
         && Math.abs(target.zEnd - w.back) <= noseR + step
         && target.zStart - target.zEnd <= 2 * noseR + 2 * step
         && (() => { const zw2 = wallRight(X + 0.02, w.back, target.zStart); return zw2 === null || zw2 >= target.zStart - 0.05; })();
+      // Bez napojení zbytek zůstává a jede sám → jeho úsek je „projetý".
+      if (!viaTarget && target) w = walk(lz, lim, same.map(span));
       moves.push(...w.pts);
       if (w.back === null) break;
       moves.push({ g: 'G1', x: X, z: w.back });
@@ -216,7 +235,7 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
         && (!target || q.zEnd < target.zEnd)) target = q;
     }
     const tgt = target ? { zEnd: target.zEnd, zStart: target.zStart } : null;
-    const moves = layerMoves(X, zAir, zw, tgt);
+    const moves = layerMoves(X, zAir, zw, tgt, p);
     if (tgt && tgt.used) { const t = passes.indexOf(target); if (t > i) passes.splice(t, 1); else if (t >= 0) { passes.splice(t, 1); i--; } }
     // `chain`: hned předchozí průchod je obrácená vrstva — emise po jejím
     // odskoku jede rychloposuvem rovnou nad vjezd a dolů (ne přes vrch).

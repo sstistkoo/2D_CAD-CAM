@@ -109,6 +109,10 @@ počítá jen na karuselu, starý nikdy — soustruhové programy se nemění.
      9); celou kontrolu přepnout nejde — nájezdy jedou ve Vůli X/Z jako ve
      vzduchu (41 falešných P6). Generátor beze změny, čas generování dílu
      uživatele 1,0–1,2 s (před dnešními úpravami 1,0–1,1 s). 6 → 4.
+   - ✅ 4. 11. 2026 ráno: **posuv po vršku po ubraném** (ap 6: 43,5 mm, ap 2:
+     27,5 mm) — obrácená vrstva se zastaví tam, kde v téže výšce už řezal jiný
+     kus téže vrstvy (i jeho dojezdem po offsetu); krátký zbytek k napojení
+     projede. Díl ap 6: 8 → 7, díl ap 2: P5 0.
    - Zbývá 4: **P3 zbytek na dně** 0,16–0,62 mm nad přídavkem v rozích —
      společný kód se soustruhem, dokončení je sebere.
 
@@ -127,12 +131,14 @@ počítá jen na karuselu, starý nikdy — soustruhové programy se nemění.
    v prohozeném světě prohozený zpět, náhled úseků přes prohozený toScreen.
    Tlačítko ✂ se na karuselu schová u ↕ Podélně (to je čelní). Lathe kód
    (rozsahy kroku) jen přesunutý z camSimulator.js beze změny.
-   Neověřeno na dílu s víc úseky (oba testovací díly mají jediný úsek).
+   ✅ Ověřeno se 3 úseky (4. 11. 2026): fixture `carousel-sections3` = soustruhový
+   `round-r10-section2-parts` s prohozenými osami; programy úseků po prohození
+   os řádek po řádku shodné se soustruhem (`tests/sim-ui-carousel-sections`).
 8. ✅ **Náhled průchodů** (`swapPasses`, typ 'xz' v drawToolpath.js).
 9. ✅ částečně: komentáře „Výjezd v X/Z" prohozené, tlačítka strany na
    karuselu po X „← Od obvodu" / „→ Od středu". Závit, vrtání,
    vyvrtávání a upich dál postaru (prohození se vypne) — zatím bez potřeby.
-10. **Pravidlo do `docs/cam-pravidla.md`:** připravit NÁVRH „Karusel po X =
+10. ✅ (pravidlo 21, schváleno 4. 11. 2026) **Pravidlo do `docs/cam-pravidla.md`:** připravit NÁVRH „Karusel po X =
     podélné v prohozených osách (x' = z, z' = x), nůž svisle ze smykadla;
     všechna pravidla platí v prohozeném světě“ a dát ho uživateli ke schválení.
 11. ✅ **Výchozí zapnutí** — schválil uživatel 3. 11. 2026 večer („na karuselu

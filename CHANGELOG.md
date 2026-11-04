@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Cik cak: přejezd po vršku po už ubraném místě** (`ops/zigzagReverse.js`): obrácená vrstva jela přes vršek
+  hrbu i tam, kde v téže výšce už řezal kus pravé strany (karusel ap 6: 43,5 mm, ap 2: 27,5 mm posuvem
+  vzduchem). Teď se tam zastaví; krátký zbytek u stěny, na který se napojí, projede dál.
 - **Cik cak: podélný kus pod obrácenou vrstvou jel dřív než ona** (`ops/zigzagReverse.js`): po seskupení
   obrácených vrstev zůstaly kusy vrstev pod nimi na původním místě a zanořovaly se svisle do neubraného
   materiálu (na karuselu G1 10 mm dolů, tříska 8,9 mm při ap 2). Teď se zařadí mezi ně podle výšky.

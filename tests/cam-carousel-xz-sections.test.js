@@ -120,6 +120,10 @@ describe('díl uživatele s ap 6 (Cik cak po X)', () => {
     // sjel rampou 45° a pod ní zůstal klín 4 mm).
     const rev = r.calc._xz.calc.passes.find(p => p.reversedLayer && Math.abs(p.moves[0].x - 107.0618) < 1e-3);
     expect(Math.max(...rev.moves.map(m => m.z))).toBeGreaterThan(188);
+    // Přes vršek velkého hrbu obrácená vrstva X155 nejede tam, kde už v téže
+    // výšce řezal kus pravé strany (dřív 43,5 mm posuvem po ubraném).
+    const r155 = r.calc._xz.calc.passes.find(p => p.reversedLayer && Math.abs(p.moves[0].x - 155.0618) < 1e-3);
+    expect(Math.max(...r155.moves.map(m => m.z))).toBeLessThan(245);
   }, 240000);
 });
 
