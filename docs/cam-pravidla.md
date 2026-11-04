@@ -405,7 +405,7 @@ ven (se sražením jako ostatní zápichy).**
   zápich, osově do čela, zpět před čelo. Peckování (osově) / plynulý zápich
   jako u upichu.
 
-## Pravidlo 20 — Cik cak: vrstva za hrbolem ze vzduchu ke stěně **NÁVRH**
+## Pravidlo 20 — Cik cak: vrstva za hrbolem ze vzduchu ke stěně ✅ schváleno
 
 **Strategie ⇋ Cik cak (kulatá destička, držák užší než destička) jede jako
 Podélně podle všech pravidel (úseky, pořadí, zanořování). Jediná změna:
@@ -416,7 +416,8 @@ stěně vyjede o vrstvu nahoru.**
 
 - Navrženo 1. 11. 2026 (uživatel: „když je volný prostor z levé strany, zajet
   doleva a brát doprava, ne se zanořovat a vyjet do prázdného prostoru").
-  Čeká na schválení.
+  Schváleno uživatelem 4. 11. 2026 (včetně doplnění o podélných kusech pod
+  obrácenými vrstvami).
 - Obrácená vrstva zůstává na místě původní — týž úsek, totéž pořadí; žádné
   přejíždění mezi úseky ani přes prázdné údolí.
 - Vzduch = spodní půlka nosu se kousek za koncem vrstvy nedotkne polotovaru

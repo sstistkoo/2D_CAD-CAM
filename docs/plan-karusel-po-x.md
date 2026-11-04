@@ -86,9 +86,15 @@ počítá jen na karuselu, starý nikdy — soustruhové programy se nemění.
      8,9 mm. Oprava v `ops/zigzagReverse.js`: závislé kusy (níž, překryv v Z,
      uzávěr) se zařadí do skupiny podle výšky. 15 → 10 porušení, otisk
      soustruhu shodný, testy Cik cak beze změny.
-   - Zbývá 10: P5 posuv vzduchem 1, P7 vrstva přes hrb vcelku 2 (obojí jen
-     Cik cak), P3 tenká vrstva 2, P3 zbytek na dně 4, P7 přes hrb dřív 1
-     (tytéž i u čistého Podélně — společný kód se soustruhem).
+   - ✅ 4. 11. 2026: **P5 posuv vzduchem (1) a P7 vrstva přes hrb (2)** —
+     obrácená vrstva X107 přejížděla vršek jen 4R + 4ap a zbytek téže vrstvy
+     jel zvlášť (27,5 mm posuvem po ubraném). Teď dojede po offsetu až zpět
+     na X a ke stěně, pokud tam čeká zbytek té vrstvy (ten odpadá); jinak jako
+     dřív. Kontrola P7 (`scripts/lib/camRuleHump.mjs`) uznává souvislost
+     i pozpátku v čase (obrácené vrstvy jedou opačně, pravidlo 20). 10 → 7.
+     Pravidlo 20 schváleno uživatelem 4. 11. 2026.
+   - Zbývá 7 — tytéž jako u čistého Podélně (společný kód se soustruhem):
+     P3 tenká vrstva 2, P3 zbytek na dně 4, P7 přes hrb dřív 1.
 6. ✅ **Rozsahy 📐** (3. 11. 2026, `swapLimits` v xzSwap.js): rozsah X
    (poloměry) → rozsah Z' (pás), rozsah Z (výška) → X' min/max. Strop X' max
    je pravidlo 12 = „nad výškou se neobrábí a pod materiál se nepodjíždí" —

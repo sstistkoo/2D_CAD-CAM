@@ -90,6 +90,15 @@ describe('díl uživatele (Cik cak po X)', () => {
     expect(bad).toEqual([]);
   });
 
+  it('obrácená vrstva přejede vršek a dojede ke stěně; zbytek téže vrstvy zvlášť nejede (zigzagReverse.js)', () => {
+    // Do 4. 11. 2026: vrstva X107 skončila po pevných 4R + 4ap uprostřed svahu
+    // (Z170) a zbytek vrstvy jel zvlášť → 27,5 mm posuvem po už ubraném.
+    const ps = r.calc._xz.calc.passes;
+    const rev = ps.find(p => p.reversedLayer && Math.abs(p.moves[0].x - 107.0618) < 1e-3);
+    expect(Math.max(...rev.moves.map(m => m.z))).toBeGreaterThan(188);
+    expect(ps.filter(p => p.type === 'long' && Math.abs(p.x - 107.0618) < 1e-3 && p.zStart > 184 && p.zEnd < 190)).toEqual([]);
+  });
+
   it('bez prohození = machinedStockPoints jako dřív', () => {
     const L = { ...S, params: { ...S.params, carouselAlongX: false } };
     const calc = { stockPathSegments: r.calcSim.stockPathSegments, simPath: r.calcSim.simPath };

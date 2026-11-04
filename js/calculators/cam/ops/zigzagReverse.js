@@ -117,28 +117,55 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
   // nahoru. Skončí-li stěna pod další vrstvou (vršek hrbolu), pokračuje po
   // offsetu přes vršek, dokud nesjede zpět na výšku vrstvy — průměr za
   // rádiusem se obrobí zleva, ne až zvrchu a zprava (uživatel 1. 11.).
-  const layerMoves = (X, zAir, zw) => {
+  // `target`: zbytek TÉŽE vrstvy za vrškem (podélný kus na stejném X, který by
+  // jinak jel zvlášť). Vrstva po offsetu přejede vršek až zpět na svou výšku,
+  // dojede k jeho stěně a vyjede po ní — kus pak odpadá (uživatel 4. 11. 2026,
+  // karusel po X: vrstva X107 skončila po pevných 4R + 4ap uprostřed svahu a
+  // zbytek jel zvlášť → 27 mm posuvem vzduchem, vrstva přes hrb přerušená).
+  const layerMoves = (X, zAir, zw, target = null) => {
     const moves = [{ g: 'G0', x: X, z: zAir }, { g: 'G1', x: X, z: zw }];
     const k = Math.max(1, Math.ceil(step / WALL_STEP));
-    let lx = X, lz = zw, top = false;
-    for (let j = 1; j <= k; j++) {
-      const x = X + step * j / k, z = wallRight(x, lz, zw + 2 * step + 2 * noseR);
-      if (z === null) { top = true; break; }
-      for (const q of wallStep(lx, lz, x, z)) moves.push({ g: 'G1', x: q.x, z: q.z });
-      lx = x; lz = z;
-    }
-    if (top) {
-      const zEnd = Math.min(zHi, lz + 4 * noseR + 4 * step);
-      let zz = lz;
-      while (zz < zEnd) {
-        zz = Math.min(zEnd, zz + 0.5);
-        const f = fR(zz);
-        if (!(f > X + 0.02) || f > X + step) {
-          if (f <= X + 0.02) moves.push({ g: 'G1', x: X, z: zz });
-          break;
-        }
-        moves.push({ g: 'G1', x: f, z: zz });
+    let zCur = zw;
+    for (let guard = 0; guard < 4; guard++) {
+      let lx = X, lz = zCur, top = false;
+      for (let j = 1; j <= k; j++) {
+        const x = X + step * j / k, z = wallRight(x, lz, zCur + 2 * step + 2 * noseR);
+        if (z === null) { top = true; break; }
+        for (const q of wallStep(lx, lz, x, z)) moves.push({ g: 'G1', x: q.x, z: q.z });
+        lx = x; lz = z;
       }
+      if (!top) break;
+      // Přes vršek po offsetu nejdál 4R + 4ap (jako dřív). Jen když za ním
+      // čeká zbytek téže vrstvy, smí se jet dál — a přijme se to, jen když
+      // vrstva sjede zpět na X hned u jeho začátku a mezi nimi není stěna.
+      const walk = (from, to) => {
+        const pts = [];
+        let zz = from;
+        while (zz < to) {
+          zz = Math.min(to, zz + 0.5);
+          const f = fR(zz);
+          if (!(f > X + 0.02) || f > X + step) return { pts, back: f <= X + 0.02 ? zz : null, end: zz };
+          pts.push({ g: 'G1', x: f, z: zz });
+        }
+        return { pts, back: null, end: zz };
+      };
+      const lim = Math.min(zHi, lz + 4 * noseR + 4 * step);
+      const w1 = walk(lz, lim);
+      let w = w1, viaTarget = false;
+      if (target && w1.back === null && w1.end >= lim - 1e-9 && target.zStart > lim) {
+        const w2 = walk(lim, Math.min(zHi, target.zStart));
+        const near = w2.back !== null && Math.abs(target.zEnd - w2.back) <= noseR + step
+          && (() => { const zw2 = wallRight(X + 0.02, w2.back, target.zStart); return zw2 === null || zw2 >= target.zStart - 0.05; })();
+        if (near) { w = { pts: [...w1.pts, ...w2.pts], back: w2.back }; viaTarget = true; }
+      }
+      moves.push(...w.pts);
+      if (w.back === null) break;
+      moves.push({ g: 'G1', x: X, z: w.back });
+      if (!viaTarget) break;
+      moves.push({ g: 'G1', x: X, z: target.zStart });
+      target.used = true;
+      zCur = target.zStart;
+      target = null;
     }
     return mergeCollinear(moves);
   };
@@ -178,7 +205,15 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
     if (fR(zAir) > X + 1e-6 || touch(X, zAir) || zAir - noseR < zLo - 1e-6) continue;
     const zw = wallRight(X, zFree, p.zStart + 2 * noseR + step);
     if (zw === null || zw - zAir < 0.5) continue;
-    const moves = layerMoves(X, zAir, zw);
+    // Zbytek téže vrstvy za vrškem: nejbližší podélný kus na stejném X vpravo.
+    let target = null;
+    for (const q of passes) {
+      if (q && q !== p && q.type === 'long' && Math.abs(q.x - X) < 1e-3 && q.zEnd > zw && q.zStart > q.zEnd
+        && (!target || q.zEnd < target.zEnd)) target = q;
+    }
+    const tgt = target ? { zEnd: target.zEnd, zStart: target.zStart } : null;
+    const moves = layerMoves(X, zAir, zw, tgt);
+    if (tgt && tgt.used) { const t = passes.indexOf(target); if (t > i) passes.splice(t, 1); else if (t >= 0) { passes.splice(t, 1); i--; } }
     // `chain`: hned předchozí průchod je obrácená vrstva — emise po jejím
     // odskoku jede rychloposuvem rovnou nad vjezd a dolů (ne přes vrch).
     const prev = passes[i - 1];
@@ -292,6 +327,14 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
     const p = passes[i];
     if (!p || p.type !== 'long' || !(p.ramp || p.contourLeadIn) || Math.abs(p.zStart - p.zEnd) > 0.5) continue;
     if (done.some((r) => Math.abs(r.x - p.x) <= step + 0.01 && p.zStart >= r.z0 - 0.01 && p.zStart <= r.z1 + step + 0.01)) passes.splice(i, 1);
+  }
+  // Po vypuštění projetých kusů navazují obrácené vrstvy téhož místa přímo
+  // na sebe — řetěz (`chain`) jako ve skupině.
+  for (let i = start + 1; i < passes.length; i++) {
+    const q = passes[i], o = passes[i - 1];
+    if (!q || !o || !q.reversedLayer || !o.reversedLayer || q.chain) continue;
+    const [lo, hi] = zr(q), [l2, h2] = zr(o);
+    if (Math.abs(o.moves[0].x - q.moves[0].x - step) < 0.6 * step && lo < h2 && hi > l2) passes[i] = { ...q, chain: true };
   }
   return done.length;
 }

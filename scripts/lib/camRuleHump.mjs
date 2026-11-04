@@ -79,12 +79,21 @@ export function checkHumpContinuity(sp, offsetXAt) {
       // Souvislý úsek od konce vrstvy před hrbem až na POSUV PO VRSTVĚ za hrbem
       // (vodorovně ≥ 0,5 mm) — pouhé protnutí úrovně X cestou dolů (dojezd
       // po oblouku o vrstvu níž) se za pokračování vrstvy nepočítá.
+      // V čase dopředu i POZPÁTKU: obrácená vrstva Cik cak (pravidlo 20) jede
+      // přes hrb opačným směrem — ze vzduchu za hrbem ke stěně před ním.
       let ok = false;
       for (const i0 of idxBefore) {
         for (let k = i0 + 1; k < sp.length; k++) {
           const p = sp[k], q = sp[k - 1];
           if (p.x < x - HUG_BELOW || p.x > hugY(x, p.z) + HUG_ABOVE) break;
           if (p.type !== 'G0' && onLayer(p, x) && onLayer(q, x) && after(p) && after(q)
+              && Math.abs(p.z - q.z) >= 0.5) { ok = true; break; }
+        }
+        if (ok) break;
+        for (let k = i0 - 1; k >= 1; k--) {
+          const p = sp[k - 1], q = sp[k];
+          if (q.type === 'G0' || p.x < x - HUG_BELOW || p.x > hugY(x, p.z) + HUG_ABOVE) break;
+          if (onLayer(p, x) && onLayer(q, x) && after(p) && after(q)
               && Math.abs(p.z - q.z) >= 0.5) { ok = true; break; }
         }
         if (ok) break;
