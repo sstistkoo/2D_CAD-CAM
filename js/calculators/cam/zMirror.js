@@ -139,6 +139,9 @@ export function mirrorPass(pass) {
   if (pass.contourLeadIn) out.contourLeadIn = mirrorTraceSegs(pass.contourLeadIn);
   if (pass.contourLeadOut) out.contourLeadOut = mirrorTraceSegs(pass.contourLeadOut);
   if (pass.moves) out.moves = pass.moves.map(m => ({ ...m, z: -m.z }));   // cik cak
+  // Směr poslední vrstvy cik caku (odskok od stěny v zigzagEmit.js) — bez
+  // překlopení odskočil zleva ke stěně místo od ní (kolize v polotovaru).
+  if (typeof pass.endDir === 'number') out.endDir = -pass.endDir;
   return out;
 }
 

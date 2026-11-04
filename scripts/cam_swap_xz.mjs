@@ -15,11 +15,11 @@
 // karusel a ne závit/vrtání/vyvrtávání/upich (tam se neprohazuje).
 
 import { readFileSync, writeFileSync } from 'fs';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join } from 'path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const { swapsXZ, swapState } = await import(join(ROOT, 'js/calculators/cam/xzSwap.js'));
+const { swapsXZ, swapState } = await import(pathToFileURL(join(ROOT, 'js/calculators/cam/xzSwap.js')).href);
 
 const [src, dstArg] = process.argv.slice(2);
 if (!src) {

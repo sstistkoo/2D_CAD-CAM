@@ -7,15 +7,15 @@ N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
-N60 G75 Z5
+N50 G75 X500 ; Nájezd do ref. bodu
+N60 G75 Z500
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
 N90 DIAMOF ; Programování poloměru
 N100 T="ROUGHER_T1" D1 M6 ; Výměna nástroje
 N110 M3 ; Vřeteno CW
 N120 M8 ; Chlazení ZAP
-N130 G0 X150 Z5 ; Rychloposuv
+N130 G0 X500 Z500 ; Rychloposuv
 ; --- HRUBOVANI (CELNI) ---
 ; Průchod 1
 N140 G0 Z1.250
@@ -239,8 +239,8 @@ N1880 G0 Z-105.500
 N1890 G0 X32.872
 N1900 G1 X31.804 F0.25
 N1910 G1 X33.804 Z-103.500
-N1920 G0 X150.000 ; Výjezd nad konturu
-N1930 G0 Z5.000
+N1920 G0 X500.000 ; Výjezd nad konturu
+N1930 G0 Z500.000
 ; --- DOKONCOVANI ---
 N1940 G0 Z2.345
 N1950 G0 X0.787
@@ -248,8 +248,8 @@ N1960 G1 X0.414 F0.25
 N1970 G1 X0.000 Z0.800 F0.25
 N1980 G1 X2.500 Z0.800
 N1990 G1 X2.500 Z0.300 ; Rovný průměr (zbytek nejde dokončit celý)
-N2000 G0 X150.000 ; Výjezd nad konturu
-N2010 G0 Z5.000
+N2000 G0 X500.000 ; Výjezd nad konturu
+N2010 G0 Z500.000
 N2020 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z0

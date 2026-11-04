@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cik cak: údolí za hrbem bez hranice úseku** (`cam/ops/zigzagValley.js`, pravidlo 20): místo řetězu
+  vrstev zanořených po čáře zanoření (jen doleva, u strmé stěny klín „nedojeto") jede údolí cik cak od stěny
+  ke stěně s rampou 45° o ap níž na každém konci. Karusel po X, díl uživatele: zbytek 4589 → 770 mm², 0 kolizí.
+  Na tyči beze změny.
+- **Výchozí bezpečná poloha X500 Z500** (`cam/camDefaults.js`, dřív X150 Z5). Uložený stav prohlížeče a projekty
+  si nesou vlastní hodnotu — tam ji změnit v *Parametry → Bezpečná poloha*.
+
 - **Ikona 📏 schová meze i vypne** (`cam/sim/limitsVisibility.js`): schované čelisti, koník a rozsahy 📐 neplatí
   pro dráhy, souřadnice i zaškrtnutí zůstávají a po zobrazení zase platí (uloží se s projektem).
 - **Mobil (karusel i soustruh): čelisti, koník a rozsahy 📐 přes zaměřovadlo** (`cam/sim/limitTouchMark.js`): podržet prst → křížek nad

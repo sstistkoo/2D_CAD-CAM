@@ -15,6 +15,7 @@ import { genLongPasses } from './roughLong.js';
 import { getInsert } from '../inserts/index.js';
 import { reverseAirLayers } from './zigzagReverse.js';
 import { floorZigzag } from './zigzagFloor.js';
+import { valleyZigzag } from './zigzagValley.js';
 import { getEffectivePlungeAngle, stockClearances } from '../camMath.js';
 
 /** Držák je v ose Z užší než kulatá destička (i s virtuálním zvětšením). */
@@ -52,5 +53,14 @@ export function genZigzagPasses(ctx, op) {
     tanA: Math.tan(getEffectivePlungeAngle(prms) * Math.PI / 180),
     zHi: ctx.machiningRange && Number.isFinite(ctx.machiningRange.zHi) ? ctx.machiningRange.zHi : Infinity,
     noSteps: !!prms.noStepRoughing,   // schody na stěnách dojet (Hrub. bez schodků)
+  });
+  // Údolí za hrbem bez hranice úseku (čára zanoření skončí na kontuře): místo
+  // řetězu ramp po čáře zanoření taky cik cak až ke stěně (ops/zigzagValley.js).
+  // Na tyči platí Podélně beze změny (pravidlo 20).
+  if (prms.stockMode !== 'cylinder') valleyZigzag({
+    passes, start, raw: ctx.offsetPathNoGuide || offsetPath, step,
+    tanA: Math.tan(getEffectivePlungeAngle(prms) * Math.PI / 180),
+    zHi: ctx.machiningRange && Number.isFinite(ctx.machiningRange.zHi) ? ctx.machiningRange.zHi : Infinity,
+    noSteps: !!prms.noStepRoughing,
   });
 }

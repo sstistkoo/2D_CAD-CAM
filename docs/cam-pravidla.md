@@ -474,6 +474,18 @@ stěně vyjede o vrstvu nahoru.**
   (`floorFinishZHi`, `floorFinishFace` v `ops/zigzagFloor.js`).
 - Náhled: čára zanoření nahrazená obrácenými vrstvami se nekreslí, hranice
   úseku u nich vede až dolů na polotovar.
+- **Údolí za hrbem bez hranice úseku** (zadání uživatele 4. 11. 2026, karusel
+  po X: „přijede ke konci, zanoří se pod 45° a jede na druhou stranu, kde zas
+  zanořuje pod 45°; dojíždí se ke konci, i když se tam na chvilku překračuje"):
+  čára zanoření od hrbu skončí na kontuře, takže hranice úseku nevznikne a
+  vrstvy by v údolí jely řetězem ramp po čáře zanoření jen jedním směrem
+  (u strmé stěny klín). Místo toho cik cak jako spodek u hranice úseku:
+  vrstva od stěny ke stěně, vpravo až ke skutečné stěně hrbu (přes čáru
+  zanoření), na konci rampa pod úhlem zanoření o ap níž a další vrstva
+  opačně; u stěny pod trojúhelníkem rampy se krátce bere víc než ap. Stěny
+  pak dojede jízda po offsetu (Hrub. bez schodků). Kde by rampa mezi
+  vrstvami projela pod offset (stupeň dna), spodní vrstvy jedou postaru.
+  Na tyči ne (bod níž). `ops/zigzagValley.js`, `tests/cam-zigzag-valley.test.js`.
 - Kde za vrstvou materiál je (tyč), platí Podélně beze změny.
 - Kontrola: `tests/cam-zigzag-reverse.test.js` (směr vrstev, validátor
   kolizí 0, úběr ≥ podélně, na tyči G-kód shodný s Podélně).

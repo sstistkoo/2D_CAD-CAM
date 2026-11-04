@@ -26,7 +26,9 @@ export function _defaultCamParams() {
     // Kombinuje se s roughingStrategy (podélně/čelně).
     roughingSide: 'right',
     stockMode: 'cylinder', stockMargin: 5.0, stockDiameter: 100,
-    stockLength: 100, stockFace: 2.0, safeX: 150, safeZ: 5,
+    // Bezpečná poloha X500 Z500 (uživatel 4. 11. 2026; dřív X150 Z5 — na
+    // karuselu ležela v materiálu). Uložený stav a projekty mají vlastní.
+    stockLength: 100, stockFace: 2.0, safeX: 500, safeZ: 500,
     machineStructure: 'lathe', controlSystem: 'sinumerik', autoProfile: true,
     // Karusel: hrubování po X v prohozených osách (cam/xzSwap.js). Výchozí
     // ZAPNUTO (uživatel 3. 11. 2026: „na karuselu vždy po X"). Nový klíč místo

@@ -34,28 +34,8 @@ const DZ = 0.05;
  */
 export function floorZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinity, noSteps = false }) {
   if (!Number.isFinite(zHi)) return 0;
-  const fR = (z) => { const v = maxXAt(raw, z); return v === null ? -Infinity : v; };
-  // Stěna vpravo od z na hloubce X (offset se zvedne nad X).
-  const wallRight = (X, z, zMax) => {
-    for (let zz = z; zz <= zMax + 1e-9; zz += DZ) {
-      if (fR(zz) > X + 1e-6) {
-        let a = zz - DZ, b = zz;
-        for (let q = 0; q < 30; q++) { const m = (a + b) / 2; if (fR(m) > X + 1e-6) b = m; else a = m; }
-        return a;
-      }
-    }
-    return null;
-  };
-  const wallLeft = (X, z, zMin) => {
-    for (let zz = z; zz >= zMin - 1e-9; zz -= DZ) {
-      if (fR(zz) > X + 1e-6) {
-        let a = zz + DZ, b = zz;
-        for (let q = 0; q < 30; q++) { const m = (a + b) / 2; if (fR(m) > X + 1e-6) b = m; else a = m; }
-        return a;
-      }
-    }
-    return null;
-  };
+  const W = wallFinders(raw);
+  const { wallLeft, wallRight } = W;
 
   // Řada zanořovacích vrstev: podélné s rampou, rampa začíná u hranice
   // úseku (ve vzduchu nad spodkem), po sobě jdoucí hloubky po ap.
@@ -85,7 +65,49 @@ export function floorZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinity
     return { X: p.x, a, b };
   });
   if (layers.some((L) => L.b === null || L.b - L.a < 1)) return 0;
+  return zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSteps, W });
+}
 
+/**
+ * Hledání stěn nad hrubovacím offsetem `raw` (bez čar zanoření):
+ * fR(z) = výška offsetu, wallRight/wallLeft(X, z, mez) = první místo vpravo
+ * / vlevo od z, kde se offset zvedne nad hloubku X (null = do meze nic).
+ */
+export function wallFinders(raw) {
+  const fR = (z) => { const v = maxXAt(raw, z); return v === null ? -Infinity : v; };
+  // Stěna vpravo od z na hloubce X (offset se zvedne nad X).
+  const wallRight = (X, z, zMax) => {
+    for (let zz = z; zz <= zMax + 1e-9; zz += DZ) {
+      if (fR(zz) > X + 1e-6) {
+        let a = zz - DZ, b = zz;
+        for (let q = 0; q < 30; q++) { const m = (a + b) / 2; if (fR(m) > X + 1e-6) b = m; else a = m; }
+        return a;
+      }
+    }
+    return null;
+  };
+  const wallLeft = (X, z, zMin) => {
+    for (let zz = z; zz >= zMin - 1e-9; zz -= DZ) {
+      if (fR(zz) > X + 1e-6) {
+        let a = zz + DZ, b = zz;
+        for (let q = 0; q < 30; q++) { const m = (a + b) / 2; if (fR(m) > X + 1e-6) b = m; else a = m; }
+        return a;
+      }
+    }
+    return null;
+  };
+  return { fR, wallRight, wallLeft };
+}
+
+/**
+ * Postaví z vrstev `layers` ({ X, a, b } = hloubka a stěny vlevo/vpravo,
+ * shora dolů) jeden průchod cik cak a nahradí jím průchody `grp` (indexy
+ * do `passes`, vzestupně). `xTop` = výška nad první vrstvou (už vybraná),
+ * `W` = wallFinders(raw).
+ * @returns {number} počet nahrazených vrstev
+ */
+export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSteps = false, W }) {
+  const { fR, wallRight, wallLeft } = W;
   // Začátek u PRAVÉ stěny (uživatel: „začít se zanořovat vpravo u čela"):
   // nad stěnou ve výšce rampy původní první vrstvy, rampa doleva o vrstvu.
   const L0 = layers[0];
