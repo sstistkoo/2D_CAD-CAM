@@ -47,7 +47,7 @@ import { handleSendToCanvas as _handleSendToCanvas } from './cam/sim/sendToCanva
 import { openTangentLineModal as _openTangentLineModal } from './cam/sim/tangentLineModal.js';
 import { openInsertSegmentModal as _openInsertSegmentModal } from './cam/sim/insertSegmentModal.js';
 import { createCollisionValidation, createHolderGougeView } from './cam/sim/collisionWarnings.js';
-import { createXzSimView } from './cam/sim/xzSim.js'; import { createLimitMark } from './cam/sim/limitTouchMark.js'; import { xzSectionSteps, sectionStepLimits, machinedFor, noSections } from './cam/sim/xzSections.js';
+import { createXzSimView } from './cam/sim/xzSim.js'; import { createLimitMark } from './cam/sim/limitTouchMark.js'; import { hideLimits, showLimits } from './cam/sim/limitsVisibility.js'; import { xzSectionSteps, sectionStepLimits, machinedFor, noSections } from './cam/sim/xzSections.js';
 import { createSnap } from './cam/sim/snap.js';
 import { dropInsaneSavedProgram } from './cam/sim/programSanity.js';
 import { paramsPanelsHtml } from './cam/sim/paramsPanelsHtml.js';
@@ -864,8 +864,8 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Sync Z-limits button — prostý on/off; co se zobrazuje řídí checkboxy v parametrech
   const zlimBtn = toolbar.querySelector('[data-act="zlimits"]');
   const ZLIM_CFG = {
-    off: { icon: '📏', active: false, toast: 'Limity skryty' },
-    on:  { icon: '📏', active: true,  toast: 'Limity zobrazeny (dle zaškrtnutých v parametrech)' },
+    off: { icon: '📏', active: false, toast: 'Limity skryty a vypnuté (souřadnice zůstávají)' },
+    on:  { icon: '📏', active: true,  toast: 'Limity zobrazeny a zase platí' },
   };
   if (zlimBtn) {
     const cfg = ZLIM_CFG[S.showZLimits] || ZLIM_CFG.off;
@@ -3674,7 +3674,7 @@ export function openCamSimulator(initialContour, initialGCode) {
       showToast(cfg.toast);
     } else if (act === 'zlimits') {
       // Prostý on/off – co se zobrazuje řídí checkboxy v parametrech.
-      S.showZLimits = S.showZLimits === 'on' ? 'off' : 'on';
+      S.showZLimits = S.showZLimits === 'on' ? 'off' : 'on'; (S.showZLimits === 'on' ? showLimits : hideLimits)(S);   // schované = neplatí (limitsVisibility.js)
       // Při prvním zapnutí: pokud nejsou žádné hodnoty, auto-inicializovat
       // čelisti/koník z kontury a zaškrtnout je (rozsah nechme na uživateli).
       if (S.showZLimits === 'on') {

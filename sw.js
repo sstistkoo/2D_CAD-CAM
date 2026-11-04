@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v731';
+const CACHE_NAME = 'skica-v732';
 const ASSETS = [
   './',
   './index.html',
@@ -173,6 +173,7 @@ const ASSETS = [
   './js/calculators/cam/sim/insertSegmentModal.js',
   './js/calculators/cam/sim/knifeSlots.js',
   './js/calculators/cam/sim/knives.js',
+  './js/calculators/cam/sim/limitsVisibility.js',
   './js/calculators/cam/sim/limitTouchMark.js',
   './js/calculators/cam/sim/machSurface.js',
   './js/calculators/cam/sim/machTabTool.js',

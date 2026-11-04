@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Ikona 📏 schová meze i vypne** (`cam/sim/limitsVisibility.js`): schované čelisti, koník a rozsahy 📐 neplatí
+  pro dráhy, souřadnice i zaškrtnutí zůstávají a po zobrazení zase platí (uloží se s projektem).
 - **Mobil (karusel i soustruh): čelisti, koník a rozsahy 📐 přes zaměřovadlo** (`cam/sim/limitTouchMark.js`): podržet prst → křížek nad
   prstem, najet na čáru, pustit = čára se označí (zesílí); znovu podržet = čára skočí na křížek a táhne se
   s ním. Krátký tap označení zruší. Začne-li křížek přímo na čáře, chytí se hned.

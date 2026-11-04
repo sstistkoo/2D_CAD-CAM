@@ -1563,6 +1563,7 @@ náhledem destičky a držáku. Pod náhledem je jeden přepínač
   programu nad ni se hlásí.
   **Na mobilu** (karusel i soustruh) se čáry čelistí, koníku a rozsahů chytají zaměřovadlem: podržet prst,
   křížkem nad prstem najet na čáru a pustit (čára zesílí), pak znovu podržet a táhnout.
+  Ikona 📏 meze schová a zároveň **vypne** (souřadnice zůstanou); po zobrazení zase platí.
   **⇋ Cik cak** (jen kulatá destička v držáku užším než destička, 🔧 SRDPN
   úzký; 1. 11. 2026): jede jako Podélně podle všech pravidel (úseky, pořadí,
   zanořování). Jen **vrstva za hrbolem**, která by se zanořila a **vyjela do

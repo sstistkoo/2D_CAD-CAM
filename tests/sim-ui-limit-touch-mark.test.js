@@ -79,3 +79,21 @@ describe('mezní čáry na karuselu přes zaměřovadlo', () => {
     expect(S._camMarkedLimit).toBeNull();
   });
 });
+
+describe('schování mezí ikonou 📏 (limitsVisibility.js)', () => {
+  it('schované = neplatí, souřadnice zůstanou; zobrazení vrátí, co platilo', async () => {
+    const { S } = sim;
+    S.zLimits = { chuck: 20, chuckActive: true, tail: 300, tailActive: false, rangeStart: 150, rangeEnd: 100, rangeActive: true };
+    S.xLimits = { rangeXMin: 100, rangeXMax: 300, active: true, minActive: true, maxActive: true };
+    S.showZLimits = 'on';
+    const btn = document.querySelector('[data-act="zlimits"]');
+    btn.click(); await settle(30);
+    expect(S.showZLimits).toBe('off');
+    expect([S.zLimits.chuckActive, S.zLimits.rangeActive, S.xLimits.minActive, S.xLimits.maxActive]).toEqual([false, false, false, false]);
+    expect([S.zLimits.chuck, S.zLimits.rangeStart, S.zLimits.rangeEnd, S.xLimits.rangeXMin, S.xLimits.rangeXMax]).toEqual([20, 150, 100, 100, 300]);
+    btn.click(); await settle(30);
+    expect(S.showZLimits).toBe('on');
+    expect([S.zLimits.chuckActive, S.zLimits.tailActive, S.zLimits.rangeActive, S.xLimits.minActive]).toEqual([true, false, true, true]);
+    expect(S.zLimits.hiddenFlags).toBeUndefined();
+  });
+});
