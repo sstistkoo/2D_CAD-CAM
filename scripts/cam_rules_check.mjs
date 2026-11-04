@@ -107,6 +107,10 @@ async function check(file) {
   const txt = (i) => (lines[sp[i].originalLineIdx] || '').trim();
 
   const rm = new MaterialRemoval(P, r.calcSim.stockPathSegments, {});
+  // Tenká vrstva se měří proti OFFSETOVÉ čáře polotovaru (pravidlo 9: ta čára
+  // je materiál, vrstvy jsou kotvené na ní) — proti nakreslenému odlitku by
+  // první vrstva vyšla o Přídavek X polotovaru tenčí, ačkoli bere přesně ap.
+  const rmPlan = new MaterialRemoval(P, r.calcSim.stockPathSegments, { planningOutline: true });
   const partR = offsetSilhouetteLoop(r.calc.contourSegments);
   // Přídavek se měří KOLMO od dílu (jako offset), ne svisle — na šikmé
   // stěně je svislá vzdálenost k přídavkové čáře mnohem větší než Přídavek X.
@@ -150,6 +154,16 @@ async function check(file) {
         const top = topAt(loopsBefore, z);
         if (top !== null && top - (x - lift) > worst) worst = top - (x - lift);
       }
+      let worstPlan = 0;
+      if (rmPlan.model) {
+        const lp = TL(rmPlan.model.loops);
+        for (let k = 0; k <= Math.max(n, 1); k++) {
+          const t = n > 0 ? k / n : 0, x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
+          const top = topAt(lp, z);
+          if (top !== null && top - (x - lift) > worstPlan) worstPlan = top - (x - lift);
+        }
+        rmPlan.advanceTo(spR, i);
+      }
       rm.advanceTo(spR, i);
       const cut = before - Math.abs(rm.model.area());
       // P3 — TŘÍSKA PODLE ÚBĚRU (29. 9. 2026): tloušťka, kterou pohyb v některém
@@ -171,7 +185,8 @@ async function check(file) {
         }
       }
       if (worst > ap + TOL_AP && cut > 0.05) found.chip.push({ i, v: worst });
-      if (Math.abs(b.x - a.x) < 1e-6 && len > 1 && cut > 0.05 && worst > 0.05 && worst < ap - THIN)
+      if (Math.abs(b.x - a.x) < 1e-6 && len > 1 && cut > 0.05 && worst > 0.05 && worst < ap - THIN
+          && (!rmPlan.model || worstPlan < ap - THIN))
         thinCand.push({ i, v: worst, z: (a.z + b.z) / 2, edge: b.x - lift });
       // P5 — posuv vzduchem
       if (len > AIR_MIN_LEN && cut < AIR_CUT_PER_MM * len) found.air.push({ i, v: len });
@@ -211,6 +226,7 @@ async function check(file) {
       // nekončí — nový průchod začíná až po odjezdu/příjezdu v X.
       if (Math.abs(b.x - a.x) > 1e-6) afterRapid = true;
       rm.advanceTo(spR, i);
+      if (rmPlan.model) rmPlan.advanceTo(spR, i);
     }
   }
 
