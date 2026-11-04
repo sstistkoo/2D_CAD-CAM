@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mobil (karusel i soustruh): čelisti, koník a rozsahy 📐 přes zaměřovadlo** (`cam/sim/limitTouchMark.js`): podržet prst → křížek nad
+  prstem, najet na čáru, pustit = čára se označí (zesílí); znovu podržet = čára skočí na křížek a táhne se
+  s ním. Krátký tap označení zruší. Začne-li křížek přímo na čáře, chytí se hned.
 - **CAM karusel: ⟲ Po X jako podélně** (`cam/xzSwap.js`, přepínač v Obrábění, jen karusel, výchozí vypnuto):
   hrubování v prohozených osách X ↔ Z – ↔ Čelně a ⇅ Cik cak jedou po X vyladěným podélným algoritmem, nůž
   svisle ze smykadla; G-kód se prohodí zpět (X↔Z, G2↔G3). Na dílu uživatele 29 porušení pravidel místo 44,

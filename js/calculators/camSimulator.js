@@ -47,7 +47,7 @@ import { handleSendToCanvas as _handleSendToCanvas } from './cam/sim/sendToCanva
 import { openTangentLineModal as _openTangentLineModal } from './cam/sim/tangentLineModal.js';
 import { openInsertSegmentModal as _openInsertSegmentModal } from './cam/sim/insertSegmentModal.js';
 import { createCollisionValidation, createHolderGougeView } from './cam/sim/collisionWarnings.js';
-import { createXzSimView } from './cam/sim/xzSim.js'; import { xzSectionSteps, sectionStepLimits, machinedFor, noSections } from './cam/sim/xzSections.js';
+import { createXzSimView } from './cam/sim/xzSim.js'; import { createLimitMark } from './cam/sim/limitTouchMark.js'; import { xzSectionSteps, sectionStepLimits, machinedFor, noSections } from './cam/sim/xzSections.js';
 import { createSnap } from './cam/sim/snap.js';
 import { dropInsaneSavedProgram } from './cam/sim/programSanity.js';
 import { paramsPanelsHtml } from './cam/sim/paramsPanelsHtml.js';
@@ -2016,6 +2016,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // ── Hit-testy (body, úsečky, oblouky, upichnutí, mezní čáry) ── → cam/sim/hitTest.js
   const { getAnyPointAt, getPartOffHandleAt, _partOffRadiusFromClient, _applyPartOffHandle,
     getContourSegmentAt, clientToWorldCam, getArcSegmentAt, getZLimitAt, getXLimitAt } = createHitTest({ S, canvas });
+  const limitMark = createLimitMark({ S, canvas, getZLimitAt, getXLimitAt, pushHistory: () => pushHistory(), showToast, draw: () => draw() });   // mobil: čáry mezí přes křížek
 
   // ── Konstrukční čáry: pomocné + automatické mezní, prodloužit/oříznout ── → cam/sim/guideLines.js
   const { getAllGuideLines, getGuideOffsetLines, extendTrimNode, extendTrimGuideClick, getUserGuideAt,
@@ -5032,6 +5033,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     // Dvoukrokové uchopení: pokud byl minulým křížkem označen bod/uzel
     // (S._camMarked, ve světě → přežije zoom/pan), uchop ho teď a táhni
     // dalším pohybem prstu.
+    const la = !_camActionMode() && limitMark.grabMarked(fx, fy + CAM_CH_OFFSET);   // označená mezní čára (limitTouchMark.js)
+    if (la) { lastMousePos = la; camTouch.posMode = false; _camShowCrosshair(fx, fy, false); _camDispatchMouse('mousemove', fx, fy + CAM_CH_OFFSET); draw(); return; }
     if (S._camMarked && !_camActionMode()) {
       const rect = canvas.getBoundingClientRect();
       const ss = _gToScreen(S._camMarked.x, S._camMarked.z);
@@ -5058,7 +5061,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     } else {
       // Zkus uchopit prvek pod křížkem (uzel/úsečka/konstr. čára/bod).
       _camDispatchMouse('mousedown', fx, fy + CAM_CH_OFFSET);
-      const grabbed = !!(S.draggedGNode || S._draggedGSeg || S._draggedGuideEnd || S.draggedPointId !== null || _draggingStock);
+      const grabbed = !!(S.draggedGNode || S._draggedGSeg || S._draggedGuideEnd || S.draggedPointId !== null || _draggingStock || S.draggedLimit);
       if (!grabbed) { S.isDragging = false; camTouch.posMode = true; }  // nic pod křížkem → NEpanovat
       else camTouch.posMode = false;
     }
@@ -5258,7 +5261,7 @@ export function openCamSimulator(initialContour, initialGCode) {
           // Polohovací kurzor: akci provedeme až teď, na PŘESNÉ pozici křížku
           // – tj. na snapnutém bodě/hraně, pokud snap chytil (S._camTargetClient).
           const tc = S._camTargetClient || { x: fx, y: fy + CAM_CH_OFFSET };
-          if (!_camActionMode() && S._snap && _camDraggableAt(tc.x, tc.y)) {
+          if (!_camActionMode() && limitMark.markAt(tc.x, tc.y)) { /* mezní čára označena */ } else if (!_camActionMode() && S._snap && _camDraggableAt(tc.x, tc.y)) {
             // Dvoukrokové uchopení: snapnutý bod/uzel jen OZNAČ (ve světě);
             // dalším podržením se uchopí a táhne (viz _camStartPrecision).
             S._camMarked = { x: S._snap.x, z: S._snap.z };
@@ -5274,10 +5277,10 @@ export function openCamSimulator(initialContour, initialGCode) {
         _camHideCrosshair(); S._camPrecision = false;
       } else if (camTouch.started) {
         _camDispatchMouse('mouseup', fx, fy);
-      } else if (S._camMarked) {
+      } else if (S._camMarked || S._camMarkedLimit) {
         // Čekalo se na uchopení označeného bodu, ale přišel krátký tap →
         // zrušit označení (uživatel si to rozmyslel).
-        S._camMarked = null; draw();
+        S._camMarked = null; limitMark.clear(); draw();
       } else {
         // Krátký tap (bez pohybu, bez long-pressu) → klik na (raw) pozici:
         // tap akce (přidat/smazat/prodloužit/oříznout) + uchopení/uvolnění.

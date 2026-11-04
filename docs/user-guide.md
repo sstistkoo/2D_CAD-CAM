@@ -1561,6 +1561,8 @@ náhledem destičky a držáku. Pod náhledem je jeden přepínač
   (standard) / → Od středu. Čelisti a koník jsou výšky (otočené o 90°): čelisti dole
   na stole — pod ně plátek nesjede; koník = horní mez — nad ní se neobrábí a výjezd
   programu nad ni se hlásí.
+  **Na mobilu** (karusel i soustruh) se čáry čelistí, koníku a rozsahů chytají zaměřovadlem: podržet prst,
+  křížkem nad prstem najet na čáru a pustit (čára zesílí), pak znovu podržet a táhnout.
   **⇋ Cik cak** (jen kulatá destička v držáku užším než destička, 🔧 SRDPN
   úzký; 1. 11. 2026): jede jako Podélně podle všech pravidel (úseky, pořadí,
   zanořování). Jen **vrstva za hrbolem**, která by se zanořila a **vyjela do

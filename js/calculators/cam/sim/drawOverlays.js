@@ -183,7 +183,9 @@ export function drawOverlayLayer(f) {
       // Vodorovná (karusel) nebo svislá (soustruh) čára na pozici Z
       const isKarusel = prms.machineStructure === 'carousel';
       ctx.strokeStyle = color;
-      ctx.lineWidth = (S.draggedLimit && S.zLimits[S.draggedLimit] === zVal) ? 2.5 : 1.8;
+      // Označená křížkem na mobilu (limitTouchMark.js) — silná, ať je vidět, co se chytí.
+      const markedZ = S._camMarkedLimit && S._camMarkedLimit in S.zLimits && S.zLimits[S._camMarkedLimit] === zVal;
+      ctx.lineWidth = markedZ ? 4 : (S.draggedLimit && S.zLimits[S.draggedLimit] === zVal) ? 2.5 : 1.8;
       ctx.setLineDash(isRange ? [10, 4] : [3, 5]);
       ctx.beginPath();
       if (isKarusel) {
@@ -227,7 +229,8 @@ export function drawOverlayLayer(f) {
       if (xVal === null || xVal === undefined || isNaN(xVal)) return;
       const isKarusel = prms.machineStructure === 'carousel';
       ctx.strokeStyle = color;
-      ctx.lineWidth = (S.draggedLimit && S.xLimits[S.draggedLimit] === xVal) ? 2.5 : 1.8;
+      const markedX = S._camMarkedLimit && S._camMarkedLimit in S.xLimits && S.xLimits[S._camMarkedLimit] === xVal;
+      ctx.lineWidth = markedX ? 4 : (S.draggedLimit && S.xLimits[S.draggedLimit] === xVal) ? 2.5 : 1.8;
       ctx.setLineDash([10, 4]);
       ctx.beginPath();
       if (isKarusel) {
