@@ -1,0 +1,950 @@
+{
+ "__camprog": 1,
+ "params": {
+  "machineType": "LIMS=2000",
+  "mode": "RADIUS",
+  "toolName": "SRDPN úzký",
+  "speed": 180,
+  "feed": 0.12,
+  "depthOfCut": 8,
+  "retractDistance": 2,
+  "rapidFeed": 6000,
+  "retractAngle": 45,
+  "allowanceX": 0,
+  "allowanceZ": 0,
+  "toolRadius": 5,
+  "finishAllowance": 0.2,
+  "doFinishing": true,
+  "roughingStrategy": "zigzag",
+  "finishOnly": false,
+  "roughingSide": "left",
+  "stockMode": "casting",
+  "stockMargin": 5,
+  "stockDiameter": 388,
+  "stockLength": 5,
+  "stockFace": 848,
+  "safeX": 500,
+  "safeZ": 500,
+  "machineStructure": "lathe",
+  "controlSystem": "sinumerik",
+  "autoProfile": true,
+  "carouselAlongX": true,
+  "toolShape": "round",
+  "toolLength": 10,
+  "toolAngle": 0,
+  "toolTipAngle": 90,
+  "toolTipMirror": false,
+  "toolVbdCode": "RPMT10T3MO",
+  "toolClearanceAngle": 11,
+  "holderWidth": 9,
+  "holderLength": 150,
+  "holderHand": "R",
+  "holderProfile": {
+   "sideA": [
+    {
+     "x": 4.5,
+     "z": 3.223
+    },
+    {
+     "x": 4.5,
+     "z": 150
+    },
+    {
+     "x": -4.5,
+     "z": 150
+    },
+    {
+     "x": -4.5,
+     "z": 3.223
+    },
+    {
+     "x": -3.616,
+     "z": 4.191
+    },
+    {
+     "x": -2.53,
+     "z": 4.924
+    },
+    {
+     "x": -1.301,
+     "z": 5.38
+    },
+    {
+     "x": 0,
+     "z": 5.535
+    },
+    {
+     "x": 1.301,
+     "z": 5.38
+    },
+    {
+     "x": 2.53,
+     "z": 4.924
+    },
+    {
+     "x": 3.616,
+     "z": 4.191
+    },
+    {
+     "x": 4.5,
+     "z": 3.223
+    }
+   ],
+   "sideB": []
+  },
+  "knifeAngle": 270,
+  "holderInflate": 0,
+  "holderInflateAll": false,
+  "toolTipFlat": 0.1,
+  "partOffZ": null,
+  "partingApproachFeed": 1,
+  "partOffSmooth": false,
+  "partOffStartX": 64.55,
+  "partOffInner": false,
+  "grooveWidth": 0,
+  "grooveBottomX": 0,
+  "grooveHoleD": 0,
+  "grooveChamfer": 0,
+  "partOffFace": false,
+  "faceGrooveD1": 0,
+  "faceGrooveD2": 0,
+  "faceGrooveDepth": 0,
+  "finishingSlot": null,
+  "threadActive": false,
+  "threadName": "",
+  "threadType": "mc",
+  "threadDiameter": 20,
+  "threadPitch": 2.5,
+  "threadAngle": 60,
+  "threadDepth": 1.534,
+  "threadExternal": true,
+  "threadZStart": 0,
+  "threadZEnd": -20,
+  "threadRunIn": 3,
+  "threadRunOut": 0,
+  "threadPasses": 0,
+  "threadSpringPasses": 1,
+  "threadTaperRatio": 0,
+  "threadInfeed": "radial",
+  "drillActive": false,
+  "drillZStart": null,
+  "drillDepth": 20,
+  "drillZEnd": null,
+  "drillDepthFullDia": false,
+  "drillClearance": 2,
+  "drillPeck": 5,
+  "drillChipMode": "clear",
+  "drillRetract": 1,
+  "drillDwell": 0,
+  "boreActive": false,
+  "borePreDrill": false,
+  "borePreDrillSlot": null,
+  "borePreTip": 0,
+  "boreSource": "cylinder",
+  "boreFinish": false,
+  "boreZStart": 0,
+  "boreDiameter": 30,
+  "boreDepth": 20,
+  "borePreDiameter": 20,
+  "borePreDepth": 25,
+  "entryAngle": 45,
+  "entryAngleAuto": true,
+  "respectInsertGeometry": true,
+  "plungeRoughing": true,
+  "pocketFinishAtOnce": true,
+  "noStepRoughing": true,
+  "noStepRoughingFace": true,
+  "orderAwareHolder": true,
+  "rapidClearance": 1,
+  "rapidFeedGap": 1,
+  "stockClearX": null,
+  "stockClearZ": null,
+  "holderAutoComplete": true,
+  "regionRoughing": true,
+  "booleanRoughing": false,
+  "liveOps": [
+   {
+    "id": "Lmvtwajgq8991",
+    "name": "Vrtání 1",
+    "kind": "drill",
+    "side": "face",
+    "pattern": "pcd",
+    "pcd": 70,
+    "count": 4,
+    "startAngle": 0,
+    "points": "0; 30",
+    "zTop": 282.095,
+    "faceDir": 1,
+    "xTop": 100.16,
+    "zPos": 336.371,
+    "holeD": 8,
+    "depth": 100,
+    "peck": 5,
+    "chipMode": "clear",
+    "chipBack": 1,
+    "dwell": 0,
+    "safe": 2,
+    "retract": 5,
+    "millType": "pocket",
+    "kz1": 306.371,
+    "kz2": 336.371,
+    "toolD": 8,
+    "stepDown": 2,
+    "slot": {
+     "x1": -15,
+     "y1": 0,
+     "x2": 15,
+     "y2": 0
+    },
+    "slotW": null,
+    "toolName": "Vrtak HSS D8",
+    "toolNo": 15,
+    "rpm": 995,
+    "feed": 119,
+    "enabled": true
+   }
+  ],
+  "live": {
+   "inProgram": true
+  },
+  "liveKind": null,
+  "toolInternal": false
+ },
+ "contourPoints": [
+  {
+   "id": 1793900642148,
+   "type": "G0",
+   "x": 0,
+   "z": 846,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642149,
+   "type": "G1",
+   "x": 39,
+   "z": 842,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642150,
+   "type": "G1",
+   "x": 45,
+   "z": 673,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642151,
+   "type": "G1",
+   "x": 153.994,
+   "z": 654,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642152,
+   "type": "G1",
+   "x": 153.994,
+   "z": 628.279,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642153,
+   "type": "G1",
+   "x": 34,
+   "z": 559,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642154,
+   "type": "G1",
+   "x": 63,
+   "z": 534,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642155,
+   "type": "G1",
+   "x": 63,
+   "z": 447,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642156,
+   "type": "G1",
+   "x": 39,
+   "z": 396,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642157,
+   "type": "G1",
+   "x": 41,
+   "z": 309,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642158,
+   "type": "G1",
+   "x": 132,
+   "z": 288,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642159,
+   "type": "G1",
+   "x": 132,
+   "z": 222,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642160,
+   "type": "G1",
+   "x": 61,
+   "z": 214,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642161,
+   "type": "G1",
+   "x": 61,
+   "z": 112,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642162,
+   "type": "G1",
+   "x": 189,
+   "z": 69,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642163,
+   "type": "G1",
+   "x": 189,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642164,
+   "type": "G1",
+   "x": 0,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900642165,
+   "type": "G1",
+   "x": 0,
+   "z": 846,
+   "r": 0,
+   "mode": "ABS"
+  }
+ ],
+ "stockPoints": [
+  {
+   "id": 1793900742148,
+   "type": "G0",
+   "x": 0,
+   "z": 846,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900742149,
+   "type": "G1",
+   "x": 0,
+   "z": 896,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900742150,
+   "type": "G1",
+   "x": 73,
+   "z": 894,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900742151,
+   "type": "G1",
+   "x": 73,
+   "z": 709,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900742152,
+   "type": "G1",
+   "x": 265,
+   "z": 682,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900742153,
+   "type": "G1",
+   "x": 265,
+   "z": 597,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900742154,
+   "type": "G1",
+   "x": 126,
+   "z": 557,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900742155,
+   "type": "G1",
+   "x": 126,
+   "z": 459,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900742156,
+   "type": "G1",
+   "x": 181,
+   "z": 446,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900742157,
+   "type": "G1",
+   "x": 181,
+   "z": 221,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900742158,
+   "type": "G1",
+   "x": 239,
+   "z": 199,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900742159,
+   "type": "G1",
+   "x": 243,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793900742160,
+   "type": "G1",
+   "x": 189,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  }
+ ],
+ "borePoints": [],
+ "flipX": false,
+ "flipZ": false,
+ "guideLines": [],
+ "zLimits": {
+  "chuck": -47.13,
+  "tail": 1040.22,
+  "chuckActive": true,
+  "tailActive": true,
+  "rangeStart": 13.64,
+  "rangeEnd": 54.57,
+  "rangeActive": false
+ },
+ "xLimits": {
+  "rangeXMin": null,
+  "rangeXMax": null,
+  "active": false
+ },
+ "u2": {
+  "stockPoints": [
+   {
+    "id": 1793900821744529,
+    "type": "G0",
+    "x": 0,
+    "z": 896.048,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744530,
+    "type": "G1",
+    "x": 73.048,
+    "z": 894.014,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744531,
+    "type": "G1",
+    "x": 73.05,
+    "z": 709.044,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744532,
+    "type": "G1",
+    "x": 265.049,
+    "z": 682.008,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744533,
+    "type": "G1",
+    "x": 265.021,
+    "z": 596.955,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744534,
+    "type": "G1",
+    "x": 126.05,
+    "z": 556.962,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744535,
+    "type": "G1",
+    "x": 126.04,
+    "z": 463.728,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744536,
+    "type": "G2",
+    "x": 124.05,
+    "z": 459.778,
+    "r": 4.871,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744537,
+    "type": "G1",
+    "x": 124.05,
+    "z": 298.352,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744538,
+    "type": "G2",
+    "x": 125.208,
+    "z": 295.173,
+    "r": 4.907,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744539,
+    "type": "G1",
+    "x": 132.248,
+    "z": 288.124,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744540,
+    "type": "G1",
+    "x": 132.25,
+    "z": 240.182,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744541,
+    "type": "G2",
+    "x": 137.202,
+    "z": 235.23,
+    "r": 4.957,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744542,
+    "type": "G1",
+    "x": 140.045,
+    "z": 235.201,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744543,
+    "type": "G1",
+    "x": 140.046,
+    "z": 222.312,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744544,
+    "type": "G1",
+    "x": 137.002,
+    "z": 222.28,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744545,
+    "type": "G1",
+    "x": 136.139,
+    "z": 222.201,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744546,
+    "type": "G1",
+    "x": 135.565,
+    "z": 222.05,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744547,
+    "type": "G1",
+    "x": 133.926,
+    "z": 221.95,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744548,
+    "type": "G1",
+    "x": 65.359,
+    "z": 214.231,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744549,
+    "type": "G2",
+    "x": 61.608,
+    "z": 211.142,
+    "r": 4.96,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744550,
+    "type": "G2",
+    "x": 62.295,
+    "z": 206.331,
+    "r": 4.96,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744551,
+    "type": "G2",
+    "x": 61.27,
+    "z": 203.338,
+    "r": 4.774,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744552,
+    "type": "G1",
+    "x": 61.27,
+    "z": 199.122,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744553,
+    "type": "G2",
+    "x": 66.222,
+    "z": 194.17,
+    "r": 4.957,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744554,
+    "type": "G1",
+    "x": 68.049,
+    "z": 194.129,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744555,
+    "type": "G2",
+    "x": 68.347,
+    "z": 190.647,
+    "r": 10.146,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744556,
+    "type": "G1",
+    "x": 68.713,
+    "z": 189.865,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744557,
+    "type": "G1",
+    "x": 69.208,
+    "z": 189.163,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744558,
+    "type": "G1",
+    "x": 77.823,
+    "z": 180.548,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744559,
+    "type": "G2",
+    "x": 81.002,
+    "z": 179.39,
+    "r": 4.907,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744560,
+    "type": "G1",
+    "x": 84.049,
+    "z": 179.349,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744561,
+    "type": "G1",
+    "x": 84.05,
+    "z": 176.342,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744562,
+    "type": "G2",
+    "x": 85.208,
+    "z": 173.163,
+    "r": 4.907,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744563,
+    "type": "G1",
+    "x": 93.823,
+    "z": 164.548,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744564,
+    "type": "G2",
+    "x": 97.002,
+    "z": 163.39,
+    "r": 4.907,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744565,
+    "type": "G1",
+    "x": 100.049,
+    "z": 163.349,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744566,
+    "type": "G1",
+    "x": 100.05,
+    "z": 160.342,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744567,
+    "type": "G2",
+    "x": 101.208,
+    "z": 157.163,
+    "r": 4.907,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744568,
+    "type": "G1",
+    "x": 109.823,
+    "z": 148.548,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744569,
+    "type": "G2",
+    "x": 113.002,
+    "z": 147.39,
+    "r": 4.907,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744570,
+    "type": "G1",
+    "x": 116.049,
+    "z": 147.349,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744571,
+    "type": "G1",
+    "x": 116.05,
+    "z": 144.342,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744572,
+    "type": "G2",
+    "x": 117.208,
+    "z": 141.163,
+    "r": 4.907,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744573,
+    "type": "G1",
+    "x": 125.823,
+    "z": 132.548,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744574,
+    "type": "G2",
+    "x": 129.002,
+    "z": 131.39,
+    "r": 4.907,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744575,
+    "type": "G1",
+    "x": 134.99,
+    "z": 131.38,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744576,
+    "type": "G1",
+    "x": 140.049,
+    "z": 126.308,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744577,
+    "type": "G1",
+    "x": 140.05,
+    "z": 120.352,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744578,
+    "type": "G2",
+    "x": 141.208,
+    "z": 117.173,
+    "r": 4.907,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744579,
+    "type": "G1",
+    "x": 164.048,
+    "z": 94.324,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744580,
+    "type": "G1",
+    "x": 164.05,
+    "z": 81.202,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744581,
+    "type": "G2",
+    "x": 167.309,
+    "z": 76.546,
+    "r": 4.955,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744582,
+    "type": "G1",
+    "x": 189.25,
+    "z": 69.148,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744583,
+    "type": "G1",
+    "x": 189.241,
+    "z": -0.045,
+    "r": 0,
+    "mode": "ABS"
+   },
+   {
+    "id": 1793900821744584,
+    "type": "G1",
+    "x": 0,
+    "z": -0.046,
+    "r": 0,
+    "mode": "ABS"
+   }
+  ],
+  "zLimits": {
+   "chuck": -47.13,
+   "tail": 1040.22,
+   "chuckActive": true,
+   "tailActive": true,
+   "rangeStart": 705.922,
+   "rangeEnd": 459.779,
+   "rangeActive": true
+  },
+  "xLimits": {
+   "rangeXMin": null,
+   "rangeXMax": null,
+   "active": false,
+   "valleyStart": true
+  }
+ }
+}

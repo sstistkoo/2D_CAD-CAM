@@ -67,7 +67,10 @@ export function zigzagBeyondStart({ passes, start = 0, raw, stock, noseR = 0, st
     else if (p.type === 'zigzag' && Array.isArray(p.moves)) {
       for (const m of p.moves) if (m.z > zHi + 1 && m.z < zB + 1) x = Math.max(x, m.x);
     }
-    if (x > -Infinity && x < Tc - 0.3 && x > cov) cov = x;
+    // Průchod začínající nad vrchem materiálu bere celý pás (soustruh zleva,
+    // díl (10), Ú2: spodek údolí od X135 byl vynechán a kapsa za hranicí
+    // jela navíc — údolí „rozdělené uprostřed").
+    if (x > -Infinity) cov = Math.max(cov, Math.min(x, Tc));
   }
   // Nad `cov` jen tenký zbytek (soustruh, Ú2: 0,36 mm nad začátkem spodku) —
   // vezme ho příjezd spodku, vrstva navíc ne.

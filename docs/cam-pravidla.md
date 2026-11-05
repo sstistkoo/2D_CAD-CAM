@@ -512,6 +512,14 @@ stěně vyjede o vrstvu nahoru.**
   nimi jede od stěny ke stěně. Jen stěna v rozsahu úseku (pravidlo 11)
   a jen když rampa nepodřízne offset. `ops/zigzagWallStart.js`,
   `tests/cam-carousel-center-wedge.test.js`.
+  Stěna strmější než úhel zanoření (soustruh zleva, díl (10), čelo 15–14:
+  „nedojíždí doleva až k tomu čelu"): rampa od stěny by vrstvu odvedla dál,
+  než stěna ustoupí, a klín by rostl s každou vrstvou. Vrstva proto vjíždí
+  rampou pod úhlem zanoření KE STĚNĚ — začátek rampy na výšce mělčí vrstvy
+  v jejím záběru, konec na stěně, odtud vrstva. Schody po ap dojede jízda po
+  stěně. Konec dílu na straně konce obrábění (u 1/18) se bere obrácenými
+  vrstvami zprava doleva až dolů (řetěz ramp z čáry zanoření tam nejede).
+  `tests/cam-zigzag-left-walls.test.js`.
 - Pojistka (pravidlo 6): kdyby nad pásmem u stěny klín přesto stál (vrstvy
   nad řetězem ke stěně nedojely), cik cak po dně na té straně končí na čáře
   zanoření a jízda po té stěně odpadá — jinak by se začátek zanořil svisle

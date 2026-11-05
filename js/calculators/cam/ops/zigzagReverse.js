@@ -226,7 +226,13 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
     if (zAir === null) continue;
     // Vjezd i s plátkem (± R) před čelistmi (zLo).
     if (fR(zAir) > X + 1e-6 || touch(X, zAir) || zAir - noseR < zLo - 1e-6) continue;
-    const zw = wallRight(X, zFree, p.zStart + 2 * noseR + step);
+    // Mez hledání stěny od začátku vjezdu (rampa z čáry zanoření začíná
+    // blíž stěně než vrstva — soustruh zleva 5. 11. 2026, díl (10), konec u
+    // 1/18: vrstvy X16–X0 jely z rampy doprava a u stěny zůstal klín).
+    // Pod obrácenou vrstvou o ap výš i od její stěny (řetěz ramp ujíždí o ap/tan za vrstvu).
+    const upper = done.filter((d) => Math.abs(d.x - (X + step)) < 0.6 * step).map((d) => d.z1);
+    const zS = Math.max(p.zStart, p.ramp && Number.isFinite(p.ramp.z0) ? p.ramp.z0 : -Infinity, ...upper);
+    const zw = wallRight(X, zFree, zS + 2 * noseR + step);
     if (zw === null || zw - zAir < 0.5) continue;
     // Zbytek téže vrstvy za vrškem: nejbližší podélný kus na stejném X vpravo.
     let target = null;

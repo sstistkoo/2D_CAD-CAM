@@ -20,6 +20,26 @@ import { wallFinders } from './zigzagFloor.js';
 
 const EPS = 0.05;
 
+/** Vjezd rampou ke stěně na výšce vrstvy (viz volání). Mění `p`. */
+function towardWall(p, li, W, order, tanA, zLim) {
+  const dx = li.x1 - li.x2;
+  const wk = W.wallRight(p.x, p.zStart, zLim);
+  if (wk === null || wk - p.zStart <= 1) return false;
+  const z0 = wk - dx / tanA;
+  // Začátek rampy v záběru mělčí vrstvy (tam je nad ní ubráno).
+  const q = order.find((v) => v !== p && Math.abs(v.x - li.x1) < EPS && v.zStart >= z0 - EPS && v.zEnd <= z0 + EPS);
+  if (!q || z0 <= p.zEnd + 0.5) return false;
+  for (let k = 1; k < 16; k++) {
+    const t = k / 16;
+    if (W.fR(z0 + (wk - z0) * t) > li.x1 - dx * t + 0.02) return false;
+  }
+  p.contourLeadIn = [{ ...li, x1: li.x1, z1: z0, x2: p.x, z2: wk }];
+  p.zStart = wk;
+  p.wallStart = true;
+  p.wallToward = true;
+  return true;
+}
+
 /**
  * @param {object} o { passes, start, raw, step, tanA, zHi }
  *   raw — hrubovací offset bez čar zanoření; zHi — začátek rozsahu úseku
@@ -45,10 +65,22 @@ export function zigzagWallStart({ passes, start = 0, raw, step, tanA, zHi = Infi
     if (!(dx > EPS) || !(dz > EPS) || Math.abs(dz / dx - 1 / tanA) > 0.02 * Math.max(1 / tanA, 1)) continue;
     const zLim = Math.min(li.z1 + reach, zHi);
     const wall = W.wallRight(li.x1, li.z1, zLim);
-    if (wall === null || wall - li.z1 <= 1) continue;
+    if (wall === null || wall - li.z1 <= 1) {
+      // Rampa začíná u stěny (nad ní), ale stěna je strmější — viz níž.
+      if (towardWall(p, li, W, order, tanA, Math.min(p.zStart + reach, zHi))) moved += 1;
+      continue;
+    }
     // Mělčí vrstva na výšce začátku rampy dojela ke stěně (začíná u ní).
     const above = order.some((q) => q !== p && Math.abs(q.x - li.x1) < EPS && q.zStart >= wall - 1.5);
-    if (!above) continue;
+    if (!above) {
+      // STĚNA STRMĚJŠÍ NEŽ ÚHEL ZANOŘENÍ (soustruh zleva 5. 11. 2026, díl
+      // (10), čelo 15–14: „nedojíždí doleva až k tomu čelu"): rampa od stěny
+      // by vrstvu odvedla o ap/tan dál, než stěna ustoupí, a klín by rostl
+      // s každou vrstvou. Vjezd proto rampou KE STĚNĚ — začíná na výšce mělčí
+      // vrstvy uvnitř jejího záběru, končí na stěně a vrstva jede od ní.
+      if (towardWall(p, li, W, order, tanA, Math.min(p.zStart + reach, zHi))) moved += 1;
+      continue;
+    }
     const zr = wall - dx / tanA;
     if (!(zr > p.zStart + EPS) || zr <= p.zEnd + 0.5) continue;
     // Rampa nesmí podříznout offset (stěna pozvolnější než úhel zanoření).

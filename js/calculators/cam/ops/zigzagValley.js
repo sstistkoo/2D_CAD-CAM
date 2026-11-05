@@ -39,6 +39,8 @@ function plungeLeadIn(p, tanA) {
   if (!p || p.type !== 'long' || !Number.isFinite(p.x) || !(p.zStart > p.zEnd + 0.5)) return null;
   const s = leadInSeg(p);
   if (!s) return null;
+  // Rampa ke stěně (zigzagWallStart.js `towardWall`): vrstva začíná na stěně.
+  if (p.wallToward && s.x1 - s.x2 > EPS) return s;
   const dx = s.x1 - s.x2, dz = s.z1 - s.z2;
   if (!(dx > EPS) || !(dz > EPS)) return null;
   return Math.abs(dx / dz - tanA) <= 0.02 * Math.max(tanA, 1) ? s : null;
@@ -78,6 +80,8 @@ function nextMember(passes, from, prev, step) {
     // Vjezd posunutý ke stěně (zigzagWallStart.js): rampa začíná u stěny na
     // výšce předchozí vrstvy, kousek za jejím začátkem (šikmá stěna).
     if (q.wallStart && Math.abs(li.x1 - prev.x) < EPS && li.z1 >= prev.zStart - 1 && li.z1 - prev.zStart <= 2 * step) return i;
+    // Rampa ke stěně začíná v záběru předchozí vrstvy (šikmá stěna strmější než zanoření).
+    if (q.wallToward && Math.abs(li.x1 - prev.x) < EPS && li.z1 <= prev.zStart + 1 && li.z1 >= prev.zEnd - 1) return i;
   }
   return -1;
 }
