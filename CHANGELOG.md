@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rampou ke stěně (`zigzagWallStart.js` — dřív klín u čela 15–14), konec u 1/18 se dojede obrácenými vrstvami
   zprava doleva až dolů (`zigzagReverse.js`), údolí v Ú2 se nedělí uprostřed (kapsa za začátkem úseku se nepřidá,
   když údolí bere spodek cik cak). Zbytek po úsecích zleva 6502 → 623 mm², 0 kolizí; zprava a jiné strategie beze změny.
+  Pod S4 jedou vrstvy Ú3 od konce až ke stěně za hranicí najednou (dřív kapsa zvlášť a otočka na hranici Z705.9).
 
 - **Cik cak: kapsa za začátkem úseku** (`cam/ops/zigzagBeyondStart.js`, pravidla 1 a 20): materiál, který za
   hranicí na straně začátku ještě stojí (kapsa ohraničená jen hranicí patří dalšímu úseku), jede úsek jako první

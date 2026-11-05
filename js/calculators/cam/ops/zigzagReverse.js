@@ -65,12 +65,41 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
   const fR = (z) => { const v = maxXAt(raw, z); return v === null ? -Infinity : v; };
   const fG = (z) => { const v = maxXAt(guided, z); return v === null ? -Infinity : v; };
   // Stěna vpravo od z na hloubce X (offset bez čar zanoření se zvedne nad X).
+  // Za začátkem úseku stojí materiál, který patří tomuto úseku (kapsa,
+  // kterou předchozí úsek nebere — pravidlo 20, ops/zigzagBeyondStart.js):
+  // obrácená vrstva jede až ke stěně za hranicí, NAJEDNOU (soustruh zleva,
+  // díl (10), pod S4: „dělá se to na dvě části místo aby se to jelo najednou").
+  let zBeyond = null;
+  if (Number.isFinite(zHi)) {
+    for (let z = zHi + 0.25; z <= zHi + 5000; z += 0.25) {
+      const t = maxXAt(stock, z);
+      if (t === null || !(t + noseR > fR(z) + 0.5)) break;
+      zBeyond = z;
+    }
+    // Jen pás širší než destička (2R): úzký proužek za hranicí (soustruh
+    // zleva, šikmý polotovar Z143–145) bere kapsa shora (zigzagBeyondStart.js).
+    if (zBeyond !== null && zBeyond - zHi < 2 * noseR) zBeyond = null;
+  }
+  // Za hranici jen pod materiálem nejvýš o ap (nebo pod vrstvou o ap výš,
+  // která za hranici už dojela) — jinak by držák jel pod vysokým materiálem
+  // (soustruh zleva, Ú3 u šikmého polotovaru Z137–145: 11 kolizí).
+  const extended = [];
+  const beyondOk = (X, z0, zw) => {
+    if (extended.some((e) => e > X + 0.3 * step && e < X + 1.6 * step)) return true;
+    for (let z = Math.max(z0, zHi); z <= zw; z += 0.25) {
+      const t = maxXAt(stock, z);
+      if (t !== null && t + noseR > X + step + 0.5) return false;
+    }
+    return true;
+  };
   const wallRight = (X, z, zMax0) => {
-    const zMax = Math.min(zMax0, zHi);
+    const zMax = zBeyond !== null && zMax0 >= zHi - 1e-6 ? zBeyond + 1 : Math.min(zMax0, zHi);
     for (let zz = z; zz <= zMax + 1e-9; zz += DZ) {
       if (fR(zz) > X + 1e-6) {
         let a = zz - DZ, b = zz;
         for (let q = 0; q < 30; q++) { const m = (a + b) / 2; if (fR(m) > X + 1e-6) b = m; else a = m; }
+        if (a > zHi + 0.5 && !beyondOk(X, z, a)) break;
+        if (a > zHi + 0.5) extended.push(X);
         return a;
       }
     }
@@ -166,7 +195,8 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
         }
         return { pts, back: null, end: zz };
       };
-      const lim = Math.min(zHi, lz + 4 * noseR + 4 * step);
+      const lim0 = lz + 4 * noseR + 4 * step;
+      const lim = Math.min(zBeyond !== null && beyondOk(X, lz, Math.min(zBeyond, lim0)) ? zBeyond + 1 : zHi, lim0);
       let w = walk(lz, lim, same.filter((q) => !isTarget(q)).map(span));
       // Napojení na zbytek vrstvy JEN když vrstva sjede zpět na X v obvyklé
       // vzdálenosti (4R + 4ap) a zbytek začíná hned tam. Přes dlouhý vršek

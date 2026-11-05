@@ -5,7 +5,8 @@
 //    zanoření; dřív klín, ops/zigzagWallStart.js `towardWall`),
 //  – údolí 11–6 se v Ú2 nedělí uprostřed (kapsa za začátkem úseku navíc,
 //    ops/zigzagBeyondStart.js — pokrytí spodkem cik cak),
-//  – konec u 2–1/18 se dojede zprava doleva (ops/zigzagReverse.js).
+//  – konec u 2–1/18 se dojede zprava doleva (ops/zigzagReverse.js),
+//  – pod S4 jedou vrstvy Ú3 až ke stěně 3–4 najednou (dřív kapsa zvlášť).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -27,15 +28,18 @@ describe('Cik cak zleva — k čelům jako zprava', () => {
     const zs = r0.calc.stockWorldPoints.map((p) => p.zReal);
     const steps = sectionRanges(r0.calc.sectionPlan, { lo: Math.min(...zs), hi: Math.max(...zs) }, null);
     const base = { z: JSON.parse(JSON.stringify(prog.zLimits)), x: JSON.parse(JSON.stringify(prog.xLimits)) };
-    let stock = prog.stockPoints, mode = prog.params.stockMode;
+    let stock = prog.stockPoints, mode = prog.params.stockMode, last = null;
     for (const st of steps) {
       const L = sectionStepLimits(r0.S, st, base);
       const r = await runCamProg({ ...prog, params: { ...prog.params, stockMode: mode }, stockPoints: stock, zLimits: L.zLimits, xLimits: L.xLimits });
       expect(validateToolpath(r.calcSim.simPath, r.params, r.calc.stockPathSegments, { planStock: true })).toHaveLength(0);
-      stock = machinedFor(r.S, r.calcSim).points; mode = 'casting';
+      stock = machinedFor(r.S, r.calcSim).points; mode = 'casting'; last = r.gcode;
     }
+    // Ú3 pod S4: vrstvy jedou od konce až ke stěně 3–4 najednou, ne na dvě
+    // části s otočkou na hranici Z705.9 (zigzagReverse.js `zBeyond`).
+    expect(last).not.toMatch(/G1 Z705\.922/);
     // Klín u čela 15–14 (X 70–150) a roh u 1/18 (Z 850–870, X 0–12).
-    for (const [x, z] of [[150, 110], [120, 120], [90, 130], [75, 132], [8, 858], [4, 865]]) {
+    for (const [x, z] of [[150, 110], [120, 120], [90, 130], [75, 132], [8, 858], [4, 865], [52, 690], [60, 685], [50, 700]]) {
       expect(inside(stock, x, z), `X${x} Z${z}`).toBe(false);
     }
   }, 300000);

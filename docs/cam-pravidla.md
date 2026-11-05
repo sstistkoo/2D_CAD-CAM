@@ -519,6 +519,10 @@ stěně vyjede o vrstvu nahoru.**
   v jejím záběru, konec na stěně, odtud vrstva. Schody po ap dojede jízda po
   stěně. Konec dílu na straně konce obrábění (u 1/18) se bere obrácenými
   vrstvami zprava doleva až dolů (řetěz ramp z čáry zanoření tam nejede).
+  Stojí-li za začátkem úseku materiál tohoto úseku (pás širší než destička),
+  obrácená vrstva jede až ke stěně za hranicí NAJEDNOU, ne na dvě části
+  (uživatel 5. 11. 2026, pod S4: „dělá se to na dvě části místo aby se to
+  jelo najednou") — jen kde nad vrstvou za hranicí zbývá nejvýš ap.
   `tests/cam-zigzag-left-walls.test.js`.
 - Pojistka (pravidlo 6): kdyby nad pásmem u stěny klín přesto stál (vrstvy
   nad řetězem ke stěně nedojely), cik cak po dně na té straně končí na čáře
