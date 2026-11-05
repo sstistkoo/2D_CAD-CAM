@@ -143,6 +143,9 @@ export function swapParams(p) {
   return {
     ...p,
     machineStructure: 'lathe', mode: 'RADIUS',
+    // Výpočet karuselu v prohozeném světě — co platí jen pro karusel (hranice
+    // na údolí polotovaru, sectionPlan.js), se ptá na tohle, ne na stroj.
+    xzSwapped: true,
     roughingStrategy: STRATEGY[p.roughingStrategy] || 'longitudinal',
     allowanceX: p.allowanceZ, allowanceZ: p.allowanceX,
     safeX: p.safeZ, safeZ: safeXr,

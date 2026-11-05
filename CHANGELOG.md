@@ -83,6 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   podle stroje v CAD; liší-li se od CAM, CAD se teď přepne na stroj z CAM.
 - **Cik cak, jízda po dně:** roh u stěny na straně, kde jízda po dně začíná, dojede jízda po stěně (dřív zůstal
   nedojetý, N4500).
+- **Hranice úseku na údolí polotovaru jen na karuselu** (`sectionPlan.js`): na soustruhu přidávala úseky
+  navíc u 27 fixtures (✂ Po úsecích), zleva i kolize. Soustruh je teď v ✂ Po úsecích i celém programu jako před 4. 11.
 - **Spojený program (✂ Po úsecích, stejný nůž) jel rychloposuvem skrz díl** (`cam/gcodeMerge.js`): z koncových
   rychloposuvů části zůstal jen první — když to byl odskok od stěny (`G0 Z137.050`), výjezd nad konturu
   `G0 Z520` zmizel a dokončování najelo `G0 X71` ve výšce Z137 přes díl. Teď odpadne jen poslední (návrat

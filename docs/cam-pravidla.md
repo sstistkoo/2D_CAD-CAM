@@ -21,7 +21,7 @@ z materiálu.**
   Přídavek X/Z polotovaru), stejně jako v pravidle 9 (uživatel 31. 10. 2026:
   „udělat, že materiál je až po tu offsetovou čáru"). Hranice úseku leží tam,
   kde čára zanoření vyjede z offsetové čáry, a vrch úseku je na ní.
-- **Údolí polotovaru** (schválil uživatel 4. 11. 2026, karusel: „zprava doleva
+- **Údolí polotovaru — JEN KARUSEL** (schválil uživatel 4. 11. 2026, karusel: „zprava doleva
   by první úsek měl být z S7 X557 a pak ta druhá část"): když vrch polotovaru
   (offsetová čára) klesne a zase stoupne víc než o ap a žádná hranice od čáry
   zanoření v tom údolí není, úsek končí na **konci dna údolí polotovaru na
@@ -32,7 +32,10 @@ z materiálu.**
   nejede pod výšku dna údolí („má to jít jenom k S7, ne až dolů"). To pod
   ní vezme další úsek — spodek až ke stěně hrbu i za hranicí (pravidlo 20),
   kapsy zprava doleva. `ops/sections/stockValleys.js`, `orderSteps`,
-  `dropBelowValleyFloor` (zigzagValley.js).
+  `dropBelowValleyFloor` (zigzagValley.js). Na soustruhu se nepoužívá: odlitek
+  tam kopíruje díl a „údolí" má skoro všude — hranice navíc změnily ✂ Po
+  úsecích u 27 soustruhových fixtures a zleva přidaly kolize (kontrola
+  5. 11. 2026).
 - Jiné dělení neexistuje — **nikdy** uprostřed údolí kontury ani uprostřed hrbu.
 - **Upichovák podélně nehrubuje** (rozhodnutí uživatele 25. 9. 2026) —
   hrubuje se jím jen čelně, tvar objede dokončení. Úseky proto nemá.

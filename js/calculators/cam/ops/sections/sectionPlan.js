@@ -78,8 +78,13 @@ export function planSections({ prms, guides, stockPathSegments, planLoop, worldP
     edges.push({ z: out.z, x: out.x, line: { x1: inn.x, z1: inn.z, x2: out.x, z2: out.z } });
   }
   // Údolí polotovaru, přes které žádná čára zanoření nevyjede (stockValleys.js).
-  edges.push(...stockValleyEdges((z) => topXOnLoop(loop, z), zLo, zHi,
-    Math.max(parseFloat(prms.depthOfCut) || 0, 1), edges.map(e => e.z)));
+  // JEN KARUSEL (výpočet v prohozeném světě): na soustruhu odlitek kopíruje díl
+  // a „údolí" má skoro všude — hranice navíc rozbily ✂ Po úsecích u 27
+  // soustruhových fixtures (kontrola 5. 11. 2026, zleva i kolize navíc).
+  if (prms.xzSwapped) {
+    edges.push(...stockValleyEdges((z) => topXOnLoop(loop, z), zLo, zHi,
+      Math.max(parseFloat(prms.depthOfCut) || 0, 1), edges.map(e => e.z)));
+  }
   edges.sort((p, q) => p.z - q.z);
   // Čára, která vyjede až ZA koncem dílu, nedělí — ale ukazuje, kde končí
   // krajní úsek (uživatel: „dodělej čáru i na konci vlevo, ať vím, kde to
