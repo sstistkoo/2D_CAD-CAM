@@ -188,6 +188,7 @@ export function swapLimits(zl = {}, xl = {}) {
       // Výška dna údolí polotovaru u hranice úseku (xzSections.js) = X'.
       ...(Number.isFinite(zl.valleyFloor) ? { valleyFloor: zl.valleyFloor } : {}),
       ...(zl.valleyStart ? { valleyStart: true } : {}),
+      ...(zl.afterPrev ? { afterPrev: true } : {}),
     },
   };
 }

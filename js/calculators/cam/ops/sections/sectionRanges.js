@@ -44,6 +44,9 @@ export function sectionRanges(plan, stockZ, userRange = null) {
     // Výška dna údolí polotovaru u dolní hranice úseku (sectionPlan.js `orderSteps`).
     if (Number.isFinite(st.valleyFloor)) step.valleyFloor = st.valleyFloor;
     if (st.valleyStart) step.valleyStart = true;   // začíná na hranici údolí
+    // Před úsekem se obráběl jiný úsek (začátek = jeho hranice, ne konec
+    // polotovaru ani rozsah 📐): jen tehdy smí brát materiál za začátkem.
+    if (out.length > 0) step.afterPrev = true;
     out.push(step);
   }
   return out;

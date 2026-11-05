@@ -985,7 +985,8 @@
   "tailActive": true,
   "rangeStart": 13.64,
   "rangeEnd": 54.57,
-  "rangeActive": false
+  "rangeActive": false,
+  "afterPrev": true
  },
  "xLimits": {
   "rangeXMin": 705.922,

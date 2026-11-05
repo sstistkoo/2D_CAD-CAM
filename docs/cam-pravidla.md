@@ -523,6 +523,13 @@ stěně vyjede o vrstvu nahoru.**
   obrácená vrstva jede až ke stěně za hranicí NAJEDNOU, ne na dvě části
   (uživatel 5. 11. 2026, pod S4: „dělá se to na dvě části místo aby se to
   jelo najednou") — jen kde nad vrstvou za hranicí zbývá nejvýš ap.
+  Materiál za začátkem úseku se bere JEN po předchozím úseku — v prvním
+  úseku je za začátkem konec polotovaru nebo rozsah 📐 a tam se nejede
+  (karusel, díl (11): Rozsah X min 45,69 a Ú1 začínal kapsou X0–45,7).
+  Vrstva, jejíž rampa z čáry zanoření začíná uprostřed záběru mělčí vrstvy,
+  patří do téhož cik caku od stěny ke stěně (dřív jela jen k jedné stěně
+  a u čela 15–14 zůstala kapsa neobrobená, N1520).
+  `tests/cam-carousel-center-range.test.js`.
   `tests/cam-zigzag-left-walls.test.js`.
 - Pojistka (pravidlo 6): kdyby nad pásmem u stěny klín přesto stál (vrstvy
   nad řetězem ke stěně nedojely), cik cak po dně na té straně končí na čáře

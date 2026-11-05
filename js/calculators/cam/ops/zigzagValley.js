@@ -82,6 +82,10 @@ function nextMember(passes, from, prev, step) {
     if (q.wallStart && Math.abs(li.x1 - prev.x) < EPS && li.z1 >= prev.zStart - 1 && li.z1 - prev.zStart <= 2 * step) return i;
     // Rampa ke stěně začíná v záběru předchozí vrstvy (šikmá stěna strmější než zanoření).
     if (q.wallToward && Math.abs(li.x1 - prev.x) < EPS && li.z1 <= prev.zStart + 1 && li.z1 >= prev.zEnd - 1) return i;
+    // Rampa z čáry zanoření uvnitř záběru předchozí vrstvy (karusel Od středu,
+    // díl (11), kapsa 14–13: vrstvy od Z116 vjížděly z X172, X178… a jely jen
+    // doprava — levá část u čela 15–14 zůstala neobrobená, N1520).
+    if (Math.abs(li.x1 - prev.x) < EPS && li.z1 < prev.zStart - 1 && li.z1 > prev.zEnd + 1) return i;
   }
   return -1;
 }
@@ -117,7 +121,9 @@ export function valleyZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infini
       const a = W.wallLeft(p.x, p.zEnd + 0.5, p.zEnd - reach) ?? (Math.abs(p.zEnd - zLo) < 0.6 ? p.zEnd : null);
       // Stěna vpravo smí ležet i za hranicí úseku (spodek u hranice, pravidlo
       // 20 — výjimka z pravidla 11), nanejvýš jako u floorZigzag (zHi + reach + 50).
-      let b = W.wallRight(p.x, p.zStart, Math.min(p.zStart + reach + 50, zHi + reach + 50));
+      // Stěna vpravo nejdál ke stěně mělčí vrstvy (rampa uvnitř jejího záběru).
+      const prevB = layers.length ? layers[layers.length - 1].b + reach : -Infinity;
+      let b = W.wallRight(p.x, p.zStart, Math.min(Math.max(p.zStart + reach + 50, prevB), zHi + reach + 50));
       // Nad pásmem mezi čarou zanoření a stěnou stojí klín (vrstvy nad
       // řetězem vjížděly rampou a ke stěně nedojely): přes čáru zanoření se
       // nejede — držák by jel pod klínem a začátek by se zanořil svisle

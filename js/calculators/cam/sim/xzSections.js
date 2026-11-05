@@ -72,6 +72,11 @@ export function sectionStepLimits(S, st, base) {
     if (swapsXZ(S)) L.zLimits = { ...L.zLimits, valleyStart: true };
     else L.xLimits = { ...L.xLimits, valleyStart: true };
   }
+  // Před úsekem se obráběl jiný (materiál za začátkem patří tomuto úseku).
+  if (st.afterPrev) {
+    if (swapsXZ(S)) L.zLimits = { ...L.zLimits, afterPrev: true };
+    else L.xLimits = { ...L.xLimits, afterPrev: true };
+  }
   return L;
 }
 

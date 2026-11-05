@@ -47,7 +47,7 @@ function makeStockTouch(stockSegs, R, clear = 0) {
  *   guided — offset, nad kterým jelo podélné hrubování
  * @returns {number} počet obrácených vrstev
  */
-export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR, step, zLo = -Infinity, zHi = Infinity, clear = 0 }) {
+export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR, step, zLo = -Infinity, zHi = Infinity, clear = 0, afterPrev = false }) {
   const touch = makeStockTouch(stock, noseR);
   // Vjezd (sem sjede rychloposuv): s vůlí polotovaru; nevyjde-li, o kus dál
   // doleva ve volnu (do 2R). Rozhodnutí „vlevo je volno" se dělá bez vůle.
@@ -70,7 +70,7 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
   // obrácená vrstva jede až ke stěně za hranicí, NAJEDNOU (soustruh zleva,
   // díl (10), pod S4: „dělá se to na dvě části místo aby se to jelo najednou").
   let zBeyond = null;
-  if (Number.isFinite(zHi)) {
+  if (afterPrev && Number.isFinite(zHi)) {
     for (let z = zHi + 0.25; z <= zHi + 5000; z += 0.25) {
       const t = maxXAt(stock, z);
       if (t === null || !(t + noseR > fR(z) + 0.5)) break;

@@ -706,6 +706,8 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     valleyFloor: S.xLimits && Number.isFinite(S.xLimits.valleyFloor) ? S.xLimits.valleyFloor : null,
     // Úsek začíná na hranici údolí polotovaru: spodek až ke stěně hrbu za hranicí.
     valleyStart: !!(S.xLimits && S.xLimits.valleyStart),
+    // Před úsekem se obráběl jiný úsek (ops/zigzagBeyondStart.js, zigzagReverse.js).
+    afterPrev: !!(S.xLimits && S.xLimits.afterPrev),
   };
   // operations[] model: seznam operací hrubování, každá naplní passes
   // přes svou strategii z registru. Zatím odvozeno z prms.roughingStrategy

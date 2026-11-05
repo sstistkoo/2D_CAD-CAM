@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   zprava doleva až dolů (`zigzagReverse.js`), údolí v Ú2 se nedělí uprostřed (kapsa za začátkem úseku se nepřidá,
   když údolí bere spodek cik cak). Zbytek po úsecích zleva 6502 → 623 mm², 0 kolizí; zprava a jiné strategie beze změny.
   Pod S4 jedou vrstvy Ú3 od konce až ke stěně za hranicí najednou (dřív kapsa zvlášť a otočka na hranici Z705.9).
+  Karusel Od středu s Rozsahem X min (díl (11)): Ú1 nejede mimo rozsah (materiál za začátkem jen po předchozím
+  úseku, `afterPrev`) a kapsa 14–13 se jede celá cik cakem (vrstvy s rampou uprostřed mělčí vrstvy patří do řetězu).
 
 - **Cik cak: kapsa za začátkem úseku** (`cam/ops/zigzagBeyondStart.js`, pravidla 1 a 20): materiál, který za
   hranicí na straně začátku ještě stojí (kapsa ohraničená jen hranicí patří dalšímu úseku), jede úsek jako první

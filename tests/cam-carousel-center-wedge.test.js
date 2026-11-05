@@ -45,7 +45,16 @@ describe('Karusel Od středu — vrstvy až k šikmému čelu', () => {
     expect(nearWall).toBeGreaterThanOrEqual(4);
     // Vrstvy nad kapsou (Z161–Z145) dojedou ke stěně (X < 90).
     expect(first.gcode).toMatch(/G1 X8[3-9]\.\d+ F/);
-    expect(first.gcode).not.toMatch(/G0 X89\.284/);
+    // Žádné svislé zanoření posuvem skrz klín (dřív G0 Z170 → G1 Z145 na X89.284):
+    // svislý posuv (jen Z) nejvýš ap.
+    let zPrev = null, drop = 0;
+    for (const l of first.gcode.split('\n')) {
+      if (!/^N\d+ G[01]/.test(l)) continue;
+      const m = l.match(/Z(-?\d+\.?\d*)/);
+      if (/^N\d+ G1/.test(l) && m && !/X-?\d/.test(l) && zPrev !== null) drop = Math.max(drop, zPrev - +m[1]);
+      if (m) zPrev = +m[1];
+    }
+    expect(drop).toBeLessThanOrEqual(+prog.params.depthOfCut + 0.01);
     // Bod 6: kapsa pod dnem údolí za hranicí Ú1/Ú2 (X 310–447, pod Z68) —
     // Ú1 pod dno údolí nejede, Ú2 ji bere až ke stěně hrbu (pravidlo 1).
     const inside = (pts, x, z) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const a = pts[i], b = pts[j]; if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) c = !c; } return c; };

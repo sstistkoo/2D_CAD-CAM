@@ -57,6 +57,7 @@ export function genZigzagPasses(ctx, op) {
   reverseAirLayers({
     passes, start, raw: ctx.offsetPathNoGuide || offsetPath, guided: offsetPath,
     stock: stockPathSegments, noseR: parseFloat(prms.toolRadius) || 0, step,
+    afterPrev: !!ctx.afterPrev,   // za hranici jen po předchozím úseku
     // Vjezd je ve vzduchu (nos se nedotkne polotovaru), takže smí i za hranici
     // úseku (Po úsecích: Ú1 končí na patě čáry zanoření, volno je za ní —
     // pravidlo 11 hlídá jen materiál). Mez jsou jen čelisti.
@@ -89,5 +90,7 @@ export function genZigzagPasses(ctx, op) {
   pocketsBelowZigzag(vo);
   // Materiál za začátkem úseku (kapsa za hranicí, kterou předchozí úsek
   // nebere): cik cak shora až ke stěně (ops/zigzagBeyondStart.js).
-  zigzagBeyondStart({ ...vo, stock: stockPathSegments, noseR: parseFloat(prms.toolRadius) || 0 });
+  // Jen když se před úsekem obráběl jiný úsek — v Ú1 je za začátkem konec
+  // polotovaru nebo rozsah 📐 (karusel, díl (11): Rozsah X min 45,69 a Ú1 jel napřed X0–45,7).
+  if (ctx.afterPrev) zigzagBeyondStart({ ...vo, stock: stockPathSegments, noseR: parseFloat(prms.toolRadius) || 0 });
 }
