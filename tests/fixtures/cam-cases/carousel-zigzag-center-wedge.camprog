@@ -1,0 +1,446 @@
+{
+ "__camprog": 1,
+ "pathLogicVersion": 3,
+ "params": {
+  "machineType": "LIMS=2000",
+  "mode": "RADIUS",
+  "toolName": "SRDPN úzký",
+  "speed": 180,
+  "feed": 0.12,
+  "depthOfCut": 8,
+  "retractDistance": 2,
+  "rapidFeed": 6000,
+  "retractAngle": 45,
+  "allowanceX": 0,
+  "allowanceZ": 0,
+  "toolRadius": 5,
+  "finishAllowance": 0.2,
+  "doFinishing": true,
+  "roughingStrategy": "zigzag",
+  "finishOnly": false,
+  "roughingSide": "left",
+  "stockMode": "casting",
+  "stockMargin": 5,
+  "stockDiameter": 1702,
+  "stockLength": 5,
+  "stockFace": 191,
+  "safeX": 500,
+  "safeZ": 500,
+  "machineStructure": "carousel",
+  "controlSystem": "sinumerik",
+  "autoProfile": true,
+  "carouselAlongX": true,
+  "toolShape": "round",
+  "toolLength": 10,
+  "toolAngle": 0,
+  "toolTipAngle": 90,
+  "toolTipMirror": false,
+  "toolVbdCode": "RPMT10T3MO",
+  "toolClearanceAngle": 11,
+  "holderWidth": 9,
+  "holderLength": 150,
+  "holderHand": "R",
+  "holderProfile": {
+   "sideA": [
+    {
+     "x": 4.5,
+     "z": 3.223
+    },
+    {
+     "x": 4.5,
+     "z": 150
+    },
+    {
+     "x": -4.5,
+     "z": 150
+    },
+    {
+     "x": -4.5,
+     "z": 3.223
+    },
+    {
+     "x": -3.616,
+     "z": 4.191
+    },
+    {
+     "x": -2.53,
+     "z": 4.924
+    },
+    {
+     "x": -1.301,
+     "z": 5.38
+    },
+    {
+     "x": 0,
+     "z": 5.535
+    },
+    {
+     "x": 1.301,
+     "z": 5.38
+    },
+    {
+     "x": 2.53,
+     "z": 4.924
+    },
+    {
+     "x": 3.616,
+     "z": 4.191
+    },
+    {
+     "x": 4.5,
+     "z": 3.223
+    }
+   ],
+   "sideB": []
+  },
+  "knifeAngle": 270,
+  "holderInflate": 0,
+  "holderInflateAll": false,
+  "toolTipFlat": 0.1,
+  "partOffZ": null,
+  "partingApproachFeed": 1,
+  "partOffSmooth": false,
+  "partOffStartX": 64.55,
+  "partOffInner": false,
+  "grooveWidth": 0,
+  "grooveBottomX": 0,
+  "grooveHoleD": 0,
+  "grooveChamfer": 0,
+  "partOffFace": false,
+  "faceGrooveD1": 0,
+  "faceGrooveD2": 0,
+  "faceGrooveDepth": 0,
+  "finishingSlot": null,
+  "threadActive": false,
+  "threadName": "",
+  "threadType": "mc",
+  "threadDiameter": 20,
+  "threadPitch": 2.5,
+  "threadAngle": 60,
+  "threadDepth": 1.534,
+  "threadExternal": true,
+  "threadZStart": 0,
+  "threadZEnd": -20,
+  "threadRunIn": 3,
+  "threadRunOut": 0,
+  "threadPasses": 0,
+  "threadSpringPasses": 1,
+  "threadTaperRatio": 0,
+  "threadInfeed": "radial",
+  "drillActive": false,
+  "drillZStart": null,
+  "drillDepth": 20,
+  "drillZEnd": null,
+  "drillDepthFullDia": false,
+  "drillClearance": 2,
+  "drillPeck": 5,
+  "drillChipMode": "clear",
+  "drillRetract": 1,
+  "drillDwell": 0,
+  "boreActive": false,
+  "borePreDrill": false,
+  "borePreDrillSlot": null,
+  "borePreTip": 0,
+  "boreSource": "cylinder",
+  "boreFinish": false,
+  "boreZStart": 0,
+  "boreDiameter": 30,
+  "boreDepth": 20,
+  "borePreDiameter": 20,
+  "borePreDepth": 25,
+  "entryAngle": 45,
+  "entryAngleAuto": true,
+  "respectInsertGeometry": true,
+  "plungeRoughing": true,
+  "pocketFinishAtOnce": true,
+  "noStepRoughing": true,
+  "noStepRoughingFace": true,
+  "orderAwareHolder": true,
+  "rapidClearance": 1,
+  "rapidFeedGap": 1,
+  "stockClearX": null,
+  "stockClearZ": null,
+  "holderAutoComplete": true,
+  "regionRoughing": true,
+  "booleanRoughing": false,
+  "live": {
+   "inProgram": false
+  },
+  "liveKind": null,
+  "toolInternal": false
+ },
+ "contourPoints": [
+  {
+   "id": 1793886565025,
+   "type": "G0",
+   "x": 69,
+   "z": 189,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565026,
+   "type": "G1",
+   "x": 112,
+   "z": 61,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565027,
+   "type": "G1",
+   "x": 214,
+   "z": 61,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565028,
+   "type": "G1",
+   "x": 222,
+   "z": 132,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565029,
+   "type": "G1",
+   "x": 288,
+   "z": 132,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565030,
+   "type": "G1",
+   "x": 309,
+   "z": 41,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565031,
+   "type": "G1",
+   "x": 396,
+   "z": 39,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565032,
+   "type": "G1",
+   "x": 447,
+   "z": 63,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565033,
+   "type": "G1",
+   "x": 534,
+   "z": 63,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565034,
+   "type": "G1",
+   "x": 559,
+   "z": 34,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565035,
+   "type": "G1",
+   "x": 628.279,
+   "z": 153.994,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565036,
+   "type": "G1",
+   "x": 654,
+   "z": 153.994,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565037,
+   "type": "G1",
+   "x": 673,
+   "z": 45,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565038,
+   "type": "G1",
+   "x": 842,
+   "z": 39,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565039,
+   "type": "G1",
+   "x": 846,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565040,
+   "type": "G1",
+   "x": 0,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565041,
+   "type": "G1",
+   "x": 0,
+   "z": 189,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886565042,
+   "type": "G1",
+   "x": 69,
+   "z": 189,
+   "r": 0,
+   "mode": "ABS"
+  }
+ ],
+ "stockPoints": [
+  {
+   "id": 1793886665025,
+   "type": "G0",
+   "x": 846,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886665026,
+   "type": "G1",
+   "x": 896,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886665027,
+   "type": "G1",
+   "x": 894,
+   "z": 73,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886665028,
+   "type": "G1",
+   "x": 709,
+   "z": 73,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886665029,
+   "type": "G1",
+   "x": 682,
+   "z": 265,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886665030,
+   "type": "G1",
+   "x": 597,
+   "z": 265,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886665031,
+   "type": "G1",
+   "x": 557,
+   "z": 126,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886665032,
+   "type": "G1",
+   "x": 459,
+   "z": 126,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886665033,
+   "type": "G1",
+   "x": 446,
+   "z": 181,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886665034,
+   "type": "G1",
+   "x": 221,
+   "z": 181,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886665035,
+   "type": "G1",
+   "x": 199,
+   "z": 239,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886665036,
+   "type": "G1",
+   "x": 0,
+   "z": 243,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793886665037,
+   "type": "G1",
+   "x": 0,
+   "z": 189,
+   "r": 0,
+   "mode": "ABS"
+  }
+ ],
+ "borePoints": [],
+ "flipX": false,
+ "flipZ": false,
+ "guideLines": [],
+ "zLimits": {
+  "chuck": -47.13,
+  "tail": 497.48,
+  "chuckActive": true,
+  "tailActive": true,
+  "rangeStart": 13.64,
+  "rangeEnd": 54.57,
+  "rangeActive": false
+ },
+ "showZLimits": "on",
+ "xLimits": {
+  "rangeXMin": null,
+  "rangeXMax": null,
+  "active": false
+ },
+ "showSimPath": "all",
+ "showRemoval": true,
+ "showRefGuides": false
+}

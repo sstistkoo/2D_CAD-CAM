@@ -44,6 +44,27 @@ function plungeLeadIn(p, tanA) {
   return Math.abs(dx / dz - tanA) <= 0.02 * Math.max(tanA, 1) ? s : null;
 }
 
+/** Zvedne se offset za stěnou `b` (do `reach`) nad výšku `xLim`? */
+/**
+ * Klín nad pásmem u pravé stěny: vrstva těsně nad řetězem (do 3 ap nad jeho
+ * začátkem `xTop`) začíná vlevo od stěny `b` a mezi jejím začátkem (rampa
+ * nebo vjezd) a stěnou na její výšce stojí materiál. Vrstvy, které stěnu
+ * přejely (začínají za ní), se nepočítají — nad nimi je ubráno.
+ */
+function wedgeAbove(passes, W, xTop, step, zMin, b, reach) {
+  for (const q of passes) {
+    if (!q || q.type !== 'long' || !Number.isFinite(q.x)) continue;
+    if (!(q.x > xTop + EPS) || q.x > xTop + 3 * step + EPS) continue;
+    const li = Array.isArray(q.contourLeadIn) && q.contourLeadIn[0];
+    const zs = Math.max(q.zStart, q.ramp && Number.isFinite(q.ramp.z0) ? q.ramp.z0 : -Infinity,
+      li && Number.isFinite(li.z1) ? li.z1 : -Infinity);
+    if (!(zs < b - EPS) || zs < zMin) continue;
+    const w = W.wallRight(q.x, zs, zs + reach + 50);
+    if (w !== null && w - zs > 1) return true;
+  }
+  return false;
+}
+
 /** Další člen řetězu: vrstva o nejvýš ~ap níž, vjezd začíná na začátku nebo konci předchozí. */
 function nextMember(passes, from, prev, step) {
   for (let i = from; i < passes.length; i++) {
@@ -54,6 +75,9 @@ function nextMember(passes, from, prev, step) {
     const li = (Array.isArray(q.contourLeadIn) && q.contourLeadIn[0]) || leadInSeg(q);
     if (!li || !Number.isFinite(li.x1)) continue;
     if (near(li.x1, li.z1, prev.x, prev.zStart) || near(li.x1, li.z1, prev.x, prev.zEnd)) return i;
+    // Vjezd posunutý ke stěně (zigzagWallStart.js): rampa začíná u stěny na
+    // výšce předchozí vrstvy, kousek za jejím začátkem (šikmá stěna).
+    if (q.wallStart && Math.abs(li.x1 - prev.x) < EPS && li.z1 >= prev.zStart - 1 && li.z1 - prev.zStart <= 2 * step) return i;
   }
   return -1;
 }
@@ -80,6 +104,7 @@ export function valleyZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infini
     // se bere obrácená vrstva, ops/zigzagReverse.js), vpravo stěna hrbu
     // v rozsahu. Tenký zbytek u dna (< 1 mm mezi stěnami) zůstane, jak byl.
     const layers = [], used = [];
+    let wedged = false;   // klín nad vrstvou leží i nad všemi hlubšími
     for (const j of grp) {
       const p = passes[j];
       // Vrstva končící na dolní mezi rozsahu (hranice úseku, ✂ Po úsecích):
@@ -88,9 +113,17 @@ export function valleyZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infini
       const a = W.wallLeft(p.x, p.zEnd + 0.5, p.zEnd - reach) ?? (Math.abs(p.zEnd - zLo) < 0.6 ? p.zEnd : null);
       // Stěna vpravo smí ležet i za hranicí úseku (spodek u hranice, pravidlo
       // 20 — výjimka z pravidla 11), nanejvýš jako u floorZigzag (zHi + reach + 50).
-      const b = W.wallRight(p.x, p.zStart, Math.min(p.zStart + reach + 50, zHi + reach + 50));
+      let b = W.wallRight(p.x, p.zStart, Math.min(p.zStart + reach + 50, zHi + reach + 50));
+      // Nad pásmem mezi čarou zanoření a stěnou stojí klín (vrstvy nad
+      // řetězem vjížděly rampou a ke stěně nedojely): přes čáru zanoření se
+      // nejede — držák by jel pod klínem a začátek by se zanořil svisle
+      // skrz něj (karusel Od středu 5. 11. 2026: šikmá stěna S12–S13,
+      // 11 kolizí držáku). Stěna hrbu, nad kterou je ubráno, jako dřív.
+      let underWedge = false;
+      if (b !== null && b > p.zStart + EPS
+        && (wedged || wedgeAbove(passes, W, s0.x1, step, p.zStart - reach, b, reach))) { b = p.zStart; underWedge = wedged = true; }
       if (a === null || b === null || b - a < 1) break;
-      layers.push({ X: p.x, a, b });
+      layers.push(underWedge ? { X: p.x, a, b, underWedge } : { X: p.x, a, b });
       used.push(j);
     }
     // Rampa mezi vrstvami nesmí projet pod offset (stupeň dna: další vrstva

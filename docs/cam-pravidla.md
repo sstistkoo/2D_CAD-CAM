@@ -503,6 +503,19 @@ stěně vyjede o vrstvu nahoru.**
   pak dojede jízda po offsetu (Hrub. bez schodků). Kde by rampa mezi
   vrstvami projela pod offset (stupeň dna), spodní vrstvy jedou postaru.
   Na tyči ne (bod níž). `ops/zigzagValley.js`, `tests/cam-zigzag-valley.test.js`.
+- **Vrstva u čela na straně začátku jede až ke stěně** (schválil uživatel
+  5. 11. 2026, karusel Od středu: „mám to cik cak, mělo by to jezdit až
+  k čelům tam a nazpět"): u Cik cak vrstva, která by vjela rampou z čáry
+  zanoření od stěny na straně začátku obrábění, vjíždí OD STĚNY — mělčí
+  vrstva u stěny skončila, odtud rampa pod úhlem zanoření o ap níž a vrstva
+  pokračuje. Mezi stěnou a rampami tak nezůstane klín a cik cak po dně pod
+  nimi jede od stěny ke stěně. Jen stěna v rozsahu úseku (pravidlo 11)
+  a jen když rampa nepodřízne offset. `ops/zigzagWallStart.js`,
+  `tests/cam-carousel-center-wedge.test.js`.
+- Pojistka (pravidlo 6): kdyby nad pásmem u stěny klín přesto stál (vrstvy
+  nad řetězem ke stěně nedojely), cik cak po dně na té straně končí na čáře
+  zanoření a jízda po té stěně odpadá — jinak by se začátek zanořil svisle
+  skrz klín a držák jel pod ním (dřív 11 kolizí).
   V úseku, který končí uvnitř takového údolí (hranice na údolí polotovaru),
   jede cik cak mezi stěnou hrbu a hranicí úseku (za hranici nic).
 - **Kapsy pod spodkem** (uživatel 4. 11. 2026: „dodělal napřed pravou … zářez

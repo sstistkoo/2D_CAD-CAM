@@ -83,6 +83,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   podle stroje v CAD; liší-li se od CAM, CAD se teď přepne na stroj z CAM.
 - **Cik cak, jízda po dně:** roh u stěny na straně, kde jízda po dně začíná, dojede jízda po stěně (dřív zůstal
   nedojetý, N4500).
+- **Cik cak až k čelům tam a zpět** (nový `ops/zigzagWallStart.js`, `zigzagValley.js`, `zigzagFloor.js`): u Cik cak
+  vrstva u čela na straně začátku vjíždí od stěny (rampa o ap níž od konce mělčí vrstvy), ne z čáry zanoření.
+  Karusel Od středu (díl uživatele, ap 8, ✂ Po úsecích): mezi šikmou stěnou S12–S13 a rampami zůstával klín,
+  cik cak po dně pod ním začínal svislým zanořením posuvem (`G0 Z170` → `G1 Z145`) — 11 kolizí držáku v Ú1.
+  Teď vrstvy dojedou ke stěně, cik cak v kapse jede od stěny ke stěně, 0 kolizí ve všech úsecích, zbytek
+  24 274 → 23 555 mm² (celý program 4 111 → 2 088 mm²). Pojistka: pod klínem cik cak nejede přes čáru zanoření.
 - **Cik cak: skákání mezi svahy hrbu nad vršek** (`ops/zigzagReverse.js`, regrese z 4. 11.): obrácená vrstva
   zleva se přes vršek napojovala na zbytek téže vrstvy vpravo i tam, kde pravá strana pokračuje další vrstvou níž.
   Celá pravá strana se pak stáhla mezi levé vrstvy a program 24× vyjel rychloposuvem nad hrb (soustruh, ap 2,

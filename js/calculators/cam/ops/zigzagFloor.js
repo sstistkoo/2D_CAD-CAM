@@ -207,7 +207,10 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
     return { type: 'zigzag', moves: pts, xSafe: xTop, wallClean: true, endDir: side };
   };
   // Jen s „Hrub. bez schodků" (uživatel 2. 11.: „když by bylo zaškrtnuté").
-  const clean = noSteps ? [wallPass(1), wallPass(-1)].filter(Boolean) : [];
+  // Vpravo vrstvy končí na čáře zanoření pod klínem (`underWedge`,
+  // zigzagValley.js) — stěna tam není, jízda po ní by jela svisle posuvem.
+  const rightWall = !layers.some((L) => L.underWedge);
+  const clean = noSteps ? [rightWall ? wallPass(1) : null, wallPass(-1)].filter(Boolean) : [];
   // Vrstvy cik caku pro kapsy pod ním (zigzagValley.js) — neviditelné, aby je
   // nekopírovalo zrcadlo ani emise.
   Object.defineProperty(zig, '_layers', { value: layers, enumerable: false });

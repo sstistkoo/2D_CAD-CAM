@@ -15,6 +15,7 @@ import { genLongPasses } from './roughLong.js';
 import { getInsert } from '../inserts/index.js';
 import { reverseAirLayers } from './zigzagReverse.js';
 import { floorZigzag } from './zigzagFloor.js';
+import { zigzagWallStart } from './zigzagWallStart.js';
 import { valleyZigzag, pocketsBelowZigzag, dropBelowValleyFloor, dropUnderOffset } from './zigzagValley.js';
 import { getEffectivePlungeAngle, stockClearances } from '../camMath.js';
 
@@ -42,6 +43,15 @@ export function genZigzagPasses(ctx, op) {
   if (!holderNarrowerThanInsert(prms)) {
     foundErrors.push({ type: 'warning', msg: 'Cik cak: držák není užší než kulatá destička — jede se jen podélně (široký držák by o stěnu za hrbolem drhl). Použijte úzký držák (🔧 SRDPN úzký).' });
     return;
+  }
+  // Vrstva u čela na straně začátku: vjezd od stěny, ne z čáry zanoření
+  // (uživatel 5. 11. 2026: „jezdit až k čelům tam a nazpět", zigzagWallStart.js).
+  if (prms.stockMode !== 'cylinder') {
+    zigzagWallStart({
+      passes, start, raw: ctx.offsetPathNoGuide || offsetPath, step,
+      tanA: Math.tan(getEffectivePlungeAngle(prms) * Math.PI / 180),
+      zHi: ctx.machiningRange && Number.isFinite(ctx.machiningRange.zHi) ? ctx.machiningRange.zHi : Infinity,
+    });
   }
   reverseAirLayers({
     passes, start, raw: ctx.offsetPathNoGuide || offsetPath, guided: offsetPath,
