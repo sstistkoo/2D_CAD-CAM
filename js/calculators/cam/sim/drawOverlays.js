@@ -67,6 +67,12 @@ export function drawOverlayLayer(f) {
         ctx.restore();
       }
     }
+    // Body ve stejném místě (začátek = konec uzavřené kontury, bod polotovaru
+    // na bodu kontury — uživatel 5. 11. 2026: „čísla na kontuře ani nejdou
+    // přečíst, je jich tam víc přes sebe"): čísla kontury jedním popiskem
+    // „1/18", popisek polotovaru tam pod bodem.
+    const labelKey = (pt) => `${Math.round(pt.x / 3)},${Math.round(pt.y / 3)}`;
+    const contourLabels = new Map();
     if (calc.worldPoints) {
       calc.worldPoints.forEach((p, i) => {
         if (!p) return;
@@ -84,10 +90,14 @@ export function drawOverlayLayer(f) {
           ctx.beginPath(); ctx.arc(pt.x, pt.y, radius + 3, 0, Math.PI * 2); ctx.stroke();
         }
         if (!isHovered && !isDragged && !calc.profileViewActive) {
-          ctx.fillStyle = contourActive ? '#f9e2af' : C.contour;
-          ctx.fillText(`${i + 1}`, pt.x + 8, pt.y - 8);
+          const k = labelKey(pt);
+          const L = contourLabels.get(k);
+          if (L) L.texts.push(`${i + 1}`);
+          else contourLabels.set(k, { x: pt.x, y: pt.y, texts: [`${i + 1}`] });
         }
       });
+      ctx.fillStyle = contourActive ? '#f9e2af' : C.contour;
+      for (const L of contourLabels.values()) ctx.fillText(L.texts.join('/'), L.x + 8, L.y - 8);
     }
     // Body polotovaru — VŽDY zobrazené s čísly (S1, S2...), jen pro
     // casting (ne pro cylinder — ten má své vlastní handle nahoře).
@@ -109,7 +119,9 @@ export function drawOverlayLayer(f) {
         }
         if (!isHovered && !isDragged) {
           ctx.fillStyle = stockActive ? '#f9e2af' : C.pass;
-          ctx.fillText(`S${i + 1}`, pt.x + 8, pt.y - 8);
+          // Na bodu kontury pod bod (nahoře je číslo kontury).
+          const under = contourLabels.has(labelKey(pt));
+          ctx.fillText(`S${i + 1}`, pt.x + 8, under ? pt.y + 16 : pt.y - 8);
         }
       });
     }

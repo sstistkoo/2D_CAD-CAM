@@ -58,6 +58,19 @@ export function noSections(S, key) {
  * @returns {{ zLimits, xLimits }}
  */
 export function sectionStepLimits(S, st, base) {
+  const L = stepLimits(S, st, base);
+  // Výška dna údolí polotovaru (sectionPlan.js `orderSteps`): vlevo od prvního
+  // hrbu u dolní hranice úseku se pod ni nejede (ops/zigzagRough.js). Na
+  // soustruhu je to X (rozsah X), na karuselu výška Z — swapLimits ji
+  // v prohozeném světě předá do X'.
+  if (Number.isFinite(st.valleyFloor)) {
+    if (swapsXZ(S)) L.zLimits = { ...L.zLimits, valleyFloor: st.valleyFloor };
+    else L.xLimits = { ...L.xLimits, valleyFloor: st.valleyFloor };
+  }
+  return L;
+}
+
+function stepLimits(S, st, base) {
   if (!swapsXZ(S)) {
     // Soustruh (beze změny, dřív v camSimulator.js): pás úseku = rozsah Z.
     // Dno úseku (`xTo`) se SKLÁDÁ s rozsahem X uživatele — platí vyšší

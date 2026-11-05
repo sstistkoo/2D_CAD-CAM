@@ -7,7 +7,7 @@ import { state, pushUndo, showToast, STOCK_LAYER_ID } from '../../../state.js';
 import { renderAll } from '../../../render.js';
 import { autoCenterView } from '../../../canvas.js';
 import { calculateAllIntersections } from '../../../geometry.js';
-import { updateObjectList } from '../../../ui.js';
+import { updateObjectList, setMachineType } from '../../../ui.js';
 import { getArcParams } from '../camMath.js';
 import { resolvePointsToAbsolute } from '../contourBuild.js';
 import { guidePolyPoints } from '../interferenceGuides.js';
@@ -58,8 +58,12 @@ export async function handleSendToCanvas({ S, setOpView, getAllGuideLines, overl
 
   const isDia = S.params.mode === 'DIAMON';
   // Osy výkresu určuje typ stroje v CAD (tím se kontura do CAM i poslala,
-  // runCncExport). „Karusel" v CAM je jen pohled — podle něj se výkres při
-  // rozdílném nastavení vracel přetočený (svět x ↔ y).
+  // runCncExport). Liší-li se od stroje v CAM, přepne se CAD na stroj z CAM
+  // (uživatel 5. 11. 2026: „převrátí se mi na soustruh místo aby si zachoval
+  // karusel" — projekt karuselu načtený v CAM se vracel do CADu v osách
+  // soustruhu). Výkres je už smazaný, prohazovat v něm osy není co.
+  const camType = S.params.machineStructure === 'carousel' ? 'karusel' : 'soustruh';
+  if (state.machineType !== camType) setMachineType(camType);
   const isKarusel = state.machineType === 'karusel';
   // Mapování: CNC X,Z → canvas x,y
   // soustruh: canvas.x = Z, canvas.y = X

@@ -60,3 +60,4 @@ export function stockValleyEdges(top, zLo, zHi, minDepth, existing = [], DZ = 0.
   }
   return out;
 }
+

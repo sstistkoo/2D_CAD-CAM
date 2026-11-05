@@ -130,6 +130,14 @@ describe('✕ → 📐 Zachovat a přenést: simulátor → plátno CAD', () => 
       expect(layers(o => o.type === 'camNote')).toEqual([0]);
     } finally { state.activeLayer = 0; }
   });
+  // Uživatel 5. 11. 2026: projekt karuselu načtený v CAM se při CAD přepnutém
+  // na soustruh vracel v osách soustruhu („převrátí se mi na soustruh místo
+  // aby si zachoval karusel"). CAD se přepne na stroj z CAM.
+  it('CAM karusel, CAD soustruh: CAD se přepne na karusel, osy karuselu', async () => {
+    const objs = await sendToCanvas('soustruh', (S) => { S.params.machineStructure = 'carousel'; });
+    expect(state.machineType).toBe('karusel');
+    expect(objs.slice(0, 2)).toEqual(['line 0 0 → 20 0', 'line 20 0 → 20 -30']);
+  });
   // Mezní čáry (constr) jsou od 3. 11. 2026 z dráhy karuselu po X (⟲ výchozí,
   // cam/xzSwap.js) — spočtené v prohozeném světě a prohozené zpět.
   it('karusel: osy prohozené, oblouk opačně, vlastní tvar polotovaru', async () => {

@@ -15,7 +15,7 @@ import { genLongPasses } from './roughLong.js';
 import { getInsert } from '../inserts/index.js';
 import { reverseAirLayers } from './zigzagReverse.js';
 import { floorZigzag } from './zigzagFloor.js';
-import { valleyZigzag, pocketsBelowZigzag } from './zigzagValley.js';
+import { valleyZigzag, pocketsBelowZigzag, dropBelowValleyFloor, dropUnderOffset } from './zigzagValley.js';
 import { getEffectivePlungeAngle, stockClearances } from '../camMath.js';
 
 /** Držák je v ose Z užší než kulatá destička (i s virtuálním zvětšením). */
@@ -31,6 +31,13 @@ export function genZigzagPasses(ctx, op) {
   const { prms, passes, foundErrors, offsetPath, stockPathSegments, step } = ctx;
   const start = passes.length;
   genLongPasses(ctx, op);
+  // Vrstva celá pod hrubovacím offsetem = zajetí do kontury (pojistka).
+  // Na tyči ne — tam platí Podélně beze změny (pravidlo 20).
+  if (getInsert(prms).zigzagPockets && prms.stockMode !== 'cylinder') dropUnderOffset({ passes, start, raw: ctx.offsetPathNoGuide || offsetPath });
+  // Úsek nad údolím polotovaru: u dolní hranice (vlevo od prvního hrbu) ne pod dno údolí.
+  if (Number.isFinite(ctx.valleyFloor) && ctx.machiningRange && Number.isFinite(ctx.machiningRange.zLo)) {
+    dropBelowValleyFloor({ passes, start, raw: ctx.offsetPathNoGuide || offsetPath, floor: ctx.valleyFloor, zLo: ctx.machiningRange.zLo });
+  }
   if (!getInsert(prms).zigzagPockets) return;
   if (!holderNarrowerThanInsert(prms)) {
     foundErrors.push({ type: 'warning', msg: 'Cik cak: držák není užší než kulatá destička — jede se jen podélně (široký držák by o stěnu za hrbolem drhl). Použijte úzký držák (🔧 SRDPN úzký).' });

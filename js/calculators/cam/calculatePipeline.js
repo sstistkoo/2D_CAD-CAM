@@ -697,6 +697,8 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     offsetXAt, traceOffsetPath, findPocketExitZ,
     findLeadOutEndZ, hIntersect, machiningRange: rangeForPasses, machiningRangeX, chuckZ, tailZ,
     holderClampZEnd, interferenceGuides,
+    // Úsek nad údolím polotovaru (✂ Po úsecích): vlevo od prvního hrbu ne pod tuto výšku.
+    valleyFloor: S.xLimits && Number.isFinite(S.xLimits.valleyFloor) ? S.xLimits.valleyFloor : null,
   };
   // operations[] model: seznam operací hrubování, každá naplní passes
   // přes svou strategii z registru. Zatím odvozeno z prms.roughingStrategy

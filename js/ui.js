@@ -31,7 +31,7 @@ import { initToolbar, refreshToolbarActive, setTool, activateFilletChamfer, setH
 import {
   updateSnapPtsBtn, updateSnapGridBtn, toggleSnapGrid, updateAngleSnapBtn, toggleAngleSnap,
   updateDimsBtn, cycleDimsMode, updateCoordModeBtn, toggleCoordMode, updateXDisplayBtn,
-  toggleXDisplay, updateMachineTypeBtn, toggleMachineType,
+  toggleXDisplay, updateMachineTypeBtn, toggleMachineType, setMachineType,
   initStatusButtons,
 } from './ui/statusButtons.js';
 import { updateStatusProject, showHelp, hideHelp, toggleHelp, checkFirstRunHelp, applyTheme, initHelpButtons } from './ui/helpTheme.js';
@@ -86,7 +86,7 @@ export { refreshToolbarActive, setTool, activateFilletChamfer, setHint, resetHin
 export {
   updateSnapPtsBtn, updateSnapGridBtn, toggleSnapGrid, updateAngleSnapBtn, toggleAngleSnap,
   updateDimsBtn, cycleDimsMode, updateCoordModeBtn, toggleCoordMode, updateXDisplayBtn,
-  toggleXDisplay, updateMachineTypeBtn, toggleMachineType,
+  toggleXDisplay, updateMachineTypeBtn, toggleMachineType, setMachineType,
 };
 initStatusButtons();
 

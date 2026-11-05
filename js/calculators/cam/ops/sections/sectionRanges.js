@@ -40,7 +40,10 @@ export function sectionRanges(plan, stockZ, userRange = null) {
     if (!(zHi - zLo > 0.5)) continue;          // úsek je celý mimo rozsah
     const xTo = Number.isFinite(st.xTo) ? st.xTo : null;
     const name = `Úsek ${s.id}` + (xTo !== null ? ` (do Ø${(2 * xTo).toFixed(1)})` : '');
-    out.push({ id: s.id, name, zLo: round(zLo), zHi: round(zHi), xTo });
+    const step = { id: s.id, name, zLo: round(zLo), zHi: round(zHi), xTo };
+    // Výška dna údolí polotovaru u dolní hranice úseku (sectionPlan.js `orderSteps`).
+    if (Number.isFinite(st.valleyFloor)) step.valleyFloor = st.valleyFloor;
+    out.push(step);
   }
   return out;
 }

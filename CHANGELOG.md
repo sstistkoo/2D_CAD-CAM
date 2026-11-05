@@ -9,8 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cik cak v kapsách pod spodkem** (`zigzagValley.js`, `zigzagFloor.js`): vrstva na dně patří spodku (bez
+  samostatné kapsy), mírně šikmé dno se jede zanořením a jízdou po dně, jízda po stěně začíná nahoře na
+  stěně (dřív 6 mm svisle). Karusel, díl uživatele: zbytek 515 → 401 mm².
+
 - **Úsek končí i na údolí polotovaru** (`cam/ops/sections/stockValleys.js`, pravidlo 1): karusel po X, odlitek
-  s údolím S8–S7 nad konturou → ✂ Po úsecích dá Ú1 od obvodu po S7 a Ú2 zbytek. Pod spodkem cik cak se
+  s údolím S8–S7 nad konturou → ✂ Po úsecích dá Ú1 od obvodu po S7 (až na dno, jen vlevo
+  od hrbu u S7 ne pod výšku S7) a Ú2 zbytek; pravá strana za hrbem se dojede dřív, než vrstvy přejedou přes hrb. Cik cak v údolí pozná i řetěz ramp (soustruh: dřív jel údolím řetězem po čáře zanoření). Pod spodkem cik cak se
   zbylý materiál bere po kapsách, napřed pravá (zářez V), pak levá (`pocketsBelowZigzag`). Díl uživatele:
   zbytek po úsecích 528 mm², 0 kolizí; soustruhové díly beze změny.
 - **Cik cak: údolí za hrbem bez hranice úseku** (`cam/ops/zigzagValley.js`, pravidlo 20): místo řetězu
@@ -64,6 +69,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ↔ Čelně (X), ⇅ Cik cak – šipky odpovídají plátnu otočenému o 90°; soustruh beze změny.
 
 ### Fixed
+
+- **Karusel u osy: zajetí do rohu dílu a výjezd za osu** (`cam/xzSwap.js` `openAtAxis`): uzavřená kontura
+  s hranou po ose se pro výpočet otevře na ose — offset měl v bodě, kde kontura začíná i končí, díru, do které
+  vjela vrstva pod rohem (X69 Z189), a „čelo" na ose se objíždělo výjezdem pod 45° za osu do dílu
+  (`G1 Z191.154 X-5.200`). Tečkované náhledy (přídavek, hotovo) po ose zmizely. Pojistka v Cik cak zahodí
+  vrstvu celou pod hrubovacím offsetem (`dropUnderOffset`).
+- **Čísla bodů přes sebe** (`cam/sim/drawOverlays.js`): body kontury ve stejném místě jedním popiskem („1/18"),
+  popisek polotovaru na bodu kontury pod bodem.
+- **Karusel: dokončování jelo po ose otáčení celým obrobkem** (`cam/xzSwap.js`): osa (X = 0) je v prohozeném
+  světě „čelo" a dokončovalo se jako čelo soustruhu (`G1 Z0 X-5`). Úsek celý za osou se teď nedokončuje.
+- **Návrat z CAM do CAD přepnul karusel na soustruh** (`cam/sim/sendToCanvas.js`): osy výkresu se braly jen
+  podle stroje v CAD; liší-li se od CAM, CAD se teď přepne na stroj z CAM.
+- **Cik cak, jízda po dně:** roh u stěny na straně, kde jízda po dně začíná, dojede jízda po stěně (dřív zůstal
+  nedojetý, N4500).
+- **Spojený program (✂ Po úsecích, stejný nůž) jel rychloposuvem skrz díl** (`cam/gcodeMerge.js`): z koncových
+  rychloposuvů části zůstal jen první — když to byl odskok od stěny (`G0 Z137.050`), výjezd nad konturu
+  `G0 Z520` zmizel a dokončování najelo `G0 X71` ve výšce Z137 přes díl. Teď odpadne jen poslední (návrat
+  druhé osy do startovní polohy).
 
 - **Cik cak: přejezd po vršku po už ubraném místě** (`ops/zigzagReverse.js`): obrácená vrstva jela přes vršek
   hrbu i tam, kde v téže výšce už řezal kus pravé strany (karusel ap 6: 43,5 mm, ap 2: 27,5 mm posuvem

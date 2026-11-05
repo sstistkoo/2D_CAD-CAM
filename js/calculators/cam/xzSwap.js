@@ -182,8 +182,32 @@ export function swapLimits(zl = {}, xl = {}) {
     xLimits: {
       rangeXMin: loOn ? lo : null, rangeXMax: hiOn ? hi : null,
       minActive: loOn, maxActive: hiOn, active: loOn || hiOn,
+      // Výška dna údolí polotovaru u hranice úseku (xzSections.js) = X'.
+      ...(Number.isFinite(zl.valleyFloor) ? { valleyFloor: zl.valleyFloor } : {}),
     },
   };
+}
+
+/**
+ * UZAVŘENÁ KONTURA S HRANOU PO OSE (X = 0) → otevřená, začíná a končí na ose.
+ * Osa karuselu je v prohozeném světě „čelo" na Z' 0: soustruhová logika by
+ * ho objela (výjezd po čele za osu do dílu, dokončování po ose) a v bodě,
+ * kde uzavřená kontura začíná a končí, by offset neměl spoj — díra, do které
+ * vjela vrstva pod rohem (uživatel 5. 11. 2026, roh X69 Z189 u osy).
+ * Jen absolutní body (jinak beze změny).
+ */
+export function openAtAxis(pts) {
+  if (!Array.isArray(pts) || pts.length < 4 || pts.some(q => q.mode && q.mode !== 'ABS')) return pts;
+  const n = pts.length - 1, a = pts[0], b = pts[n];
+  const near = (u, v) => Math.abs(u.x - v.x) < 1e-6 && Math.abs(u.z - v.z) < 1e-6;
+  if (!near(a, b)) return pts;
+  // Kruh bodů p1…pn; úsek do q[j] vede z q[j−1] (q[0] = pn).
+  const q = pts.slice(1);
+  const onAxis = (v) => Math.abs(v.x) < 1e-6;
+  const j = q.findIndex((v, i) => v.type === 'G1' && onAxis(v) && onAxis(q[(i - 1 + q.length) % q.length]));
+  if (j < 0) return pts;
+  const ring = [...q.slice(j), ...q.slice(0, j)];
+  return [{ ...ring[0], type: 'G0', r: 0 }, ...ring.slice(1)];
 }
 
 /** Stav simulátoru v prohozeném světě (mělká kopie; rozsahy, čelisti a koník prohozené). */
@@ -194,7 +218,7 @@ export function swapState(S) {
   return {
     ...S,
     params: swapParams(p),
-    contourPoints: swapPointsIn(S.contourPoints, dia),
+    contourPoints: swapPointsIn(openAtAxis(S.contourPoints), dia),
     stockPoints: swapPointsIn(stockSrc, dia),
     borePoints: [],
     guideLines: [],
@@ -323,7 +347,20 @@ const SWAP_NOTE = 'Karusel - hrubování po X v prohozených osách, nůž svisl
  * (dráha z reálného G-kódu); prohozený svět se schová do `calc._xz` pro emisi.
  */
 export function finishSwappedCalc(S, S2, calc2, lightOnly, simOf) {
+  // OSA KARUSELU (skutečné X = 0) je v prohozeném světě „čelo" na Z' 0 a
+  // dokončování by ho jelo jako čelo soustruhu až k ose: `G1 Z0 X-5` —
+  // po ose otáčení celým obrobkem k čelistem (uživatel 5. 11. 2026, N5170).
+  // Úsek celý za osou (Z' < 0) se proto nedokončuje; vršek k ose dojede.
+  // Totéž náhledy (tečkovaně): čára přídavku na hotovo a nedosažitelný zbytek.
+  const pastAxis = s => s && s.p1 && s.p2 && s.p1.z < -1e-3 && s.p2.z < -1e-3;
+  for (const key of ['finishOffsetPath', 'finishRefPath', 'finishUnreachablePath']) {
+    if (Array.isArray(calc2[key])) calc2[key] = calc2[key].filter(s => !pastAxis(s));
+  }
   const out = swapCalcOut(calc2, S.params.mode === 'DIAMON');
+  // Body kontury pro plátno (čísla, tažení bodu) z PŮVODNÍ kontury: prohozený
+  // svět ji mohl otevřít na ose (openAtAxis) — jiné pořadí i počet bodů.
+  out.worldPoints = resolvePointsToAbsolute(S.contourPoints)
+    .map(p => ({ ...p, xReal: S.params.mode === 'DIAMON' ? p.xAbs / 2 : p.xAbs, zReal: p.zAbs }));
   const zl = S.zLimits || {};
   S.errors = (S2.errors || []).map(e => (e && typeof e.msg === 'string' ? { ...e, msg: swapAxisWords(e.msg) } : e));
 

@@ -106,7 +106,7 @@ export function planSections({ prms, guides, stockPathSegments, planLoop, worldP
   }
 
   const drawn = [...(endLo ? [endLo] : []), ...merged, ...(endHi ? [endHi] : [])];
-  return { edges: drawn, sections, steps: orderSteps(sections) };
+  return { edges: drawn, sections, steps: orderSteps(sections, merged.filter(e => e.stockValley)) };
 }
 
 /**
@@ -115,8 +115,18 @@ export function planSections({ prms, guides, stockPathSegments, planLoop, worldP
  * přerušování na průměru sousedního úseku („mám 4 úseky, mají být 4 části").
  * `sections` jsou už seřazené od strany obrábění (id 1 = první).
  */
-export function orderSteps(sections) {
+export function orderSteps(sections, valleyEdges = []) {
+  // Hranice na ÚDOLÍ POLOTOVARU (stockValleys.js): úsek nad ní jede celý až na
+  // dno jako každý jiný (uživatel 5. 11. 2026: „z pravé strany nedělit a jet
+  // až dolů … u soustruhu se inspiruj") — jen vlevo od prvního hrbu u hranice
+  // (kde pod dnem údolí stojí materiál dalšího úseku) ne pod výšku dna údolí
+  // (`valleyFloor`, zigzagRough.js; „má to jít jenom k S7, ne až dolů").
   return sections
     .filter(s => Number.isFinite(s.top))
-    .map(s => ({ id: s.id, xFrom: s.top, xTo: -Infinity }));
+    .map(s => {
+      const ve = valleyEdges.find(e => Math.abs(e.z - s.zLo) < 1e-6);
+      const st = { id: s.id, xFrom: s.top, xTo: -Infinity };
+      if (ve) st.valleyFloor = ve.x;
+      return st;
+    });
 }

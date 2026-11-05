@@ -26,7 +26,13 @@ z materiálu.**
   (offsetová čára) klesne a zase stoupne víc než o ap a žádná hranice od čáry
   zanoření v tom údolí není, úsek končí na **konci dna údolí polotovaru na
   straně začátku obrábění** (pata stěny, ze které se do údolí sjíždí — S7).
-  `ops/sections/stockValleys.js`.
+  Úsek nad touto hranicí jede **celý až na dno** jako každý jiný (uživatel
+  5. 11. 2026: „z pravé strany nedělit a jet až dolů"); jen **vlevo od
+  prvního hrbu u hranice** (kde pod dnem údolí stojí materiál dalšího úseku)
+  nejede pod výšku dna údolí („má to jít jenom k S7, ne až dolů"). To pod
+  ní vezme další úsek — spodek až ke stěně hrbu i za hranicí (pravidlo 20),
+  kapsy zprava doleva. `ops/sections/stockValleys.js`, `orderSteps`,
+  `dropBelowValleyFloor` (zigzagValley.js).
 - Jiné dělení neexistuje — **nikdy** uprostřed údolí kontury ani uprostřed hrbu.
 - **Upichovák podélně nehrubuje** (rozhodnutí uživatele 25. 9. 2026) —
   hrubuje se jím jen čelně, tvar objede dokončení. Úseky proto nemá.
@@ -500,6 +506,12 @@ stěně vyjede o vrstvu nahoru.**
   dna; kde se kapsa rozdělí, **napřed pravá** (blíž začátku obrábění), pak
   levá; každá cik cak jako spodek. Kapsa, kterou vlevo neohraničuje stěna,
   ale jen hranice úseku, patří dalšímu úseku (držák by drhl o jeho materiál).
+  Upřesnění uživatele 5. 11. 2026: kapsa přímo pod celou šířkou spodku
+  (vrstva na dně) je další vrstva TÉHOŽ cik caku, ne samostatná kapsa;
+  **mírně šikmé dno** se nebere vodorovnou vrstvou u nejnižšího místa
+  s dlouhou rampou přes dno, ale zanořením pod úhlem zanoření a jízdou
+  po dně (po hrubovacím offsetu) ke druhé stěně; jízda po stěně začíná
+  nahoře na stěně a jede po ní šikmo, ne nejdřív svisle.
 - Kde za vrstvou materiál je (tyč), platí Podélně beze změny.
 - Kontrola: `tests/cam-zigzag-reverse.test.js` (směr vrstev, validátor
   kolizí 0, úběr ≥ podélně, na tyči G-kód shodný s Podélně).

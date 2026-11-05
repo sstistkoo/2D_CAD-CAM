@@ -68,6 +68,7 @@ describe('ui.js — veřejné rozhraní', () => {
         "resetHint",
         "setCalcClipboardValue",
         "setHint",
+        "setMachineType",
         "setTool",
         "showAngleSnapDialog",
         "showGridSizeDialog",

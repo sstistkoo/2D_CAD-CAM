@@ -112,26 +112,54 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
   // nad stěnou ve výšce rampy původní první vrstvy, rampa doleva o vrstvu.
   const L0 = layers[0];
   const run0 = (xTop - L0.X) / Math.max(tanA, 1e-3);
-  // Stěna na výšce začátku rampy (šikmá stěna je nahoře dál vpravo).
-  const bTop = wallRight(xTop, L0.b, L0.b + reach) ?? L0.b;
-  const mv = [{ g: 'G0', x: xTop, z: bTop }, { g: 'G1', x: L0.X, z: Math.min(L0.b, Math.max(L0.a + 0.5, bTop - run0)) }];
+  // Stěna na výšce začátku rampy (šikmá stěna je nahoře dál vpravo). Hledá se
+  // o 0,05 mm pod výškou: plošina dna těsně pod ní (vrstva na dně 68,22 nad
+  // dnem 68,20) by jinak stěnu „zakryla" a jízda po stěně začala o kus dál
+  // svisle (karusel 5. 11. 2026, N4690).
+  const bTop = wallRight(xTop - 0.05, L0.b, L0.b + reach) ?? L0.b;
+  const mv = [{ g: 'G0', x: xTop, z: bTop }];
   const push = (x, z) => { const l = mv[mv.length - 1]; if (Math.abs(l.x - x) > 1e-6 || Math.abs(l.z - z) > 1e-6) mv.push({ g: 'G1', x, z }); };
+  // Vrstva PO DNĚ (`follow`): mírně šikmé dno (karusel 5. 11. 2026, N4630:
+  // dno Z46→44) by poslední vodorovná vrstva vzala jen u nejnižšího místa
+  // a rampa k ní vedla přes celé dno. Místo toho zanoření na dno a jízda po
+  // hrubovacím offsetu (o setiny nad ním), nanejvýš ve výšce `top`.
+  const onFloor = (L, z) => Math.min(L.top ?? Infinity, fR(z) + 0.03);
+  const follow = (L, z0, z1) => {
+    const n = Math.max(1, Math.ceil(Math.abs(z1 - z0) / 0.5));
+    for (let k = 1; k <= n; k++) {
+      const z = z0 + (z1 - z0) * k / n, x = onFloor(L, z);
+      const l = mv[mv.length - 1], p0 = mv.length >= 2 ? mv[mv.length - 2] : null;
+      // Body na přímce se slučují (rovné dno jedním blokem).
+      if (p0 && l.g === 'G1' && Math.abs((l.x - p0.x) * (z - p0.z) - (l.z - p0.z) * (x - p0.x)) < 1e-4 * Math.hypot(z - p0.z, x - p0.x)) { l.x = x; l.z = z; continue; }
+      push(x, z);
+    }
+  };
+  const rampTo = (L, end, d, next) => {
+    // Rampa od stěny pod úhlem zanoření o vrstvu níž.
+    // Konec rampy uvnitř další vrstvy — šikmá stěna se s hloubkou zužuje
+    // a rampa by jinak skončila za ní (díl uživatele, Ú3 N6200: zajetí).
+    const run = (L - next.X) / Math.max(tanA, 1e-3);
+    let zr = end - d * Math.min(run, Math.max(0, (next.b - next.a) - 0.5));
+    zr = Math.min(next.b, Math.max(next.a, zr));
+    push(next.follow ? Math.min(L, Math.max(next.X, onFloor(next, zr))) : next.X, zr);
+  };
+  rampTo(xTop, bTop, 1, L0);
+  if (mv.length >= 2 && !L0.follow) mv[1].z = Math.min(L0.b, Math.max(L0.a + 0.5, bTop - run0));
   // Bez výjezdů po stěně nahoru a zpět (uživatel: „jede nahoru, pak zas
   // dolů"): na konci vrstvy hned rampa od stěny o vrstvu níž.
   let dir = -1;   // první vrstva jede doleva
+  let fStart = null;
   layers.forEach((L, k) => {
     const end = dir < 0 ? L.a : L.b;
-    push(L.X, end);
-    const next = layers[k + 1];
-    if (next) {
-      // Rampa od stěny pod úhlem zanoření o vrstvu níž.
-      // Konec rampy uvnitř další vrstvy — šikmá stěna se s hloubkou zužuje
-      // a rampa by jinak skončila za ní (díl uživatele, Ú3 N6200: zajetí).
-      const run = (L.X - next.X) / Math.max(tanA, 1e-3);
-      let zr = end - dir * Math.min(run, Math.max(0, (next.b - next.a) - 0.5));
-      zr = Math.min(next.b, Math.max(next.a, zr));
-      push(next.X, zr);
+    if (L.follow) {
+      // Kde jízda po dně začíná (konec rampy) — na té straně roh u stěny
+      // dojede jízda po stěně (N4500: roh X 309–318 zůstal nedojetý).
+      fStart = { z: mv[mv.length - 1].z, side: dir < 0 ? 1 : -1 };
+      follow(L, fStart.z, end);
     }
+    else push(L.X, end);
+    const next = layers[k + 1];
+    if (next) rampTo(L.X, end, dir, next);
     // (Dno se už nevrací ke druhé stěně — uživatel: „jede doprava a pak zas
     // doleva po stejné hloubce".)
     dir = -dir;
@@ -152,17 +180,21 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
   // na pravém čele") — projede se po čele shora dolů do rohu u dna.
   const Lz = layers[layers.length - 1];
   const wallPass = (side) => {
-    const zT = side > 0 ? bTop : (wallLeft(xTop, L0.a + 0.5, L0.a - reach) ?? L0.a);
-    const zB = side > 0 ? Lz.b : Lz.a;
-    if (Math.abs(zT - zB) < 0.5 && xTop - Lz.X > 0.5 && fR(zB + side * 0.3) > xTop - 1e-6) {
-      return { type: 'zigzag', moves: [{ g: 'G0', x: xTop, z: zT }, { g: 'G1', x: Lz.X, z: zB }], xSafe: xTop, wallClean: true, endDir: side };
+    // Horní konec stěny o 0,05 mm pod výškou — viz `bTop` (N4510: jízda po
+    // stěně jela nejdřív 6 mm svisle, pak teprve po šikmé stěně).
+    const zT = side > 0 ? bTop : (wallLeft(xTop - 0.05, L0.a + 0.5, L0.a - reach) ?? L0.a);
+    const zB = Lz.follow && fStart && fStart.side === side ? fStart.z : side > 0 ? Lz.b : Lz.a;
+    // Pod vrstvou po dně leží dno výš než její nejnižší místo — konec na offsetu.
+    const xB = Lz.follow ? Math.min(xTop, fR(zB) + 0.03) : Lz.X;
+    if (Math.abs(zT - zB) < 0.5 && xTop - xB > 0.5 && fR(zB + side * 0.3) > xTop - 1e-6) {
+      return { type: 'zigzag', moves: [{ g: 'G0', x: xTop, z: zT }, { g: 'G1', x: xB, z: zB }], xSafe: xTop, wallClean: true, endDir: side };
     }
     if (side * (zT - zB) < 0.5) return null;
     const pts = [{ g: 'G0', x: xTop, z: zT }];
     const n = Math.max(2, Math.ceil(Math.abs(zT - zB) / 0.25));
     for (let k = 1; k <= n; k++) {
       const z = zT + (zB - zT) * k / n;
-      const x = k === n ? Lz.X : Math.min(xTop, Math.max(Lz.X, fR(z)));
+      const x = k === n ? xB : Math.min(xTop, Math.max(xB, fR(z)));
       const l = pts[pts.length - 1];
       // Body na přímce se slučují (posuv po rovné stěně jedním blokem).
       if (pts.length >= 2) {
@@ -176,6 +208,10 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
   };
   // Jen s „Hrub. bez schodků" (uživatel 2. 11.: „když by bylo zaškrtnuté").
   const clean = noSteps ? [wallPass(1), wallPass(-1)].filter(Boolean) : [];
+  // Vrstvy cik caku pro kapsy pod ním (zigzagValley.js) — neviditelné, aby je
+  // nekopírovalo zrcadlo ani emise.
+  Object.defineProperty(zig, '_layers', { value: layers, enumerable: false });
+  Object.defineProperty(zig, '_xTop', { value: xTop, enumerable: false });
   if (!passes) return [zig, ...clean];
   for (let k = grp.length - 1; k >= 0; k--) passes.splice(grp[k], 1);
   passes.splice(grp[0], 0, zig, ...clean);

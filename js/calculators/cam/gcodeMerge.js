@@ -199,16 +199,20 @@ export function mergePrograms(items, ctrl = null) {
       spindleStopped = true;
     } else if (!isLast) {
       // Stejný nůž (např. „✂ Po úsecích"): vřeteno i chlazení běží dál a
-      // nejede se zpět do startovní polohy — z koncových rychloposuvů zůstane
-      // jen první (výjezd od obrobku) a další část najede rovnou na svůj
-      // první průchod, jako by šlo o další průchod téže operace.
+      // nejede se zpět do startovní polohy — z koncových rychloposuvů odpadne
+      // jen poslední (návrat druhé osy do startovní polohy) a další část
+      // najede rovnou na svůj první průchod, jako by šlo o další průchod téže
+      // operace. Výjezd nad konturu zůstává VŽDY: dřív zůstal jen první
+      // koncový rychloposuv, a když to byl odskok od stěny (`G0 Z137.050`,
+      // karusel 5. 11. 2026), výjezd `G0 Z520` zmizel a další část jela
+      // rychloposuvem skrz díl.
       let ci = lastCodeIndex(bodyLines);
       const rapids = [];
       while (ci >= 0 && isRapid(bodyLines[ci])) {
         rapids.unshift(ci);
         do { ci--; } while (ci >= 0 && !bodyLines[ci].replace(/[;(].*/, '').trim());
       }
-      rapids.slice(1).reverse().forEach((i) => bodyLines.splice(i, 1));
+      if (rapids.length >= 2) bodyLines.splice(rapids[rapids.length - 1], 1);
       spindleStopped = false;
     }
     bodyLines.forEach(line => out.push(line));
