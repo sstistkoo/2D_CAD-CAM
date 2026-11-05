@@ -67,6 +67,11 @@ export function sectionStepLimits(S, st, base) {
     if (swapsXZ(S)) L.zLimits = { ...L.zLimits, valleyFloor: st.valleyFloor };
     else L.xLimits = { ...L.xLimits, valleyFloor: st.valleyFloor };
   }
+  // Úsek začíná na hranici údolí polotovaru: spodek až ke stěně hrbu za ní.
+  if (st.valleyStart) {
+    if (swapsXZ(S)) L.zLimits = { ...L.zLimits, valleyStart: true };
+    else L.xLimits = { ...L.xLimits, valleyStart: true };
+  }
   return L;
 }
 

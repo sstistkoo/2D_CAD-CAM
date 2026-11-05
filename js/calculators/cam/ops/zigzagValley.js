@@ -142,7 +142,7 @@ export function valleyZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infini
 }
 
 /** Některý posuv vede pod offsetem (střed nosu pod hrubovací čarou). */
-function gouges(moves, fR) {
+export function gouges(moves, fR) {
   for (let i = 1; i < moves.length; i++) {
     const p = moves[i - 1], q = moves[i];
     const n = Math.max(2, Math.ceil(Math.abs(q.z - p.z) / 0.25));
@@ -232,7 +232,9 @@ function decompose(o, Xtop, a0, b0, depth = 0) {
       // a pokračovat vodorovně"): poslední vodorovná vrstva by vzala jen
       // nejnižší místo a rampa k ní vedla přes celé dno — místo ní jízda
       // po dně mezi stěnami (zigzagFloor.js `follow`).
-      if (bottom && subs.length === 1 && !subs[0].cut && subs[0].b - subs[0].a < 0.6 * (cur.b - cur.a)) {
+      // Bez podkapsy (nejnižší místo užší než 1 mm — karusel 5. 11. 2026, dno
+      // Z39→41 v kapse za hranicí údolí) taky po dně, jinak by dno zůstalo.
+      if (bottom && (!subs.length || (subs.length === 1 && !subs[0].cut && subs[0].b - subs[0].a < 0.6 * (cur.b - cur.a)))) {
         layers.push({ X: nx, a: cur.a, b: cur.b, follow: true, top: X });
         break;
       }

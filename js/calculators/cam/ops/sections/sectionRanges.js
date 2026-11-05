@@ -43,6 +43,7 @@ export function sectionRanges(plan, stockZ, userRange = null) {
     const step = { id: s.id, name, zLo: round(zLo), zHi: round(zHi), xTo };
     // Výška dna údolí polotovaru u dolní hranice úseku (sectionPlan.js `orderSteps`).
     if (Number.isFinite(st.valleyFloor)) step.valleyFloor = st.valleyFloor;
+    if (st.valleyStart) step.valleyStart = true;   // začíná na hranici údolí
     out.push(step);
   }
   return out;

@@ -187,6 +187,7 @@ export function swapLimits(zl = {}, xl = {}) {
       minActive: loOn, maxActive: hiOn, active: loOn || hiOn,
       // Výška dna údolí polotovaru u hranice úseku (xzSections.js) = X'.
       ...(Number.isFinite(zl.valleyFloor) ? { valleyFloor: zl.valleyFloor } : {}),
+      ...(zl.valleyStart ? { valleyStart: true } : {}),
     },
   };
 }

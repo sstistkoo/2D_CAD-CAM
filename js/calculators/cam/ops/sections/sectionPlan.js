@@ -132,6 +132,9 @@ export function orderSteps(sections, valleyEdges = []) {
       const ve = valleyEdges.find(e => Math.abs(e.z - s.zLo) < 1e-6);
       const st = { id: s.id, xFrom: s.top, xTo: -Infinity };
       if (ve) st.valleyFloor = ve.x;
+      // Úsek ZA takovou hranicí bere spodek pod dnem údolí až ke stěně hrbu
+      // i za hranicí (pravidlo 1, ops/zigzagFloor.js `floorZigzag`).
+      if (valleyEdges.some(e => Math.abs(e.z - s.zHi) < 1e-6)) st.valleyStart = true;
       return st;
     });
 }

@@ -32,7 +32,7 @@ const DZ = 0.05;
  *   raw — offset bez čar zanoření; zHi — začátek rozsahu úseku
  * @returns {number} počet nahrazených vrstev
  */
-export function floorZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinity, noSteps = false }) {
+export function floorZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinity, noSteps = false, valleyStart = false }) {
   if (!Number.isFinite(zHi)) return 0;
   const W = wallFinders(raw);
   const { wallLeft, wallRight } = W;
@@ -57,13 +57,24 @@ export function floorZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinity
 
   const first = passes[grp[0]];
   const xTop = first.ramp.x0;
-  const zFar = zHi + reach + 50;
+  // Úsek za hranicí na údolí polotovaru (pravidlo 1): předchozí úsek pod dno
+  // údolí nejel, stěna hrbu může být daleko za hranicí.
+  const zFar = zHi + reach + (valleyStart ? 5000 : 50);
   const layers = grp.map((j) => {
     const p = passes[j];
     const a = wallLeft(p.x, p.zEnd + 0.5, p.zEnd - reach) ?? p.zEnd;
     const b = wallRight(p.x, p.zStart, zFar);
     return { X: p.x, a, b };
   });
+  // Vrstva, která pod předchozí neleží (jiná kapsa vedle dna — zářez do V za
+  // koncem dna, karusel 5. 11. 2026), do cik caku nepatří: jízda po stěně by
+  // jinak sjela až k ní přes celé dno plným záběrem. Vezmou ji kapsy pod
+  // spodkem (zigzagValley.js `pocketsBelowZigzag`).
+  for (let k = 1; k < layers.length; k++) {
+    const P = layers[k - 1], L = layers[k];
+    if (P.b !== null && L.b !== null && (L.b < P.a + 1 || L.a > P.b - 1)) { layers.length = k; grp.length = k; break; }
+  }
+  if (grp.length < 2) return 0;
   if (layers.some((L) => L.b === null || L.b - L.a < 1)) return 0;
   return zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSteps, W });
 }

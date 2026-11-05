@@ -16,6 +16,7 @@ import { getInsert } from '../inserts/index.js';
 import { reverseAirLayers } from './zigzagReverse.js';
 import { floorZigzag } from './zigzagFloor.js';
 import { zigzagWallStart } from './zigzagWallStart.js';
+import { zigzagBeyondStart } from './zigzagBeyondStart.js';
 import { valleyZigzag, pocketsBelowZigzag, dropBelowValleyFloor, dropUnderOffset } from './zigzagValley.js';
 import { getEffectivePlungeAngle, stockClearances } from '../camMath.js';
 
@@ -70,6 +71,7 @@ export function genZigzagPasses(ctx, op) {
     tanA: Math.tan(getEffectivePlungeAngle(prms) * Math.PI / 180),
     zHi: ctx.machiningRange && Number.isFinite(ctx.machiningRange.zHi) ? ctx.machiningRange.zHi : Infinity,
     noSteps: !!prms.noStepRoughing,   // schody na stěnách dojet (Hrub. bez schodků)
+    valleyStart: !!ctx.valleyStart,   // za hranicí údolí až ke stěně hrbu (pravidlo 1)
   });
   // Údolí za hrbem bez hranice úseku (čára zanoření skončí na kontuře): místo
   // řetězu ramp po čáře zanoření taky cik cak až ke stěně (ops/zigzagValley.js).
@@ -85,4 +87,7 @@ export function genZigzagPasses(ctx, op) {
   valleyZigzag(vo);
   // Kapsy pod spodkem (zářez do V, nižší dno): napřed pravá, pak levá.
   pocketsBelowZigzag(vo);
+  // Materiál za začátkem úseku (kapsa za hranicí, kterou předchozí úsek
+  // nebere): cik cak shora až ke stěně (ops/zigzagBeyondStart.js).
+  zigzagBeyondStart({ ...vo, stock: stockPathSegments, noseR: parseFloat(prms.toolRadius) || 0 });
 }

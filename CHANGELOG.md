@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cik cak: kapsa za začátkem úseku** (`cam/ops/zigzagBeyondStart.js`, pravidla 1 a 20): materiál, který za
+  hranicí na straně začátku ještě stojí (kapsa ohraničená jen hranicí patří dalšímu úseku), jede úsek jako první
+  cik cakem od stěny. Spodek za hranicí na údolí polotovaru hledá stěnu hrbu bez omezení vzdálenosti
+  (`valleyStart`), vrstvy jiné kapsy vedle dna do cik caku nepatří a šikmé dno bez podkapsy se jede po dně.
+  Karusel Od středu, díl (9): zbytek po úsecích 23 555 → 452 mm², 0 kolizí; Ú3 s polotovarem z aplikace
+  10 → 0 kolizí, bez svislého zanoření posuvem (N4400). Testovací `camHeadless` nedědí rozsahy mezi běhy
+  (Ú3 zdědil `valleyFloor` z Ú1 a byl prázdný).
+
 - **Cik cak v kapsách pod spodkem** (`zigzagValley.js`, `zigzagFloor.js`): vrstva na dně patří spodku (bez
   samostatné kapsy), mírně šikmé dno se jede zanořením a jízdou po dně, jízda po stěně začíná nahoře na
   stěně (dřív 6 mm svisle). Karusel, díl uživatele: zbytek 515 → 401 mm².

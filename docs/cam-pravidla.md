@@ -530,6 +530,16 @@ stěně vyjede o vrstvu nahoru.**
   s dlouhou rampou přes dno, ale zanořením pod úhlem zanoření a jízdou
   po dně (po hrubovacím offsetu) ke druhé stěně; jízda po stěně začíná
   nahoře na stěně a jede po ní šikmo, ne nejdřív svisle.
+  Jak ji další úsek vezme (provedení výše uvedeného, 5. 11. 2026, karusel
+  Od středu, díl (9)): materiál, který za začátkem úseku ještě stojí nad
+  hrubovacím offsetem, jede úsek **jako první** cik cakem shora — od stěny
+  za hranicí k hranici a zpět po ap, poslední vrstva po dně. Jen nad tím, co
+  už jede spodek cik cak za hranicí. Dřív Ú3 jel jen po svou hranici (klín
+  30 mm pod šikmou stěnou), nebo spodek začínal pod materiálem a sjížděl
+  k němu svisle posuvem (N4400 G1 Z77.571, 10 kolizí). U hranice na údolí
+  polotovaru (pravidlo 1) hledá spodek cik cak stěnu hrbu za hranicí bez
+  omezení vzdálenosti. `ops/zigzagBeyondStart.js`, `floorZigzag`
+  (`valleyStart`), `tests/cam-carousel-center-wedge.test.js`.
 - Kde za vrstvou materiál je (tyč), platí Podélně beze změny.
 - Kontrola: `tests/cam-zigzag-reverse.test.js` (směr vrstev, validátor
   kolizí 0, úběr ≥ podélně, na tyči G-kód shodný s Podélně).

@@ -27,6 +27,8 @@ const left = (r) => {
 };
 const hits = (r) => validateToolpath(r.calcSim.simPath, r.params, r.calc.stockPathSegments, {});
 
+// Průchody `beyondStart` (ops/zigzagBeyondStart.js) jsou kapsa za začátkem
+// úseku — klín u hranice Ú2/Ú3, který patří Ú3; testy níž počítají spodek u S15.
 describe('Cik cak po úsecích — díl uživatele', () => {
   it('Ú1: levý bok hrbolu zleva až k úrovni S6, bez kolize, méně zbytku', async () => {
     const zz = await run(U.sections[0], 'zigzag');
@@ -39,7 +41,7 @@ describe('Cik cak po úsecích — díl uživatele', () => {
 
   it('Ú2: spodek cik cakem až ke stěně 7-8 (Z 199,8), bez kolize', async () => {
     const zz = await run(U.sections[1], 'zigzag');
-    const fz = zz.calc.passes.filter((p) => p.floorZigzag);
+    const fz = zz.calc.passes.filter((p) => p.floorZigzag && !p.beyondStart);
     expect(fz).toHaveLength(1);
     expect(Math.max(...fz[0].moves.map((m) => m.z))).toBeGreaterThan(199.5);
     expect(hits(zz)).toHaveLength(0);
@@ -48,7 +50,7 @@ describe('Cik cak po úsecích — díl uživatele', () => {
 
   it('Ú3: spodek 19–18 (u S15) cik cakem i mezi šikmými stěnami, bez kolize', async () => {
     const zz = await run(U.sections[2], 'zigzag');
-    expect(zz.calc.passes.filter((p) => p.floorZigzag)).toHaveLength(1);
+    expect(zz.calc.passes.filter((p) => p.floorZigzag && !p.beyondStart)).toHaveLength(1);
     expect(hits(zz)).toHaveLength(0);
     expect(validateToolpath(zz.calcSim.simPath, zz.params, zz.calc.stockPathSegments, { planStock: true })).toHaveLength(0);
     expect(left(zz)).toBeLessThan(left(await run(U.sections[2], 'longitudinal')) - 50);
@@ -56,7 +58,7 @@ describe('Cik cak po úsecích — díl uživatele', () => {
 
   it('spodek: začátek u pravé stěny, bez výjezdů po stěně nahoru a zpět', async () => {
     const zz = await run(U.sections[1], 'zigzag');
-    const mv = zz.calc.passes.find((p) => p.floorZigzag).moves;
+    const mv = zz.calc.passes.find((p) => p.floorZigzag && !p.beyondStart).moves;
     expect(mv[0].z).toBeGreaterThan(199.5);                        // nad pravou stěnou 7-8
     // Žádný pohyb nahoru (+X) uvnitř spodku: vrstva, rampa dolů, vrstva…
     for (let i = 2; i < mv.length; i++) expect(mv[i].x).toBeLessThanOrEqual(mv[i - 1].x + 1e-6);
@@ -69,7 +71,7 @@ describe('Cik cak po úsecích — díl uživatele', () => {
   it('spodek nikde pod hrubovacím offsetem (Ú3 N6200: rampa za šikmou stěnou)', async () => {
     for (const sec of [U.sections[1], U.sections[2]]) {
       const zz = await run(sec, 'zigzag');
-      const mv = zz.calc.passes.find((p) => p.floorZigzag).moves;
+      const mv = zz.calc.passes.find((p) => p.floorZigzag && !p.beyondStart).moves;
       const raw = zz.calc.offsetPathNoGuide;
       for (let k = 1; k < mv.length; k++) {
         for (let t = 0; t <= 1; t += 0.02) {
@@ -96,7 +98,7 @@ describe('Cik cak po úsecích — díl uživatele', () => {
 
   it('Ú3: schody na šikmých stěnách 18-17 a 20-19 dojede jízda po offsetu', async () => {
     const zz = await run(U.sections[2], 'zigzag');
-    const w = zz.calc.passes.filter((p) => p.wallClean);
+    const w = zz.calc.passes.filter((p) => p.wallClean && !p.beyondStart);
     expect(w).toHaveLength(2);
     // Vpravo shora doleva (−Z), vlevo shora doprava (+Z); obě dolů do rohu u dna.
     const dz = w.map((p) => Math.sign(p.moves[p.moves.length - 1].z - p.moves[0].z));
@@ -108,7 +110,7 @@ describe('Cik cak po úsecích — díl uživatele', () => {
   it('Ú2: čelo 7-8 (Z 199,8) projede jízda shora do rohu u dna — schody mezi vrstvami cik caku', async () => {
     // Uživatel 2. 11. 2026: „jeden úsek mně to vynechalo … na pravém čele".
     const zz = await run(U.sections[1], 'zigzag');
-    const face = zz.calc.passes.find((p) => p.wallClean && p.moves.length === 2 && Math.abs(p.moves[0].z - p.moves[1].z) < 0.5);
+    const face = zz.calc.passes.find((p) => p.wallClean && !p.beyondStart && p.moves.length === 2 && Math.abs(p.moves[0].z - p.moves[1].z) < 0.5);
     expect(face).toBeTruthy();
     expect(face.moves[0].z).toBeGreaterThan(199.5);
     expect(face.moves[0].x).toBeGreaterThan(20);           // od výšky začátku cik caku

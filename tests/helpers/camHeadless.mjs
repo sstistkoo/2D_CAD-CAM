@@ -162,6 +162,7 @@ const injectCSS = () => {};
  * Spustí CELÝ CAM pipeline nad .camprog objektem (parsed JSON).
  * Vrací { calc, gcode } z reálného calculate()/generateAutoGCode().
  */
+let _limits0 = null;   // výchozí rozsahy singletonu S (před prvním během)
 export async function runCamProg(prog) {
   const { S, calculate, generateAutoGCode } = await loadCam();
   // reset relevantního stavu (S je singleton napříč voláními)
@@ -191,8 +192,13 @@ export async function runCamProg(prog) {
   // Zásobník nástrojů (výměna dokončovacího nástroje) — reset na každé volání,
   // ať singleton S neprosakuje magazín mezi testy.
   S.toolMagazine = Array.isArray(prog.toolMagazine) ? prog.toolMagazine : [];
-  if (prog.zLimits) Object.assign(S.zLimits, prog.zLimits);
-  if (prog.xLimits) Object.assign(S.xLimits, prog.xLimits);
+  // Rozsahy taky od výchozího stavu (stejné pravidlo jako u params): ✂ Po
+  // úsecích nastaví v Ú1 `valleyFloor` a Ú3 ho přes Object.assign zdědil —
+  // vrstvy pod dnem údolí se zahodily a Ú3 byl prázdný. Aplikace rozsahy
+  // úseku nahrazuje celé (camSimulator.js `sectionStepLimits`).
+  if (!_limits0) _limits0 = { z: JSON.parse(JSON.stringify(S.zLimits)), x: JSON.parse(JSON.stringify(S.xLimits)) };
+  S.zLimits = { ...JSON.parse(JSON.stringify(_limits0.z)), ...(prog.zLimits || {}) };
+  S.xLimits = { ...JSON.parse(JSON.stringify(_limits0.x)), ...(prog.xLimits || {}) };
   const calc = calculate();
   // Hlášení pro ⚠ panel NEJSOU na `calc` — computeCalculation je ukládá do
   // `S.errors` (a druhý průchod níž je přepíše). Kdo je chce z generujícího
