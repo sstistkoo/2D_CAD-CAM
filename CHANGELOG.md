@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Úsek končí i na údolí polotovaru** (`cam/ops/sections/stockValleys.js`, pravidlo 1): karusel po X, odlitek
+  s údolím S8–S7 nad konturou → ✂ Po úsecích dá Ú1 od obvodu po S7 a Ú2 zbytek. Pod spodkem cik cak se
+  zbylý materiál bere po kapsách, napřed pravá (zářez V), pak levá (`pocketsBelowZigzag`). Díl uživatele:
+  zbytek po úsecích 528 mm², 0 kolizí; soustruhové díly beze změny.
 - **Cik cak: údolí za hrbem bez hranice úseku** (`cam/ops/zigzagValley.js`, pravidlo 20): místo řetězu
   vrstev zanořených po čáře zanoření (jen doleva, u strmé stěny klín „nedojeto") jede údolí cik cak od stěny
   ke stěně s rampou 45° o ap níž na každém konci. Karusel po X, díl uživatele: zbytek 4589 → 770 mm², 0 kolizí.

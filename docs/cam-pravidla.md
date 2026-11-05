@@ -21,7 +21,13 @@ z materiálu.**
   Přídavek X/Z polotovaru), stejně jako v pravidle 9 (uživatel 31. 10. 2026:
   „udělat, že materiál je až po tu offsetovou čáru"). Hranice úseku leží tam,
   kde čára zanoření vyjede z offsetové čáry, a vrch úseku je na ní.
-- Jiné dělení neexistuje — **nikdy** uprostřed údolí ani uprostřed hrbu.
+- **Údolí polotovaru** (schválil uživatel 4. 11. 2026, karusel: „zprava doleva
+  by první úsek měl být z S7 X557 a pak ta druhá část"): když vrch polotovaru
+  (offsetová čára) klesne a zase stoupne víc než o ap a žádná hranice od čáry
+  zanoření v tom údolí není, úsek končí na **konci dna údolí polotovaru na
+  straně začátku obrábění** (pata stěny, ze které se do údolí sjíždí — S7).
+  `ops/sections/stockValleys.js`.
+- Jiné dělení neexistuje — **nikdy** uprostřed údolí kontury ani uprostřed hrbu.
 - **Upichovák podélně nehrubuje** (rozhodnutí uživatele 25. 9. 2026) —
   hrubuje se jím jen čelně, tvar objede dokončení. Úseky proto nemá.
 
@@ -486,6 +492,14 @@ stěně vyjede o vrstvu nahoru.**
   pak dojede jízda po offsetu (Hrub. bez schodků). Kde by rampa mezi
   vrstvami projela pod offset (stupeň dna), spodní vrstvy jedou postaru.
   Na tyči ne (bod níž). `ops/zigzagValley.js`, `tests/cam-zigzag-valley.test.js`.
+  V úseku, který končí uvnitř takového údolí (hranice na údolí polotovaru),
+  jede cik cak mezi stěnou hrbu a hranicí úseku (za hranici nic).
+- **Kapsy pod spodkem** (uživatel 4. 11. 2026: „dodělal napřed pravou … zářez
+  do tvaru V, pak bod 6 a naposled údolí s bodem 2"): materiál pod poslední
+  vrstvou spodku cik cak se bere dál po kapsách — vrstva po ap nebo na plošinu
+  dna; kde se kapsa rozdělí, **napřed pravá** (blíž začátku obrábění), pak
+  levá; každá cik cak jako spodek. Kapsa, kterou vlevo neohraničuje stěna,
+  ale jen hranice úseku, patří dalšímu úseku (držák by drhl o jeho materiál).
 - Kde za vrstvou materiál je (tyč), platí Podélně beze změny.
 - Kontrola: `tests/cam-zigzag-reverse.test.js` (směr vrstev, validátor
   kolizí 0, úběr ≥ podélně, na tyči G-kód shodný s Podélně).

@@ -20,6 +20,7 @@
 import { pointInLoop } from '../../../../geom/geomCore.js';
 import { topXOnLoop } from '../../camMath.js';
 import { buildStockLoopRaw } from '../../materialRemoval.js';
+import { stockValleyEdges } from './stockValleys.js';
 
 const DZ = 0.5;   // krok vzorkování vrchu polotovaru v úseku [mm]
 
@@ -76,6 +77,9 @@ export function planSections({ prms, guides, stockPathSegments, planLoop, worldP
     const inn = out === a ? b : a;
     edges.push({ z: out.z, x: out.x, line: { x1: inn.x, z1: inn.z, x2: out.x, z2: out.z } });
   }
+  // Údolí polotovaru, přes které žádná čára zanoření nevyjede (stockValleys.js).
+  edges.push(...stockValleyEdges((z) => topXOnLoop(loop, z), zLo, zHi,
+    Math.max(parseFloat(prms.depthOfCut) || 0, 1), edges.map(e => e.z)));
   edges.sort((p, q) => p.z - q.z);
   // Čára, která vyjede až ZA koncem dílu, nedělí — ale ukazuje, kde končí
   // krajní úsek (uživatel: „dodělej čáru i na konci vlevo, ať vím, kde to

@@ -113,6 +113,11 @@ počítá jen na karuselu, starý nikdy — soustruhové programy se nemění.
      27,5 mm) — obrácená vrstva se zastaví tam, kde v téže výšce už řezal jiný
      kus téže vrstvy (i jeho dojezdem po offsetu); krátký zbytek k napojení
      projede. Díl ap 6: 8 → 7, díl ap 2: P5 0.
+   - ✅ 4. 11. 2026 v noci: **úseky na údolí polotovaru** (pravidlo 1, `stockValleys.js`):
+     díl `carousel-zigzag-valley` → Ú1 X 556,3–901 (S7), Ú2 zbytek. Ú2 bral jen spodek
+     do X'69 — řetěz ramp se u zářezu V přetrhl (vjezd nenalezen v `rule7Layers.js`)
+     a s ním zmizelo dno 447–534 i nižší dno. Teď `pocketsBelowZigzag`: kapsy pod
+     spodkem, napřed V, pak nižší dno, pak údolí u osy. Zbytek 3866 → 528 mm², 0 kolizí.
    - ✅ 4. 11. 2026 večer: **údolí za hrbem cik cak** (`ops/zigzagValley.js`, pravidlo 20):
      údolí, kde čára zanoření od hrbu skončí na kontuře, jede cik cak od stěny ke
      stěně místo řetězu ramp po čáře zanoření. Díl `carousel-zigzag-valley` (ap 10):

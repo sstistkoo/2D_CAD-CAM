@@ -16,7 +16,7 @@
 // zanoření), na konci rampa pod úhlem zanoření o ap níž, další vrstva
 // opačným směrem. Jen strategie Cik cak (ops/zigzagRough.js).
 
-import { wallFinders, zigzagFromLayers } from './zigzagFloor.js';
+import { wallFinders, zigzagFromLayers, buildZigzag } from './zigzagFloor.js';
 
 const EPS = 0.05;
 
@@ -53,7 +53,7 @@ function nextMember(passes, from, prev, step) {
  *   obrábění (stěna vpravo se za ním nehledá)
  * @returns {number} počet nahrazených vrstev
  */
-export function valleyZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinity, noSteps = false }) {
+export function valleyZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infinity, zHi = Infinity, noSteps = false }) {
   if (!Array.isArray(passes) || !raw || !(step > 0) || !(tanA > 0)) return 0;
   const W = wallFinders(raw);
   const reach = 4 * step / Math.max(tanA, 0.2) + 2;
@@ -70,7 +70,10 @@ export function valleyZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinit
     const layers = [], used = [];
     for (const j of grp) {
       const p = passes[j];
-      const a = W.wallLeft(p.x, p.zEnd + 0.5, p.zEnd - reach);
+      // Vrstva končící na dolní mezi rozsahu (hranice úseku, ✂ Po úsecích):
+      // vlevo stojí materiál dalšího úseku — konec je ta mez (pravidlo 11),
+      // rampa od ní jde do materiálu tohoto úseku.
+      const a = W.wallLeft(p.x, p.zEnd + 0.5, p.zEnd - reach) ?? (Math.abs(p.zEnd - zLo) < 0.6 ? p.zEnd : null);
       const b = W.wallRight(p.x, p.zStart, Math.min(p.zStart + reach + 50, zHi));
       if (a === null || b === null || b - a < 1) break;
       layers.push({ X: p.x, a, b });
@@ -102,4 +105,119 @@ function gouges(moves, fR) {
     }
   }
   return false;
+}
+
+// ── KAPSY POD SPODKEM CIK CAK ─────────────────────────────────────
+// Uživatel 4. 11. 2026 (karusel, Ú2 od S7): pod spodkem údolí zůstal
+// zářez do V (bod 10) a nižší dno (bod 6) — „napřed pravou … zářez do tvaru
+// V, pak bod 6 a naposled údolí s bodem 2". Materiál pod poslední vrstvou
+// spodku se rozloží na kapsy: vrstva po ap (nebo na plošinu dna), dokud
+// zůstává jedna kapsa; kde se rozdělí, napřed pravá (blíž začátku
+// obrábění), pak levá. Každá kapsa cik cak jako spodek.
+
+const DS = 0.25;
+
+/** Úseky [a, b] v rozsahu [zA, zB], kde offset leží pod hloubkou X (šířka ≥ 1 mm), zprava doleva. */
+function pocketRuns(W, X, zA, zB, zLo) {
+  const runs = [];
+  let s = null;
+  for (let z = zA; z <= zB + 1e-9; z += DS) {
+    if (W.fR(z) < X - 1e-6) { if (s === null) s = z; }
+    else if (s !== null) { runs.push([s, z - DS]); s = null; }
+  }
+  if (s !== null) runs.push([s, zB]);
+  const out = [];
+  for (const [s0, s1] of runs) {
+    const seed = (s0 + s1) / 2;
+    const wl = W.wallLeft(X, seed, zA - 50) ?? s0;
+    const a = Math.max(wl, zLo, zA), b = Math.min(W.wallRight(X, seed, zB + 50) ?? s1, zB);
+    // Vlevo jen hranice úseku (stěna až za ní): kapsa patří dalšímu úseku.
+    if (b - a >= 1) out.push({ a, b, cut: wl < zLo - 0.5 });
+  }
+  return out.sort((p, q) => q.b - p.b);
+}
+
+/** Nejvyšší plošina dna (offset vodorovně ≥ 2 mm) mezi hloubkami lo a hi. */
+function plateauIn(W, a, b, lo, hi) {
+  let best = null, run = 0, v0 = null;
+  for (let z = a; z <= b + 1e-9; z += DS) {
+    const v = W.fR(z);
+    if (v0 !== null && Math.abs(v - v0) < 0.03) run += DS; else { v0 = v; run = 0; }
+    if (run >= 2 && v0 > lo && v0 < hi && (best === null || v0 > best)) best = v0;
+  }
+  return best;
+}
+
+/** Leží v kapse [a, b] pod hloubkou X už nějaký průchod (vrstva nebo cik cak)? */
+function covered(passes, X, a, b) {
+  return passes.some((p) => {
+    if (!p) return false;
+    if (p.type === 'long' && Number.isFinite(p.x) && p.x < X - 0.3) {
+      const lo = Math.min(p.zStart, p.zEnd), hi = Math.max(p.zStart, p.zEnd);
+      return Math.min(hi, b) - Math.max(lo, a) > 1;
+    }
+    return p.type === 'zigzag' && !p.wallClean && p.moves.some((m) => m.x < X - 0.3 && m.z > a + 0.5 && m.z < b - 0.5);
+  });
+}
+
+function decompose(o, Xtop, a0, b0, depth = 0) {
+  const { W, step, tanA, reach, noSteps, zLo, passes } = o;
+  const out = [];
+  if (depth > 20) return out;
+  for (const iv of pocketRuns(W, Xtop - 0.3, a0, b0, zLo)) {
+    if (iv.cut || covered(passes, Xtop, iv.a, iv.b)) continue;
+    const layers = [];
+    let X = Xtop, cur = iv, kids = [];
+    for (;;) {
+      let minF = Infinity;
+      for (let z = cur.a; z <= cur.b + 1e-9; z += DS) minF = Math.min(minF, W.fR(z));
+      if (!(minF < X - 0.3)) break;
+      const pl = plateauIn(W, cur.a, cur.b, X - step, X - 0.3);
+      const nx = pl !== null ? pl + 0.02 : Math.max(X - step, minF + 0.02);
+      const subs = pocketRuns(W, nx, cur.a, cur.b, zLo);
+      if (subs.length !== 1 || subs[0].cut) {
+        // Jen užší podkapsy (jinak by se dělení točilo dokola).
+        for (const s of subs) if (s.b - s.a < cur.b - cur.a - 0.01) kids.push(...decompose(o, X, s.a, s.b, depth + 1));
+        break;
+      }
+      layers.push({ X: nx, a: subs[0].a, b: subs[0].b });
+      X = nx; cur = subs[0];
+    }
+    while (layers.length >= 1) {
+      const zz = buildZigzag({ layers, xTop: Xtop, tanA, reach, noSteps, W });
+      if (!gouges(zz[0].moves, W.fR)) { out.push(...zz); break; }
+      layers.pop();
+    }
+    out.push(...kids);
+  }
+  return out;
+}
+
+/**
+ * Za každý spodek cik cak (floorZigzag) vloží kapsy, které pod jeho poslední
+ * vrstvou zůstaly a žádný průchod je nebere.
+ * @returns {number} počet vložených průchodů
+ */
+export function pocketsBelowZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infinity, noSteps = false }) {
+  if (!Array.isArray(passes) || !raw || !(step > 0) || !(tanA > 0)) return 0;
+  const W = wallFinders(raw);
+  const o = { W, step, tanA, reach: 4 * step / Math.max(tanA, 0.2) + 2, noSteps, zLo, passes };
+  let added = 0;
+  const done = new Set();
+  for (let i = start; i < passes.length; i++) {
+    const zg = passes[i];
+    if (!zg || !zg.floorZigzag || done.has(zg)) continue;
+    done.add(zg);
+    const Xb = Math.min(...zg.moves.map((m) => m.x));
+    const zs = zg.moves.filter((m) => Math.abs(m.x - Xb) < 1e-6).map((m) => m.z);
+    const ins = decompose(o, Xb, Math.min(...zs), Math.max(...zs));
+    if (!ins.length) continue;
+    let j = i + 1;
+    while (j < passes.length && passes[j] && passes[j].wallClean) j++;
+    passes.splice(j, 0, ...ins);
+    ins.forEach((p) => done.add(p));
+    added += ins.length;
+    i = j + ins.length - 1;
+  }
+  return added;
 }

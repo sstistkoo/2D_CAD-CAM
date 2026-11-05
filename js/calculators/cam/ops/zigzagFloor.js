@@ -176,9 +176,15 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
   };
   // Jen s „Hrub. bez schodků" (uživatel 2. 11.: „když by bylo zaškrtnuté").
   const clean = noSteps ? [wallPass(1), wallPass(-1)].filter(Boolean) : [];
+  if (!passes) return [zig, ...clean];
   for (let k = grp.length - 1; k >= 0; k--) passes.splice(grp[k], 1);
   passes.splice(grp[0], 0, zig, ...clean);
   return grp.length;
+}
+
+/** Totéž bez nahrazení: vrátí průchody [cik cak, dojetí stěn…] k vložení. */
+export function buildZigzag(o) {
+  return zigzagFromLayers({ ...o, passes: null, grp: [] });
 }
 
 /**

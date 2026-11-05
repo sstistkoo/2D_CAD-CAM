@@ -8,7 +8,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { runCamProg } from './helpers/camHeadless.mjs';
-import { machinedFor } from '../js/calculators/cam/sim/xzSections.js';
+import { machinedFor, xzSectionSteps, sectionStepLimits } from '../js/calculators/cam/sim/xzSections.js';
 import { swapSimPath } from '../js/calculators/cam/sim/xzSim.js';
 import { validateToolpath } from '../js/calculators/cam/collisionValidator.js';
 import { mirrorPass } from '../js/calculators/cam/zMirror.js';
@@ -42,6 +42,33 @@ describe('Cik cak — údolí za hrbem bez hranice úseku', () => {
     // Zbytek nad konturou: dřív 4589 mm² (klíny u stěn), teď < 1500 mm².
     const contour = prog.contourPoints.slice(0, -1);
     expect(area(machinedFor(r.S, r.calcSim).points) - area(contour)).toBeLessThan(1500);
+  }, 240000);
+
+  it('✂ Po úsecích: hranice na S7 (údolí polotovaru), Ú2 napřed zářez V, pak nižší dno, pak údolí u osy', async () => {
+    const prog = load('carousel-zigzag-valley.camprog');
+    prog.params = { ...prog.params, doFinishing: false };
+    const r0 = await runCamProg(prog);
+    const { steps } = xzSectionSteps(r0.S, r0.calc);
+    expect(steps).toHaveLength(2);
+    expect(steps[0].zLo).toBeCloseTo(556.3, 0);   // S7 X557 na offsetu polotovaru
+    const base = { z: JSON.parse(JSON.stringify(prog.zLimits)), x: JSON.parse(JSON.stringify(prog.xLimits)) };
+    let stock = prog.stockPoints, mode = prog.params.stockMode, r = null;
+    for (const st of steps) {
+      const L = sectionStepLimits(r0.S, st, base);
+      r = await runCamProg({ ...prog, params: { ...prog.params, stockMode: mode }, stockPoints: stock, zLimits: L.zLimits, xLimits: L.xLimits });
+      expect(validateToolpath(swapSimPath(r.calcSim.simPath), r.calc._xz.S.params, r.calc._xz.calc.stockPathSegments, { planStock: true })).toHaveLength(0);
+      stock = machinedFor(r.S, r.calcSim).points; mode = 'casting';
+    }
+    // Pořadí kapes v Ú2 zprava doleva: dno V (X'≈48 u Z'≈555), nižší dno (X'≈44 u Z'≈394), údolí u osy (X'≈66 u Z'≈115).
+    const zz = r.calc._xz.calc.passes.filter((p) => p.floorZigzag);
+    const at = (x, z) => zz.findIndex((p) => p.moves.some((m) => Math.abs(m.x - x) < 1.5 && Math.abs(m.z - z) < 12));
+    const v = at(48.2, 555), f6 = at(44.3, 394), f2 = at(66.2, 115);
+    expect(v).toBeGreaterThanOrEqual(0);
+    expect(f6).toBeGreaterThan(v);
+    expect(f2).toBeGreaterThan(f6);
+    // Zbytek po obou úsecích (dřív 3866 mm²: zářez V a nižší dno nedojeté).
+    const contour = prog.contourPoints.slice(0, -1);
+    expect(area(stock) - area(contour)).toBeLessThan(1000);
   }, 240000);
 
   it('zrcadlo (zleva) překlopí i směr odskoku cik caku', () => {
