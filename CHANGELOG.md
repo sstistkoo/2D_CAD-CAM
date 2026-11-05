@@ -83,6 +83,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   podle stroje v CAD; liší-li se od CAM, CAD se teď přepne na stroj z CAM.
 - **Cik cak, jízda po dně:** roh u stěny na straně, kde jízda po dně začíná, dojede jízda po stěně (dřív zůstal
   nedojetý, N4500).
+- **Cik cak: skákání mezi svahy hrbu nad vršek** (`ops/zigzagReverse.js`, regrese z 4. 11.): obrácená vrstva
+  zleva se přes vršek napojovala na zbytek téže vrstvy vpravo i tam, kde pravá strana pokračuje další vrstvou níž.
+  Celá pravá strana se pak stáhla mezi levé vrstvy a program 24× vyjel rychloposuvem nad hrb (soustruh, ap 2,
+  Úsek 2). Teď se v tom případě nenapojí: nejdřív pravá strana, pak levá, 5 výjezdů, stejný úběr, 0 kolizí.
+- **Bezpečná poloha natvrdo X500 Z500** (`camDefaults.js` → `CODE_OWNED_PARAMS`): načtený díl nebo autosave
+  se starou Bp (např. X150 Z5) ji už nepřepíše. V panelu jde v sezení dál změnit, po načtení platí zas 500/500.
+- **Hranice úseku na údolí polotovaru i na soustruhu u Cik cak, zprava i zleva** (`calculatePipeline.js` → `stockValleys`):
+  úsek končí na údolí polotovaru jako na karuselu (Ú1/Ú2 místo jednoho úseku se zbytkem za hrbem). Ostatní
+  strategie na soustruhu beze změny. Zleva: vrstva už nepřeskakuje rychloposuvem nad kusem do další oblasti
+  (díl uživatele, ✂ Po úsecích: přejezdy materiálem posuvem v Úseku 1 ze 7 na 2, 0 kolizí).
 - **Hranice úseku na údolí polotovaru jen na karuselu** (`sectionPlan.js`): na soustruhu přidávala úseky
   navíc u 27 fixtures (✂ Po úsecích), zleva i kolize. Soustruh je teď v ✂ Po úsecích i celém programu jako před 4. 11.
 - **Spojený program (✂ Po úsecích, stejný nůž) jel rychloposuvem skrz díl** (`cam/gcodeMerge.js`): z koncových

@@ -611,7 +611,12 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   if (roughingKey(S) !== 'face') {
     try {
       const guides = sectionGuides({ prms, interferenceGuides });
-      sectionPlan = planSections({ prms, guides, stockPathSegments, planLoop: guideStockLoop, worldPoints });
+      // Hranice na údolí polotovaru: karusel vždy, soustruh jen Cik cak (zprava
+      // i zleva, uživatel 5. 11. 2026) — u ostatních strategií přidávala úseky
+      // navíc a zleva kolize. Zleva: bez ní vrstva přeskočila rychloposuvem
+      // nad kusem do další oblasti (díl (8), N380 G0 Z19 → Z103).
+      const stockValleys = !!prms.xzSwapped || roughingKey(S) === 'zigzag';
+      sectionPlan = planSections({ prms, guides, stockPathSegments, planLoop: guideStockLoop, worldPoints, stockValleys });
     } catch (err) {
       console.warn('CAM: plán úseků se nepodařilo sestavit:', err);
     }

@@ -253,7 +253,10 @@ export function _defaultCamParams() {
  * z kódu. Stejný vzor jako flipX/flipZ, které se taky berou odjinud než
  * z localStorage.
  */
-export const CODE_OWNED_PARAMS = ['orderAwareHolder'];
+// safeX/safeZ: bezpečná poloha je vždy X500 Z500 z kódu (uživatel 5. 11. 2026:
+// „dej ten bezpečný nájezd na 500/500 a natvrdo"). Starší díl s Bp 150/5 ji
+// při načtení nepřepíše; pole v panelu jde v sezení dál změnit.
+export const CODE_OWNED_PARAMS = ['orderAwareHolder', 'safeX', 'safeZ'];
 
 /** Kopie `loaded` bez klíčů, které vlastní kód (viz CODE_OWNED_PARAMS). */
 export function stripCodeOwnedParams(loaded) {

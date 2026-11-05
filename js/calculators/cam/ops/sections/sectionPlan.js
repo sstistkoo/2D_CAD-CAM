@@ -35,7 +35,7 @@ const DZ = 0.5;   // krok vzorkování vrchu polotovaru v úseku [mm]
  *   steps    – pořadí obrábění `{ id, xFrom, xTo }` (pravidlo 8): úsek `id`
  *              se hrubuje po vrstvách od X `xFrom` do `xTo` (−∞ = až na dno)
  */
-export function planSections({ prms, guides, stockPathSegments, planLoop, worldPoints }) {
+export function planSections({ prms, guides, stockPathSegments, planLoop, worldPoints, stockValleys = !!prms?.xzSwapped }) {
   const stockLoop = buildStockLoopRaw(prms, stockPathSegments);
   if (!stockLoop || !Array.isArray(worldPoints) || worldPoints.length < 2) return null;
   const loop = planLoop && planLoop.length > 2 ? planLoop : stockLoop;
@@ -78,10 +78,10 @@ export function planSections({ prms, guides, stockPathSegments, planLoop, worldP
     edges.push({ z: out.z, x: out.x, line: { x1: inn.x, z1: inn.z, x2: out.x, z2: out.z } });
   }
   // Údolí polotovaru, přes které žádná čára zanoření nevyjede (stockValleys.js).
-  // JEN KARUSEL (výpočet v prohozeném světě): na soustruhu odlitek kopíruje díl
+  // Karusel + soustruh Cik cak (stockValleys, calculatePipeline.js). Jinak na soustruhu odlitek kopíruje díl
   // a „údolí" má skoro všude — hranice navíc rozbily ✂ Po úsecích u 27
   // soustruhových fixtures (kontrola 5. 11. 2026, zleva i kolize navíc).
-  if (prms.xzSwapped) {
+  if (stockValleys) {
     edges.push(...stockValleyEdges((z) => topXOnLoop(loop, z), zLo, zHi,
       Math.max(parseFloat(prms.depthOfCut) || 0, 1), edges.map(e => e.z)));
   }

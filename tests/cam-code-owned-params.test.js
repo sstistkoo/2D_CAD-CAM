@@ -44,4 +44,11 @@ describe('CAM: parametry, které vlastní kód', () => {
     expect(out.feed).toBe(0.3);
     expect(stripCodeOwnedParams(null)).toBe(null);
   });
+
+  it('bezpečná poloha je natvrdo X500 Z500 — starší díl s Bp 150/5 ji nepřepíše (5. 11. 2026)', () => {
+    const loaded = Object.assign(_defaultCamParams(), stripCodeOwnedParams({ safeX: 150, safeZ: 5, feed: 0.3 }));
+    expect(loaded.safeX).toBe(500);
+    expect(loaded.safeZ).toBe(500);
+    expect(loaded.feed).toBe(0.3);
+  });
 });

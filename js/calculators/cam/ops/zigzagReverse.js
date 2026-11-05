@@ -234,6 +234,14 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
       if (q && q !== p && q.type === 'long' && Math.abs(q.x - X) < 1e-3 && q.zEnd > zw && q.zStart > q.zEnd
         && (!target || q.zEnd < target.zEnd)) target = q;
     }
+    // Pokračuje-li pravá strana pod zbytkem další vrstvou (o ap níž, přes
+    // týž Z), zbytek patří pravé straně a jede s ní. Napojením by se rozsah
+    // obrácené vrstvy roztáhl přes vršek, ZÁVISLÉ PODÉLNÉ KUSY níž by pak
+    // stáhly celou pravou stranu do skupiny levých vrstev a program skákal
+    // mezi svahy (soustruh, ap 2, Úsek 2: 24× výjezd nad hrb; 5. 11. 2026).
+    if (target && passes.some((q) => q && q !== p && q !== target && q.type === 'long'
+      && Math.abs(q.x - (X - step)) < 0.6 * step && q.zStart > q.zEnd
+      && Math.min(q.zStart, q.zEnd) < target.zStart && Math.max(q.zStart, q.zEnd) > target.zEnd)) target = null;
     const tgt = target ? { zEnd: target.zEnd, zStart: target.zStart } : null;
     const moves = layerMoves(X, zAir, zw, tgt, p);
     if (tgt && tgt.used) { const t = passes.indexOf(target); if (t > i) passes.splice(t, 1); else if (t >= 0) { passes.splice(t, 1); i--; } }

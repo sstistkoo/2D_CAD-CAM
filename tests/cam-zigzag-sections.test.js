@@ -128,12 +128,19 @@ describe('Cik cak po úsecích — díl uživatele', () => {
     const rev = zz.calc.passes.filter((p) => p.reversedLayer);
     expect(rev.length).toBeGreaterThan(5);
     // Na oblouku žádný čistě svislý krok (+X bez Z) — jen šikmo po stěně.
-    // Nejvyšší vrstva pokračuje po průměru přes vršek hrbolu až dolů na
-    // svou výšku (z 135), kde končí vrstva zprava.
+    // Nejvyšší vrstva pokračuje po průměru přes vršek hrbolu až tam, kde
+    // svah pod vrškem už ubral pravý kus téže vrstvy (jede dřív, pravidlo 7);
+    // dál po ubraném nejede (pravidlo 5). Pravá strana se nestahuje do
+    // skupiny levých vrstev (5. 11. 2026: dřív napojení přes vršek → 24×
+    // výjezd nad hrb na soustruhu, ap 2).
     const top = rev[0].moves;
     expect(Math.max(...top.map((m) => m.x))).toBeGreaterThan(45.3);
-    expect(top[top.length - 1].z).toBeGreaterThan(134.5);
-    expect(top[top.length - 1].x).toBeCloseTo(top[1].x, 3);
+    const endZ = top[top.length - 1].z, X0 = top[1].x;
+    expect(endZ).toBeGreaterThan(128.5);
+    const right = zz.calc.passes.find((p) => p.type === 'long' && Math.abs(p.x - X0) < 1e-3 && p.zEnd > endZ - 1);
+    expect(right).toBeTruthy();
+    const rz = [right.zEnd, ...(right.contourLeadOut || []).flatMap((sg) => [sg.z1, sg.z2])].filter(Number.isFinite);
+    expect(Math.min(...rz)).toBeLessThan(endZ + 1);
     for (const p of rev) {
       for (let k = 2; k < p.moves.length; k++) {
         const a = p.moves[k - 1], b = p.moves[k];

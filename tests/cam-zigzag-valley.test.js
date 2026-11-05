@@ -12,6 +12,7 @@ import { machinedFor, xzSectionSteps, sectionStepLimits } from '../js/calculator
 import { swapSimPath } from '../js/calculators/cam/sim/xzSim.js';
 import { validateToolpath } from '../js/calculators/cam/collisionValidator.js';
 import { mirrorPass } from '../js/calculators/cam/zMirror.js';
+import { sectionRanges } from '../js/calculators/cam/ops/sections/sectionRanges.js';
 import { openAtAxis } from '../js/calculators/cam/xzSwap.js';
 
 const DIR = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'cam-cases');
@@ -86,15 +87,34 @@ describe('Cik cak — údolí za hrbem bez hranice úseku', () => {
     expect(area(stock) - area(contour)).toBeLessThan(1000);
   }, 240000);
 
-  it('soustruh (týž díl, osy prohozené ručně): hranice na údolí polotovaru jen na karuselu, bez kolize', async () => {
-    // Na soustruhu odlitek kopíruje díl a „údolí" má skoro všude — hranice
-    // navíc rozbily ✂ Po úsecích u 27 soustruhových fixtures (5. 11. 2026),
-    // proto jen karusel (prms.xzSwapped, sectionPlan.js).
+  it('soustruh Cik cak zprava (týž díl, osy prohozené ručně): Ú1 až na dno (u S7 nad dnem údolí), Ú2 cik cak v údolí a kapsy zprava, bez kolize', async () => {
+    // Hranice na údolí polotovaru na soustruhu jen u Cik cak zprava (uživatel 5. 11. 2026).
     const prog = load('lathe-zigzag-stock-valley.camprog');
     prog.params = { ...prog.params, doFinishing: false };
-    const r = await runCamProg(prog);
-    expect(r.calc.sectionPlan.edges.some((e) => e.stockValley)).toBe(false);
-    expect(validateToolpath(r.calcSim.simPath, r.params, r.calc.stockPathSegments, { planStock: true })).toHaveLength(0);
+    const r0 = await runCamProg(prog);
+    const zs = r0.calc.stockWorldPoints.map((p) => p.zReal);
+    const steps = sectionRanges(r0.calc.sectionPlan, { lo: Math.min(...zs), hi: Math.max(...zs) }, null);
+    expect(steps.map((s) => s.xTo)).toEqual([null, null]);
+    expect(Math.round(steps[0].valleyFloor)).toBe(127);
+    const base = { z: JSON.parse(JSON.stringify(prog.zLimits)), x: JSON.parse(JSON.stringify(prog.xLimits)) };
+    let stock = prog.stockPoints, mode = prog.params.stockMode, r = null;
+    for (const st of steps) {
+      const L = sectionStepLimits(r0.S, st, base);
+      r = await runCamProg({ ...prog, params: { ...prog.params, stockMode: mode }, stockPoints: stock, zLimits: L.zLimits, xLimits: L.xLimits });
+      expect(validateToolpath(r.calcSim.simPath, r.params, r.calc.stockPathSegments, { planStock: true })).toHaveLength(0);
+      stock = machinedFor(r.S, r.calcSim).points; mode = 'casting';
+    }
+    // Údolí mezi hrby jede cik cak (řetěz ramp nahrazen), pak V (Z≈555), nižší dno (Z≈394), údolí u osy (Z≈115).
+    const zz = r.calc.passes.filter((p) => p.floorZigzag);
+    const at = (x, z) => zz.findIndex((p) => p.moves.some((m) => Math.abs(m.x - x) < 1.5 && Math.abs(m.z - z) < 12));
+    const v = at(48.2, 555), f6 = at(44.3, 394), f2 = at(66.2, 115);
+    expect(v).toBeGreaterThan(0);
+    expect(f6).toBeGreaterThan(v);
+    expect(f2).toBeGreaterThan(f6);
+    expect(r.calc.passes.some((p) => p.type === 'long' && p.ramp && p.x < 130 && p.zStart > 500)).toBe(false);
+    // Zbytek (polotovar v zápisu bodů x = poloměr, z = osa).
+    const contour = prog.contourPoints.slice(0, -1);
+    expect(area(stock) - area(contour)).toBeLessThan(1000);
   }, 240000);
 
   it('karusel u osy: kontura otevřená na ose — bez vrstvy pod rohem, bez sjezdu po ose, body plátna beze změny', async () => {

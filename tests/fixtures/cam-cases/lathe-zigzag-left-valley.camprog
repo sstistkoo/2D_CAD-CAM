@@ -1,0 +1,638 @@
+{
+ "__camprog": 1,
+ "pathLogicVersion": 3,
+ "params": {
+  "machineType": "LIMS=2000",
+  "mode": "RADIUS",
+  "toolName": "SRDPN úzký",
+  "speed": 180,
+  "feed": 0.12,
+  "depthOfCut": 2,
+  "retractDistance": 2,
+  "rapidFeed": 6000,
+  "retractAngle": 45,
+  "allowanceX": 0,
+  "allowanceZ": 0,
+  "toolRadius": 5,
+  "finishAllowance": 0.2,
+  "doFinishing": true,
+  "roughingStrategy": "zigzag",
+  "finishOnly": false,
+  "roughingSide": "left",
+  "stockMode": "casting",
+  "stockMargin": 5,
+  "stockDiameter": 111,
+  "stockLength": 5,
+  "stockFace": 349,
+  "safeX": 500,
+  "safeZ": 500,
+  "machineStructure": "lathe",
+  "controlSystem": "sinumerik",
+  "autoProfile": true,
+  "carouselAlongX": true,
+  "toolShape": "round",
+  "toolLength": 10,
+  "toolAngle": 0,
+  "toolTipAngle": 90,
+  "toolTipMirror": false,
+  "toolVbdCode": "RPMT10T3MO",
+  "toolClearanceAngle": 11,
+  "holderWidth": 9,
+  "holderLength": 150,
+  "holderHand": "R",
+  "holderProfile": {
+   "sideA": [
+    {
+     "x": 4.5,
+     "z": 3.223
+    },
+    {
+     "x": 4.5,
+     "z": 150
+    },
+    {
+     "x": -4.5,
+     "z": 150
+    },
+    {
+     "x": -4.5,
+     "z": 3.223
+    },
+    {
+     "x": -3.616,
+     "z": 4.191
+    },
+    {
+     "x": -2.53,
+     "z": 4.924
+    },
+    {
+     "x": -1.301,
+     "z": 5.38
+    },
+    {
+     "x": 0,
+     "z": 5.535
+    },
+    {
+     "x": 1.301,
+     "z": 5.38
+    },
+    {
+     "x": 2.53,
+     "z": 4.924
+    },
+    {
+     "x": 3.616,
+     "z": 4.191
+    },
+    {
+     "x": 4.5,
+     "z": 3.223
+    }
+   ],
+   "sideB": []
+  },
+  "knifeAngle": 270,
+  "holderInflate": 0,
+  "holderInflateAll": false,
+  "toolTipFlat": 0.1,
+  "partOffZ": null,
+  "partingApproachFeed": 1,
+  "partOffSmooth": false,
+  "partOffStartX": 64.55,
+  "partOffInner": false,
+  "grooveWidth": 0,
+  "grooveBottomX": 0,
+  "grooveHoleD": 0,
+  "grooveChamfer": 0,
+  "partOffFace": false,
+  "faceGrooveD1": 0,
+  "faceGrooveD2": 0,
+  "faceGrooveDepth": 0,
+  "finishingSlot": null,
+  "threadActive": false,
+  "threadName": "",
+  "threadType": "mc",
+  "threadDiameter": 20,
+  "threadPitch": 2.5,
+  "threadAngle": 60,
+  "threadDepth": 1.534,
+  "threadExternal": true,
+  "threadZStart": 0,
+  "threadZEnd": -20,
+  "threadRunIn": 3,
+  "threadRunOut": 0,
+  "threadPasses": 0,
+  "threadSpringPasses": 1,
+  "threadTaperRatio": 0,
+  "threadInfeed": "radial",
+  "drillActive": false,
+  "drillZStart": null,
+  "drillDepth": 20,
+  "drillZEnd": null,
+  "drillDepthFullDia": false,
+  "drillClearance": 2,
+  "drillPeck": 5,
+  "drillChipMode": "clear",
+  "drillRetract": 1,
+  "drillDwell": 0,
+  "boreActive": false,
+  "borePreDrill": false,
+  "borePreDrillSlot": null,
+  "borePreTip": 0,
+  "boreSource": "cylinder",
+  "boreFinish": false,
+  "boreZStart": 0,
+  "boreDiameter": 30,
+  "boreDepth": 20,
+  "borePreDiameter": 20,
+  "borePreDepth": 25,
+  "entryAngle": 45,
+  "entryAngleAuto": true,
+  "respectInsertGeometry": true,
+  "plungeRoughing": true,
+  "pocketFinishAtOnce": true,
+  "noStepRoughing": true,
+  "noStepRoughingFace": true,
+  "orderAwareHolder": true,
+  "rapidClearance": 1,
+  "rapidFeedGap": 1,
+  "stockClearX": null,
+  "stockClearZ": null,
+  "holderAutoComplete": true,
+  "regionRoughing": true,
+  "booleanRoughing": false,
+  "live": {
+   "inProgram": false
+  },
+  "liveKind": null,
+  "toolInternal": false
+ },
+ "contourPoints": [
+  {
+   "id": 1793547726028,
+   "type": "G0",
+   "x": 0,
+   "z": 346.371,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726029,
+   "type": "G1",
+   "x": 9.117,
+   "z": 345.397,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726030,
+   "type": "G1",
+   "x": 9.117,
+   "z": 243.123,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726031,
+   "type": "G1",
+   "x": 50.081,
+   "z": 234.99,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726032,
+   "type": "G1",
+   "x": 50.081,
+   "z": 221.135,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726033,
+   "type": "G1",
+   "x": 30.156,
+   "z": 213.667,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726034,
+   "type": "G1",
+   "x": 30.156,
+   "z": 205.009,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726035,
+   "type": "G1",
+   "x": 6.744,
+   "z": 205.009,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726036,
+   "type": "G1",
+   "x": 6.744,
+   "z": 165.945,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726037,
+   "type": "G1",
+   "x": 8.743,
+   "z": 163.945,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726038,
+   "type": "G1",
+   "x": 8.743,
+   "z": 149.544,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726039,
+   "type": "G1",
+   "x": 8.743,
+   "z": 138.253,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726040,
+   "type": "G1",
+   "x": 38.574,
+   "z": 137.509,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726041,
+   "type": "G1",
+   "x": 40.118,
+   "z": 128.86,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726042,
+   "type": "G1",
+   "x": 40.118,
+   "z": 125.462,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726043,
+   "type": "G3",
+   "x": 33.477,
+   "z": 116.044,
+   "r": 10,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726044,
+   "type": "G1",
+   "x": 14.22,
+   "z": 109.175,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726045,
+   "type": "G2",
+   "x": 7.579,
+   "z": 99.757,
+   "r": 10,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726046,
+   "type": "G1",
+   "x": 7.579,
+   "z": 84.177,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726047,
+   "type": "G2",
+   "x": 15.585,
+   "z": 74.378,
+   "r": 10,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726048,
+   "type": "G1",
+   "x": 22.252,
+   "z": 73.021,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726049,
+   "type": "G3",
+   "x": 27.056,
+   "z": 67.142,
+   "r": 6,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726050,
+   "type": "G1",
+   "x": 27.056,
+   "z": 55.47,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726051,
+   "type": "G3",
+   "x": 25.516,
+   "z": 51.456,
+   "r": 6,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726052,
+   "type": "G2",
+   "x": 27.279,
+   "z": 16.913,
+   "r": 24.495,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726053,
+   "type": "G3",
+   "x": 30.566,
+   "z": 9.502,
+   "r": 10,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726054,
+   "type": "G1",
+   "x": 30.566,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547726055,
+   "type": "G1",
+   "x": 0,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  }
+ ],
+ "stockPoints": [
+  {
+   "id": 1793547826028,
+   "type": "G0",
+   "x": 0,
+   "z": 368.932,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826029,
+   "type": "G1",
+   "x": 21.803,
+   "z": 366.368,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826030,
+   "type": "G1",
+   "x": 21.803,
+   "z": 271.511,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826031,
+   "type": "G1",
+   "x": 64.545,
+   "z": 256.228,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826032,
+   "type": "G1",
+   "x": 64.359,
+   "z": 196.278,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826033,
+   "type": "G1",
+   "x": 16.744,
+   "z": 196.278,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826034,
+   "type": "G1",
+   "x": 16.743,
+   "z": 167.259,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826035,
+   "type": "G1",
+   "x": 16.743,
+   "z": 149.544,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826036,
+   "type": "G2",
+   "x": 18.226,
+   "z": 147.612,
+   "r": 2,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826037,
+   "type": "G1",
+   "x": 37.742,
+   "z": 142.383,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826038,
+   "type": "G1",
+   "x": 47.649,
+   "z": 141.79,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826039,
+   "type": "G1",
+   "x": 48.118,
+   "z": 128.86,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826040,
+   "type": "G1",
+   "x": 48.118,
+   "z": 125.462,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826041,
+   "type": "G3",
+   "x": 36.165,
+   "z": 108.508,
+   "r": 18,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826042,
+   "type": "G1",
+   "x": 16.907,
+   "z": 101.64,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826043,
+   "type": "G2",
+   "x": 15.579,
+   "z": 99.757,
+   "r": 2,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826044,
+   "type": "G1",
+   "x": 15.579,
+   "z": 84.177,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826045,
+   "type": "G2",
+   "x": 17.18,
+   "z": 82.217,
+   "r": 2,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826046,
+   "type": "G1",
+   "x": 23.847,
+   "z": 80.861,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826047,
+   "type": "G3",
+   "x": 35.056,
+   "z": 67.142,
+   "r": 14,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826048,
+   "type": "G1",
+   "x": 35.056,
+   "z": 55.47,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826049,
+   "type": "G3",
+   "x": 31.462,
+   "z": 46.104,
+   "r": 14,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826050,
+   "type": "G2",
+   "x": 32.649,
+   "z": 22.843,
+   "r": 16.495,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826051,
+   "type": "G3",
+   "x": 38.566,
+   "z": 9.502,
+   "r": 18,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826052,
+   "type": "G1",
+   "x": 38.566,
+   "z": -8,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826053,
+   "type": "G1",
+   "x": 0,
+   "z": -8,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793547826054,
+   "type": "G1",
+   "x": 0,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  }
+ ],
+ "borePoints": [],
+ "flipX": false,
+ "flipZ": false,
+ "guideLines": [],
+ "zLimits": {
+  "chuck": -47.13,
+  "tail": 497.48,
+  "chuckActive": true,
+  "tailActive": true,
+  "rangeStart": 13.64,
+  "rangeEnd": 54.57,
+  "rangeActive": false
+ },
+ "showZLimits": "on",
+ "xLimits": {
+  "rangeXMin": null,
+  "rangeXMax": null,
+  "active": false
+ },
+ "showSimPath": "all",
+ "showRemoval": true,
+ "showRefGuides": false
+}
