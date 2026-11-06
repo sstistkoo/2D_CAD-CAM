@@ -93,6 +93,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Cik cak: kapsa pod podélnou vrstvou** (`zigzagValley.js` `pocketsBelowZigzag` `belowLong`, karusel zprava,
+  díl uživatele 6. 11.): v Ú2 jely vrstvy od hranice úseku rovně ke stěně (bez rampy, cik cak nevznikl) a kapsu
+  pod poslední z nich (údolí X309–447 pod Z79, klín 18 mm) nebralo nic — kapsy pod spodkem se braly jen pod cik
+  cakem. Teď i pod podélnou vrstvou, kterou nebere jiný průchod (mimo úsek nad údolím). Zbytek po úsecích
+  3708 → 364 mm², celý program 800 → 348 mm² (zbývají rohy R15), 0 kolizí, otisk 32 fixtur shodný.
+- **Cik cak celý program: kapsa odlitku až ke stěně** (`zigzagValley.js` `wedgeAbove`, soustruh, díl uživatele 6. 11.):
+  „klín nad pásmem u stěny" byl ve skutečnosti vzduch kapsy odlitku a vrstvy, které už vzaly obrácené vrstvy,
+  takže cik cak v kapse S15–S18 skončil na čáře zanoření a pod ní zůstalo 8 mm. Klín se teď počítá jen tam, kde
+  nad vrstvou stojí polotovar, který nic nevzalo. Zbytek 124 → 32 mm².
 - **Cik cak: jízda po stěně bez schodů** (karusel i soustruh, díly uživatele 6. 11.): „Hrub. bez schodků"
   na šikmé stěně schodkovala — u každé vrstvy 5 mm vodorovně (karusel N1820 X598.001), pod tím klín.
   Mez proti sjetí do neobrobeného V brala výšku vrstvy nad místem; teď smí o vrstvu níž, stěna jede jedním

@@ -85,9 +85,10 @@ export function genZigzagPasses(ctx, op) {
     zHi: ctx.machiningRange && Number.isFinite(ctx.machiningRange.zHi) ? ctx.machiningRange.zHi : Infinity,
     noSteps: !!prms.noStepRoughing,
   };
-  valleyZigzag(vo);
+  valleyZigzag({ ...vo, stock: stockPathSegments, noseR: parseFloat(prms.toolRadius) || 0 });
   // Kapsy pod spodkem (zářez do V, nižší dno): napřed pravá, pak levá.
-  pocketsBelowZigzag(vo);
+  // Pod podélnou vrstvou jen mimo úsek nad údolím (tam pod dnem údolí nic — dropBelowValleyFloor).
+  pocketsBelowZigzag({ ...vo, belowLong: !Number.isFinite(ctx.valleyFloor) });
   // Materiál za začátkem úseku (kapsa za hranicí, kterou předchozí úsek
   // nebere): cik cak shora až ke stěně (ops/zigzagBeyondStart.js).
   // Jen když se před úsekem obráběl jiný úsek — v Ú1 je za začátkem konec

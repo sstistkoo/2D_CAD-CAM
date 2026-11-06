@@ -17,6 +17,7 @@
 // opačným směrem. Jen strategie Cik cak (ops/zigzagRough.js).
 
 import { wallFinders, zigzagFromLayers, buildZigzag, sidePocket } from './zigzagFloor.js';
+import { maxXAt } from '../passHelpers.js';
 
 const EPS = 0.05;
 
@@ -52,8 +53,12 @@ function plungeLeadIn(p, tanA) {
  * začátkem `xTop`) začíná vlevo od stěny `b` a mezi jejím začátkem (rampa
  * nebo vjezd) a stěnou na její výšce stojí materiál. Vrstvy, které stěnu
  * přejely (začínají za ní), se nepočítají — nad nimi je ubráno.
+ * Se známým polotovarem (`mat`) je klín jen tam, kde nad výškou vrstvy
+ * opravdu stojí materiál a nevzal ho cik cak (obrácené vrstvy): soustruh
+ * 6. 11. 2026, celý program — v kapse odlitku S15–S18 byl „klín" vzduch
+ * a cik cak skončil na čáře zanoření, pod ní zůstalo 8 mm.
  */
-function wedgeAbove(passes, W, xTop, step, zMin, b, reach) {
+function wedgeAbove(passes, W, xTop, step, zMin, b, reach, mat = null) {
   for (const q of passes) {
     if (!q || q.type !== 'long' || !Number.isFinite(q.x)) continue;
     if (!(q.x > xTop + EPS) || q.x > xTop + 3 * step + EPS) continue;
@@ -62,7 +67,7 @@ function wedgeAbove(passes, W, xTop, step, zMin, b, reach) {
       li && Number.isFinite(li.z1) ? li.z1 : -Infinity);
     if (!(zs < b - EPS) || zs < zMin) continue;
     const w = W.wallRight(q.x, zs, zs + reach + 50);
-    if (w !== null && w - zs > 1) return true;
+    if (w !== null && w - zs > 1 && (!mat || mat(q.x, zs, w))) return true;
   }
   return false;
 }
@@ -97,9 +102,10 @@ function nextMember(passes, from, prev, step) {
  *   obrábění (stěna vpravo se za ním nehledá)
  * @returns {number} počet nahrazených vrstev
  */
-export function valleyZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infinity, zHi = Infinity, noSteps = false }) {
+export function valleyZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infinity, zHi = Infinity, noSteps = false, stock = null, noseR = 0 }) {
   if (!Array.isArray(passes) || !raw || !(step > 0) || !(tanA > 0)) return 0;
   const W = wallFinders(raw);
+  const mat = Array.isArray(stock) && stock.length ? standingMaterial(passes, stock, noseR, step) : null;
   const reach = 4 * step / Math.max(tanA, 0.2) + 2;
   let total = 0;
   for (let i0 = start; i0 < passes.length; i0++) {
@@ -131,7 +137,7 @@ export function valleyZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infini
       // 11 kolizí držáku). Stěna hrbu, nad kterou je ubráno, jako dřív.
       let underWedge = false;
       if (b !== null && b > p.zStart + EPS
-        && (wedged || wedgeAbove(passes, W, s0.x1, step, p.zStart - reach, b, reach))) { b = p.zStart; underWedge = wedged = true; }
+        && (wedged || wedgeAbove(passes, W, s0.x1, step, p.zStart - reach, b, reach, mat))) { b = p.zStart; underWedge = wedged = true; }
       if (a === null || b === null || b - a < 1) break;
       layers.push(underWedge ? { X: p.x, a, b, underWedge } : { X: p.x, a, b });
       used.push(j);
@@ -158,6 +164,33 @@ export function valleyZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infini
     total += zigzagFromLayers({ passes, grp: used, layers, xTop: s0.x1, tanA, reach, noSteps, W });
   }
   return total;
+}
+
+/**
+ * mat(h, z0, z1): stojí mezi z0 a z1 nad výškou h (prostor středu nosu)
+ * polotovar, který nevzal žádný průchod cik cak nejvýš o ap výš (pás tenčí
+ * než ap je schod u stěny, ne klín), aspoň 1 mm v kuse?
+ */
+function standingMaterial(passes, stock, noseR, step) {
+  const segs = [];
+  for (const p of passes) {
+    if (!p || p.type !== 'zigzag' || !Array.isArray(p.moves)) continue;
+    for (let k = 1; k < p.moves.length; k++) {
+      const a = p.moves[k - 1], c = p.moves[k];
+      if (c.g === 'G1') segs.push({ x: Math.max(a.x, c.x), z0: Math.min(a.z, c.z), z1: Math.max(a.z, c.z) });
+    }
+  }
+  return (h, z0, z1) => {
+    let run = 0;
+    for (let z = z0 + 0.25; z < z1; z += 0.25) {
+      const t = maxXAt(stock, z);
+      const open = t !== null && t + noseR > h + 0.5
+        && !segs.some((s) => s.x <= h + step + 0.05 && z >= s.z0 - 0.05 && z <= s.z1 + 0.05);
+      run = open ? run + 0.25 : 0;
+      if (run >= 1) return true;
+    }
+    return false;
+  };
 }
 
 /** Některý posuv vede pod offsetem (střed nosu pod hrubovací čarou). */
@@ -188,7 +221,9 @@ function pocketRuns(W, X, zA, zB, zLo) {
   const runs = [];
   let s = null;
   for (let z = zA; z <= zB + 1e-9; z += DS) {
-    if (W.fR(z) < X - 1e-6) { if (s === null) s = z; }
+    // Bez offsetu (za koncem kontury) kapsa není — rozklad by klesal donekonečna.
+    const v = W.fR(z);
+    if (Number.isFinite(v) && v < X - 1e-6) { if (s === null) s = z; }
     else if (s !== null) { runs.push([s, z - DS]); s = null; }
   }
   if (s !== null) runs.push([s, zB]);
@@ -239,7 +274,7 @@ function decompose(o, Xtop, a0, b0, depth = 0) {
     const layers = [];
     let X = Xtop, cur = iv;
     const kids = [];
-    for (;;) {
+    for (let guard = 0; guard < 500; guard++) {
       let minF = Infinity;
       for (let z = cur.a; z <= cur.b + 1e-9; z += DS) minF = Math.min(minF, W.fR(z));
       if (!(minF < X - 0.3)) break;
@@ -293,7 +328,7 @@ function emitNodes(o, nodes) {
  * dvěma jízdami po stěnách) se přidá jako další vrstvy TÉHOŽ cik caku.
  * @returns {number} počet vložených průchodů
  */
-export function pocketsBelowZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infinity, noSteps = false }) {
+export function pocketsBelowZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infinity, noSteps = false, belowLong = false }) {
   if (!Array.isArray(passes) || !raw || !(step > 0) || !(tanA > 0)) return 0;
   const W = wallFinders(raw);
   const o = { W, step, tanA, reach: 4 * step / Math.max(tanA, 0.2) + 2, noSteps, zLo, passes };
@@ -301,6 +336,25 @@ export function pocketsBelowZigzag({ passes, start = 0, raw, step, tanA, zLo = -
   const done = new Set();
   for (let i = start; i < passes.length; i++) {
     const zg = passes[i];
+    // Pod podélnou vrstvou bez cik caku nad sebou (`belowLong`): karusel
+    // zprava 6. 11. 2026, Ú2 — vrstvy od hranice úseku jely rovně ke stěně
+    // (bez rampy, takže cik cak nevznikl) a kapsu pod poslední z nich
+    // (údolí X309–447 pod Z79, 18 mm) nebralo nic. Kapsa pod vrstvou, kterou
+    // bere jiný průchod, se přeskočí (`covered`).
+    if (belowLong && zg && zg.type === 'long' && Number.isFinite(zg.x) && !done.has(zg)) {
+      done.add(zg);
+      const a = Math.min(zg.zStart, zg.zEnd), b = Math.max(zg.zStart, zg.zEnd);
+      if (b - a < 2) continue;
+      // Jen kapsa, ve které se vejde odskok (úzká štěrbina ~3 mm, karusel Od
+      // středu ap 3,6: odskok šikmo do protější stěny, držák drhl) — užší zůstane jako dřív.
+      const wide = decompose(o, zg.x, a, b).filter((n) => n.layers.length && n.layers[0].b - n.layers[0].a >= 6);
+      const ins = emitNodes(o, wide);
+      passes.splice(i + 1, 0, ...ins);
+      ins.forEach((p) => done.add(p));
+      added += ins.length;
+      i += ins.length;
+      continue;
+    }
     if (!zg || !zg.floorZigzag || done.has(zg)) continue;
     done.add(zg);
     const pl = zg._layers;

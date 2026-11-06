@@ -552,7 +552,10 @@ stěně vyjede o vrstvu nahoru.**
 - Pojistka (pravidlo 6): kdyby nad pásmem u stěny klín přesto stál (vrstvy
   nad řetězem ke stěně nedojely), cik cak po dně na té straně končí na čáře
   zanoření a jízda po té stěně odpadá — jinak by se začátek zanořil svisle
-  skrz klín a držák jel pod ním (dřív 11 kolizí).
+  skrz klín a držák jel pod ním (dřív 11 kolizí). Klín je jen skutečný
+  polotovar nad vrstvou, který nevzal žádný průchod cik cak (nejvýš o ap výš)
+  — vzduch kapsy odlitku ani pás po obrácených vrstvách klín není (soustruh
+  6. 11. 2026, celý program: kapsa S15–S18 jinak skončila na čáře zanoření, 8 mm).
   V úseku, který končí uvnitř takového údolí (hranice na údolí polotovaru),
   jede cik cak mezi stěnou hrbu a hranicí úseku (za hranici nic).
 - **Kapsy pod spodkem** (uživatel 4. 11. 2026: „dodělal napřed pravou … zářez

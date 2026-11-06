@@ -40,6 +40,7 @@ async function sections(name) {
   return out;
 }
 
+const inside = (pts, x, z) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const a = pts[i], b = pts[j]; if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) c = !c; } return c; };
 const wallPasses = (r) => (r.calc._xz ? r.calc._xz.calc : r.calc).passes.filter((p) => p.wallClean && !p.beyondStart);
 // Nejdelší úsek jízdy po stěně ve stálé výšce (schod), mimo poslední pohyb (dno).
 const flatRun = (p) => {
@@ -68,5 +69,23 @@ describe('Cik cak — jízda po stěně bez schodů', () => {
     const w = wallPasses(us[2]);
     expect(w.length).toBeGreaterThan(0);
     for (const p of w) expect(flatRun(p)).toBeLessThan(1);
+  }, 300000);
+
+  it('karusel zprava po úsecích: údolí X309–447 pod Z79 vybrané (Ú2, kapsa pod podélnou vrstvou)', async () => {
+    // Vrstvy od hranice jely rovně ke stěně (bez rampy → bez cik caku) a kapsu
+    // pod poslední z nich nic nebralo (klín 18 mm) — zigzagValley.js
+    // `pocketsBelowZigzag` s `belowLong` ji vezme i pod podélnou vrstvou.
+    const [, u2] = await sections('carousel-zigzag-wall-steps.camprog');
+    const st = machinedFor(u2.S, u2.calcSim).points;
+    for (const [x, z] of [[330, 50], [360, 48], [390, 50], [420, 58]]) expect(inside(st, x, z), `X${x} Z${z}`).toBe(false);
+  }, 300000);
+
+  it('soustruh celý program: kapsa S15–S18 až ke stěně (dřív klín 8 mm u Z90–110)', async () => {
+    // zigzagValley.js `wedgeAbove`: „klín" nad pásmem u stěny byl vzduch
+    // (kapsa odlitku) a obrácené vrstvy — cik cak skončil na čáře zanoření.
+    const r = await runCamProg(load('lathe-zigzag-wall-steps.camprog'));
+    expect(kol(r).filter((e) => e.area > 0.5)).toHaveLength(0);
+    const st = machinedFor(r.S, r.calcSim).points;
+    for (const [x, z] of [[11, 94], [13, 98], [12.5, 104], [14.5, 107]]) expect(inside(st, x, z), `X${x} Z${z}`).toBe(false);
   }, 300000);
 });
