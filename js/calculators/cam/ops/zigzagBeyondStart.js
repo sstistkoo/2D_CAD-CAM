@@ -115,6 +115,29 @@ export function zigzagBeyondStart({ passes, start = 0, raw, stock, noseR = 0, st
   }
   if (!zz) return 0;
   zz.forEach((p) => { p.beyondStart = true; });
-  passes.splice(start, 0, ...zz);
+  // Končí-li poslední vrstva na hranici, vedle stojí materiál úseku: před
+  // odskokem a výjezdem nahoru popojet zpět do kapsy o R + odskok (karusel
+  // zleva, ap 2, Ú3: G0 nahoru u X706 zavadil o materiál Ú3 vedle hranice).
+  // Platí pro cik cak i jízdu po stěně (obě mohou skončit u hranice).
+  const zBack = Math.min(zHi + 2 * noseR + step, (Math.max(...layers.map((L) => L.b)) + zHi) / 2);
+  for (const pz of zz) {
+    const mv = pz.moves, lastM = mv[mv.length - 1];
+    // Zpět po dně (offset může k stěně stoupat), nanejvýš ap nad koncem.
+    if (!lastM || !(lastM.z < zHi + noseR + 2.5) || !(zBack > lastM.z + 0.5)) continue;
+    let ok = true;
+    const n = Math.max(1, Math.ceil((zBack - lastM.z) / 0.5));
+    const pts = [];
+    for (let k = 1; k <= n && ok; k++) {
+      const z = lastM.z + (zBack - lastM.z) * k / n, x = Math.max(lastM.x, W.fR(z) + 0.03);
+      if (x > lastM.x + step) ok = false; else pts.push({ g: 'G1', x, z });
+    }
+    if (ok) { mv.push(...pts); pz.endDir = 0; }
+  }
+  // Jako PRVNÍ jen když vlastní materiál úseku hned u hranice není vyšší než
+  // kapsa — jinak by držák na kraji kapsy (u hranice) jel podél něj (karusel
+  // zprava, ap 1,2, Ú2: zářez V za hranicí X556 a vedle údolí do Z126 —
+  // 12 kolizí). Pak až na konci úseku, kdy je u hranice ubráno.
+  const inner = top(zHi - noseR - 1);
+  passes.splice(inner > Tc + 0.5 ? passes.length : start, 0, ...zz);
   return zz.length;
 }

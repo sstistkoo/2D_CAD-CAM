@@ -215,6 +215,14 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
   // „mělo by to být celé projeté s přídavkem … u přechodu z úseku 1 na úsek 2
   // na pravém čele") — projede se po čele shora dolů do rohu u dna.
   const Lz = layers[layers.length - 1];
+  // Nejnižší vrstva cik caku nad místem z — níž jízda po stěně nesmí (kapsa,
+  // kterou vrstvy nevybraly, např. zářez V vedle hluboké kapsy: karusel ap 4,8,
+  // Ú2 N1960 sjel po stěně do neobrobeného V — 5 kolizí držáku).
+  const coverMin = (z) => {
+    let m = Infinity;
+    for (const L of layers) if (z >= Math.min(L.a, L.b) - 0.5 && z <= Math.max(L.a, L.b) + 0.5 && L.X < m) m = L.follow ? -Infinity : L.X;
+    return m === Infinity ? -Infinity : m;
+  };
   const wallPass = (side) => {
     // Horní konec stěny o 0,05 mm pod výškou — viz `bTop` (N4510: jízda po
     // stěně jela nejdřív 6 mm svisle, pak teprve po šikmé stěně).
@@ -230,7 +238,7 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
     const n = Math.max(2, Math.ceil(Math.abs(zT - zB) / 0.25));
     for (let k = 1; k <= n; k++) {
       const z = zT + (zB - zT) * k / n;
-      const x = k === n ? xB : Math.min(xTop, Math.max(xB, fR(z)));
+      const x = k === n ? xB : Math.min(xTop, Math.max(xB, fR(z), coverMin(z)));
       const l = pts[pts.length - 1];
       // Body na přímce se slučují (posuv po rovné stěně jedním blokem).
       if (pts.length >= 2) {

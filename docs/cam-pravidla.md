@@ -541,6 +541,12 @@ stěně vyjede o vrstvu nahoru.**
   vrstva nejvýš 1,6 ap výš tam už jela, nebo polotovar je nejvýš o ap výš
   (celý program bez úseků, pod S4: dřív 290 mm² držákem). Stejně cik cak
   v údolí končí na vrstvě, vedle jejíž užší další vrstvy zůstává kapsa.
+  Jízda po stěně cik caku nejede níž než vrstvy cik caku nad daným místem
+  (nad kapsou, kterou nevybraly, přejede v jejich výšce). Kapsa za začátkem
+  úseku jede první jen tehdy, když vedle ní u hranice nestojí vyšší materiál
+  úseku, jinak až na konci; končí-li u hranice, před výjezdem nahoru popojede
+  zpět do kapsy. Obrácená vrstva po dně jen tam, kde je nad ní ubráno.
+  `tests/cam-zigzag-small-ap.test.js` (ap 1,2 až 4,8, obě strany).
   `tests/cam-zigzag-left-walls.test.js`.
 - Pojistka (pravidlo 6): kdyby nad pásmem u stěny klín přesto stál (vrstvy
   nad řetězem ke stěně nedojely), cik cak po dně na té straně končí na čáře

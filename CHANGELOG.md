@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vrstva Ú3 po dně až k čelu (N3790). Soustruh zleva díl (10): zbytek 48 → 0 mm².
   Celý program bez úseků (díl 6. 11.): 6 → 0 kolizí (obrácené vrstvy ke vzdálené stěně, kapsa vedle v údolí). Přehled
   27 dílů × zleva/zprava × 2 ap: kolize 1371 → 1268, žádný díl horší.
+  Menší ap a obě strany (geometrie dílu (9), ap 1,2–4,8): všechny kolize Cik cak odstraněny — jízda po stěně
+  nesjede do nevybrané kapsy, kapsa za začátkem úseku jede první jen bez vysokého materiálu vedle, vrstva po dně
+  jen pod ubraným. Přehled 48 běhů (úzký držák): 0 kolizí.
 
 - **Cik cak: kapsa za začátkem úseku** (`cam/ops/zigzagBeyondStart.js`, pravidla 1 a 20): materiál, který za
   hranicí na straně začátku ještě stojí (kapsa ohraničená jen hranicí patří dalšímu úseku), jede úsek jako první

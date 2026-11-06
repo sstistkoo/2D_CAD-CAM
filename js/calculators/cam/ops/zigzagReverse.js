@@ -200,7 +200,10 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
       // 6. 11. 2026, Ú3 N3790: vrstva po dně skončila v půlce na X763,8).
       const upperEnd = Math.max(-Infinity, ...done.filter((d) => Math.abs(d.x - (X + step)) < 0.6 * step && d.z1 > lz).map((d) => d.z1));
       const lim0 = Math.max(lz + 4 * noseR + 4 * step, upperEnd);
-      const lim = Math.min(zBeyond !== null && beyondOk(X, lz, Math.min(zBeyond, lim0)) ? zBeyond + 1 : zHi, lim0);
+      let lim = Math.min(zBeyond !== null && beyondOk(X, lz, Math.min(zBeyond, lim0)) ? zBeyond + 1 : zHi, lim0);
+      // Po dně jen tam, kde je nad vrstvou ubráno (karusel celý program, ap 1,2,
+      // pod S4: řetěz ramp nechal u stěny klín a Z47 po dně vjela pod něj).
+      if (Number.isFinite(lim)) lim = Math.min(lim, clearedUntil(X, lz, lim) - 0.5);
       let w = walk(lz, lim, same.filter((q) => !isTarget(q)).map(span));
       // Napojení na zbytek vrstvy JEN když vrstva sjede zpět na X v obvyklé
       // vzdálenosti (4R + 4ap) a zbytek začíná hned tam. Přes dlouhý vršek
@@ -229,7 +232,7 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
   const done = [];
   // Je nad vrstvou X v pásu (z0, z1) ubráno? Polotovar nejvýš o ap nad ní,
   // nebo tam jela vrstva nejvýš 1,6 ap výš (podélná, cik cak nebo obrácená).
-  const clearedAbove = (X, z0, z1) => {
+  const clearedUntil = (X, z0, z1) => {
     const above = (q) => {
       if (!q) return null;
       if (q.type === 'long' && Number.isFinite(q.x)) return q.x > X + 0.3 && q.x <= X + 1.6 * step ? [[Math.min(q.zStart, q.zEnd), Math.max(q.zStart, q.zEnd)]] : null;
@@ -249,10 +252,11 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
     for (let z = z0; z <= z1; z += 0.5) {
       const t = maxXAt(stock, z);
       if (t === null || t + noseR <= X + step + 0.5) continue;
-      if (!spans.some(([a, b]) => z >= a - 0.3 && z <= b + 0.3)) return false;
+      if (!spans.some(([a, b]) => z >= a - 0.3 && z <= b + 0.3)) return z;
     }
-    return true;
+    return Infinity;
   };
+  const clearedAbove = (X, z0, z1) => clearedUntil(X, z0, z1) === Infinity;
   // Obrácení vrstev; `allowFar` = i se stěnou dál než 2R + ap (druhý průchod po doplnění).
   const reverseLayers = (allowFar) => {
   for (let i = start; i < passes.length; i++) {
