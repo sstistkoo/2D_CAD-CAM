@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM dokončení: F podle cílového Ra a snížený posuv ve vnitřních rozích** (`cam/finishFeed.js`,
+  výchozí vypnuto): F = √(32 · rε · Ra / 1000) se stropem max F (2 × F); ve vnitřním rohu kontury
+  (ostrý zlom dráhy, ověřený proti dílu) posledních/prvních rε sníženým F. Hrubování ani dráha se
+  nemění, otisk 32 fixtur shodný.
 - **CAM: ladění posuvu** (vše výchozí vypnuto, dráha beze změny, otisk 32 fixtur shodný):
   - konstantní posuv na oblouku dle rε (`cam/arcFeedComp.js`) — F oblouku × r dráhy / r řezu,
     dokončení i hrubování po kontuře; další řezný blok se vrací na F,

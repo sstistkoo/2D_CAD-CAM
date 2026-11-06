@@ -14,6 +14,7 @@ import { paramsBoreHtml } from './paramsBoreHtml.js';
 import { grooveInnerFieldsHtml, grooveCadRowHtml, grooveOuterCadRowHtml } from './paramsGrooveHtml.js';
 import { SURFACE_TABS, surfaceMode, programInner } from './machSurface.js';
 import { faceGrooveFieldsHtml, faceGrooveCadRowHtml } from './paramsGrooveFaceHtml.js';
+import { finishFeedFromRa } from '../finishFeed.js';
 
 /** @param ctx { S, escHTML, escAttr } */
 export function paramsMachiningHtml({ S, escHTML, escAttr }) {
@@ -200,6 +201,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
       <span>Dokončovací operace</span>
     </div>`;
     html += arcFeedCompRow(prms);
+    if (prms.doFinishing) html += finishFeedRows(prms, S);
     html += roughFeedRows(prms);
     if (prms.doFinishing && S.toolMagazine.length > 1) {
       const finSlot = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? S.toolMagazine[prms.finishingSlot] : null;
@@ -225,7 +227,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
       <input type="checkbox" id="cam-sim-finonly" ${prms.finishOnly ? 'checked' : ''}>
       <span>Dokončovací operace</span>
     </div>`;
-    html += arcFeedCompRow(prms);
+    html += arcFeedCompRow(prms) + finishFeedRows(prms, S);
     if (prms.finishOnly && S.toolMagazine.length > 1) {
       const finSlot = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? S.toolMagazine[prms.finishingSlot] : null;
       html += `<div class="cam-sim-row" style="margin-top:6px;align-items:center">
@@ -412,6 +414,28 @@ function roughFeedRows(prms) {
     id: 'cam-sim-feedwall', on: !!prms.feedWallOn, label: 'Posuv u čela (%)', key: 'feedPctWall', value: prms.feedPctWall,
     autoId: 'cam-sim-feedwall-auto', auto: !!prms.feedWallAuto,
     tip: 'Cik cak: rampa mezi vrstvami se od čela odkloní a pod ní zůstane klín. Vrstva, která k tomu čelu znovu přijede, bere ap + klín. Snížený posuv začne až tam, kde se obrys destičky klínu skutečně dotkne. Auto = % podle hloubky: ap / (ap + přebytek klínu), nejméně 25 %.',
+  });
+  return h;
+}
+
+/** Dokončení: F podle cílového Ra a snížený posuv ve vnitřním rohu (cam/finishFeed.js). */
+function finishFeedRows(prms, S) {
+  const slot = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? S.toolMagazine[prms.finishingSlot] : null;
+  const on = !!prms.finRaOn, ra = parseFloat(prms.finRa) > 0 ? parseFloat(prms.finRa) : 1.6;
+  const res = finishFeedFromRa({ ...prms, finRaOn: true, finRa: ra }, slot);
+  const base = parseFloat(slot ? slot.f : prms.feed) || 0;
+  const maxF = parseFloat(prms.finRaMaxF) > 0 ? parseFloat(prms.finRaMaxF) : Math.round(2 * base * 1000) / 1000;
+  const fmt = (v) => String(v).replace('.', ',');
+  const info = res ? `F ${fmt(res.f)}${res.capped ? ' (strop)' : ''} → Ra ${fmt(res.ra.toFixed(2))}` : '—';
+  let h = `<div class="cam-sim-row" style="align-items:center;margin-top:2px" data-tooltip="Dokončení jede posuvem spočítaným z cílové drsnosti: Ra ≈ 1000 · F² / (32 · rε) µm → F = √(32 · rε · Ra / 1000). rε 0,8 + Ra 1,6 → F 0,2; velký rádius smí jet rychleji. Strop = max F (výchozí 2 × nastavené F dokončení). Rz ≈ 4 · Ra.">
+      <label class="cam-sim-checkbox-item" style="flex:2"><input type="checkbox" id="cam-sim-finra" ${on ? 'checked' : ''}><span>F dok. dle Ra (µm)</span></label>
+      <div class="cam-sim-field" style="flex:1"><input type="number" step="0.1" min="0.1" data-p="finRa" value="${ra}"${on ? '' : ' disabled'} title="Cílové Ra [µm]"></div>
+      <div class="cam-sim-field" style="flex:1"><input type="number" step="0.01" min="0.01" data-p="finRaMaxF" value="${maxF}"${on ? '' : ' disabled'} title="Max. F [mm/ot]"></div>
+    </div>
+    <small class="cam-sim-info-box" style="display:block;margin-top:0">${on ? '' : 'Vypnuto — '}${info}${on ? '' : ` (teď F ${fmt(base)})`}</small>`;
+  h += feedPctRow({
+    id: 'cam-sim-feedcorner', on: !!prms.feedCornerOn, label: 'Posuv ve vnitř. rohu (%)', key: 'feedPctCorner', value: prms.feedPctCorner,
+    tip: 'Dokončení: ve vnitřním rohu kontury (osazení, dno zápichu) bere destička naráz čelem i průměrem. Posledních rε před rohem a prvních rε za ním jede tímto % F. Vnitřní zaoblení bez ostrého rohu řeší Konstantní posuv na oblouku.',
   });
   return h;
 }

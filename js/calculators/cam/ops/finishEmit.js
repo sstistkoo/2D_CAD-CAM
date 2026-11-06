@@ -25,6 +25,7 @@ import { insertExtent } from '../materialRemoval.js';
 import { offsetSilhouetteLoop, makeFinishTipGuard } from '../toolEnvelope.js';
 import { mirrorsWorldZ } from '../calculatePipeline.js';
 import { makeArcFeedWriter, arcFeedFactor } from '../arcFeedComp.js';
+import { finishFeedFromRa, cornerFeedFactor, innerCornerFlags, splitLineAtCorners } from '../finishFeed.js';
 
 /**
  * @param E  sdílené emisní prostředí z `generateAutoGCode()`
@@ -151,11 +152,15 @@ const firstGcFinSeg = finPath.find(s => !s.isDegenerate);
 // Výměna nástroje pro dokončování — jen pokud je nastaven jiný nástroj ze zásobníku
 const finSlotIdx = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? prms.finishingSlot : null;
 const finSlotData = (finSlotIdx !== null && S.toolMagazine[finSlotIdx]) ? S.toolMagazine[finSlotIdx] : null;
-const finFeed  = finSlotData ? finSlotData.f  : prms.feed;
+// F dokončení podle cílového Ra (finishFeed.js) — jinak nastavené F.
+const finRa = finishFeedFromRa(prms, finSlotData);
+const finFeed  = finRa ? finRa.f : (finSlotData ? finSlotData.f : prms.feed);
 const finSpeed = finSlotData ? finSlotData.vc : prms.speed;
-// Konstantní posuv na kontuře (přepínač „F na oblouku dle rε", arcFeedComp.js):
-// oblouky dostanou přepočtené F a další řezný blok se vrátí na finFeed.
-const finFeedW = prms.arcFeedComp ? makeArcFeedWriter(addNRaw, finFeed) : null;
+const finTipRf = parseFloat(finSlotData ? finSlotData.radius : prms.toolRadius) || 0;
+// Snížené F oblouků (arcFeedComp.js) a vnitřních rohů (finishFeed.js): blok
+// dostane přepočtené F a další řezný blok se vrátí na finFeed.
+const finCornerK = cornerFeedFactor(prms);
+const finFeedW = (prms.arcFeedComp || finCornerK) ? makeArcFeedWriter(addNRaw, finFeed) : null;
 const addN = finFeedW ? finFeedW.write : addNRaw;
 if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   addCmt('--- DOKONCOVANI ---');
@@ -504,6 +509,7 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
     }
   }
   const finSegs = finPath.filter(s => !s.isDegenerate);
+  const finCorners = finCornerK ? innerCornerFlags(finSegs, finTipRf, offsetSilhouetteLoop(calc.contourSegments)) : null;
   finSegs.forEach((seg, idx) => {
     // chainBreak = samostatný řetěz (mezi konturami nic nenavazuje) —
     // najet na jeho začátek místo řezného přejezdu mezerou.
@@ -512,14 +518,21 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
       finLeadIn(seg, sp.x, sp.z, idx === 0);
     }
     if (seg.type === 'line') {
-      const eX = prms.mode === 'DIAMON' ? (seg.p2.x * 2).toFixed(3) : seg.p2.x.toFixed(3);
-      simCounter += 1; addN(`G1 X${eX} Z${seg.p2.z.toFixed(3)}`, simCounter); setPos(seg.p2.x, seg.p2.z);
+      // Vnitřní roh: posledních / prvních rε sníženým F (finishFeed.js).
+      const fc = finCorners && finCorners[idx];
+      const pieces = fc ? splitLineAtCorners(seg, fc.before, fc.after, Math.max(finTipRf, 0.5)) : [{ ...seg.p2, slow: false }];
+      for (const p of pieces) {
+        const line = `G1 X${xDia(p.x)} Z${p.z.toFixed(3)}`;
+        simCounter += 1;
+        if (p.slow) finFeedW.writeArc(line, finCornerK, simCounter); else addN(line, simCounter);
+        setPos(p.x, p.z);
+      }
     } else {
       simCounter += 10;
       const eXv = seg.cx + Math.sin(seg.endAngle) * seg.r;
       const eZv = seg.cz + Math.cos(seg.endAngle) * seg.r;
       const arcLine = `${flipArc(seg.dir)} X${xDia(eXv)} Z${eZv.toFixed(3)} ${arcR(seg.r)}`;
-      if (finFeedW) finFeedW.writeArc(arcLine, arcFeedFactor(seg), simCounter);
+      if (finFeedW) finFeedW.writeArc(arcLine, prms.arcFeedComp ? arcFeedFactor(seg) : null, simCounter);
       else addN(arcLine, simCounter);
       setPos(eXv, eZv);
     }

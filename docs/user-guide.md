@@ -534,6 +534,14 @@ CAM část ti umožní generovat NC programy pro obrábění.
        50 % F. Skutečné ap: podélně z modelu zbytku (+ přídavek, ať odhad
        nevyjde tenčí), čelně z výšky materiálu nad dnem řezu (model zbytku),
        cik cak každý pohyb zvlášť.
+     - **☑ F dok. dle Ra** [Ra µm] [max F] (Hrub. pod dokončením i Hot.): dokončení
+       jede posuvem z cílové drsnosti, Ra ≈ 1000 · F² / (32 · rε) → F = √(32 · rε ·
+       Ra / 1000) (rε 0,8 + Ra 1,6 → F 0,2; Rz ≈ 4 · Ra). rε = dokončovací nástroj ze
+       zásobníku, jinak nástroj operace. Strop max F (výchozí 2 × nastavené F). Pod
+       polem se ukazuje výsledné F a teoretické Ra i při vypnutém přepínači (kontrola).
+     - **☑ Posuv ve vnitř. rohu (%)** (dokončení): ve vnitřním rohu kontury (osazení,
+       dno zápichu — dráha tam má ostrý zlom) jede posledních rε před rohem a prvních
+       rε za ním tímto % F. Vnitřní zaoblení bez zlomu řeší přepočet na oblouku.
        Rozdíl do ±3 % se ignoruje.
    - **Upichování** – parting/part-off
 3. Nastav parametry:

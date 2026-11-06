@@ -32,6 +32,10 @@ export function _defaultCamParams() {
     // Konstantní tloušťka třísky při hrubování (cam/feedTuning.js chipFeedFactor):
     // F vrstvy × sin κ(ap) / sin κ(ap vrstvy); chipMaxF 0 = strop 2 × F.
     chipThinOn: false, chipMaxF: 0,
+    // Dokončení (cam/finishFeed.js): F z cílového Ra (finRaMaxF 0 = strop 2 × F)
+    // a snížený posuv ve vnitřním rohu kontury (posledních/prvních rε).
+    finRaOn: false, finRa: 1.6, finRaMaxF: 0,
+    feedCornerOn: false, feedPctCorner: 50,
     // Směr hrubování: 'right' = zprava doleva (standard), 'left' = zleva
     // doprava (druhá strana — zprava nelze, narazil by držák/destička).
     // Kombinuje se s roughingStrategy (podélně/čelně).

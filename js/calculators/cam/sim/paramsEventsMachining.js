@@ -36,7 +36,7 @@ export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange
     applyChange();
   });
   // Snížené posuvy (cam/feedTuning.js, ops/zigzagFeed.js): zaškrtávátka.
-  for (const [id, key] of [['#cam-sim-feedplunge', 'feedPlungeOn'], ['#cam-sim-feedwall', 'feedWallOn'], ['#cam-sim-feedwall-auto', 'feedWallAuto'], ['#cam-sim-chipthin', 'chipThinOn']]) {
+  for (const [id, key] of [['#cam-sim-feedplunge', 'feedPlungeOn'], ['#cam-sim-feedwall', 'feedWallOn'], ['#cam-sim-feedwall-auto', 'feedWallAuto'], ['#cam-sim-chipthin', 'chipThinOn'], ['#cam-sim-finra', 'finRaOn'], ['#cam-sim-feedcorner', 'feedCornerOn']]) {
     const cb = tabBody.querySelector(id);
     if (cb) cb.addEventListener('change', () => { S.params[key] = cb.checked; applyChange(); });
   }
