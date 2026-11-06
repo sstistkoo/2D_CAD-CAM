@@ -161,3 +161,15 @@ describe('tloušťka třísky na čelném dílu', () => {
     expect(samePath(off, on)).toEqual([]);
   }, 120000);
 });
+
+describe('celkový strop násobku F', () => {
+  it('tříska 2× + oblouk 3× nedá 6×, ale nejvýš 3×', () => {
+    const tag = { axis: 'x', sign: -1, chipK: 2 };
+    const L = [
+      { text: 'N10 G1 X20 Z10 F0.2', from: { x: 10, z: 20 }, to: { x: 10, z: 10 }, tag },
+      { text: 'N20 G3 X24 Z6 CR=2.000 F0.2', from: { x: 10, z: 10 }, to: { x: 12, z: 6 }, tag, arcK: 3 },
+    ];
+    tuneFeeds(L, { chipThinOn: true, arcFeedComp: true, mode: 'DIAMON' });
+    expect(L.map(l => l.text)).toEqual(['N10 G1 X20 Z10 F0.4', 'N20 G3 X24 Z6 CR=2.000 F0.6']);
+  });
+});

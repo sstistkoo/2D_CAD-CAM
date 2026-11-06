@@ -18,10 +18,12 @@
 // pak F přepočte a hlídá se modální stav: za změněným blokem dostane další
 // řezný blok zpátky původní F. Dráha se nemění.
 
-import { formatFeed } from './arcFeedComp.js';
+import { formatFeed, ARC_FEED_MAX_FACTOR, ARC_FEED_MIN_FACTOR } from './arcFeedComp.js';
 import { getInsert } from './inserts/index.js';
 
 const MOTION = /^(\s*N\d+\s+)?(G0?[123])\b/i;
+// Mez celkového násobku F po složení všech ladění (= mez přepočtu na oblouku).
+export const TOTAL_MAX = ARC_FEED_MAX_FACTOR, TOTAL_MIN = ARC_FEED_MIN_FACTOR;
 const F_WORD = /\bF(\d*\.?\d+)/i;
 
 /**
@@ -213,6 +215,9 @@ export function tuneFeeds(lines, prms) {
       if (kPlunge !== 1 && isPlungeMove(l, 0.01)) k *= kPlunge;
       if (arcs && l.arcK) k *= l.arcK;
     }
+    // Celkový strop: dílčí stropy (tříska 2×, oblouk 3×, zanoření…) se násobí —
+    // bez něj by oblouk v tenké vrstvě dal až 6× F (nález kontroly 6. 11. 2026).
+    if (k !== 1) k = Math.min(TOTAL_MAX, Math.max(TOTAL_MIN, k));
     const f = parseFloat(formatFeed(modal * k));
     if (f !== written || (fm && f !== modal)) l.text = withFeed(t, formatFeed(f));
     written = f;
