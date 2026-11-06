@@ -93,6 +93,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Cik cak: jízda po stěně bez schodů** (karusel i soustruh, díly uživatele 6. 11.): „Hrub. bez schodků"
+  na šikmé stěně schodkovala — u každé vrstvy 5 mm vodorovně (karusel N1820 X598.001), pod tím klín.
+  Mez proti sjetí do neobrobeného V brala výšku vrstvy nad místem; teď smí o vrstvu níž, stěna jede jedním
+  blokem / plynule po oblouku. 0 kolizí, ostatní strategie beze změny (otisk shodný).
+
 - **Karusel u osy: zajetí do rohu dílu a výjezd za osu** (`cam/xzSwap.js` `openAtAxis`): uzavřená kontura
   s hranou po ose se pro výpočet otevře na ose — offset měl v bodě, kde kontura začíná i končí, díru, do které
   vjela vrstva pod rohem (X69 Z189), a „čelo" na ose se objíždělo výjezdem pod 45° za osu do dílu

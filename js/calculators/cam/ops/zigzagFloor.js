@@ -218,9 +218,18 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
   // Nejnižší vrstva cik caku nad místem z — níž jízda po stěně nesmí (kapsa,
   // kterou vrstvy nevybraly, např. zářez V vedle hluboké kapsy: karusel ap 4,8,
   // Ú2 N1960 sjel po stěně do neobrobeného V — 5 kolizí držáku).
+  // Pod vrstvou smí nanejvýš na výšku vrstvy pod ní (schod mezi nimi je právě
+  // to, co jízda po stěně bere) — mez na výšce samotné vrstvy dělala na šikmé
+  // stěně schody po ap (6. 11.: karusel N1830, soustruh Ú3 „zahlazování dělá
+  // bordel").
   const coverMin = (z) => {
     let m = Infinity;
-    for (const L of layers) if (z >= Math.min(L.a, L.b) - 0.5 && z <= Math.max(L.a, L.b) + 0.5 && L.X < m) m = L.follow ? -Infinity : L.X;
+    layers.forEach((L, k) => {
+      if (!(z >= Math.min(L.a, L.b) - 0.5 && z <= Math.max(L.a, L.b) + 0.5)) return;
+      const below = layers[k + 1];
+      const v = L.follow || (below && below.follow) ? -Infinity : below ? below.X : L.X;
+      if (v < m) m = v;
+    });
     return m === Infinity ? -Infinity : m;
   };
   const wallPass = (side) => {
