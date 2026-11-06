@@ -24,7 +24,7 @@ import { holderWorldLoop } from '../collisionValidator.js';
 import { insertExtent } from '../materialRemoval.js';
 import { offsetSilhouetteLoop, makeFinishTipGuard } from '../toolEnvelope.js';
 import { mirrorsWorldZ } from '../calculatePipeline.js';
-import { makeArcFeedWriter, arcFeedFactor } from '../arcFeedComp.js';
+import { makeArcFeedWriter, arcFeedFactor, ARC_FEED_MAX_FACTOR } from '../arcFeedComp.js';
 import { finishFeedFromRa, cornerFeedFactor, innerCornerFlags, splitLineAtCorners } from '../finishFeed.js';
 
 /**
@@ -160,7 +160,10 @@ const finTipRf = parseFloat(finSlotData ? finSlotData.radius : prms.toolRadius) 
 // Snížené F oblouků (arcFeedComp.js) a vnitřních rohů (finishFeed.js): blok
 // dostane přepočtené F a další řezný blok se vrátí na finFeed.
 const finCornerK = cornerFeedFactor(prms);
-const finFeedW = (prms.arcFeedComp || finCornerK) ? makeArcFeedWriter(addNRaw, finFeed) : null;
+// Strop = 3 × NASTAVENÉ F dokončení (před Ra) — stejně jako u hrubování (feedTuning TOTAL_MAX).
+const finFeedSet = parseFloat(finSlotData ? finSlotData.f : prms.feed) || 0;
+const finFeedW = (prms.arcFeedComp || finCornerK)
+  ? makeArcFeedWriter(addNRaw, finFeed, finFeedSet > 0 ? ARC_FEED_MAX_FACTOR * finFeedSet : Infinity) : null;
 const addN = finFeedW ? finFeedW.write : addNRaw;
 if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   addCmt('--- DOKONCOVANI ---');

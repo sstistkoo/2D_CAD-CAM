@@ -74,3 +74,24 @@ describe('na dílu part-1', () => {
     expect(on.gcode.slice(0, on.gcode.indexOf('DOKONCOVANI'))).toBe(off.gcode.slice(0, off.gcode.indexOf('DOKONCOVANI')));
   }, 120000);
 });
+
+describe('strop F dokončení a nikdy F0', () => {
+  it('Ra (2×) × oblouk (3×) nepřekročí 3 × nastavené F', async () => {
+    const { makeArcFeedWriter, formatFeed } = await import('../js/calculators/cam/arcFeedComp.js');
+    const out = [];
+    const w = makeArcFeedWriter((l) => out.push(l), 0.48, 0.72);   // F z Ra 0,48, nastavené 0,24
+    w.writeArc('G3 X10 Z0 CR=1.000', 3);
+    expect(out[0]).toBe('G3 X10 Z0 CR=1.000 F0.72');
+    expect(formatFeed(0.0004)).toBe('0.001');
+    expect(formatFeed(0)).toBe('0.001');
+  });
+  it('round-r10-face-small-fillet: všechno zapnuto → dokončení nejvýš 3 × F', async () => {
+    const prog = JSON.parse(readFileSync(new URL('./fixtures/cam-cases/round-r10-face-small-fillet.camprog', import.meta.url), 'utf8'));
+    const ALL = { arcFeedComp: true, finRaOn: true, finRa: 1.6, feedCornerOn: true };
+    const g = (await runCamProg({ ...prog, params: { ...prog.params, ...ALL } })).gcode;
+    const fin = g.slice(g.indexOf('DOKONCOVANI')).replace(/[;(][^\n]*/g, '');
+    const fs = [...fin.matchAll(/\bF([\d.]+)/g)].map(m => parseFloat(m[1]));
+    expect(Math.max(...fs)).toBeLessThanOrEqual(3 * parseFloat(prog.params.feed) + 1e-9);
+    expect(Math.min(...fs)).toBeGreaterThan(0);
+  }, 120000);
+});

@@ -50,7 +50,9 @@ export function arcFeedFactor(seg, tipR = 0) {
 
 /** Posuv pro zápis do bloku (3 desetinná místa, bez koncových nul). */
 export function formatFeed(f) {
-  return String(parseFloat((parseFloat(f) || 0).toFixed(3)));
+  // Nikdy F0: zaokrouhlení velmi malého posuvu (5 % z 0,01…) by dalo „F0“ → alarm řízení.
+  const v = Math.max(parseFloat((parseFloat(f) || 0).toFixed(3)), 0.001);
+  return String(v);
 }
 
 /**
@@ -59,7 +61,7 @@ export function formatFeed(f) {
  * @param {(line:string, ...rest:any[]) => any} addN původní zápis bloku
  * @param {number|string} baseFeed základní posuv operace
  */
-export function makeArcFeedWriter(addN, baseFeed) {
+export function makeArcFeedWriter(addN, baseFeed, maxFeed = Infinity) {
   let dirty = false;
   const base = formatFeed(baseFeed);
   const withF = (line, f) => line.replace(/^(\s*G0?[123]\b[^;(]*?)(\s*[;(].*)?$/i, (m, cmd, rest) => `${cmd} F${f}${rest || ''}`);
@@ -73,7 +75,8 @@ export function makeArcFeedWriter(addN, baseFeed) {
   /** Zapíše oblouk s přepočteným F (k = arcFeedFactor). */
   const writeArc = (line, k, ...rest) => {
     if (!k) return write(line, ...rest);
-    const r = addN(withF(line, formatFeed((parseFloat(baseFeed) || 0) * k)), ...rest);
+    // Strop maxFeed: F z Ra (až 2×) × oblouk (až 3×) by jinak dalo 6× nastaveného F.
+    const r = addN(withF(line, formatFeed(Math.min(maxFeed, (parseFloat(baseFeed) || 0) * k))), ...rest);
     dirty = true;
     return r;
   };
