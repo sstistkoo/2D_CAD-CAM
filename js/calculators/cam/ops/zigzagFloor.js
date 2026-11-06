@@ -74,9 +74,34 @@ export function floorZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinity
     const P = layers[k - 1], L = layers[k];
     if (P.b !== null && L.b !== null && (L.b < P.a + 1 || L.a > P.b - 1)) { layers.length = k; grp.length = k; break; }
   }
+  // Pod předchozí vrstvou zůstává kapsa i VEDLE užší další vrstvy (karusel
+  // Od středu 6. 11. 2026, Ú2 N2800: po dně Z68,2 šel cik cak do zářezu V
+  // a hluboká kapsa X309–447 vedle něj vzala jízda po stěně jedním tahem
+  // 17 mm) — cik cak končí na předchozí vrstvě, kapsy pod ní vezme
+  // pocketsBelowZigzag (napřed pravá, pak levá).
+  // Utne se u NEJHLUBŠÍ takové vrstvy (karusel díl (9): vedle Z68,2 leží zářez V,
+  // vedle zářezu hluboká kapsa — cik cak má dojet na Z68,2).
+  // Kapsu, kterou berou jiné vrstvy (mimo tento řetěz), nepočítat — tu vezmou ony.
+  const inGrp = new Set(grp.map((j) => passes[j]));
+  const others = passes.filter((q) => q && q.type === 'long' && Number.isFinite(q.x) && !inGrp.has(q));
+  for (let k = layers.length - 1; k >= 1; k--) {
+    const P = layers[k - 1], L = layers[k];
+    if (P.b !== null && L.b !== null && sidePocket(W, P, L, others, 2 * step)) { layers.length = k; grp.length = k; break; }
+  }
   if (grp.length < 2) return 0;
   if (layers.some((L) => L.b === null || L.b - L.a < 1)) return 0;
   return zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSteps, W });
+}
+
+/** Vedle rozpětí další vrstvy L (pod P) klesá offset pod L — samostatná kapsa (aspoň `minRun`, kraje šikmých stěn ne)? */
+function sidePocket(W, P, L, others = [], minRun = 2) {
+  let run = 0;
+  for (let z = P.a; z <= P.b; z += 0.25) {
+    if (z > L.a - 1 && z < L.b + 1) { run = 0; continue; }
+    const own = others.some((q) => q.x < P.X - 0.3 && z >= Math.min(q.zStart, q.zEnd) - 0.5 && z <= Math.max(q.zStart, q.zEnd) + 0.5);
+    if (!own && W.fR(z) < L.X - 1) { run += 0.25; if (run >= minRun) return true; } else run = 0;
+  }
+  return false;
 }
 
 /**

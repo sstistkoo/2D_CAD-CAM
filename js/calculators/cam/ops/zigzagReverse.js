@@ -195,7 +195,11 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
         }
         return { pts, back: null, end: zz };
       };
-      const lim0 = lz + 4 * noseR + 4 * step;
+      // Pod obrácenou vrstvou o ap výš, která dojela dál (ke stěně), jede
+      // jízda po dně až pod její konec — nad dnem je volno (karusel Od středu,
+      // 6. 11. 2026, Ú3 N3790: vrstva po dně skončila v půlce na X763,8).
+      const upperEnd = Math.max(-Infinity, ...done.filter((d) => Math.abs(d.x - (X + step)) < 0.6 * step && d.z1 > lz).map((d) => d.z1));
+      const lim0 = Math.max(lz + 4 * noseR + 4 * step, upperEnd);
       const lim = Math.min(zBeyond !== null && beyondOk(X, lz, Math.min(zBeyond, lim0)) ? zBeyond + 1 : zHi, lim0);
       let w = walk(lz, lim, same.filter((q) => !isTarget(q)).map(span));
       // Napojení na zbytek vrstvy JEN když vrstva sjede zpět na X v obvyklé

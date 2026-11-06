@@ -530,6 +530,12 @@ stěně vyjede o vrstvu nahoru.**
   patří do téhož cik caku od stěny ke stěně (dřív jela jen k jedné stěně
   a u čela 15–14 zůstala kapsa neobrobená, N1520).
   `tests/cam-carousel-center-range.test.js`.
+  Cik cak spodku končí na vrstvě, vedle jejíž užší další vrstvy zůstává
+  samostatná kapsa, kterou žádný jiný průchod nebere (karusel 6. 11. 2026,
+  Ú2 N2800: po dně Z68,2 šel do zářezu V a hlubokou kapsu X309–447 vzala
+  jízda po stěně jedním tahem 17 mm) — kapsy pod ní pak po ap, napřed pravá.
+  Obrácená vrstva jede po dně až pod konec obrácené vrstvy o ap výš (Ú3
+  N3790: dřív skončila v půlce dna). `tests/cam-carousel-center-ap10.test.js`.
   `tests/cam-zigzag-left-walls.test.js`.
 - Pojistka (pravidlo 6): kdyby nad pásmem u stěny klín přesto stál (vrstvy
   nad řetězem ke stěně nedojely), cik cak po dně na té straně končí na čáře
