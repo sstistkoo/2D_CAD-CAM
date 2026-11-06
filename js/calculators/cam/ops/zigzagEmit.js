@@ -55,6 +55,14 @@ export function emitZigzagPass(pass, env, simCounter) {
     simCounter += 1;
     addN(`G1 X${xDia(fx)} Z${fz.toFixed(3)}`, simCounter);
     setPos(fx, fz);
+    // Vrstva cestou vystoupala nad výšku odskoku (po čele dílu): další vrstva
+    // jede rychloposuvem v Z z výšky odskoku — napřed nad nejvyšší bod, jinak
+    // by G0 projel dílem (soustruh zleva R20, 6. 11. 2026: G0 Z457.586 na X208
+    // přes čelo X189, offset X209,2).
+    const top = Math.max(...mv.map((q) => q.x));
+    if (top > fx - 1e-6) {
+      simCounter += 1; addN(`G0 X${xDia(top + rDist)}`, simCounter); setPos(top + rDist, fz);
+    }
     return simCounter;
   }
   if ((pass.floorZigzag || pass.wallClean) && pass.endDir) {

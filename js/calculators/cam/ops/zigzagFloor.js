@@ -232,6 +232,10 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
     });
     return m === Infinity ? -Infinity : m;
   };
+  // Odskok na konci jízdy po stěně jde šikmo od stěny (zigzagEmit.js). V úzkém
+  // zářezu V by tím zajel do protější stěny (soustruh 6. 11. 2026, díl (5)
+  // R20: N3550 G1 X72.121 Z558.512 pod offset pravé stěny) — tam rovně nahoru.
+  const retractDir = (x, z, side) => (fR(z - side * 2.5) > x + 2.5 - 0.3 ? 0 : side);
   const wallPass = (side) => {
     // Horní konec stěny o 0,05 mm pod výškou — viz `bTop` (N4510: jízda po
     // stěně jela nejdřív 6 mm svisle, pak teprve po šikmé stěně).
@@ -240,7 +244,7 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
     // Pod vrstvou po dně leží dno výš než její nejnižší místo — konec na offsetu.
     const xB = Lz.follow ? Math.min(xTop, fR(zB) + 0.03) : Lz.X;
     if (Math.abs(zT - zB) < 0.5 && xTop - xB > 0.5 && fR(zB + side * 0.3) > xTop - 1e-6) {
-      return { type: 'zigzag', moves: [{ g: 'G0', x: xTop, z: zT }, { g: 'G1', x: xB, z: zB }], xSafe: xTop, wallClean: true, endDir: side };
+      return { type: 'zigzag', moves: [{ g: 'G0', x: xTop, z: zT }, { g: 'G1', x: xB, z: zB }], xSafe: xTop, wallClean: true, endDir: retractDir(xB, zB, side) };
     }
     if (side * (zT - zB) < 0.5) return null;
     const pts = [{ g: 'G0', x: xTop, z: zT }];
@@ -257,7 +261,7 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
       }
       pts.push({ g: 'G1', x, z });
     }
-    return { type: 'zigzag', moves: pts, xSafe: xTop, wallClean: true, endDir: side };
+    return { type: 'zigzag', moves: pts, xSafe: xTop, wallClean: true, endDir: retractDir(xB, zB, side) };
   };
   // Jen s „Hrub. bez schodků" (uživatel 2. 11.: „když by bylo zaškrtnuté").
   // Vpravo vrstvy končí na čáře zanoření pod klínem (`underWedge`,

@@ -56,7 +56,8 @@ describe('Cik cak — jízda po stěně bez schodů', () => {
   it('karusel, ap 10: šikmá stěna S10–S11 jedním tahem bez schodů, bez kolize', async () => {
     const [u1, u2] = await sections('carousel-zigzag-wall-steps.camprog');
     for (const r of [u1, u2]) expect(kol(r).filter((e) => e.area > 0.5)).toHaveLength(0);
-    const w = wallPasses(u1);
+    // Stěnu u hranice údolí bere od 6. 11. (díl (5)) Ú2 celou — jízdy po stěně v obou úsecích bez schodů.
+    const w = [...wallPasses(u1), ...wallPasses(u2)];
     expect(w.length).toBeGreaterThan(0);
     for (const p of w) expect(flatRun(p)).toBeLessThan(1);
     // Dřív N1820 G1 X598.001 (5 mm vodorovně ve výšce vrstvy), N1860 …

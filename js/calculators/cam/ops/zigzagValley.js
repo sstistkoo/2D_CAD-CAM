@@ -261,6 +261,21 @@ function covered(passes, X, a, b) {
   });
 }
 
+/** Nejvyšší hloubka průchodu, který kapsu [a, b] pod X bere (`covered`), nebo null. */
+function coverTop(passes, X, a, b) {
+  let top = null;
+  for (const p of passes) {
+    if (!p) continue;
+    if (p.type === 'long' && Number.isFinite(p.x) && p.x < X - 0.3) {
+      const lo = Math.min(p.zStart, p.zEnd), hi = Math.max(p.zStart, p.zEnd);
+      if (Math.min(hi, b) - Math.max(lo, a) > 1 && (top === null || p.x > top)) top = p.x;
+    } else if (p.type === 'zigzag' && !p.wallClean) {
+      for (const m of p.moves) if (m.x < X - 0.3 && m.z > a + 0.5 && m.z < b - 0.5 && (top === null || m.x > top)) top = m.x;
+    }
+  }
+  return top;
+}
+
 /**
  * Kapsy pod hloubkou Xtop v [a0, b0] jako strom uzlů { layers, xTop, kids }:
  * vrstvy, dokud zůstává jedna kapsa; kde se rozdělí, podkapsy zprava doleva.
@@ -270,7 +285,21 @@ function decompose(o, Xtop, a0, b0, depth = 0) {
   const out = [];
   if (depth > 20) return out;
   for (const iv of pocketRuns(W, Xtop - 0.3, a0, b0, zLo)) {
-    if (iv.cut || covered(passes, Xtop, iv.a, iv.b)) continue;
+    if (iv.cut) continue;
+    if (covered(passes, Xtop, iv.a, iv.b)) {
+      // Kapsu bere jiný průchod jen zčásti: pod jeho hloubkou se rozpadne na
+      // podkapsy a ty, které nic nebere, se rozloží samy (soustruh 6. 11. 2026,
+      // díl (3) R10 celý program: levou kapsu braly podélné vrstvy, zářez V
+      // vedle ní pod spodkem cik caku nic — zůstal celý).
+      const xc = coverTop(passes, Xtop, iv.a, iv.b);
+      if (xc !== null && xc < Xtop - 0.6) {
+        for (const s of pocketRuns(W, xc - 0.3, iv.a, iv.b, zLo)) {
+          if (s.cut || s.b - s.a > iv.b - iv.a - 0.5 || covered(passes, xc + 0.31, s.a, s.b)) continue;
+          out.push(...decompose(o, Xtop, s.a, s.b, depth + 1));
+        }
+      }
+      continue;
+    }
     const layers = [];
     let X = Xtop, cur = iv;
     const kids = [];
@@ -316,6 +345,14 @@ function emitNodes(o, nodes) {
       if (!gouges(zz[0].moves, W.fR)) { out.push(...zz); break; }
       layers.pop();
     }
+    // Spodní vrstvy ubrané kvůli rampě pod offset (vrstva na plošině hrbu
+    // končí za stěnou kapsy pod ní): kapsa pod poslední ponechanou vrstvou
+    // jede samostatně od své stěny — jinak zůstala celá (soustruh 6. 11. 2026,
+    // díl (3) R15 zleva Ú1: kapsa X309–447 pod X78,2, 2,9 cm²).
+    const kept = layers[layers.length - 1];
+    if (kept && layers.length < n.layers.length && !kept.follow) {
+      out.push(...emitNodes(o, decompose(o, kept.X, kept.a, kept.b).filter((q) => q.layers.length && q.layers[0].b - q.layers[0].a >= 6)));
+    }
     out.push(...emitNodes(o, n.kids));
   }
   return out;
@@ -328,12 +365,18 @@ function emitNodes(o, nodes) {
  * dvěma jízdami po stěnách) se přidá jako další vrstvy TÉHOŽ cik caku.
  * @returns {number} počet vložených průchodů
  */
-export function pocketsBelowZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infinity, noSteps = false, belowLong = false }) {
+export function pocketsBelowZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infinity, noSteps = false, belowLong = false, valleyFloor = null }) {
   if (!Array.isArray(passes) || !raw || !(step > 0) || !(tanA > 0)) return 0;
   const W = wallFinders(raw);
   const o = { W, step, tanA, reach: 4 * step / Math.max(tanA, 0.2) + 2, noSteps, zLo, passes };
   let added = 0;
   const done = new Set();
+  // Úsek nad údolím polotovaru: vlevo od hrbu pod dno údolí nic (pravidlo 1,
+  // `dropBelowValleyFloor`) — kapsy pod spodkem by tam vrstvy vrátily
+  // (soustruh 6. 11. 2026, díl (4) R20: Ú1 jel cik cak mezi stěnou hrbu
+  // a hranicí S7 až na X86, Ú2 pak od hranice doleva — údolí rozdělené na
+  // dva kusy; uživatel: „úsek nemá dělit tu dráhu v polotovaru na dvě části").
+  const hump = Number.isFinite(valleyFloor) && Number.isFinite(zLo) ? valleyHumpZ(W.fR, valleyFloor, zLo) : null;
   for (let i = start; i < passes.length; i++) {
     const zg = passes[i];
     // Pod podélnou vrstvou bez cik caku nad sebou (`belowLong`): karusel
@@ -343,7 +386,16 @@ export function pocketsBelowZigzag({ passes, start = 0, raw, step, tanA, zLo = -
     // bere jiný průchod, se přeskočí (`covered`).
     if (belowLong && zg && zg.type === 'long' && Number.isFinite(zg.x) && !done.has(zg)) {
       done.add(zg);
-      const a = Math.min(zg.zStart, zg.zEnd), b = Math.max(zg.zStart, zg.zEnd);
+      const a = Math.min(zg.zStart, zg.zEnd);
+      let b = Math.max(zg.zStart, zg.zEnd);
+      // Vrstva vjíždí shora zpoza svého začátku (rampa od hranice úseku):
+      // kapsa pod ní sahá až ke stěně tam — zářez V vedle hrbu, ke kterému
+      // vrstva nedosáhla. S velkým plátkem (R20) leží jeho úzký offset celý
+      // za začátkem vrstvy; dřív ho sjela jízda po stěně jedním tahem (14 mm)
+      // a kousky zprava (soustruh 6. 11. 2026, díl (3), V u bodů 6–7: „má
+      // to jet v celku z jedné strany na druhou").
+      const zR = zg.ramp && Number.isFinite(zg.ramp.z0) ? zg.ramp.z0 : b;
+      if (zR > b + 0.5) b = W.wallRight(zg.x - 0.3, b, zR + o.reach + 50) ?? b;
       if (b - a < 2) continue;
       // Jen kapsa, ve které se vejde odskok (úzká štěrbina ~3 mm, karusel Od
       // středu ap 3,6: odskok šikmo do protější stěny, držák drhl) — užší zůstane jako dřív.
@@ -367,6 +419,7 @@ export function pocketsBelowZigzag({ passes, start = 0, raw, step, tanA, zLo = -
       a = Math.min(...zs); b = Math.max(...zs);
     }
     let nodes = decompose(o, Xb, a, b);
+    if (hump !== null) nodes = nodes.filter((n) => !(n.layers.length && n.layers[0].X < valleyFloor && n.layers[0].b <= hump + 1));
     if (!nodes.length) continue;
     let j = i + 1;
     while (j < passes.length && passes[j] && passes[j].wallClean) j++;
@@ -396,11 +449,16 @@ export function pocketsBelowZigzag({ passes, start = 0, raw, step, tanA, zLo = -
  * dolů"). Hrb = první místo od hranice, kde offset vystoupí nad tu výšku.
  * @returns {number} počet odebraných průchodů
  */
+/** Hrb u dolní hranice úseku nad údolím: první z od zLo, kde offset dosáhne dna údolí. */
+function valleyHumpZ(fR, floor, zLo) {
+  for (let z = zLo; z <= zLo + 5000; z += DS) if (fR(z) >= floor) return z;
+  return null;
+}
+
 export function dropBelowValleyFloor({ passes, start = 0, raw, floor, zLo }) {
   if (!Array.isArray(passes) || !raw || !Number.isFinite(floor) || !Number.isFinite(zLo)) return 0;
   const { fR } = wallFinders(raw);
-  let h = null;
-  for (let z = zLo; z <= zLo + 5000; z += DS) if (fR(z) >= floor) { h = z; break; }
+  const h = valleyHumpZ(fR, floor, zLo);
   if (h === null) return 0;
   const zMax = (p) => {
     const zs = [p.zStart, p.zEnd];

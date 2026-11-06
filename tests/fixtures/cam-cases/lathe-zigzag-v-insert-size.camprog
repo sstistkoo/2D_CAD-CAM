@@ -1,0 +1,505 @@
+{
+  "__camprog": 1,
+  "pathLogicVersion": 3,
+  "savedAt": "2026-11-06T16:14:11.802Z",
+  "params": {
+    "machineType": "LIMS=2000",
+    "mode": "RADIUS",
+    "toolName": "SRDPN úzký",
+    "speed": 180,
+    "feed": 0.12,
+    "depthOfCut": 8,
+    "retractDistance": 2,
+    "rapidFeed": 6000,
+    "retractAngle": 45,
+    "allowanceX": 0,
+    "allowanceZ": 0,
+    "toolRadius": 20,
+    "finishAllowance": 0.2,
+    "doFinishing": false,
+    "roughingStrategy": "zigzag",
+    "finishOnly": false,
+    "arcFeedComp": true,
+    "feedPlungeOn": false,
+    "feedPctPlunge": 100,
+    "feedWallOn": true,
+    "feedPctWall": 50,
+    "feedWallAuto": true,
+    "chipThinOn": false,
+    "chipMaxF": 0,
+    "finRaOn": false,
+    "finRa": 1.6,
+    "finRaMaxF": 0,
+    "feedCornerOn": false,
+    "feedPctCorner": 50,
+    "roughingSide": "right",
+    "stockMode": "casting",
+    "stockMargin": 5,
+    "stockDiameter": 388,
+    "stockLength": 5,
+    "stockFace": 848,
+    "safeX": 500,
+    "safeZ": 500,
+    "machineStructure": "lathe",
+    "controlSystem": "sinumerik",
+    "autoProfile": true,
+    "carouselAlongX": true,
+    "toolShape": "round",
+    "toolLength": 10,
+    "toolAngle": 0,
+    "toolTipAngle": 90,
+    "toolTipMirror": false,
+    "toolVbdCode": "RPMT10T3MO",
+    "toolClearanceAngle": 11,
+    "holderWidth": 9,
+    "holderLength": 150,
+    "holderHand": "R",
+    "holderProfile": {
+      "sideA": [
+        {
+          "x": 19.5,
+          "z": 7.053
+        },
+        {
+          "x": 19.5,
+          "z": 150
+        },
+        {
+          "x": -19.5,
+          "z": 150
+        },
+        {
+          "x": -19.5,
+          "z": 7.053
+        },
+        {
+          "x": -16.47,
+          "z": 12.599
+        },
+        {
+          "x": -11.911,
+          "z": 16.974
+        },
+        {
+          "x": -6.245,
+          "z": 19.773
+        },
+        {
+          "x": 0,
+          "z": 20.736
+        },
+        {
+          "x": 6.245,
+          "z": 19.773
+        },
+        {
+          "x": 11.911,
+          "z": 16.974
+        },
+        {
+          "x": 16.47,
+          "z": 12.599
+        },
+        {
+          "x": 19.5,
+          "z": 7.053
+        }
+      ],
+      "sideB": []
+    },
+    "knifeAngle": 270,
+    "holderInflate": 0,
+    "holderInflateAll": false,
+    "toolTipFlat": 0.1,
+    "partOffZ": null,
+    "partingApproachFeed": 1,
+    "partOffSmooth": false,
+    "partOffStartX": 64.55,
+    "partOffInner": false,
+    "grooveWidth": 0,
+    "grooveBottomX": 0,
+    "grooveHoleD": 0,
+    "grooveChamfer": 0,
+    "partOffFace": false,
+    "faceGrooveD1": 0,
+    "faceGrooveD2": 0,
+    "faceGrooveDepth": 0,
+    "finishingSlot": null,
+    "threadActive": false,
+    "threadName": "",
+    "threadType": "mc",
+    "threadDiameter": 20,
+    "threadPitch": 2.5,
+    "threadAngle": 60,
+    "threadDepth": 1.534,
+    "threadExternal": true,
+    "threadZStart": 0,
+    "threadZEnd": -20,
+    "threadRunIn": 3,
+    "threadRunOut": 0,
+    "threadPasses": 0,
+    "threadSpringPasses": 1,
+    "threadTaperRatio": 0,
+    "threadInfeed": "radial",
+    "drillActive": false,
+    "drillZStart": null,
+    "drillDepth": 20,
+    "drillZEnd": null,
+    "drillDepthFullDia": false,
+    "drillClearance": 2,
+    "drillPeck": 5,
+    "drillChipMode": "clear",
+    "drillRetract": 1,
+    "drillDwell": 0,
+    "boreActive": false,
+    "borePreDrill": false,
+    "borePreDrillSlot": null,
+    "borePreTip": 0,
+    "boreSource": "cylinder",
+    "boreFinish": false,
+    "boreZStart": 0,
+    "boreDiameter": 30,
+    "boreDepth": 20,
+    "borePreDiameter": 20,
+    "borePreDepth": 25,
+    "entryAngle": 45,
+    "entryAngleAuto": true,
+    "respectInsertGeometry": true,
+    "plungeRoughing": true,
+    "pocketFinishAtOnce": true,
+    "noStepRoughing": true,
+    "noStepRoughingFace": true,
+    "orderAwareHolder": true,
+    "rapidClearance": 1,
+    "rapidFeedGap": 1,
+    "stockClearX": null,
+    "stockClearZ": null,
+    "holderAutoComplete": true,
+    "regionRoughing": true,
+    "booleanRoughing": false,
+    "liveOps": [
+      {
+        "id": "Lmvtwajgq8991",
+        "name": "Vrtání 1",
+        "kind": "drill",
+        "side": "face",
+        "pattern": "pcd",
+        "pcd": 70,
+        "count": 4,
+        "startAngle": 0,
+        "points": "0; 30",
+        "zTop": 282.095,
+        "faceDir": 1,
+        "xTop": 100.16,
+        "zPos": 336.371,
+        "holeD": 8,
+        "depth": 100,
+        "peck": 5,
+        "chipMode": "clear",
+        "chipBack": 1,
+        "dwell": 0,
+        "safe": 2,
+        "retract": 5,
+        "millType": "pocket",
+        "kz1": 306.371,
+        "kz2": 336.371,
+        "toolD": 8,
+        "stepDown": 2,
+        "slot": {
+          "x1": -15,
+          "y1": 0,
+          "x2": 15,
+          "y2": 0
+        },
+        "slotW": null,
+        "toolName": "Vrtak HSS D8",
+        "toolNo": 15,
+        "rpm": 995,
+        "feed": 119,
+        "enabled": true
+      }
+    ],
+    "live": {
+      "inProgram": true
+    },
+    "liveKind": null,
+    "toolInternal": false
+  },
+  "contourPoints": [
+    {
+      "id": 1793981598812,
+      "type": "G0",
+      "x": 0,
+      "z": 846,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598813,
+      "type": "G1",
+      "x": 39,
+      "z": 842,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598814,
+      "type": "G1",
+      "x": 45,
+      "z": 673,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598815,
+      "type": "G1",
+      "x": 153.994,
+      "z": 654,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598816,
+      "type": "G1",
+      "x": 153.994,
+      "z": 628.279,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598817,
+      "type": "G1",
+      "x": 34,
+      "z": 559,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598818,
+      "type": "G1",
+      "x": 63,
+      "z": 534,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598819,
+      "type": "G1",
+      "x": 63,
+      "z": 447,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598820,
+      "type": "G1",
+      "x": 39,
+      "z": 396,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598821,
+      "type": "G1",
+      "x": 41,
+      "z": 309,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598822,
+      "type": "G1",
+      "x": 132,
+      "z": 288,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598823,
+      "type": "G1",
+      "x": 132,
+      "z": 222,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598824,
+      "type": "G1",
+      "x": 61,
+      "z": 214,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598825,
+      "type": "G1",
+      "x": 61,
+      "z": 112,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598826,
+      "type": "G1",
+      "x": 189,
+      "z": 69,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598827,
+      "type": "G1",
+      "x": 189,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598828,
+      "type": "G1",
+      "x": 0,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981598829,
+      "type": "G1",
+      "x": 0,
+      "z": 846,
+      "r": 0,
+      "mode": "ABS"
+    }
+  ],
+  "stockPoints": [
+    {
+      "id": 1793981698812,
+      "type": "G0",
+      "x": 0,
+      "z": 846,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981698813,
+      "type": "G1",
+      "x": 0,
+      "z": 896,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981698814,
+      "type": "G1",
+      "x": 73,
+      "z": 894,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981698815,
+      "type": "G1",
+      "x": 73,
+      "z": 709,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981698816,
+      "type": "G1",
+      "x": 265,
+      "z": 682,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981698817,
+      "type": "G1",
+      "x": 265,
+      "z": 597,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981698818,
+      "type": "G1",
+      "x": 126,
+      "z": 557,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981698819,
+      "type": "G1",
+      "x": 126,
+      "z": 459,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981698820,
+      "type": "G1",
+      "x": 181,
+      "z": 446,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981698821,
+      "type": "G1",
+      "x": 181,
+      "z": 221,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981698822,
+      "type": "G1",
+      "x": 239,
+      "z": 199,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981698823,
+      "type": "G1",
+      "x": 243,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    },
+    {
+      "id": 1793981698824,
+      "type": "G1",
+      "x": 189,
+      "z": 0,
+      "r": 0,
+      "mode": "ABS"
+    }
+  ],
+  "borePoints": [],
+  "gcodeDirty": false,
+  "activePart": 0,
+  "opContourKey": "G0:0.00,846.00,0.00|G1:39.00,842.00,0.00|G1:45.00,673.00,0.00|G1:153.99,654.00,0.00|G1:153.99,628.28,0.00|G1:34.00,559.00,0.00|G1:63.00,534.00,0.00|G1:63.00,447.00,0.00|G1:39.00,396.00,0.00|G1:41.00,309.00,0.00|G1:132.00,288.00,0.00|G1:132.00,222.00,0.00|G1:61.00,214.00,0.00|G1:61.00,112.00,0.00|G1:189.00,69.00,0.00|G1:189.00,0.00,0.00|G1:0.00,0.00,0.00|G1:0.00,846.00,0.00",
+  "flipX": false,
+  "flipZ": false,
+  "guideLines": [],
+  "zLimits": {
+    "chuck": -47.13,
+    "tail": 958.97,
+    "chuckActive": true,
+    "tailActive": true,
+    "rangeStart": 13.64,
+    "rangeEnd": 54.57,
+    "rangeActive": false
+  },
+  "showZLimits": "on",
+  "xLimits": {
+    "rangeXMin": null,
+    "rangeXMax": null,
+    "active": false
+  },
+  "showSimPath": "all",
+  "showRemoval": true,
+  "showRefGuides": false
+}

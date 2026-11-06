@@ -66,6 +66,11 @@ export function zigzagBeyondStart({ passes, start = 0, raw, stock, noseR = 0, st
     if (p.type === 'long' && Number.isFinite(p.x) && zMaxLong(p) > zHi + 1) x = p.x + step;
     else if (p.type === 'zigzag' && Array.isArray(p.moves)) {
       for (const m of p.moves) if (m.z > zHi + 1 && m.z < zB + 1) x = Math.max(x, m.x);
+      // Vstup cik caku (G0) nad stěnou za koncem pásu: cik cak čeká volno pod
+      // ním a bere vše odtud dolů (soustruh 6. 11. 2026, díl (6) R20: G0 X152
+      // Z603.8 těsně za pásem — kapsa jela vrstvu X144 podruhé, N2060).
+      const m0 = p.moves[0];
+      if (m0 && m0.g === 'G0' && m0.z > zHi + 1 && m0.z < zB + 2 * step + 1) x = Math.max(x, m0.x);
     }
     // Průchod začínající nad vrchem materiálu bere celý pás (soustruh zleva,
     // díl (10), Ú2: spodek údolí od X135 byl vynechán a kapsa za hranicí

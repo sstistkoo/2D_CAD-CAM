@@ -556,6 +556,14 @@ stěně vyjede o vrstvu nahoru.**
   polotovar nad vrstvou, který nevzal žádný průchod cik cak (nejvýš o ap výš)
   — vzduch kapsy odlitku ani pás po obrácených vrstvách klín není (soustruh
   6. 11. 2026, celý program: kapsa S15–S18 jinak skončila na čáře zanoření, 8 mm).
+  Kapsy pod spodkem se berou i pod podélnou vrstvou a až ke stěně za jejím
+  začátkem, když vrstva vjíždí shora odtamtud (zářez V přes hranici úseku jedním
+  cik cakem od stěny ke stěně); kapsa, kterou jiný průchod bere jen zčásti, se
+  rozloží na podkapsy. Platí pro každou velikost destičky —
+  `tests/cam-zigzag-insert-size.test.js` (R10–R20, obě strany).
+  Úsek nad údolím polotovaru (hranice na údolí) vlevo od hrbu pod dno údolí
+  nejede ani kapsami pod spodkem cik caku — údolí pod hranicí jede další úsek
+  celé, jedním cik cakem od stěny hrbu (za hranicí) k protější stěně.
   V úseku, který končí uvnitř takového údolí (hranice na údolí polotovaru),
   jede cik cak mezi stěnou hrbu a hranicí úseku (za hranici nic).
 - **Kapsy pod spodkem** (uživatel 4. 11. 2026: „dodělal napřed pravou … zářez

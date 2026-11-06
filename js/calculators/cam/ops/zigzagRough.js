@@ -37,8 +37,13 @@ export function genZigzagPasses(ctx, op) {
   // Na tyči ne — tam platí Podélně beze změny (pravidlo 20).
   if (getInsert(prms).zigzagPockets && prms.stockMode !== 'cylinder') dropUnderOffset({ passes, start, raw: ctx.offsetPathNoGuide || offsetPath });
   // Úsek nad údolím polotovaru: u dolní hranice (vlevo od prvního hrbu) ne pod dno údolí.
-  if (Number.isFinite(ctx.valleyFloor) && ctx.machiningRange && Number.isFinite(ctx.machiningRange.zLo)) {
-    dropBelowValleyFloor({ passes, start, raw: ctx.offsetPathNoGuide || offsetPath, floor: ctx.valleyFloor, zLo: ctx.machiningRange.zLo });
+  // Dno údolí je výška polotovaru (plán úseků); vrstvy jedou středem nosu —
+  // spodek nosu na dně = dno + R (soustruh 6. 11. 2026, díl (5) R20: s R5
+  // rozdíl nevadil, s R20 jel Ú1 vrstvy X142/X134 ke hranici S7 — údolí
+  // rozdělené na dva kusy, N2050 Z556.262).
+  const valleyFloorC = Number.isFinite(ctx.valleyFloor) ? ctx.valleyFloor + (parseFloat(prms.toolRadius) || 0) : null;
+  if (valleyFloorC !== null && ctx.machiningRange && Number.isFinite(ctx.machiningRange.zLo)) {
+    dropBelowValleyFloor({ passes, start, raw: ctx.offsetPathNoGuide || offsetPath, floor: valleyFloorC, zLo: ctx.machiningRange.zLo });
   }
   if (!getInsert(prms).zigzagPockets) return;
   if (!holderNarrowerThanInsert(prms)) {
@@ -88,7 +93,7 @@ export function genZigzagPasses(ctx, op) {
   valleyZigzag({ ...vo, stock: stockPathSegments, noseR: parseFloat(prms.toolRadius) || 0 });
   // Kapsy pod spodkem (zářez do V, nižší dno): napřed pravá, pak levá.
   // Pod podélnou vrstvou jen mimo úsek nad údolím (tam pod dnem údolí nic — dropBelowValleyFloor).
-  pocketsBelowZigzag({ ...vo, belowLong: !Number.isFinite(ctx.valleyFloor) });
+  pocketsBelowZigzag({ ...vo, belowLong: valleyFloorC === null, valleyFloor: valleyFloorC });
   // Materiál za začátkem úseku (kapsa za hranicí, kterou předchozí úsek
   // nebere): cik cak shora až ke stěně (ops/zigzagBeyondStart.js).
   // Jen když se před úsekem obráběl jiný úsek — v Ú1 je za začátkem konec

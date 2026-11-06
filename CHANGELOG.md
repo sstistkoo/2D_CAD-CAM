@@ -106,6 +106,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Cik cak pro každou velikost destičky** (`zigzagValley.js`, `zigzagEmit.js`, díl uživatele 6. 11. (3), soustruh ap 8):
+  s R5 dráhy v pořádku, s R20 ne („má to jet v celku z jedné strany na druhou"). Opraveno:
+  - kapsa pod podélnou vrstvou sahá až ke stěně za jejím začátkem, když vrstva vjíždí rampou odtamtud — zářez V
+    přes hranici úseku jede jedním cik cakem od stěny ke stěně (dřív jízda po stěně jedním tahem 14 mm a kousky zprava);
+  - kapsa, kterou jiný průchod bere jen zčásti, se rozloží na podkapsy (celý program R5–R15: zářez V pod spodkem
+    cik caku zůstal celý; zbytek R10 1208 → 676 mm²);
+  - spodní vrstvy ubrané kvůli rampě pod offset se vezmou samostatnou kapsou (R15 zleva po úsecích: kapsa X309–447,
+    zbytek 2884 → 340 mm²);
+  - navazující obrácená vrstva nejede rychloposuvem přes čelo, když předchozí cestou vystoupala nad odskok (R20 zleva).
+  - úsek nad údolím polotovaru nejede vlevo od hrbu pod dno údolí ani kapsami pod spodkem cik caku — údolí pod
+    hranicí S7 vezme další úsek celé jedním cik cakem od stěny hrbu k levé stěně (díl (4) R20: dřív Ú1 cik cak mezi
+    hrbem a hranicí až na X86 a Ú2 vrstvy od hranice doleva — údolí rozdělené na dva kusy).
+  - dno údolí z plánu úseků je výška polotovaru, vrstvy jedou středem nosu — mez je dno + R (s R5 rozdíl nevadil,
+    s R20 jel Ú1 ještě vrstvy X142/X134 k hranici, díl (5) N2050 Z556.262);
+  - jízda po stěně v úzkém zářezu V odskočí rovně nahoru, ne šikmo do protější stěny (díl (5) N3550 G1 X72.121 Z558.512).
+  - kapsa za začátkem úseku nejede vrstvu podruhé, když ji cik cak se vstupem nad stěnou už bere (díl (6) N2060 X144).
+  0 kolizí R5–R20 z obou stran, otisk 32 fixtur shodný.
+
 - **Cik cak: kapsa pod podélnou vrstvou** (`zigzagValley.js` `pocketsBelowZigzag` `belowLong`, karusel zprava,
   díl uživatele 6. 11.): v Ú2 jely vrstvy od hranice úseku rovně ke stěně (bez rampy, cik cak nevznikl) a kapsu
   pod poslední z nich (údolí X309–447 pod Z79, klín 18 mm) nebralo nic — kapsy pod spodkem se braly jen pod cik
