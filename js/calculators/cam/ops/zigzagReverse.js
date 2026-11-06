@@ -227,6 +227,34 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
     return mergeCollinear(moves);
   };
   const done = [];
+  // Je nad vrstvou X v pásu (z0, z1) ubráno? Polotovar nejvýš o ap nad ní,
+  // nebo tam jela vrstva nejvýš 1,6 ap výš (podélná, cik cak nebo obrácená).
+  const clearedAbove = (X, z0, z1) => {
+    const above = (q) => {
+      if (!q) return null;
+      if (q.type === 'long' && Number.isFinite(q.x)) return q.x > X + 0.3 && q.x <= X + 1.6 * step ? [[Math.min(q.zStart, q.zEnd), Math.max(q.zStart, q.zEnd)]] : null;
+      if (q.type === 'zigzag' && Array.isArray(q.moves)) {
+        const r = [];
+        for (let k = 1; k < q.moves.length; k++) {
+          const a = q.moves[k - 1], b = q.moves[k];
+          if (b.g !== 'G1' || Math.abs(a.x - b.x) > 1e-6) continue;
+          if (b.x > X + 0.3 && b.x <= X + 1.6 * step) r.push([Math.min(a.z, b.z), Math.max(a.z, b.z)]);
+        }
+        return r.length ? r : null;
+      }
+      return null;
+    };
+    const spans = passes.map(above).filter(Boolean).flat();
+    for (const d of done) if (d.x > X + 0.3 && d.x <= X + 1.6 * step) spans.push([Math.min(d.z0, d.z1), Math.max(d.z0, d.z1)]);
+    for (let z = z0; z <= z1; z += 0.5) {
+      const t = maxXAt(stock, z);
+      if (t === null || t + noseR <= X + step + 0.5) continue;
+      if (!spans.some(([a, b]) => z >= a - 0.3 && z <= b + 0.3)) return false;
+    }
+    return true;
+  };
+  // Obrácení vrstev; `allowFar` = i se stěnou dál než 2R + ap (druhý průchod po doplnění).
+  const reverseLayers = (allowFar) => {
   for (let i = start; i < passes.length; i++) {
     const p = passes[i];
     if (!p || p.type !== 'long' || !Number.isFinite(p.x) || !(p.zStart > p.zEnd + 0.5)) continue;
@@ -266,7 +294,15 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
     // Pod obrácenou vrstvou o ap výš i od její stěny (řetěz ramp ujíždí o ap/tan za vrstvu).
     const upper = done.filter((d) => Math.abs(d.x - (X + step)) < 0.6 * step).map((d) => d.z1);
     const zS = Math.max(p.zStart, p.ramp && Number.isFinite(p.ramp.z0) ? p.ramp.z0 : -Infinity, ...upper);
-    const zw = wallRight(X, zFree, zS + 2 * noseR + step);
+    let zw = wallRight(X, zFree, zS + 2 * noseR + step);
+    // Stěna dál než 2R + ap od začátku rampy (řetěz ramp ujel od strmé stěny —
+    // karusel celý program 6. 11. 2026, pod S4: vrstvy Z77–Z57 z rampy X723 jen
+    // doprava, klín u stěny 3–4 a vrstva Z47 po dně pod ním: 290 mm² držákem):
+    // obrátí se i tak, ale jen když je nad celou cestou ke stěně ubráno.
+    if (zw === null && allowFar) {
+      const far = wallRight(X, zFree, zS + 2 * noseR + step + 400);
+      if (far !== null && far > zS && clearedAbove(X, zS, far)) zw = far;
+    }
     if (zw === null || zw - zAir < 0.5) continue;
     // Zbytek téže vrstvy za vrškem: nejbližší podélný kus na stejném X vpravo.
     let target = null;
@@ -297,6 +333,8 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
     }
     done.push({ x: X, z0: zAir, z1: zw });
   }
+  };
+  reverseLayers(false);
   // DOPLNĚNÍ AŽ DOLŮ (uživatel 1. 11. 2026: „dráhy po ap z levé strany až
   // dolů k S6"): pod poslední obrácenou vrstvou skupiny podélné hrubování
   // vrstvu často vůbec nemá (ořízla ji čára zanoření). Přidají se další
@@ -332,6 +370,9 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
     }
     if (add.length) passes.splice(i + 1, 0, ...add);
   }
+  // Stěna dál (řetěz ramp od strmé stěny): až teď, kdy vrstvy nad ní u stěny
+  // už existují (doplnění výš), se ověří, že je nad cestou ubráno.
+  reverseLayers(true);
   // SESKUPENÍ: obrácené vrstvy téhož místa za hrbolem jdou ZA SEBOU, shora
   // dolů, na místě poslední z nich — tedy až po pravé straně (pravidlo 7:
   // „pak se přejede přes hrb a dodělá se zbytek"). Mezi nimi jen odskok,

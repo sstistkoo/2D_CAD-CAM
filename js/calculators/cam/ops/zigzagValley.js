@@ -16,7 +16,7 @@
 // zanoření), na konci rampa pod úhlem zanoření o ap níž, další vrstva
 // opačným směrem. Jen strategie Cik cak (ops/zigzagRough.js).
 
-import { wallFinders, zigzagFromLayers, buildZigzag } from './zigzagFloor.js';
+import { wallFinders, zigzagFromLayers, buildZigzag, sidePocket } from './zigzagFloor.js';
 
 const EPS = 0.05;
 
@@ -135,6 +135,15 @@ export function valleyZigzag({ passes, start = 0, raw, step, tanA, zLo = -Infini
       if (a === null || b === null || b - a < 1) break;
       layers.push(underWedge ? { X: p.x, a, b, underWedge } : { X: p.x, a, b });
       used.push(j);
+    }
+    // Vedle užší další vrstvy zůstává kapsa, kterou nic nebere (karusel celý
+    // program 6. 11. 2026: údolí šlo po Z71 do hluboké kapsy a zářez V vedle
+    // vzala jízda po stěně skrz materiál) — cik cak končí na předchozí vrstvě,
+    // kapsy pod ní vezme pocketsBelowZigzag (zigzagFloor.js `sidePocket`).
+    // Kapsa vedle se počítá i s vlastními průchody: ty jedou až po jízdě po
+    // stěně cik caku, která by k nejnižší vrstvě sjela přes ni.
+    for (let k = layers.length - 1; k >= 1; k--) {
+      if (sidePocket(W, layers[k - 1], layers[k], [], 2 * step)) { layers.length = k; used.length = k; break; }
     }
     // Rampa mezi vrstvami nesmí projet pod offset (stupeň dna: další vrstva
     // leží jinde než konec předchozí) — spodní vrstvy se odeberou, zůstanou

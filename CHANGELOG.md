@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   úseku, `afterPrev`) a kapsa 14–13 se jede celá cik cakem (vrstvy s rampou uprostřed mělčí vrstvy patří do řetězu).
   Karusel ap 10 (díl 6. 11.): hluboká kapsa pod dnem údolí po vrstvách místo jednoho tahu 17 mm (Ú2 N2800), spodní
   vrstva Ú3 po dně až k čelu (N3790). Soustruh zleva díl (10): zbytek 48 → 0 mm².
+  Celý program bez úseků (díl 6. 11.): 6 → 0 kolizí (obrácené vrstvy ke vzdálené stěně, kapsa vedle v údolí). Přehled
+  27 dílů × zleva/zprava × 2 ap: kolize 1371 → 1268, žádný díl horší.
 
 - **Cik cak: kapsa za začátkem úseku** (`cam/ops/zigzagBeyondStart.js`, pravidla 1 a 20): materiál, který za
   hranicí na straně začátku ještě stojí (kapsa ohraničená jen hranicí patří dalšímu úseku), jede úsek jako první

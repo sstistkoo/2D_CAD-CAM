@@ -536,6 +536,11 @@ stěně vyjede o vrstvu nahoru.**
   jízda po stěně jedním tahem 17 mm) — kapsy pod ní pak po ap, napřed pravá.
   Obrácená vrstva jede po dně až pod konec obrácené vrstvy o ap výš (Ú3
   N3790: dřív skončila v půlce dna). `tests/cam-carousel-center-ap10.test.js`.
+  Obrácená vrstva smí ke stěně i dál než 2R + ap od začátku rampy (řetěz ramp
+  od strmé stěny ujel), ale jen když je nad celou cestou ke stěně ubráno —
+  vrstva nejvýš 1,6 ap výš tam už jela, nebo polotovar je nejvýš o ap výš
+  (celý program bez úseků, pod S4: dřív 290 mm² držákem). Stejně cik cak
+  v údolí končí na vrstvě, vedle jejíž užší další vrstvy zůstává kapsa.
   `tests/cam-zigzag-left-walls.test.js`.
 - Pojistka (pravidlo 6): kdyby nad pásmem u stěny klín přesto stál (vrstvy
   nad řetězem ke stěně nedojely), cik cak po dně na té straně končí na čáře

@@ -94,7 +94,7 @@ export function floorZigzag({ passes, start = 0, raw, step, tanA, zHi = Infinity
 }
 
 /** Vedle rozpětí další vrstvy L (pod P) klesá offset pod L — samostatná kapsa (aspoň `minRun`, kraje šikmých stěn ne)? */
-function sidePocket(W, P, L, others = [], minRun = 2) {
+export function sidePocket(W, P, L, others = [], minRun = 2) {
   let run = 0;
   for (let z = P.a; z <= P.b; z += 0.25) {
     if (z > L.a - 1 && z < L.b + 1) { run = 0; continue; }
