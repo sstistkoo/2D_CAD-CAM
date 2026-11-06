@@ -199,6 +199,8 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
       <input type="checkbox" id="cam-sim-fin" ${prms.doFinishing ? 'checked' : ''}>
       <span>Dokončovací operace</span>
     </div>`;
+    html += arcFeedCompRow(prms);
+    html += roughFeedRows(prms);
     if (prms.doFinishing && S.toolMagazine.length > 1) {
       const finSlot = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? S.toolMagazine[prms.finishingSlot] : null;
       html += `<div class="cam-sim-row" style="margin-top:6px;align-items:center">
@@ -223,6 +225,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
       <input type="checkbox" id="cam-sim-finonly" ${prms.finishOnly ? 'checked' : ''}>
       <span>Dokončovací operace</span>
     </div>`;
+    html += arcFeedCompRow(prms);
     if (prms.finishOnly && S.toolMagazine.length > 1) {
       const finSlot = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? S.toolMagazine[prms.finishingSlot] : null;
       html += `<div class="cam-sim-row" style="margin-top:6px;align-items:center">
@@ -370,4 +373,45 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
     <button class="cam-sim-btn cam-sim-btn-red" style="width:auto;display:inline-flex" data-act="reset">🔄 Resetovat vše</button>
   </div>`;
   return html;
+}
+
+/** Přepínač „Konstantní posuv na oblouku" (hrubování i dokončování, cam/arcFeedComp.js). */
+function arcFeedCompRow(prms) {
+  return `<div class="cam-sim-checkbox-row" data-tooltip="Dráha jede středem rádiusu destičky rε. Na vypuklém oblouku R jede střed po R + rε, na vydutém po R − rε — posuv v bodě řezu by tak byl menší / větší než F. Zapnuto = F na každém oblouku (hrubování po kontuře i dokončení) se přepočte poměrem poloměr dráhy / poloměr řezu, aby byl posuv v bodě řezu stále F. Další blok se vrátí na F. Mez přepočtu 0,1× … 3×.">
+      <input type="checkbox" id="cam-sim-arcfeed" ${prms.arcFeedComp ? 'checked' : ''}>
+      <span>Konstantní posuv na oblouku (dle rε)</span>
+    </div>`;
+}
+
+/** Zaškrtávátko + pole % (+ volitelně Auto) jednoho sníženého posuvu. */
+function feedPctRow({ id, on, label, key, value, tip, autoId, auto }) {
+  const v = parseFloat(value) > 0 ? parseFloat(value) : 50;
+  return `<div class="cam-sim-row" style="align-items:center;margin-top:2px" data-tooltip="${tip}">
+      <label class="cam-sim-checkbox-item" style="flex:2"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><span>${label}</span></label>
+      <div class="cam-sim-field" style="flex:1"><input type="number" step="5" min="5" max="100" data-p="${key}" value="${v}"${!on || auto ? ' disabled' : ''} title="% posuvu F"></div>
+      ${autoId ? `<label class="cam-sim-checkbox-item" style="flex:1"><input type="checkbox" id="${autoId}" ${auto ? 'checked' : ''}${on ? '' : ' disabled'}><span>Auto</span></label>` : ''}
+    </div>`;
+}
+
+/** Hrub.: posuv při zanoření (všechny strategie) a u čela (jen cik cak). */
+function roughFeedRows(prms) {
+  let h = feedPctRow({
+    id: 'cam-sim-feedplunge', on: !!prms.feedPlungeOn, label: 'Posuv při zanoření (%)', key: 'feedPctPlunge', value: prms.feedPctPlunge,
+    tip: 'Každý řezný pohyb DO HLOUBKY průchodu — rampa, svislý vjezd, sjezd po kontuře do kapsy (podélně, čelně i cik cak) — jede tímto % posuvu F. Další blok se vrátí na F. Dráha se nemění.',
+  });
+  if (prms.toolShape === 'round' || prms.toolShape === 'polygon') {
+    const on = !!prms.chipThinOn, F = parseFloat(prms.feed) || 0;
+    const maxF = parseFloat(prms.chipMaxF) > 0 ? parseFloat(prms.chipMaxF) : Math.round(2 * F * 1000) / 1000;
+    h += `<div class="cam-sim-row" style="align-items:center;margin-top:2px" data-tooltip="Jen hrubování (dokončení jede nastaveným F). Rádiusem destičky R vstupuje ostří do řezu pod úhlem κ: cos κ = 1 − ap/R, tříska je tenčí než posuv: h = F · sin κ. Nastavené F platí pro vrstvu s nastaveným ap; vrstva s jiným skutečným ap dostane F · sin κ(ap) / sin κ(ap vrstvy) — tenká poslední vrstva pojede rychleji, tlustší pomaleji (nejméně 50 % F). Strop = Max. F.">
+      <label class="cam-sim-checkbox-item" style="flex:2"><input type="checkbox" id="cam-sim-chipthin" ${on ? 'checked' : ''}><span>Konst. tloušťka třísky</span></label>
+      <div class="cam-sim-field" style="flex:1"><input type="number" step="0.01" min="0.01" data-p="chipMaxF" value="${maxF}"${on ? '' : ' disabled'} title="Max. F [mm/ot] — strop zrychlení tenkých vrstev"></div>
+      <span style="flex:1;font-size:10px;color:var(--ctp-subtext0,#a6adc8)">max F</span>
+    </div>`;
+  }
+  if (prms.roughingStrategy === 'zigzag') h += feedPctRow({
+    id: 'cam-sim-feedwall', on: !!prms.feedWallOn, label: 'Posuv u čela (%)', key: 'feedPctWall', value: prms.feedPctWall,
+    autoId: 'cam-sim-feedwall-auto', auto: !!prms.feedWallAuto,
+    tip: 'Cik cak: rampa mezi vrstvami se od čela odkloní a pod ní zůstane klín. Vrstva, která k tomu čelu znovu přijede, bere ap + klín. Snížený posuv začne až tam, kde se obrys destičky klínu skutečně dotkne. Auto = % podle hloubky: ap / (ap + přebytek klínu), nejméně 25 %.',
+  });
+  return h;
 }

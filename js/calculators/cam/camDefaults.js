@@ -21,6 +21,17 @@ export function _defaultCamParams() {
     // konturu jediným dokončovacím průchodem (offset = R). Používá se, když
     // hrubování dělá jiný nástroj/operace a tady se dělá pouze načisto.
     finishOnly: false,
+    // Konstantní posuv v bodě řezu na oblouku (arcFeedComp.js): F středu rε
+    // se přepočte poměrem r dráhy / R kontury. Vypnuto = F beze změny.
+    arcFeedComp: false,
+    // Snížené posuvy (zaškrtávátko + % F): při zanoření ve všech hrubovacích
+    // strategiích (cam/feedTuning.js) a u čela s klínem po rampě v cik caku
+    // (ops/zigzagFeed.js, Auto = ap / (ap + přebytek klínu)).
+    feedPlungeOn: false, feedPctPlunge: 50,
+    feedWallOn: false, feedPctWall: 50, feedWallAuto: false,
+    // Konstantní tloušťka třísky při hrubování (cam/feedTuning.js chipFeedFactor):
+    // F vrstvy × sin κ(ap) / sin κ(ap vrstvy); chipMaxF 0 = strop 2 × F.
+    chipThinOn: false, chipMaxF: 0,
     // Směr hrubování: 'right' = zprava doleva (standard), 'left' = zleva
     // doprava (druhá strana — zprava nelze, narazil by držák/destička).
     // Kombinuje se s roughingStrategy (podélně/čelně).

@@ -16,7 +16,7 @@ import { buildStockLoopRaw, insertExtent, offsetStockLoop, toolFootprint, toolFo
 import { getInsert } from './inserts/index.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { roughingKey, mirrorsWorldZ, computeCalculation } from './calculatePipeline.js';
-import { mergeCollinearMoves } from './gcodeCollapse.js';
+import { mergeCollinearMoves } from './gcodeCollapse.js'; import { tuneFeeds, createFeedTrack } from './feedTuning.js';
 import { swapsXZ, emitSwapped } from './xzSwap.js';
 import { ctrlCmt, buildControlHeaderLines, buildControlTailLines,
   controlArcFormatter, renumberGCodeLines, convertGCodeControlSystem } from './controlDialect.js';
@@ -61,8 +61,8 @@ export function generateAutoGCode(S, calc) {
     const merged = emitBorePreDrilled({ S, calc, generateAutoGCode });
     if (merged) return merged;
   }
-  const lines = [];
-  const add = (text, simIdx = null) => lines.push({ text, simIdx });
+  const lines = [], feedTrack = createFeedTrack();   // ladění posuvu (cam/feedTuning.js)
+  const add = (text, simIdx = null) => lines.push(feedTrack.mark({ text, simIdx }));
   const cmt = ctrlCmt(prms.controlSystem);
   const addCmt = (text) => add(cmt(text), null);
   let blockNum = 10;
@@ -806,7 +806,7 @@ export function generateAutoGCode(S, calc) {
     return maxXOnSegsAt(calc.offsetPath || [], z);
   };
   const cur = { x: null, z: null };
-  const setPos = (x, z) => { cur.x = x; cur.z = z; };
+  const setPos = (x, z) => { cur.x = x; cur.z = z; feedTrack.moved(x, z); };
   // Jedna ÚSEČKA dojezdu „bez schodků". Šikmý úsek (mění se X = sledování
   // kontury) jde vždy posuvem. Čistě AXIÁLNÍ úsek (konstantní X = rovné
   // pokračování vrstvy) se rozseká na rychloposuv(vzduch)/posuv(materiál)
@@ -1246,9 +1246,9 @@ export function generateAutoGCode(S, calc) {
     rapidStock, rapidStockPlan, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidCutArea, rapidTopX,
     rapidStopX, rapidStopZ, rapidClrZGc, rapidStopXAt, noseFrontClear,
     holderHitsStock, holderPlanAreaAt,
-    noteCutMove, noteCutArc, noteCutPass,
+    noteCutMove, noteCutArc, noteCutPass, residualTopXAtZ,
     entryAngleDegGc, stepGc, tipRGc, rDist, rDistZ,
-    simCounter, holderShallowBodies,
+    simCounter, holderShallowBodies, feedTrack,
   };
   ({ simCounter, holderShallowBodies } = emitRoughing(_E));
 
@@ -1299,7 +1299,7 @@ export function generateAutoGCode(S, calc) {
   // AŽ ÚPLNĚ NAKONEC: hlášení výš počítají řezné pohyby a některá se vážou
   // na pořadí etap emise — sloučení je post-úprava textu, která na dráze
   // nemění vůbec nic (nájezd + řez + doběh po jedné přímce = jeden blok).
-  const merged = mergeCollinearMoves(lines);
+  const merged = mergeCollinearMoves(tuneFeeds(lines, prms));
   const renumbered = renumberGCodeLines(merged.map(l => l.text), 10, 10);
   return merged.map((l, i) => ({ ...l, text: renumbered[i] }));
 }

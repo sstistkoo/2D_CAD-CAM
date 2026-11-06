@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v752';
+const CACHE_NAME = 'skica-v758';
 const ASSETS = [
   './',
   './index.html',
@@ -22,6 +22,7 @@ const ASSETS = [
   './js/calculators/boltCircleMath.js',
   './js/calculators/calcKit.js',
   './js/calculators/calcLaunchers.js',
+  './js/calculators/cam/arcFeedComp.js',
   './js/calculators/cam/booleanRoughing.js',
   './js/calculators/cam/boreContour.js',
   './js/calculators/cam/boreRealCollision.js',
@@ -38,6 +39,7 @@ const ASSETS = [
   './js/calculators/cam/controlDialect.js',
   './js/calculators/cam/faceTransitGuard.js',
   './js/calculators/cam/feedRates.js',
+  './js/calculators/cam/feedTuning.js',
   './js/calculators/cam/gcodeCollapse.js',
   './js/calculators/cam/gcodeEmit.js',
   './js/calculators/cam/gcodeMerge.js',
@@ -145,6 +147,7 @@ const ASSETS = [
   './js/calculators/cam/ops/thread.js',
   './js/calculators/cam/ops/zigzagBeyondStart.js',
   './js/calculators/cam/ops/zigzagEmit.js',
+  './js/calculators/cam/ops/zigzagFeed.js',
   './js/calculators/cam/ops/zigzagFloor.js',
   './js/calculators/cam/ops/zigzagReverse.js',
   './js/calculators/cam/ops/zigzagRough.js',

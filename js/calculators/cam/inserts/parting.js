@@ -137,6 +137,7 @@ export function partingInsert(prms) {
     holderAxial: false,
     canDrill: false,
     zigzagPockets: false,
+    chipThinning: false,
     canBore: false,
     pointLengthZ: 0,
   };

@@ -21,6 +21,8 @@ import { getInsert } from '../inserts/index.js';
 import { rapidFeedGap } from '../camMath.js';
 import { makeFaceTransitGuard } from '../faceTransitGuard.js';
 import { emitZigzagPass } from './zigzagEmit.js';
+import { arcFeedFactor } from '../arcFeedComp.js';
+import { passDepth, chipThinActive, chipRatio, chipMargin } from '../feedTuning.js';
 
 /**
  * @param E  sdílené emisní prostředí z `generateAutoGCode()`
@@ -35,9 +37,13 @@ export function emitRoughing(E) {
     rapidStock, rapidStockPlan, rapidBlockers, rapidHitsStock, rapidHitsPlan, rapidCutArea, rapidTopX,
     rapidStopX, rapidStopZ, rapidClrZGc, rapidStopXAt, noseFrontClear,
     holderHitsStock, holderPlanAreaAt,
-    noteCutMove, noteCutArc, noteCutPass,
-    entryAngleDegGc, stepGc, tipRGc, rDist, rDistZ,
+    noteCutMove, noteCutArc, noteCutPass, residualTopXAtZ,
+    entryAngleDegGc, stepGc, tipRGc, rDist, rDistZ, feedTrack,
   } = E;
+  // Konstantní posuv na oblouku (cam/feedTuning.js): poměr k dalšímu bloku.
+  const arcFeed = (seg) => { if (feedTrack && prms.arcFeedComp) feedTrack.arcK = arcFeedFactor(seg, tipRGc); };
+  if (feedTrack) feedTrack.cur = cur;   // řádky hrubování si nesou odkud/kam (tag = průchod níž)
+  const chipOn = !!feedTrack && chipThinActive(prms);   // konst. tloušťka třísky (feedTuning.js)
   const insGc = getInsert(prms);
   const isPartingGc = !!insGc.cutsFullWidth;
   let simCounter = E.simCounter;
@@ -219,8 +225,16 @@ calc.passes.forEach((pass, i) => {
   // (zleva doprava, `backside`). Nájezd před řez a odskok po řezu jdou
   // vždy PROTI směru řezu (−zDir), dojezd „do vzduchu" za koncem po směru.
   const zDir = pass.backside ? 1 : -1;
+  // Osa a směr HLOUBKY průchodu pro „Posuv při zanoření“ (cam/feedTuning.js):
+  // podélně / cik cak do hloubky = k ose (−X), čelně = −Z (zleva zrcadlově +Z).
+  if (feedTrack) feedTrack.tag = pass.type === 'face' ? { axis: 'z', sign: pass.faceLeft ? 1 : -1 } : { axis: 'x', sign: -1 };
+  // Konstantní tloušťka třísky: F průchodu podle jeho skutečného ap (cik cak po hladinách v ops/zigzagFeed.js).
+  if (chipOn && pass.type !== 'zigzag') {
+    const ap = passDepth(pass, { topAt: residualTopXAtZ, tipR: tipRGc, step: stepGc, margin: chipMargin(prms), marginZ: chipMargin(prms, 'z') });
+    feedTrack.tag.chipK = chipRatio(prms, ap) || undefined;
+  }
   // Cik cak: hotová řada pohybů, směr se střídá (ops/zigzagEmit.js).
-  if (pass.type === 'zigzag') { simCounter = emitZigzagPass(pass, { addN, xDia, cur, setPos, safeRapidTo, noteCutMove, prms, rDist, rDistZ }, simCounter); return; }
+  if (pass.type === 'zigzag') { simCounter = emitZigzagPass(pass, { addN, xDia, cur, setPos, safeRapidTo, noteCutMove, prms, rDist, rDistZ, residualTopXAtZ }, simCounter); return; }
   if (pass.type === 'long' && (pass.contourLeadIn || pass.ramp || pass.pocketClean)) {
     // Kapsa za bossem kontury: namísto odskoku a rychloposuvu přes
     // vršek polotovaru se kopíruje samotná kontura (G1/G2/G3) až k
@@ -347,7 +361,7 @@ calc.passes.forEach((pass, i) => {
         simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
         noteCutMove(fx, fz, seg.x2, seg.z2);
       } else {
-        simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+        simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
         noteCutArc(seg, fx, fz);
       }
     }
@@ -569,7 +583,7 @@ calc.passes.forEach((pass, i) => {
           emitLeadOutLine(seg);
         } else {
           const fx = cur.x, fz = cur.z;
-          simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+          simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
           noteCutArc(seg, fx, fz);
         }
       }
@@ -783,7 +797,7 @@ calc.passes.forEach((pass, i) => {
           emitLeadOutLine(seg);
         } else {
           const fx = cur.x, fz = cur.z;
-          simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+          simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
           noteCutArc(seg, fx, fz);
         }
       }
@@ -911,7 +925,7 @@ calc.passes.forEach((pass, i) => {
           simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
           noteCutMove(fx, fz, seg.x2, seg.z2);
         } else {
-          simCounter += 1; addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+          simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
           noteCutArc(seg, fx, fz);
         }
       }
@@ -1052,5 +1066,6 @@ calc.passes.forEach((pass, i) => {
 // po předchozí operaci, ruční zásah). Cena je jeden řádek navíc.
 safeRapidTo((parseFloat(prms.safeX) || 0) / (prms.mode === 'DIAMON' ? 2 : 1),
   parseFloat(prms.safeZ) || 0, false, true);
+  if (feedTrack) feedTrack.tag = null;   // dokončování a dál bez ladění zanoření
   return { simCounter, holderShallowBodies };
 }

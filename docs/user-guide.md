@@ -508,7 +508,33 @@ CAM část ti umožní generovat NC programy pro obrábění.
 1. Klikni na **CAM** v Sinumerik rozcestníku
 2. Vyber operaci:
    - **Hrubování** – podélné nebo čelné
-   - **Dokončování** – objezd kontury
+   - **Dokončování** – objezd kontury.
+   - **Ladění posuvu** (Hrub. pod „Dokončovací operace"; dráha se nikdy nemění, jen F):
+     - **Konstantní posuv na oblouku (dle rε)** (i v Hot.): dráha jede středem
+       rádiusu destičky, takže na vypuklém R jede střed po R + rε a na vydutém po
+       R − rε — posuv v bodě řezu by byl menší/větší než F. Zapnuto = F oblouku
+       (hrubování po kontuře i dokončení) se přepočte poměrem poloměr dráhy /
+       poloměr řezu (např. R 6,46, rε 1,2, F 0,25 → `CR=7.660 F0.296`), další blok
+       se vrátí na F. Mez 0,1× … 3×.
+     - **☑ Posuv při zanoření (%)** — každý řezný pohyb do hloubky průchodu (rampa,
+       svislý vjezd, sjezd po kontuře do kapsy) v podélném, čelném i cik cak
+       hrubování jede tímto % F.
+     - **☑ Posuv u čela (%)** (jen Cik cak) — rampa mezi vrstvami se od čela odkloní
+       a pod ní zůstane klín; vrstva, která k tomu čelu znovu přijede, bere ap +
+       klín. Snížený posuv začne až tam, kde se obrys destičky klínu skutečně
+       dotkne (R 20, ap 8, 45°: posledních ~10 mm). **Auto** = F · ap / (ap +
+       přebytek klínu), nejméně 25 %. Je-li ap ≥ R, destička na klín nedosáhne
+       a nic se nesnižuje.
+     - **☑ Konst. tloušťka třísky** [max F] (kulatá a polygonální destička, JEN
+       hrubování — dokončení jede nastaveným F + přepočtem na obloucích): ostří
+       vstupuje rádiusem R pod úhlem κ, cos κ = 1 − ap/R, tříska h = F · sin κ.
+       Nastavené F platí pro vrstvu s nastaveným ap; vrstva se skutečným ap jiným
+       dostane F · sin κ(ap) / sin κ(ap vrstvy). R 20, ap 8, F 0,12: vrstva ap 4 →
+       0,16, ap 1 → strop (výchozí 2 × F = 0,24); tlustší vrstva pomaleji, nejméně
+       50 % F. Skutečné ap: podélně z modelu zbytku (+ přídavek, ať odhad
+       nevyjde tenčí), čelně z výšky materiálu nad dnem řezu (model zbytku),
+       cik cak každý pohyb zvlášť.
+       Rozdíl do ±3 % se ignoruje.
    - **Upichování** – parting/part-off
 3. Nastav parametry:
    - Rychlosti, posuv, otáčky

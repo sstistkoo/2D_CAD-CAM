@@ -7,6 +7,10 @@
 // Příjezd k prvnímu bodu jde přes safeRapidTo (rychloposuv nad zbytkem,
 // poslední kus posuvem), na konci výjezd v X nad okraj kapsy.
 
+import { zigzagWallFeed, zigzagFeedPlan } from './zigzagFeed.js';
+import { formatFeed } from '../arcFeedComp.js';
+import { chipThinActive, chipRatio, chipMargin, moveDepth } from '../feedTuning.js';
+
 /**
  * @param {object} pass  { type:'zigzag', moves:[{g,x,z}], xSafe }
  * @param {object} env   addN, xDia, cur, setPos, safeRapidTo, noteCutMove, prms, rDist, rDistZ
@@ -25,12 +29,21 @@ export function emitZigzagPass(pass, env, simCounter) {
     if (cur.x - mv[0].x > 0.5) { simCounter += 1; addN(`G0 X${xDia(mv[0].x + 0.5)}`, simCounter); setPos(mv[0].x + 0.5, cur.z); }
     simCounter += 1; addN(`G1 X${xDia(mv[0].x)} F${prms.feed}`, simCounter); setPos(mv[0].x, cur.z);
   } else safeRapidTo(mv[0].x, mv[0].z, true);
-  for (let i = 1; i < mv.length; i++) {
-    const m = mv[i], fx = cur.x, fz = cur.z;
+  // Posuv u čela (ops/zigzagFeed.js); zanoření řeší cam/feedTuning.js.
+  const plan = (zigzagWallFeed(prms) || prms.chipThinOn) ? zigzagFeedPlan(mv, prms) : null;
+  const steps = plan || mv.slice(1).map((m) => ({ g: m.g, x: m.x, z: m.z, f: null }));
+  // Tloušťka třísky: ap každého pohybu z modelu zbytku TĚSNĚ před ním — model
+  // je po předchozích pohybech téhož průchodu už aktuální (noteCutMove níž).
+  const chipOpt = env.residualTopXAtZ && chipThinActive(prms)
+    ? { topAt: env.residualTopXAtZ, tipR: parseFloat(prms.toolRadius) || 0, margin: chipMargin(prms) } : null;
+  for (const m of steps) {
+    const fx = cur.x, fz = cur.z;
     const words = (Math.abs(m.x - fx) > 1e-6 ? ` X${xDia(m.x)}` : '') + (Math.abs(m.z - fz) > 1e-6 ? ` Z${m.z.toFixed(3)}` : '');
     if (!words) continue;
     simCounter += 1;
-    addN(m.g === 'G0' ? `G0${words}` : `G1${words} F${prms.feed}`, simCounter);
+    let f = m.f == null ? parseFloat(prms.feed) : m.f;
+    if (chipOpt && m.g !== 'G0') f *= chipRatio(prms, moveDepth(fx, fz, m.x, m.z, chipOpt)) || 1;
+    addN(m.g === 'G0' ? `G0${words}` : `G1${words} F${m.f == null && f === parseFloat(prms.feed) ? prms.feed : formatFeed(f)}`, simCounter);
     setPos(m.x, m.z);
     if (m.g !== 'G0') noteCutMove(fx, fz, m.x, m.z);
   }

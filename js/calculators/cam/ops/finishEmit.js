@@ -24,13 +24,14 @@ import { holderWorldLoop } from '../collisionValidator.js';
 import { insertExtent } from '../materialRemoval.js';
 import { offsetSilhouetteLoop, makeFinishTipGuard } from '../toolEnvelope.js';
 import { mirrorsWorldZ } from '../calculatePipeline.js';
+import { makeArcFeedWriter, arcFeedFactor } from '../arcFeedComp.js';
 
 /**
  * @param E  sdílené emisní prostředí z `generateAutoGCode()`
  */
 export function emitFinish(E) {
   const {
-    S, calc, prms, addCmt, addN, note, arcR, flipArc, xDia, clipZGc,
+    S, calc, prms, addCmt, addN: addNRaw, note, arcR, flipArc, xDia, clipZGc,
     safeRapidTo, setPos, cur, rapidStock, rapidFoot, residualTopXAtZ,
     maxXOnSegsAt, entryRadGc,
   } = E;
@@ -152,6 +153,10 @@ const finSlotIdx = (prms.finishingSlot !== null && prms.finishingSlot !== undefi
 const finSlotData = (finSlotIdx !== null && S.toolMagazine[finSlotIdx]) ? S.toolMagazine[finSlotIdx] : null;
 const finFeed  = finSlotData ? finSlotData.f  : prms.feed;
 const finSpeed = finSlotData ? finSlotData.vc : prms.speed;
+// Konstantní posuv na kontuře (přepínač „F na oblouku dle rε", arcFeedComp.js):
+// oblouky dostanou přepočtené F a další řezný blok se vrátí na finFeed.
+const finFeedW = prms.arcFeedComp ? makeArcFeedWriter(addNRaw, finFeed) : null;
+const addN = finFeedW ? finFeedW.write : addNRaw;
 if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   addCmt('--- DOKONCOVANI ---');
   if (finSlotData) {
@@ -513,7 +518,9 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
       simCounter += 10;
       const eXv = seg.cx + Math.sin(seg.endAngle) * seg.r;
       const eZv = seg.cz + Math.cos(seg.endAngle) * seg.r;
-      addN(`${flipArc(seg.dir)} X${xDia(eXv)} Z${eZv.toFixed(3)} ${arcR(seg.r)}`, simCounter);
+      const arcLine = `${flipArc(seg.dir)} X${xDia(eXv)} Z${eZv.toFixed(3)} ${arcR(seg.r)}`;
+      if (finFeedW) finFeedW.writeArc(arcLine, arcFeedFactor(seg), simCounter);
+      else addN(arcLine, simCounter);
       setPos(eXv, eZv);
     }
     // Konec řetězu (další úsek je samostatný ostrov, nebo už žádný není).

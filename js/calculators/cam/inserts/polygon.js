@@ -177,6 +177,9 @@ export function polygonInsert(prms) {
     holderAxial: false,
     canDrill: false,
     zigzagPockets: false,
+    //   chipThinning — rádius rε určuje tloušťku třísky při malém ap
+    //   (konst. tloušťka třísky, cam/feedTuning.js chipFeedFactor)
+    chipThinning: true,
     canBore: true,
     pointLengthZ: 0,
   };

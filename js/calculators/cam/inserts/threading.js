@@ -115,6 +115,7 @@ export function threadingInsert(prms) {
     holderAxial: false,
     canDrill: false,
     zigzagPockets: false,
+    chipThinning: false,
     canBore: false,
     pointLengthZ: 0,
   };

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM: ladění posuvu** (vše výchozí vypnuto, dráha beze změny, otisk 32 fixtur shodný):
+  - konstantní posuv na oblouku dle rε (`cam/arcFeedComp.js`) — F oblouku × r dráhy / r řezu,
+    dokončení i hrubování po kontuře; další řezný blok se vrací na F,
+  - ☑ posuv při zanoření v % (`cam/feedTuning.js`) — rampy, vjezdy a sjezdy do hloubky ve všech
+    hrubovacích strategiích; emise k řádkům připíše odkud/kam a průchod, F se přepočte nad řádky,
+  - ☑ posuv u čela v % / Auto v cik caku (`ops/zigzagFeed.js`) — až od skutečného dotyku klínu,
+    který po rampě zůstal u čela; Auto = ap / (ap + přebytek klínu),
+  - ☑ konstantní tloušťka třísky při hrubování (`feedTuning.js` chipFeedFactor, klíč plátku
+    `chipThinning`) — F × sin κ(ap) / sin κ(ap vrstvy), strop Max. F, dokončení beze změny.
 - **Cik cak zleva jako zprava** (soustruh, díl uživatele (10)): vrstvy u strmého čela na straně začátku vjíždějí
   rampou ke stěně (`zigzagWallStart.js` — dřív klín u čela 15–14), konec u 1/18 se dojede obrácenými vrstvami
   zprava doleva až dolů (`zigzagReverse.js`), údolí v Ú2 se nedělí uprostřed (kapsa za začátkem úseku se nepřidá,

@@ -84,6 +84,7 @@ export function drillInsert(prms) {
     holderAxial: true,
     canDrill: true,
     zigzagPockets: false,
+    chipThinning: false,
     canBore: false,
     pointLengthZ: point,
   };

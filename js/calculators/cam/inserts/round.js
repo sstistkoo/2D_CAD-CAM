@@ -237,6 +237,9 @@ export function roundInsert(prms) {
     canDrill: false,
     //   zigzagPockets — umí strategii ⇋ Cik cak (ops/zigzagRough.js)
     zigzagPockets: true,
+    //   chipThinning — rádius rε určuje tloušťku třísky při malém ap
+    //   (konst. tloušťka třísky, cam/feedTuning.js chipFeedFactor)
+    chipThinning: true,
     canBore: true,
     pointLengthZ: 0,
   };

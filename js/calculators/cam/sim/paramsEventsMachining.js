@@ -30,6 +30,16 @@ export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange
     S.params.finishOnly = finOnlyCb.checked;
     applyChange();
   });
+  const arcFeedCb = tabBody.querySelector('#cam-sim-arcfeed');
+  if (arcFeedCb) arcFeedCb.addEventListener('change', () => {
+    S.params.arcFeedComp = arcFeedCb.checked;
+    applyChange();
+  });
+  // Snížené posuvy (cam/feedTuning.js, ops/zigzagFeed.js): zaškrtávátka.
+  for (const [id, key] of [['#cam-sim-feedplunge', 'feedPlungeOn'], ['#cam-sim-feedwall', 'feedWallOn'], ['#cam-sim-feedwall-auto', 'feedWallAuto'], ['#cam-sim-chipthin', 'chipThinOn']]) {
+    const cb = tabBody.querySelector(id);
+    if (cb) cb.addEventListener('change', () => { S.params[key] = cb.checked; applyChange(); });
+  }
   const partOffSmoothCb = tabBody.querySelector('#cam-sim-partoff-smooth');
   if (partOffSmoothCb) partOffSmoothCb.addEventListener('change', () => {
     S.params.partOffSmooth = partOffSmoothCb.checked;
