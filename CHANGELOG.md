@@ -106,6 +106,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Cik cak: dno ani odskok při jiné velikosti destičky** (`zigzagReverse.js`, `zigzagFloor.js`, přehled R5–R25 × ap × strany
+  na dílech uživatele 6. 11.): obrácená vrstva vystoupala nebo sjela na dno, které už projela jiná vrstva, a projela
+  ho podruhé posuvem vzduchem (zleva: díl (3) X209,22 Z−20…77 pro každé R, díl (2) R15 X45,79 u čela a X24,3 Z256–359)
+  — teď se zastaví na začátku projetého dna. Odskok na konci cik caku nejede šikmo do stěny pod offset (díl (2) R20
+  N1790 o 0,19 mm do přídavku), tam rovně nahoru. 0 kolizí, otisk 32 fixtur shodný.
+
 - **Cik cak pro každou velikost destičky** (`zigzagValley.js`, `zigzagEmit.js`, díl uživatele 6. 11. (3), soustruh ap 8):
   s R5 dráhy v pořádku, s R20 ne („má to jet v celku z jedné strany na druhou"). Opraveno:
   - kapsa pod podélnou vrstvou sahá až ke stěně za jejím začátkem, když vrstva vjíždí rampou odtamtud — zářez V

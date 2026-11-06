@@ -154,16 +154,46 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
   const layerMoves = (X, zAir, zw, target = null, self = null) => {
     const moves = [{ g: 'G0', x: X, z: zAir }, { g: 'G1', x: X, z: zw }];
     const k = Math.max(1, Math.ceil(step / WALL_STEP));
+    const span = (q) => {
+      const zs = [q.zEnd, q.zStart];
+      for (const sg of [...(q.contourLeadIn || []), ...(q.contourLeadOut || [])]) zs.push(sg.z1, sg.z2);
+      const f = zs.filter(Number.isFinite);
+      return [Math.min(...f), Math.max(...f)];
+    };
+    // Dno, které už v jeho výšce projel jiný průchod (vrstva na dně u čela),
+    // se znovu nejede — soustruh zleva R20 6. 11. 2026: vrstva X206 sjela na
+    // dno X209,2 a projela ho celé podruhé (Z83 → −20, ~100 mm vzduchem).
+    const floorDone = passes.filter((q) => q && q !== self && q.type === 'long' && Number.isFinite(q.x) && q.x > X + 0.02 && q.x <= X + step + 0.05)
+      .map((q) => [...span(q), q.x]);
+    // …i vodorovné jízdy jiných vrstev cik caku (obrácená vrstva o ap výš
+    // už dno projela — soustruh zleva R15, díl 6. 11. (2), Ú3: X24,3 Z256–359 dvakrát).
+    for (const q of passes) {
+      if (!q || q === self || q.type !== 'zigzag' || !Array.isArray(q.moves)) continue;
+      for (let k = 1; k < q.moves.length; k++) {
+        const m0 = q.moves[k - 1], m1 = q.moves[k];
+        if (m1.g === 'G1' && Math.abs(m1.x - m0.x) < 0.02 && m1.x > X + 0.02 && m1.x <= X + step + 0.05) floorDone.push([Math.min(m0.z, m1.z), Math.max(m0.z, m1.z), m1.x]);
+      }
+    }
+    // Projeté dno na cestě vzhůru po stěně: výstup se zastaví na jeho začátku
+    // (soustruh zleva R15, díl 6. 11. (2), Ú1: vrstva X44,6 vystoupala na dno
+    // X45,8 a projela ho celé za podélnou vrstvou X45,79, Z9,5 → −13).
+    const floorStop = (x0, x1, z0, z1) => {
+      let best = null;
+      for (const [c0, c1, qx] of floorDone) if (qx >= Math.min(x0, x1) - 0.15 && qx <= Math.max(x0, x1) + 0.15 && c1 > z0 + 1 && c0 < z1 - 1) best = best === null ? Math.max(z0, c0) : Math.min(best, Math.max(z0, c0));
+      return best;
+    };
     let zCur = zw;
     for (let guard = 0; guard < 4; guard++) {
-      let lx = X, lz = zCur, top = false;
+      let lx = X, lz = zCur, top = false, stopped = false;
       for (let j = 1; j <= k; j++) {
         const x = X + step * j / k, z = wallRight(x, lz, zCur + 2 * step + 2 * noseR);
         if (z === null) { top = true; break; }
+        const zs = floorStop(lx, x, lz, z);
+        if (zs !== null) { for (const q of wallStep(lx, lz, x, zs)) if (q.z <= zs + 1e-6) moves.push({ g: 'G1', x: q.x, z: q.z }); stopped = true; break; }
         for (const q of wallStep(lx, lz, x, z)) moves.push({ g: 'G1', x: q.x, z: q.z });
         lx = x; lz = z;
       }
-      if (!top) break;
+      if (stopped || !top) break;
       // Přes vršek po offsetu nejdál 4R + 4ap (jako dřív). Jen když za ním
       // čeká zbytek téže vrstvy, smí se jet dál — a přijme se to, jen když
       // vrstva sjede zpět na X hned u jeho začátku a mezi nimi není stěna.
@@ -176,12 +206,6 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
       // 43 mm po vršku hrbu, 4. 11. 2026). Výjimka: zbytek, na který se vrstva
       // napojí (`target`) — ten pak odpadá, takže jeho úsek projede ona.
       const isTarget = (q) => target && Math.abs(q.zEnd - target.zEnd) < 1e-9 && Math.abs(q.zStart - target.zStart) < 1e-9;
-      const span = (q) => {
-        const zs = [q.zEnd, q.zStart];
-        for (const sg of [...(q.contourLeadIn || []), ...(q.contourLeadOut || [])]) zs.push(sg.z1, sg.z2);
-        const f = zs.filter(Number.isFinite);
-        return [Math.min(...f), Math.max(...f)];
-      };
       const same = passes.filter((q) => q && q !== self && q.type === 'long' && Math.abs(q.x - X) < 1e-3 && q.zStart > q.zEnd);
       const walk = (from, to, covered) => {
         const pts = [];
@@ -191,6 +215,7 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
           if (covered.some(([c0, c1]) => zz > c0 + 1e-6 && zz < c1)) return { pts, back: null, end: zz };
           const f = fR(zz);
           if (!(f > X + 0.02) || f > X + step) return { pts, back: f <= X + 0.02 ? zz : null, end: zz };
+          if (floorDone.some(([c0, c1, qx]) => Math.abs(qx - f) < 0.15 && zz > c0 + 1e-6 && zz < c1)) return { pts, back: null, end: zz };
           pts.push({ g: 'G1', x: f, z: zz });
         }
         return { pts, back: null, end: zz };

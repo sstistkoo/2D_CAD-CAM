@@ -203,7 +203,13 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
 
   // `endDir`: kam jela poslední vrstva (ke stěně) — emise po ní odskočí od
   // stěny. `dir` je po smyčce už otočený, poslední vrstva jela −dir.
-  const zig = { type: 'zigzag', moves: mv, xSafe: xTop, floorZigzag: true, endDir: -dir };
+  // Odskok na konci jízdy po stěně i cik caku jde šikmo od stěny (zigzagEmit.js). V úzkém
+  // zářezu V by tím zajel do protější stěny (soustruh 6. 11. 2026, díl (5)
+  // R20: N3550 G1 X72.121 Z558.512 pod offset pravé stěny) — tam rovně nahoru
+  // (i konec cik caku: díl 6. 11. (2) R20 zleva N1790 G1 X31.230 Z91.083 o 0,19 mm do přídavku).
+  const retractDir = (x, z, side) => (fR(z - side * 2.5) > x + 2.5 - 0.3 ? 0 : side);
+  const lastMv = mv[mv.length - 1];
+  const zig = { type: 'zigzag', moves: mv, xSafe: xTop, floorZigzag: true, endDir: retractDir(lastMv.x, lastMv.z, -dir) };
 
   // SCHODY NA STĚNÁCH: vrstva u stěny skončí a hned rampou odjede, takže na
   // šikmé stěně zůstanou schody po ap. Po spodku je dojede jedna jízda po
@@ -232,10 +238,6 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
     });
     return m === Infinity ? -Infinity : m;
   };
-  // Odskok na konci jízdy po stěně jde šikmo od stěny (zigzagEmit.js). V úzkém
-  // zářezu V by tím zajel do protější stěny (soustruh 6. 11. 2026, díl (5)
-  // R20: N3550 G1 X72.121 Z558.512 pod offset pravé stěny) — tam rovně nahoru.
-  const retractDir = (x, z, side) => (fR(z - side * 2.5) > x + 2.5 - 0.3 ? 0 : side);
   const wallPass = (side) => {
     // Horní konec stěny o 0,05 mm pod výškou — viz `bTop` (N4510: jízda po
     // stěně jela nejdřív 6 mm svisle, pak teprve po šikmé stěně).
