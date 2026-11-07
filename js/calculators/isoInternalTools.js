@@ -19,7 +19,7 @@
 // vnitřní nůž = vnější zrcadlený radiálně (jako „zleva" = zrcadlení v Z).
 
 import {
-  isoSizesByIc, isoRadii, isoInsertCode, isoKnifeRecord, isoCutData, isoCloseLoop,
+  isoSizesByIc, isoRadii, isoInsertCode, isoKnifeRecord, isoBaseCutData as isoCutData, isoCloseLoop,
   isoClearanceLetter, isoInsertClearance, ISO_HOLDER_GEOM,
 } from './isoToolCatalog.js';
 import { ISO_THREAD_INSERTS, isoThreadTooth, isoThreadInsertsForPitch } from './isoThreadInserts.js';

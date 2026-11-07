@@ -409,7 +409,24 @@ function threadingHolder(prms, sh) {
 
 // ── Řezné podmínky (orientační start, ne doporučení výrobce) ─────
 
+/**
+ * Posuv vnějších nožů (uživatel 7. 11. 2026: „přednastav u kulatého nad
+ * 7 mm a polygon plátku hrubování na 0,8 a na hotovo dej 0,25"):
+ *   kulatá R > 7 → 0,8; menší kulatá dál podle R (0,024 · R, nejvýš 0,3)
+ *   polygon s vrcholovým úhlem ≥ 80° (S, C, W — hrubovací) → 0,8
+ *   polygon ostřejší (D 55°, T 60°, V 35° — dokončovací/profilový) → 0,25
+ * Vnitřní nože (vyvrtávací tyče) berou původní odhad baseCutData.
+ */
+export const ROUGH_FEED_DEFAULT = 0.8, FINISH_FEED_DEFAULT = 0.25, ROUND_ROUGH_MIN_R = 7;
+
 function cutData(shape, edge, eps, R) {
+  const c = baseCutData(shape, edge, eps, R);
+  if (shape === 'round') { if (R > ROUND_ROUGH_MIN_R) c.f = ROUGH_FEED_DEFAULT; }
+  else c.f = eps >= 80 ? ROUGH_FEED_DEFAULT : FINISH_FEED_DEFAULT;
+  return c;
+}
+
+function baseCutData(shape, edge, eps, R) {
   if (shape === 'round') return { vc: 180, f: r3(Math.min(0.3, 0.012 * 2 * R)), ap: Math.max(0.5, Math.round(0.4 * R * 2) / 2) };
   const k = eps >= 80 ? 0.3 : eps >= 60 ? 0.25 : eps >= 55 ? 0.2 : 0.15;
   return {
@@ -458,6 +475,8 @@ export const isoIcOf = icOf;
 export const isoInsertCode = insertCode;
 export const isoKnifeRecord = knifeRecord;
 export const isoCutData = cutData;
+/** Původní odhad řezných podmínek (vnitřní nože; převod uložených nožů — magazineFeedUpgrade.js). */
+export const isoBaseCutData = baseCutData;
 export const isoCloseLoop = closeLoop;
 /** Písmeno úhlu hřbetu v kódu držáku (ISO 5608 poz. 4): N negativní, C / B (V) pozitivní. */
 export function isoClearanceLetter(type, variant) {

@@ -534,6 +534,12 @@ CAM část ti umožní generovat NC programy pro obrábění.
        50 % F. Skutečné ap: podélně z modelu zbytku (+ přídavek, ať odhad
        nevyjde tenčí), čelně z výšky materiálu nad dnem řezu (model zbytku),
        cik cak každý pohyb zvlášť.
+     - **Posuv dok. (F)** (Hrub. pod dokončením i Hot., výchozí 0,25): posuv dokončovací
+       dráhy, když dokončuje týž nůž; pole Posuv (F) platí jen pro hrubování. 0 = jako
+       hrubování. Vybraný dokončovací nůž ze zásobníku jede svým f (pole se pak skryje).
+       Výchozí posuv nožů: hrubovací polygon (S, C, W — úhel ≥ 80°) a kulatá R > 7 → 0,8;
+       dokončovací polygon (D, T, V) → 0,25; menší kulatá dál 0,024 · R (nejvýš 0,3).
+       Nezměněné výchozí nože v uloženém zásobníku dostanou nový posuv jednou při načtení.
      - **☑ F dok. dle Ra** [Ra µm] [max F] (Hrub. pod dokončením i Hot.): dokončení
        jede posuvem z cílové drsnosti, Ra ≈ 1000 · F² / (32 · rε) → F = √(32 · rε ·
        Ra / 1000) (rε 0,8 + Ra 1,6 → F 0,2; Rz ≈ 4 · Ra). rε = dokončovací nástroj ze

@@ -987,15 +987,19 @@ export function generateAutoGCode(S, calc) {
   };
   // `plan` = předpočítaný plán (jinak se spočítá tady). `atZBack` říká, že
   // volající už na začátku rampy STOJÍ, takže couvnutí emitovat nemá.
+  // Posuv sjezdu/výjezdu materiálem ve sdílených přejezdech (safeRapidTo):
+  // null = F hrubování; dokončení si nastaví svůj (setMotionFeed, 7. 11. 2026 —
+  // jinak nájezd dokončení jel F hrubování 0,8).
+  let motionFeed = null;
   const emitFeedToDepth = (fromX2, tx, tz, plan = undefined, atZBack = false) => {
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
     const p = plan === undefined ? planFeedToDepth(fromX2, tx, tz) : plan;
     if (p) {
       if (!atZBack) emit(`G0 Z${p.zBack.toFixed(3)}`);
-      emit(`G1 X${xDia(tx)} Z${tz.toFixed(3)} F${prms.feed}${note('', `Zanoření ${entryAngleDegGc.toFixed(1)}°`)}`);
+      emit(`G1 X${xDia(tx)} Z${tz.toFixed(3)} F${motionFeed ?? prms.feed}${note('', `Zanoření ${entryAngleDegGc.toFixed(1)}°`)}`);
       return;
     }
-    emit(`G1 X${xDia(tx)} F${prms.feed}`);
+    emit(`G1 X${xDia(tx)} F${motionFeed ?? prms.feed}`);
   };
   // `stopX` = odstup, na kterém se rychloposuv zastaví nad cílem (výchozí
   // Vůle + R). Volající, který VÍ, že celá kružnice nosu je u cíle ve
@@ -1051,12 +1055,12 @@ export function generateAutoGCode(S, calc) {
       // zbytek z Clipperu není pro zrcadlenou geometrii souměrný na µm a výjezd
       // zleva vycházel X26,153 proti X26,151 zprava (tests/cam-backside-mirror).
       const feedTop = Math.min(toX, quantizeUp(surf + rapidStopX));
-      emit(`G1 X${xDia(feedTop)} F${prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
+      emit(`G1 X${xDia(feedTop)} F${motionFeed ?? prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
       if (toX > feedTop + 1e-6) emit(`G0 X${xDia(toX)}${rapidNote ? note('', rapidNote) : ''}`);
     } else if (surf !== null) {
       // Zbytek zdvih protíná, ale povrch na tomto Z je neznámý/pod nástrojem
       // → celý zdvih konzervativně posuvem (feed vzduchem je jen pomalý).
-      emit(`G1 X${xDia(toX)} F${prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
+      emit(`G1 X${xDia(toX)} F${motionFeed ?? prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
     } else {
       emit(`G0 X${xDia(toX)}${rapidNote ? note('', rapidNote) : ''}`);
     }
@@ -1256,8 +1260,9 @@ export function generateAutoGCode(S, calc) {
   emitFinish({
     S, calc, prms, addCmt, addN, note, arcR, flipArc, xDia, clipZGc,
     safeRapidTo, setPos, cur, rapidStock, rapidFoot, residualTopXAtZ,
-    maxXOnSegsAt, entryRadGc, simCounter,
+    maxXOnSegsAt, entryRadGc, simCounter, setMotionFeed: (f) => { motionFeed = f; },
   });
+  motionFeed = null;
 
   buildControlTailLines(prms.controlSystem).forEach(line => addN(line));
   addCmt('--- KONTURA (Pro referenci) ---');

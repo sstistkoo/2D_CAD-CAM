@@ -87,11 +87,12 @@ describe('strop F dokončení a nikdy F0', () => {
   });
   it('round-r10-face-small-fillet: všechno zapnuto → dokončení nejvýš 3 × F', async () => {
     const prog = JSON.parse(readFileSync(new URL('./fixtures/cam-cases/round-r10-face-small-fillet.camprog', import.meta.url), 'utf8'));
-    const ALL = { arcFeedComp: true, finRaOn: true, finRa: 1.6, feedCornerOn: true };
+    // Strop = 3 × nastavené F DOKONČENÍ (finishFeed, ne F hrubování — 7. 11. 2026).
+    const ALL = { arcFeedComp: true, finRaOn: true, finRa: 1.6, feedCornerOn: true, finishFeed: 0.25 };
     const g = (await runCamProg({ ...prog, params: { ...prog.params, ...ALL } })).gcode;
     const fin = g.slice(g.indexOf('DOKONCOVANI')).replace(/[;(][^\n]*/g, '');
     const fs = [...fin.matchAll(/\bF([\d.]+)/g)].map(m => parseFloat(m[1]));
-    expect(Math.max(...fs)).toBeLessThanOrEqual(3 * parseFloat(prog.params.feed) + 1e-9);
+    expect(Math.max(...fs)).toBeLessThanOrEqual(3 * ALL.finishFeed + 1e-9);
     expect(Math.min(...fs)).toBeGreaterThan(0);
   }, 120000);
 });

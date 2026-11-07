@@ -29,6 +29,17 @@ export function feedToRa(f, r) {
 }
 
 /**
+ * Nastavené F dokončení [mm/ot]: dokončovací nůž ze zásobníku → jeho f;
+ * týž nůž → prms.finishFeed (uživatel 7. 11. 2026: hrubování 0,8, na hotovo
+ * 0,25); finishFeed chybí / 0 → F hrubování (staré programy).
+ */
+export function finishBaseFeed(prms, slot = null) {
+  if (slot) return parseFloat(slot.f) || 0;
+  const ff = parseFloat(prms?.finishFeed);
+  return ff > 0 ? ff : (parseFloat(prms?.feed) || 0);
+}
+
+/**
  * F dokončení podle Ra; null = přepínač vypnutý / neplatné hodnoty.
  * @param {object} prms  finRaOn, finRa, finRaMaxF, toolRadius, feed
  * @param {object|null} slot  dokončovací nástroj ze zásobníku ({ radius, f })
@@ -40,7 +51,7 @@ export function finishFeedFromRa(prms, slot = null) {
   const ra = parseFloat(prms.finRa) || 0;
   const fRa = raToFeed(ra, r);
   if (!fRa) return null;
-  const base = parseFloat(slot ? slot.f : prms.feed) || 0;
+  const base = finishBaseFeed(prms, slot);
   const cap = parseFloat(prms.finRaMaxF) > 0 ? parseFloat(prms.finRaMaxF) : 2 * base;
   const capped = cap > 0 && fRa > cap;
   const f = Math.round((capped ? cap : fRa) * 1000) / 1000;

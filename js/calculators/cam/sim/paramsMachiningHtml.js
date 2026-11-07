@@ -14,7 +14,7 @@ import { paramsBoreHtml } from './paramsBoreHtml.js';
 import { grooveInnerFieldsHtml, grooveCadRowHtml, grooveOuterCadRowHtml } from './paramsGrooveHtml.js';
 import { SURFACE_TABS, surfaceMode, programInner } from './machSurface.js';
 import { faceGrooveFieldsHtml, faceGrooveCadRowHtml } from './paramsGrooveFaceHtml.js';
-import { finishFeedFromRa } from '../finishFeed.js';
+import { finishFeedFromRa, finishBaseFeed } from '../finishFeed.js';
 
 /** @param ctx { S, escHTML, escAttr } */
 export function paramsMachiningHtml({ S, escHTML, escAttr }) {
@@ -423,11 +423,15 @@ function finishFeedRows(prms, S) {
   const slot = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? S.toolMagazine[prms.finishingSlot] : null;
   const on = !!prms.finRaOn, ra = parseFloat(prms.finRa) > 0 ? parseFloat(prms.finRa) : 1.6;
   const res = finishFeedFromRa({ ...prms, finRaOn: true, finRa: ra }, slot);
-  const base = parseFloat(slot ? slot.f : prms.feed) || 0;
+  const base = finishBaseFeed(prms, slot);
   const maxF = parseFloat(prms.finRaMaxF) > 0 ? parseFloat(prms.finRaMaxF) : Math.round(2 * base * 1000) / 1000;
   const fmt = (v) => String(v).replace('.', ',');
   const info = res ? `F ${fmt(res.f)}${res.capped ? ' (strop)' : ''} → Ra ${fmt(res.ra.toFixed(2))}` : '—';
-  let h = `<div class="cam-sim-row" style="align-items:center;margin-top:2px" data-tooltip="Dokončení jede posuvem spočítaným z cílové drsnosti: Ra ≈ 1000 · F² / (32 · rε) µm → F = √(32 · rε · Ra / 1000). rε 0,8 + Ra 1,6 → F 0,2; velký rádius smí jet rychleji. Strop = max F (výchozí 2 × nastavené F dokončení). Rz ≈ 4 · Ra.">
+  // Posuv dokončení týmž nožem (finishFeed); s dokončovacím nožem ze zásobníku platí jeho f.
+  let h = slot ? '' : `<div class="cam-sim-row" style="align-items:center;margin-top:2px">
+      <div class="cam-sim-field"><label data-tooltip="Posuv na otáčku [mm/ot] dokončovací dráhy, když dokončuje týž nůž. Hrubování jede polem Posuv (F). 0 = stejně jako hrubování. Vybraný dokončovací nůž ze zásobníku jede svým f.">Posuv dok. (F)</label><input type="number" step="0.05" min="0" data-p="finishFeed" value="${prms.finishFeed ?? 0}"></div>
+    </div>`;
+  h += `<div class="cam-sim-row" style="align-items:center;margin-top:2px" data-tooltip="Dokončení jede posuvem spočítaným z cílové drsnosti: Ra ≈ 1000 · F² / (32 · rε) µm → F = √(32 · rε · Ra / 1000). rε 0,8 + Ra 1,6 → F 0,2; velký rádius smí jet rychleji. Strop = max F (výchozí 2 × nastavené F dokončení). Rz ≈ 4 · Ra.">
       <label class="cam-sim-checkbox-item" style="flex:2"><input type="checkbox" id="cam-sim-finra" ${on ? 'checked' : ''}><span>F dok. dle Ra (µm)</span></label>
       <div class="cam-sim-field" style="flex:1"><input type="number" step="0.1" min="0.1" data-p="finRa" value="${ra}"${on ? '' : ' disabled'} title="Cílové Ra [µm]"></div>
       <div class="cam-sim-field" style="flex:1"><input type="number" step="0.01" min="0.01" data-p="finRaMaxF" value="${maxF}"${on ? '' : ' disabled'} title="Max. F [mm/ot]"></div>

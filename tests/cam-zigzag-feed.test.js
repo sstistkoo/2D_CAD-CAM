@@ -121,9 +121,9 @@ describe('konstantní tloušťka třísky (jen hrubování)', () => {
     expect(chipFeedFactor({ ...p, chipThinOn: false }, 1)).toBeNull();
     expect(chipFeedFactor({ ...p, toolShape: 'parting' }, 1)).toBeNull();
   });
-  it('cik cak R20: hrubování mění F, dokončení zůstává F, dráha stejná', async () => {
+  it('cik cak R20: hrubování mění F, dokončení zůstává na F dok., dráha stejná', async () => {
     const prog = caseFile('lathe-zigzag-stock-valley.camprog');
-    const base = { ...prog.params, roughingStrategy: 'zigzag', toolRadius: 20, depthOfCut: 8, doFinishing: true };
+    const base = { ...prog.params, roughingStrategy: 'zigzag', toolRadius: 20, depthOfCut: 8, doFinishing: true, finishFeed: 0.25 };
     const off = await runCamProg({ ...prog, params: base });
     const on = await runCamProg({ ...prog, params: { ...base, chipThinOn: true } });
     expect(samePath(off, on)).toEqual([]);
@@ -131,7 +131,7 @@ describe('konstantní tloušťka třísky (jen hrubování)', () => {
     const [rough, fin] = on.gcode.split('DOKONCOVANI');
     expect(rough.split('\n').some(l => /^N\d+ G1\b/.test(l) && /\bF[\d.]+/.test(l) && !new RegExp(`\bF${F}(\s|$)`).test(l))).toBe(true);
     const finF = [...fin.matchAll(/\bF([\d.]+)/g)].map(m => m[1]);
-    expect(finF.every(v => v === F)).toBe(true);
+    expect(finF.every(v => v === String(base.finishFeed))).toBe(true);
   }, 180000);
 });
 

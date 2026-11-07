@@ -4,8 +4,8 @@
 // proto obyčejné exporty, ne továrna. Vyňato z camSimulator.js (blok
 // „magazine dialog", docs/plan-rozdeleni-cam-simulatoru.md).
 import { SHAPE_CUT_DEFAULTS } from '../camDefaults.js';
+import { ROUGH_FEED_DEFAULT, ROUND_ROUGH_MIN_R, upgradeIsoHolderProfile } from '../../isoToolCatalog.js';
 import { defaultMagazineKnives, presetKnifeForShape } from '../../magazineDefaults.js';
-import { upgradeIsoHolderProfile } from '../../isoToolCatalog.js';
 import { buildIsoMill } from '../../isoMills.js';
 import { buildIsoTap } from '../../isoTaps.js';
 
@@ -56,6 +56,8 @@ export function _buildMagSlotFromTool(tool, num, name) {
   // Soubory z 💾 Uložit do PC/Zásobník řezné podmínky neobsahují (jen
   // geometrie destička+držák) — doplní se odhad podle tvaru.
   Object.assign(slot, SHAPE_CUT_DEFAULTS[slot.shape] || {});
+  // Velká kulatá (R > 7) hrubuje jako polygon (isoToolCatalog.js cutData).
+  if (slot.shape === 'round' && parseFloat(slot.radius) > ROUND_ROUGH_MIN_R) slot.f = ROUGH_FEED_DEFAULT;
   return slot;
 }
 

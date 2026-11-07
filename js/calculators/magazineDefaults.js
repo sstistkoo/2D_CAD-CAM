@@ -34,8 +34,10 @@ import { buildNarrowKnife } from './narrowHolders.js';
  *   2 — PSBNR 2525M12 jako hrubovací (T2 místo PCLNR)
  *   3 — vrták ⌀20 pro operaci Vrtání (7. 10. 2026)
  *   4 — úzké držáky: kulatá SRDPN a upichovák s rovnou lištou (1. 11. 2026)
+ *   5 — nový posuv výchozích nožů: hrubování 0,8, dokončovací 0,25 (7. 11. 2026,
+ *       magazineFeedUpgrade.js — nože se nepřidávají, jen se přepíše f)
  */
-export const MAGAZINE_DEFAULTS_REV = 4;
+export const MAGAZINE_DEFAULTS_REV = 5;
 export const DEFAULTS_ADDED_IN_REV = { 2: ['SB'], 3: ['DR'], 4: ['NR', 'NP'] };
 
 /** Nože výchozí sady přidané po revizi `rev` (záznamy knihovny). */

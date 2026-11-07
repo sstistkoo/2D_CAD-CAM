@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CAM posuv: hrubování 0,8, dokončení 0,25** (`isoToolCatalog.js` cutData, `cam/finishFeed.js`
+  finishBaseFeed, `magazineFeedUpgrade.js`): výchozí f hrubovacího polygonu (úhel ≥ 80°) a kulaté
+  R > 7 je 0,8, dokončovacího polygonu 0,25 (vnitřní nože beze změny). Nové pole **Posuv dok. (F)**
+  (`finishFeed`, výchozí 0,25) pro dokončení týmž nožem — dřív jelo F hrubování. Nezměněné
+  výchozí nože v uloženém zásobníku dostanou nový posuv jednou (revize zásobníku 5).
 - **CAM dokončení: F podle cílového Ra a snížený posuv ve vnitřních rozích** (`cam/finishFeed.js`,
   výchozí vypnuto): F = √(32 · rε · Ra / 1000) se stropem max F (2 × F); ve vnitřním rohu kontury
   (ostrý zlom dráhy, ověřený proti dílu) posledních/prvních rε sníženým F. Hrubování ani dráha se

@@ -36,6 +36,7 @@ import { getToolClearanceRange, segInterferesWithTool, segmentHitsPath, mergePoc
 import { drawInsertAndHolderPreview, getInsertAnchorPoints, holderRectProfile, drawHolderProfileLocal, holderBottomHandles, translateHolderProfile, holderProfileSegCount, holderShapeInfoHTML, chamferProfileCorner, _polarAngleFieldHTML, wireAngleCompass, wireAllAngleCompasses, _renderInsertShapeFieldsHTML } from './cam/insertPreview.js';
 import { CAM_TOOL_KEYS, getCamToolGeometry, applyCamToolGeometry, setActiveCamParams, setSavedCamTool, getSavedCamTool, DEFAULT_TOOL_MAGAZINE } from './cam/camToolPicker.js';
 import { migrateLegacyMagazine, isoDefaultsAddedSince, MAGAZINE_DEFAULTS_REV } from './magazineDefaults.js';
+import { upgradeDefaultKnifeFeeds, FEED_UPGRADE_REV } from './magazineFeedUpgrade.js';
 import { computeCalculation, computeSimPath, roughingKey as _roughingKey } from './cam/calculatePipeline.js';
 import { xRangeAnyOn } from './cam/rangeX.js';
 import { pathInputsKey as _pathInputsKey, markGCodeGenerated as _markGCodeGenerated, markGCodeEdited as _markGCodeEdited, gcodeStale as _gcodeStale, cycleModeActive as _cycleModeActive, decideChange } from './cam/gcodeSync.js';
@@ -592,6 +593,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       for (const rec of added) S.toolMagazine.push(_isoMagSlot(rec, next++));
       if (added.length) setTimeout(() => showToast(`Do zásobníku přidán ${added.map(r => r.name).join(', ')} (od T${next - added.length}) — nový výchozí nůž, ▲▼ ho přeřadíš`), 0);
     }
+    // Posuv výchozích nožů 7. 11. 2026 (hrubování 0,8, dokončovací 0,25) — magazineFeedUpgrade.js.
+    const fedUp = (S.magazineDefaultsRev || 0) < FEED_UPGRADE_REV ? upgradeDefaultKnifeFeeds(S) : 0;
+    if (fedUp) setTimeout(() => showToast(`Zásobník: ${fedUp} výchozích nožů dostalo nový posuv (hrubování 0,8, dokončovací 0,25)`), 0);
     S.magazineDefaultsRev = MAGAZINE_DEFAULTS_REV;
     // Nože z 📚 katalogu se STARÝM obrysem držáku (hlava končila na břitu —
     // čelní hrubování pak nechávalo schodky, 6. 10. 2026) → opravený obrys.
