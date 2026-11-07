@@ -1523,6 +1523,11 @@ programů) to nedělá.
   přírůstky, v průměrovém režimu je X průměr. V prvním řádku rychlé lišty je vedle
   **R**, **I**, **K** a **⌒ oblouk** i klávesa **G**: otevře číselník se seznamem G-kódů, takže jde
   ručně napsat třeba G2/G3 při úpravě stávajícího oblouku nebo G4, G33 apod.
+  **Naležato** (číslice 0–9 . − vpravo nahoře v liště) se číselník k písmenům (X, Z, R, I, K,
+  G, Sraž., Zaobl.) neotevírá – písmeno se jen vloží a číslo se dopíše rovnou; číselník
+  otevře tlačítko **123**. Totéž platí v CNC editoru z pravého panelu (**CNC kód → upravit**),
+  který má teď číslice naležato také. V okně číselníku je místo „Zrušit“ **⌫ Smazat**
+  (poslední znak), zavírá se křížkem **✕** vpravo nahoře.
 - **📐 Náhled kontury** (pravý panel): malý náhled nad kódem, řádek s kurzorem
   žlutě. Po zavření editoru se objekt z řádku s kurzorem označí na plátně.
 - **▾ a ⇲ v oranžové liště** (vedle ✕): **▾** rozbalí / sbalí lištu s ☰ panely,

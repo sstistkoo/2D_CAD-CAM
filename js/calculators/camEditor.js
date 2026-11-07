@@ -396,7 +396,7 @@ function buildEditorHTML() {
   <!-- Numpad modal -->
   <div class="cne-inner-modal" data-el="numModal" style="display:none">
     <div class="cne-im-card">
-      <div class="cne-im-title" data-el="numTitle">Vstup<button class="cne-im-close" data-act="numCancel" title="Zavřít">✕</button></div>
+      <div class="cne-im-title"><span data-el="numTitle">Vstup</span><button class="cne-im-close" data-act="numCancel" title="Zavřít">✕</button></div>
       <input class="cne-im-input" data-el="numInput" type="text" readonly>
       <div class="cne-im-helpers" data-el="numHelpers"></div>
       <div class="cne-numpad">
@@ -406,7 +406,7 @@ function buildEditorHTML() {
         <button class="cne-np sign" data-n="±">±</button><button class="cne-np" data-n="0">0</button><button class="cne-np" data-n=".">.</button>
       </div>
       <div class="cne-im-actions">
-        <button class="cne-im-btn cancel" data-act="numCancel">Zrušit</button>
+        <button class="cne-im-btn cancel" data-act="numBack" title="Smazat poslední znak">⌫ Smazat</button>
         <button class="cne-im-btn ok" data-act="numOk">OK</button>
       </div>
     </div>
@@ -1499,6 +1499,7 @@ export function openCamEditor(initialCode, jumpLine) {
         case 'chamfer':   openNumpad(getChamferPrefix()); break;
         case 'round':     openNumpad(getRoundPrefix()); break;
         case 'numCancel': numModal.style.display = 'none'; break;
+        case 'numBack':   numInput.value = numInput.value.slice(0, -1); break;
         case 'numOk':     confirmNumpad(); break;
         case 'valClose':  valModal.style.display = 'none'; break;
         case 'cfgClose':  cfgModal.style.display = 'none'; persistCfg(); break;
@@ -1554,7 +1555,10 @@ export function openCamEditor(initialCode, jumpLine) {
   });
 
   filenameLbl.addEventListener('click', renameFile);
-  numInput.addEventListener('keydown', e => { if (e.key === 'Enter') confirmNumpad(); });
+  numInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') confirmNumpad();
+    else if (e.key === 'Backspace') { e.preventDefault(); numInput.value = numInput.value.slice(0, -1); }
+  });
   fileInput.addEventListener('change', handleImport);
   mergeFileInput.addEventListener('change', handleMergeLoad);
 

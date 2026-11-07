@@ -16,7 +16,7 @@ html.fs-cam-left  { --safe-l: max(env(safe-area-inset-left, 0px), 48px); }
 html.fs-cam-right { --safe-r: max(env(safe-area-inset-right, 0px), 48px); }
 
 /* Číselné klávesy editoru: jen naležato (jinak je to zbytečný řádek) */
-.cne-qb-digit, .cne-digit-sep { display: none; }
+.cne-qb-digit, .cne-digit-sep, .cne-digit-pad { display: none; }
 
 @media (orientation: landscape) and (max-height: 500px) {
 
@@ -98,6 +98,12 @@ html.fs-cam-right { --safe-r: max(env(safe-area-inset-right, 0px), 48px); }
     background: var(--ctp-surface2); border-radius: 1px;
   }
   .cne-quickbar--draw .cne-qb-digit { display: flex; min-height: 24px; font-size: 14px; padding: 2px; }
+  /* Běžný CNC editor (CNC kód z pravého panelu): číslice nahoře v pravém sloupci, po třech */
+  .cne-quickbar .cne-digit-pad {
+    display: grid; grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); gap: 3px;
+    padding-bottom: 4px; margin-bottom: 2px; border-bottom: 2px solid var(--ctp-surface2);
+  }
+  .cne-digit-pad .cne-qb-digit { display: flex; min-height: 24px; font-size: 14px; padding: 2px; }
   /* Pravý sloupec se přizpůsobí výšce displeje: 9 řádků (jeden vyšší) bez posouvání */
   .cne-layout > .cne-quickbar--draw .cne-qb {
     min-height: 0; padding-top: 0; padding-bottom: 0;

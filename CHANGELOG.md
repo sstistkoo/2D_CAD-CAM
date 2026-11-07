@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CNC editor: číslice naležato i v editoru z pravého panelu, číselník bez automatického
+  vyskakování** (`cncDigitKeys.js` digitPadHTML/digitKeysVisible/spacedPrefix, `cncEditor.js`):
+  jsou-li v liště vidět číslice, X/Z/R/I/K/G/Sraž./Zaobl. jen vloží písmeno (před ním mezera,
+  stojí-li kurzor za slovem); číselník otevře jen „123“. V okně číselníku (CNC i CAM editor)
+  je místo „Zrušit“ **⌫ Smazat**; křížek ✕ vpravo nahoře mizel – `openNumpad` přepisoval
+  `textContent` titulku i s tlačítkem (nadpis je teď ve vlastním `<span>`).
+
 - **CAM posuv: hrubování 0,8, dokončení 0,25** (`isoToolCatalog.js` cutData, `cam/finishFeed.js`
   finishBaseFeed, `magazineFeedUpgrade.js`): výchozí f hrubovacího polygonu (úhel ≥ 80°) a kulaté
   R > 7 je 0,8, dokončovacího polygonu 0,25 (vnitřní nože beze změny). Nové pole **Posuv dok. (F)**

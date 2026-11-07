@@ -17,7 +17,7 @@ import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
 import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML } from './gcodeEditorShared.js';
+import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, digitKeysVisible, spacedPrefix } from './gcodeEditorShared.js';
 import { shownIntersections } from '../geometry/shownIntersections.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
@@ -353,7 +353,7 @@ function quickbarHTML(drawMode) {
     <button class="cne-qb gray cne-qb-wide cne-qb-num c15" data-inp="" title="Zadat číslo">123</button>
   </div>`;
   return `
-  <div class="cne-quickbar">
+  <div class="cne-quickbar">${digitPadHTML()}
     <button class="cne-qb blue" data-inp="G" title="G-kód (cykly, interpolace)">G</button>
     <button class="cne-qb blue" data-inp="M" title="M-kód (vřeteno, chlazení)">M</button>
     <button class="cne-qb" data-inp="X" title="Osa X (průměr)">X</button>
@@ -606,7 +606,7 @@ function buildEditorHTML(drawMode = false) {
   <!-- Numpad modal -->
   <div class="cne-inner-modal" data-el="numModal" style="display:none">
     <div class="cne-im-card">
-      <div class="cne-im-title" data-el="numTitle">Vstup<button class="cne-im-close" data-act="numCancel" title="Zavřít">✕</button></div>
+      <div class="cne-im-title"><span data-el="numTitle">Vstup</span><button class="cne-im-close" data-act="numCancel" title="Zavřít">✕</button></div>
       <input class="cne-im-input" data-el="numInput" type="text" readonly>
       <div class="cne-im-helpers" data-el="numHelpers"></div>
       <div class="cne-numpad">
@@ -616,7 +616,7 @@ function buildEditorHTML(drawMode = false) {
         <button class="cne-np sign" data-n="±">±</button><button class="cne-np" data-n="0">0</button><button class="cne-np" data-n=".">.</button>
       </div>
       <div class="cne-im-actions">
-        <button class="cne-im-btn cancel" data-act="numCancel">Zrušit</button>
+        <button class="cne-im-btn cancel" data-act="numBack" title="Smazat poslední znak">⌫ Smazat</button>
         <button class="cne-im-btn ok" data-act="numOk">OK</button>
       </div>
     </div>
@@ -1185,6 +1185,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     buildHelpers(prefix);
     numModal.style.display = 'flex';
   }
+
+  const inputOrNumpad = p => (p && digitKeysVisible(overlay)) ? insertText(spacedPrefix(activeTarget === editor && editor, p)) : openNumpad(p); // číslice v liště → bez číselníku
 
   function buildHelpers(prefix) {
     const codes = prefix === 'G' ? G_CODES : prefix === 'M' ? M_CODES : null;
@@ -2485,9 +2487,10 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
           if (typeof bridge.renderCncCodeToCanvas === 'function') bridge.renderCncCodeToCanvas(code);
           break;
         }
-        case 'chamfer':   openNumpad(getChamferPrefix()); break;
-        case 'round':     openNumpad(getRoundPrefix()); break;
+        case 'chamfer':   inputOrNumpad(getChamferPrefix()); break;
+        case 'round':     inputOrNumpad(getRoundPrefix()); break;
         case 'numCancel': numModal.style.display = 'none'; break;
+        case 'numBack':   numInput.value = numInput.value.slice(0, -1); break;
         case 'numOk':     confirmNumpad(); break;
         case 'valClose':  valModal.style.display = 'none'; break;
         case 'infoToggle': setInfoOpen(infoBodyEl.hidden); break;
@@ -2509,7 +2512,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     if (ib) { showKeyHint(ib); insertText(ib.dataset.ins); return; }
     // Input modal
     const ip = e.target.closest('[data-inp]');
-    if (ip) { showKeyHint(ip); openNumpad(ip.dataset.inp); return; }
+    if (ip) { showKeyHint(ip); inputOrNumpad(ip.dataset.inp); return; }
     // Numpad keys
     const np = e.target.closest('[data-n]');
     if (np) {
@@ -2556,7 +2559,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   });
 
   filenameLbl.addEventListener('click', renameFile);
-  numInput.addEventListener('keydown', e => { if (e.key === 'Enter') confirmNumpad(); });
+  numInput.addEventListener('keydown', e => { if (e.key === 'Enter') confirmNumpad(); else if (e.key === 'Backspace') { e.preventDefault(); numInput.value = numInput.value.slice(0, -1); } });
   fileInput.addEventListener('change', handleImport);
   mergeFileInput.addEventListener('change', handleMergeLoad);
 
