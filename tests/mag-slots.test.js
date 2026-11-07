@@ -11,10 +11,10 @@ describe('sloty zásobníku', () => {
     expect(_slotNameFromFilename('.json')).toBe('Nůž');
   });
 
-  it('slot z exportu nástroje: geometrie z exportu, řezné podmínky podle tvaru', () => {
+  it('slot z exportu nástroje: geometrie z exportu, řezné podmínky podle tvaru, posuv podle plátku', () => {
     const profile = [{ x: 0, z: 0 }, { x: 5, z: 0 }];
     const slot = _buildMagSlotFromTool({ toolShape: 'polygon', toolRadius: 0.4, toolTipAngle: 55, holderHand: 'L', holderProfile: profile }, 4, 'Můj nůž');
-    expect(slot).toMatchObject({ slot: 4, name: 'Můj nůž', shape: 'polygon', radius: 0.4, tipAngle: 55, holderHand: 'L', ...SHAPE_CUT_DEFAULTS.polygon });
+    expect(slot).toMatchObject({ slot: 4, name: 'Můj nůž', shape: 'polygon', radius: 0.4, tipAngle: 55, holderHand: 'L', vc: SHAPE_CUT_DEFAULTS.polygon.vc, ap: SHAPE_CUT_DEFAULTS.polygon.ap, f: 0.18, fFin: 0.14 });   // f podle plátku (insertFeeds.js)
     expect(slot.holderProfile).toEqual(profile);
     expect(slot.holderProfile).not.toBe(profile);   // hluboká kopie
     expect(_defaultMagSlot(9)).toMatchObject({ slot: 9, name: 'T9', shape: 'round', holderProfile: null });

@@ -4,7 +4,8 @@
 // proto obyčejné exporty, ne továrna. Vyňato z camSimulator.js (blok
 // „magazine dialog", docs/plan-rozdeleni-cam-simulatoru.md).
 import { SHAPE_CUT_DEFAULTS } from '../camDefaults.js';
-import { ROUGH_FEED_DEFAULT, ROUND_ROUGH_MIN_R, upgradeIsoHolderProfile } from '../../isoToolCatalog.js';
+import { upgradeIsoHolderProfile } from '../../isoToolCatalog.js';
+import { insertRoughFeed, insertFinishFeed } from '../../insertFeeds.js';
 import { defaultMagazineKnives, presetKnifeForShape } from '../../magazineDefaults.js';
 import { buildIsoMill } from '../../isoMills.js';
 import { buildIsoTap } from '../../isoTaps.js';
@@ -56,8 +57,10 @@ export function _buildMagSlotFromTool(tool, num, name) {
   // Soubory z 💾 Uložit do PC/Zásobník řezné podmínky neobsahují (jen
   // geometrie destička+držák) — doplní se odhad podle tvaru.
   Object.assign(slot, SHAPE_CUT_DEFAULTS[slot.shape] || {});
-  // Velká kulatá (R > 7) hrubuje jako polygon (isoToolCatalog.js cutData).
-  if (slot.shape === 'round' && parseFloat(slot.radius) > ROUND_ROUGH_MIN_R) slot.f = ROUGH_FEED_DEFAULT;
+  // Posuv hrubování a dokončení podle plátku (insertFeeds.js).
+  const fR = insertRoughFeed(slot), fF = insertFinishFeed(slot);
+  if (fR) slot.f = fR;
+  if (fF) slot.fFin = fF;
   return slot;
 }
 
@@ -66,6 +69,7 @@ export function _isoMagSlot(rec, num) {
   const slot = _buildMagSlotFromTool(rec.tool, num, rec.name);
   if (rec.vc) slot.vc = rec.vc;
   if (rec.f) slot.f = rec.f;
+  if (rec.fFin) slot.fFin = rec.fFin;
   if (rec.ap) slot.ap = rec.ap;
   if (rec.teeth) slot.teeth = rec.teeth;                        // fréza (isoMills.js)
   if (rec.centerCut !== undefined) slot.centerCut = rec.centerCut !== false;

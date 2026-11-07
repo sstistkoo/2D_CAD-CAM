@@ -16,11 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   je místo „Zrušit“ **⌫ Smazat**; křížek ✕ vpravo nahoře mizel – `openNumpad` přepisoval
   `textContent` titulku i s tlačítkem (nadpis je teď ve vlastním `<span>`).
 
-- **CAM posuv: hrubování 0,8, dokončení 0,25** (`isoToolCatalog.js` cutData, `cam/finishFeed.js`
-  finishBaseFeed, `magazineFeedUpgrade.js`): výchozí f hrubovacího polygonu (úhel ≥ 80°) a kulaté
-  R > 7 je 0,8, dokončovacího polygonu 0,25 (vnitřní nože beze změny). Nové pole **Posuv dok. (F)**
-  (`finishFeed`, výchozí 0,25) pro dokončení týmž nožem — dřív jelo F hrubování. Nezměněné
-  výchozí nože v uloženém zásobníku dostanou nový posuv jednou (revize zásobníku 5).
+- **CAM posuv podle plátku, zvlášť hrubování a dokončení** (`insertFeeds.js`, `isoToolCatalog.js`
+  cutData, `cam/finishFeed.js` finishBaseFeed, `magazineFeedUpgrade.js`): hrubování polygon
+  f = 0,6 · rε · k(ε) (k: S/C/W 1, T 0,85, D 0,75, V 0,5; 0,1–0,8), kulatá f = 0,08 · R (0,15–1,0);
+  dokončení z Ra 1,6 f = √(32 · rε · 1,6 / 1000), nejvýš f hrubování (SNMG ..08 0,48 / 0,2,
+  DNMG ..04 0,18 / 0,14, RCMT R10 0,8 / 0,5). Nůž v zásobníku má **f hrub.** a **f dok.**; nové pole
+  **Posuv dok. (F)** (`finishFeed`, 0 = auto z plátku) pro dokončení týmž nožem — dřív jelo
+  F hrubování. Nájezd dokončení (sjezd materiálem) jede F dokončení. Nezměněné výchozí nože
+  v uloženém zásobníku dostanou nový posuv jednou (revize zásobníku 6). Vnitřní nože beze změny.
 - **CAM dokončení: F podle cílového Ra a snížený posuv ve vnitřních rozích** (`cam/finishFeed.js`,
   výchozí vypnuto): F = √(32 · rε · Ra / 1000) se stropem max F (2 × F); ve vnitřním rohu kontury
   (ostrý zlom dráhy, ověřený proti dílu) posledních/prvních rε sníženým F. Hrubování ani dráha se

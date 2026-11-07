@@ -4,10 +4,10 @@
 export function _defaultCamParams() {
   return {
     machineType: 'LIMS=2000', mode: 'DIAMON', toolName: 'ROUGHER_T1',
-    speed: 200, feed: 0.8, depthOfCut: 2.0, retractDistance: 2.0,
+    speed: 200, feed: 0.5, depthOfCut: 2.0, retractDistance: 2.0,
     // Posuv dokončení [mm/ot], když dokončuje týž nůž (bez finishingSlot);
-    // 0 = jako F hrubování. Uživatel 7. 11. 2026: hrubování 0,8, na hotovo 0,25.
-    finishFeed: 0.25,
+    // 0 = auto podle plátku (insertFeeds.js, Ra 1,6). Nůž ze zásobníku sem dá své f dok.
+    finishFeed: 0,
     // Rychloposuv G0 [mm/min] — jen pro odhad času a přehrávání simulace
     // v reálném čase (do G-kódu se nezapisuje, ten G0 rychlost neuvádí).
     rapidFeed: 6000,
@@ -311,7 +311,7 @@ export const DRILL_PRESET = { toolLength: 145, toolTipAngle: 118, holderWidth: 4
  */
 export const SHAPE_CUT_DEFAULTS = {
   round: { vc: 180, f: 0.15, ap: 1.5 },
-  polygon: { vc: 200, f: 0.8, ap: 2.5 },
+  polygon: { vc: 200, f: 0.48, ap: 2.5 },
   parting: { vc: 120, f: 0.08, ap: 2 },
   threading: { vc: 100, f: 1.5, ap: 0.1 },
   // HSS vrták do oceli: Vc 25 m/min, f 0,2 mm/ot (⌀ 16–25); ap = záběr Q.

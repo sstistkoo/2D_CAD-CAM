@@ -985,12 +985,8 @@ export function generateAutoGCode(S, calc) {
     }
     return { zBack };
   };
-  // `plan` = předpočítaný plán (jinak se spočítá tady). `atZBack` říká, že
-  // volající už na začátku rampy STOJÍ, takže couvnutí emitovat nemá.
-  // Posuv sjezdu/výjezdu materiálem ve sdílených přejezdech (safeRapidTo):
-  // null = F hrubování; dokončení si nastaví svůj (setMotionFeed, 7. 11. 2026 —
-  // jinak nájezd dokončení jel F hrubování 0,8).
-  let motionFeed = null;
+  // `plan` = předpočítaný plán (jinak se spočítá tady); `atZBack` = volající na začátku rampy STOJÍ (bez couvnutí).
+  let motionFeed = null; // F sjezdu/výjezdu v safeRapidTo; null = F hrub., dokončení: setMotionFeed
   const emitFeedToDepth = (fromX2, tx, tz, plan = undefined, atZBack = false) => {
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
     const p = plan === undefined ? planFeedToDepth(fromX2, tx, tz) : plan;
@@ -1262,7 +1258,6 @@ export function generateAutoGCode(S, calc) {
     safeRapidTo, setPos, cur, rapidStock, rapidFoot, residualTopXAtZ,
     maxXOnSegsAt, entryRadGc, simCounter, setMotionFeed: (f) => { motionFeed = f; },
   });
-  motionFeed = null;
 
   buildControlTailLines(prms.controlSystem).forEach(line => addN(line));
   addCmt('--- KONTURA (Pro referenci) ---');

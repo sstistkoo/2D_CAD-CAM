@@ -213,7 +213,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
         </select>
         ${finSlot ? `<span class="cam-sim-machine-chip" style="margin-left:4px;font-family:monospace">R${finSlot.radius}</span>` : ''}
       </div>`;
-      if (finSlot) html += `<small class="cam-sim-info-box" style="display:block;margin-top:2px">T${finSlot.slot} · Vc ${finSlot.vc} m/min · f ${finSlot.f} mm/ot · ap ${finSlot.ap} mm — výměna nástroje se vloží před dokončování.</small>`;
+      if (finSlot) html += `<small class="cam-sim-info-box" style="display:block;margin-top:2px">T${finSlot.slot} · Vc ${finSlot.vc} m/min · f dok. ${finishBaseFeed(prms, finSlot)} mm/ot · ap ${finSlot.ap} mm — výměna nástroje se vloží před dokončování.</small>`;
     }
   } else if (_machSubTab === 'hot' && prms.boreActive) {
     // Hot. + ◎ Vnitřní = jen dokončení v díře (pravidlo 13, doplnění 22. 10. 2026).
@@ -238,7 +238,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
         </select>
         ${finSlot ? `<span class="cam-sim-machine-chip" style="margin-left:4px;font-family:monospace">R${finSlot.radius}</span>` : ''}
       </div>`;
-      if (finSlot) html += `<small class="cam-sim-info-box" style="display:block;margin-top:2px">T${finSlot.slot} · Vc ${finSlot.vc} m/min · f ${finSlot.f} mm/ot · ap ${finSlot.ap} mm — výměna nástroje se vloží před dokončování.</small>`;
+      if (finSlot) html += `<small class="cam-sim-info-box" style="display:block;margin-top:2px">T${finSlot.slot} · Vc ${finSlot.vc} m/min · f dok. ${finishBaseFeed(prms, finSlot)} mm/ot · ap ${finSlot.ap} mm — výměna nástroje se vloží před dokončování.</small>`;
     } else if (!prms.finishOnly) {
       html += `<small class="cam-sim-info-box" style="display:block;margin-top:4px">Objede konturu na hotovo bez hrubování (stejná dráha jako závěrečné dokončení v Hrub.).</small>`;
     }
@@ -429,7 +429,8 @@ function finishFeedRows(prms, S) {
   const info = res ? `F ${fmt(res.f)}${res.capped ? ' (strop)' : ''} → Ra ${fmt(res.ra.toFixed(2))}` : '—';
   // Posuv dokončení týmž nožem (finishFeed); s dokončovacím nožem ze zásobníku platí jeho f.
   let h = slot ? '' : `<div class="cam-sim-row" style="align-items:center;margin-top:2px">
-      <div class="cam-sim-field"><label data-tooltip="Posuv na otáčku [mm/ot] dokončovací dráhy, když dokončuje týž nůž. Hrubování jede polem Posuv (F). 0 = stejně jako hrubování. Vybraný dokončovací nůž ze zásobníku jede svým f.">Posuv dok. (F)</label><input type="number" step="0.05" min="0" data-p="finishFeed" value="${prms.finishFeed ?? 0}"></div>
+      <div class="cam-sim-field"><label data-tooltip="Posuv na otáčku [mm/ot] dokončovací dráhy, když dokončuje týž nůž. Hrubování jede polem Posuv (F). 0 = auto podle plátku (Ra 1,6). Vybraný dokončovací nůž ze zásobníku jede svým f dok.">Posuv dok. (F)</label><input type="number" step="0.01" min="0" data-p="finishFeed" value="${prms.finishFeed ?? 0}"></div>
+      <span style="flex:1;font-size:10px;color:var(--ctp-subtext0,#a6adc8)">${parseFloat(prms.finishFeed) > 0 ? '' : `0 = auto → F ${String(finishBaseFeed(prms)).replace('.', ',')}`}</span>
     </div>`;
   h += `<div class="cam-sim-row" style="align-items:center;margin-top:2px" data-tooltip="Dokončení jede posuvem spočítaným z cílové drsnosti: Ra ≈ 1000 · F² / (32 · rε) µm → F = √(32 · rε · Ra / 1000). rε 0,8 + Ra 1,6 → F 0,2; velký rádius smí jet rychleji. Strop = max F (výchozí 2 × nastavené F dokončení). Rz ≈ 4 · Ra.">
       <label class="cam-sim-checkbox-item" style="flex:2"><input type="checkbox" id="cam-sim-finra" ${on ? 'checked' : ''}><span>F dok. dle Ra (µm)</span></label>

@@ -23,6 +23,7 @@
 //   podélně (hlavní hrana proti posuvu −Z):        θ = 180 − ε − κr
 //   čelně, styl F/K (hlavní hrana proti posuvu −X): θ = κr − 90
 
+import { insertRoughFeed, insertFinishFeed } from './insertFeeds.js';
 import { SHAPES, sizeInfo, CLEARANCE_DEG, RADIUS_MM } from './vbdIso.js';
 import { buildInsertProfileSegments, buildInsertOutlineSegments, PARTING_BODY_MIN_H_MM, threadingInsertEdgeMM } from './cam/insertPreview.js';
 import { ISO_THREAD_INSERTS, isoThreadInsertById, isoThreadInsertsFor, isoThreadTooth } from './isoThreadInserts.js';
@@ -410,19 +411,15 @@ function threadingHolder(prms, sh) {
 // ── Řezné podmínky (orientační start, ne doporučení výrobce) ─────
 
 /**
- * Posuv vnějších nožů (uživatel 7. 11. 2026: „přednastav u kulatého nad
- * 7 mm a polygon plátku hrubování na 0,8 a na hotovo dej 0,25"):
- *   kulatá R > 7 → 0,8; menší kulatá dál podle R (0,024 · R, nejvýš 0,3)
- *   polygon s vrcholovým úhlem ≥ 80° (S, C, W — hrubovací) → 0,8
- *   polygon ostřejší (D 55°, T 60°, V 35° — dokončovací/profilový) → 0,25
- * Vnitřní nože (vyvrtávací tyče) berou původní odhad baseCutData.
+ * Vnější nože: f = posuv HRUBOVÁNÍ, fFin = posuv DOKONČENÍ podle plátku
+ * (insertFeeds.js, uživatel 7. 11. 2026). Vnitřní nože (vyvrtávací tyče)
+ * berou původní odhad baseCutData.
  */
-export const ROUGH_FEED_DEFAULT = 0.8, FINISH_FEED_DEFAULT = 0.25, ROUND_ROUGH_MIN_R = 7;
-
 function cutData(shape, edge, eps, R) {
   const c = baseCutData(shape, edge, eps, R);
-  if (shape === 'round') { if (R > ROUND_ROUGH_MIN_R) c.f = ROUGH_FEED_DEFAULT; }
-  else c.f = eps >= 80 ? ROUGH_FEED_DEFAULT : FINISH_FEED_DEFAULT;
+  const ins = { shape, radius: R, tipAngle: eps };
+  c.f = insertRoughFeed(ins);
+  c.fFin = insertFinishFeed(ins);
   return c;
 }
 
@@ -463,7 +460,7 @@ function knifeRecord({ name, vbdCode, holder, prms, sh, hand, cut, desc, iso }) 
   return {
     name, vbdCode, holderCode: name, desc, iso, material: '',
     tipRadius: prms.toolRadius, toolAngle: tool.toolAngle, tipAngle: prms.toolTipAngle,
-    clearanceAngle: prms.toolClearanceAngle, vc: cut.vc, f: cut.f, ap: cut.ap, tool,
+    clearanceAngle: prms.toolClearanceAngle, vc: cut.vc, f: cut.f, ...(cut.fFin ? { fFin: cut.fFin } : {}), ap: cut.ap, tool,
   };
 }
 

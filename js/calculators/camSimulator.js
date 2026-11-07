@@ -593,9 +593,9 @@ export function openCamSimulator(initialContour, initialGCode) {
       for (const rec of added) S.toolMagazine.push(_isoMagSlot(rec, next++));
       if (added.length) setTimeout(() => showToast(`Do zásobníku přidán ${added.map(r => r.name).join(', ')} (od T${next - added.length}) — nový výchozí nůž, ▲▼ ho přeřadíš`), 0);
     }
-    // Posuv výchozích nožů 7. 11. 2026 (hrubování 0,8, dokončovací 0,25) — magazineFeedUpgrade.js.
+    // Posuv výchozích nožů podle plátku (hrubování × dokončení, 7. 11. 2026) — magazineFeedUpgrade.js.
     const fedUp = (S.magazineDefaultsRev || 0) < FEED_UPGRADE_REV ? upgradeDefaultKnifeFeeds(S) : 0;
-    if (fedUp) setTimeout(() => showToast(`Zásobník: ${fedUp} výchozích nožů dostalo nový posuv (hrubování 0,8, dokončovací 0,25)`), 0);
+    if (fedUp) setTimeout(() => showToast(`Zásobník: ${fedUp} výchozích nožů dostalo posuv podle plátku (zvlášť hrubování a dokončení)`), 0);
     S.magazineDefaultsRev = MAGAZINE_DEFAULTS_REV;
     // Nože z 📚 katalogu se STARÝM obrysem držáku (hlava končila na břitu —
     // čelní hrubování pak nechávalo schodky, 6. 10. 2026) → opravený obrys.

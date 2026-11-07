@@ -534,12 +534,15 @@ CAM část ti umožní generovat NC programy pro obrábění.
        50 % F. Skutečné ap: podélně z modelu zbytku (+ přídavek, ať odhad
        nevyjde tenčí), čelně z výšky materiálu nad dnem řezu (model zbytku),
        cik cak každý pohyb zvlášť.
-     - **Posuv dok. (F)** (Hrub. pod dokončením i Hot., výchozí 0,25): posuv dokončovací
-       dráhy, když dokončuje týž nůž; pole Posuv (F) platí jen pro hrubování. 0 = jako
-       hrubování. Vybraný dokončovací nůž ze zásobníku jede svým f (pole se pak skryje).
-       Výchozí posuv nožů: hrubovací polygon (S, C, W — úhel ≥ 80°) a kulatá R > 7 → 0,8;
-       dokončovací polygon (D, T, V) → 0,25; menší kulatá dál 0,024 · R (nejvýš 0,3).
-       Nezměněné výchozí nože v uloženém zásobníku dostanou nový posuv jednou při načtení.
+     - **Posuv dok. (F)** (Hrub. pod dokončením i Hot., výchozí 0 = auto): posuv dokončovací
+       dráhy, když dokončuje týž nůž; pole Posuv (F) platí jen pro hrubování. 0 = auto podle
+       plátku (vedle pole je vidět výsledné F). Nůž ze zásobníku sem při výběru dá své f dok.;
+       vybraný dokončovací nůž jede svým f dok. (pole se pak skryje).
+       Posuv podle plátku (🔧 Zásobník: f hrub. a f dok.): hrubování polygon 0,6 · rε · k
+       (k: S, C, W 1 · T 0,85 · D 0,75 · V 0,5; 0,1–0,8), kulatá 0,08 · R (0,15–1,0); dokončení
+       z Ra 1,6: f = √(32 · rε · 1,6 / 1000), nejvýš f hrubování. Příklady: SNMG 120408 0,48 / 0,2,
+       DNMG 150604 0,18 / 0,14, RCMT 2006 (R10) 0,8 / 0,5. Orientační start pro ocel — přepiš podle
+       výrobce. Nezměněné výchozí nože v uloženém zásobníku dostanou nový posuv jednou při načtení.
      - **☑ F dok. dle Ra** [Ra µm] [max F] (Hrub. pod dokončením i Hot.): dokončení
        jede posuvem z cílové drsnosti, Ra ≈ 1000 · F² / (32 · rε) → F = √(32 · rε ·
        Ra / 1000) (rε 0,8 + Ra 1,6 → F 0,2; Rz ≈ 4 · Ra). rε = dokončovací nástroj ze

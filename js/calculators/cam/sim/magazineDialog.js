@@ -3,6 +3,7 @@
 // ☰ menu (📥 import ze souborů, 🔄 seřazení), ↩/↪. Vyňato z camSimulator.js
 // (blok „magazine dialog", docs/plan-rozdeleni-cam-simulatoru.md) — stav
 // simulátoru a jeho funkce se předávají parametrem.
+import { insertFinishFeed, slotFinishFeed } from '../../insertFeeds.js';
 import { showToast } from '../../../state.js';
 import { showToolLibraryDialog } from '../../../toolLibrary.js';
 import { openInsertCalc } from '../../insert.js';
@@ -164,7 +165,8 @@ export function createMagazineDialog({ S, toolUi, escHTML, escAttr, saveState, p
             <div class="cam-sim-row">
               <div class="cam-sim-field"><label>Vc (m/min)</label><input type="number" data-mf="vc" data-magidx="${i}" step="10" value="${slot.vc}"></div>
               ${isTap ? `<div class="cam-sim-field"><label title="Stoupání závitu P — posuv F = P · n">Stoupání P (mm)</label><input type="number" data-mf="pitch" data-magidx="${i}" step="0.05" value="${slot.pitch || 1}"></div>` : `
-              <div class="cam-sim-field"><label>${isMill ? 'fz (mm/zub)' : 'f (mm/ot)'}</label><input type="number" data-mf="f" data-magidx="${i}" step="${isMill ? 0.005 : 0.05}" value="${slot.f}"></div>
+              <div class="cam-sim-field"><label${isMill ? '' : ' title="Posuv hrubování [mm/ot]"'}>${isMill ? 'fz (mm/zub)' : 'f hrub. (mm/ot)'}</label><input type="number" data-mf="f" data-magidx="${i}" step="${isMill ? 0.005 : 0.05}" value="${slot.f}"></div>
+              ${!isMill && insertFinishFeed(slot) !== null ? `<div class="cam-sim-field"><label title="Posuv dokončení [mm/ot]. 0 = odhad z plátku (Ra 1,6: f = √(32 · rε · 1,6 / 1000))">f dok. (mm/ot)</label><input type="number" data-mf="fFin" data-magidx="${i}" step="0.01" min="0" value="${slotFinishFeed(slot)}"></div>` : ''}
               <div class="cam-sim-field"><label>${isMill ? 'Krok do hl. (mm)' : 'ap (mm)'}</label><input type="number" data-mf="ap" data-magidx="${i}" step="0.5" value="${slot.ap}"></div>`}
             </div>
             ${isLive ? `<div class="cam-sim-info-box" style="margin-top:8px;font-size:11px">${isTap
@@ -212,7 +214,7 @@ export function createMagazineDialog({ S, toolUi, escHTML, escAttr, saveState, p
           const field = inp.dataset.mf;
           const slot = mag[idx];
           if (!slot) return;
-          const numFields = ['slot','radius','tipAngle','toolAngle','clearanceAngle','toolLength','tipFlat','vc','f','ap','teeth','pitch'];
+          const numFields = ['slot','radius','tipAngle','toolAngle','clearanceAngle','toolLength','tipFlat','vc','f','fFin','ap','teeth','pitch'];
           pushHistory();
           const _slotWas = insertOfSlot(slot);
           // ⌀ vrtáku se ukládá jako rádius (⌀/2), stejně jako v panelu.

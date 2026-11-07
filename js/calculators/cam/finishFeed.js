@@ -18,6 +18,8 @@
 //    za ním. Vnitřní zaoblení (R ≥ rε) zlom nemá; to řeší přepočet na
 //    oblouku (vydutý oblouk dostane F menší).
 
+import { slotFinishFeed, paramsFinishFeed } from '../insertFeeds.js';
+
 /** Ra [µm] → posuv [mm/ot] pro rádius rε. */
 export function raToFeed(ra, r) {
   return (ra > 0 && r > 0) ? Math.sqrt(32 * r * ra / 1000) : null;
@@ -29,14 +31,16 @@ export function feedToRa(f, r) {
 }
 
 /**
- * Nastavené F dokončení [mm/ot]: dokončovací nůž ze zásobníku → jeho f;
- * týž nůž → prms.finishFeed (uživatel 7. 11. 2026: hrubování 0,8, na hotovo
- * 0,25); finishFeed chybí / 0 → F hrubování (staré programy).
+ * Nastavené F dokončení [mm/ot] (uživatel 7. 11. 2026: posuv podle plátku
+ * a podle toho, jestli se hrubuje, nebo jede na hotovo — insertFeeds.js):
+ *   dokončovací nůž ze zásobníku → jeho f dok. (fFin, jinak odhad z plátku)
+ *   týž nůž → prms.finishFeed; 0 = auto z plátku; tvar bez pravidla → F
  */
 export function finishBaseFeed(prms, slot = null) {
-  if (slot) return parseFloat(slot.f) || 0;
+  if (slot) return slotFinishFeed(slot);
   const ff = parseFloat(prms?.finishFeed);
-  return ff > 0 ? ff : (parseFloat(prms?.feed) || 0);
+  if (ff > 0) return ff;
+  return paramsFinishFeed(prms) ?? (parseFloat(prms?.feed) || 0);
 }
 
 /**

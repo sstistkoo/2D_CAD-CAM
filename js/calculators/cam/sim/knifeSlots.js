@@ -164,6 +164,7 @@ export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpd
     S.params.toolTipMirror   = slot.tipMirror === true;
     S.params.speed           = slot.vc;
     S.params.feed            = slot.f;
+    S.params.finishFeed      = parseFloat(slot.fFin) > 0 ? parseFloat(slot.fFin) : 0;   // 0 = auto z plátku
     S.params.depthOfCut      = slot.ap;
     // Držák
     if (slot.holderLength !== undefined) S.params.holderLength = slot.holderLength;
@@ -400,6 +401,7 @@ export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpd
     slot.tipMirror     = S.params.toolTipMirror === true;
     slot.vc            = S.params.speed;
     slot.f             = S.params.feed;
+    if (parseFloat(S.params.finishFeed) > 0) slot.fFin = parseFloat(S.params.finishFeed); else delete slot.fFin;
     slot.ap            = S.params.depthOfCut;
     // Držák
     slot.holderLength  = S.params.holderLength;
