@@ -8,7 +8,7 @@ import { openCamSimulator } from './camSimulator.js';
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave } from './gcodeEditorShared.js';
+import { G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, spacedPrefix, numpadHTML, numpadResult, wireNumpadCalc, numpadOn, wireNumpadToggle, wireTapBelow, wireCommentTools, commentClass, wireCurrentLine, wireNoKeyboard, wireKeyboardMode } from './gcodeEditorShared.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
 const STORAGE_DATA  = 'skica-cam-editor-data';
@@ -263,7 +263,7 @@ function buildEditorHTML() {
 <div class="cne-layout">
   <div class="cne-sn-bar">
     <button class="cne-sn-arrow" data-el="undoArrowBtn" data-act="editorUndo" title="Zpět (Ctrl+Z)" disabled>◀</button>
-    <button class="cne-sn-arrow" data-el="redoArrowBtn" data-act="editorRedo" title="Vpřed (Ctrl+Y)" disabled>▶</button>
+    <button class="cne-sn-arrow" data-el="redoArrowBtn" data-act="editorRedo" title="Vpřed (Ctrl+Y)" disabled>▶</button><button class="cne-sn-arrow cne-sn-numtog" data-numpadtog>123</button>
     <span class="cne-sn-text" data-el="snBar"></span>
     <button class="cne-sn-close" data-act="closeEditor" title="Zavřít editor">✕</button>
   </div>
@@ -361,7 +361,7 @@ function buildEditorHTML() {
     <button class="cne-qb green" data-ins="\\n" title="Nový řádek">↵</button>
     <button class="cne-qb red" data-inp="LIMS=" title="LIMS – Omezení otáček">LIMS</button>
     <button class="cne-qb accent" data-ins="STOPRE" title="STOPRE – Zastavit předzpracování">STOP</button>
-    <button class="cne-qb gray" data-act="copy" title="Kopírovat kód">📋</button>
+    <button class="cne-qb gray" data-hidecom title="Skrýt poznámky za středníkem">;👁</button>
     <button class="cne-qb blue" data-act="addBlock" title="Přidat číslo bloku">N+</button>
     <button class="cne-qb cne-kb-btn" data-act="keyboard" title="Zobrazit klávesnici">⌨</button>
   </div>
@@ -395,21 +395,7 @@ function buildEditorHTML() {
 
   <!-- Numpad modal -->
   <div class="cne-inner-modal" data-el="numModal" style="display:none">
-    <div class="cne-im-card">
-      <div class="cne-im-title"><span data-el="numTitle">Vstup</span><button class="cne-im-close" data-act="numCancel" title="Zavřít">✕</button></div>
-      <input class="cne-im-input" data-el="numInput" type="text" readonly>
-      <div class="cne-im-helpers" data-el="numHelpers"></div>
-      <div class="cne-numpad">
-        <button class="cne-np" data-n="7">7</button><button class="cne-np" data-n="8">8</button><button class="cne-np" data-n="9">9</button>
-        <button class="cne-np" data-n="4">4</button><button class="cne-np" data-n="5">5</button><button class="cne-np" data-n="6">6</button>
-        <button class="cne-np" data-n="1">1</button><button class="cne-np" data-n="2">2</button><button class="cne-np" data-n="3">3</button>
-        <button class="cne-np sign" data-n="±">±</button><button class="cne-np" data-n="0">0</button><button class="cne-np" data-n=".">.</button>
-      </div>
-      <div class="cne-im-actions">
-        <button class="cne-im-btn cancel" data-act="numBack" title="Smazat poslední znak">⌫ Smazat</button>
-        <button class="cne-im-btn ok" data-act="numOk">OK</button>
-      </div>
-    </div>
+    ${numpadHTML()}
   </div>
 
   <!-- Validation modal -->
@@ -690,10 +676,10 @@ export function openCamEditor(initialCode, jumpLine) {
     const code = editor.value;
     const out = code.split('\n').map(line => {
       const ci = line.indexOf(';');
-      if (ci === 0) return `<span class="hl-comment">${esc(line)}</span>`;
+      if (ci === 0) return `<span class="${commentClass(line)}">${esc(line)}</span>`;
 
       const work = ci > 0 ? line.substring(0, ci) : line;
-      const comment = ci > 0 ? `<span class="hl-comment">${esc(line.substring(ci))}</span>` : '';
+      const comment = ci > 0 ? `<span class="${commentClass(line)}">${esc(line.substring(ci))}</span>` : '';
 
       return highlightCode(work) + comment;
     });
@@ -839,8 +825,12 @@ export function openCamEditor(initialCode, jumpLine) {
     ).join('');
   }
 
+  // 123 v horní liště: VYP = písmeno osy přímo do kódu, ZAP = číselník (8. 11. 2026)
+  const inputOrNumpad = p => p && !numpadOn() ? insertText(spacedPrefix(activeTarget === editor && editor, p)) : openNumpad(p);
+
   function confirmNumpad() {
-    const v = numInput.value.trim();
+    const v = numpadResult(numInput.value);   // výraz (100/2+5) → výsledek
+    if (v === null) { showToast('Neplatný výraz – zkontrolujte závorky a znaménka'); return; }
     if (v) {
       if (numTargetSel) { editor.selectionStart = numTargetSel.start; editor.selectionEnd = numTargetSel.end; }
       insertText(inputPrefix + v + ' ');
@@ -1392,10 +1382,11 @@ export function openCamEditor(initialCode, jumpLine) {
   // ══════════════════════════════════════════════════════════
   editor.addEventListener('input', onInput);
   editor.addEventListener('scroll', syncScroll);
-  // Na mobilu je editor zpočátku readOnly (aby se klávesnice neotvírala
-  // automaticky při scrollování/výběru). Klepnutím do textu se ale má
-  // editace povolit a klávesnice rovnou otevřít.
-  editor.addEventListener('pointerdown', () => { editor.readOnly = false; });
+  // Sdílené s kreslicím CNC editorem (8. 11. 2026): klik pod text / Enter v poznámce → nový řádek,
+  // ;👁 skrytí poznámek, podklad řádku s kurzorem, číselník s kalkulačkou, 123, klávesnice jen přes ⌨.
+  wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n'));
+  wireNumpadToggle(root); wireCurrentLine(editor, backdrop); wireNumpadCalc(numModal, numInput); wireNoKeyboard(root, editor);
+  const toggleKeyboard = wireKeyboardMode(editor, root);
 
   // Klávesy spodní lišty nesmí „ukrást" fokus z textarey – jinak po každém
   // stisku (mazání znaku, vložení) zmizí kurzor a uživatel musí znovu klikat
@@ -1474,7 +1465,7 @@ export function openCamEditor(initialCode, jumpLine) {
         }
         case 'backspace': doBackspace(); break;
         case 'addBlock':  insertBlockNumber(); break;
-        case 'keyboard':  editor.readOnly = false; editor.focus(); break;
+        case 'keyboard':  toggleKeyboard(); break;
         case 'menu':      $('menuModal').style.display = 'flex'; break;
         case 'menuClose': $('menuModal').style.display = 'none'; break;
         case 'cam': {
@@ -1496,10 +1487,9 @@ export function openCamEditor(initialCode, jumpLine) {
           openCamSimulator(undefined, code);
           break;
         }
-        case 'chamfer':   openNumpad(getChamferPrefix()); break;
-        case 'round':     openNumpad(getRoundPrefix()); break;
+        case 'chamfer':   inputOrNumpad(getChamferPrefix()); break;
+        case 'round':     inputOrNumpad(getRoundPrefix()); break;
         case 'numCancel': numModal.style.display = 'none'; break;
-        case 'numBack':   numInput.value = numInput.value.slice(0, -1); break;
         case 'numOk':     confirmNumpad(); break;
         case 'valClose':  valModal.style.display = 'none'; break;
         case 'cfgClose':  cfgModal.style.display = 'none'; persistCfg(); break;
@@ -1511,15 +1501,7 @@ export function openCamEditor(initialCode, jumpLine) {
     if (ib) { insertText(ib.dataset.ins); return; }
     // Input modal
     const ip = e.target.closest('[data-inp]');
-    if (ip) { openNumpad(ip.dataset.inp); return; }
-    // Numpad keys
-    const np = e.target.closest('[data-n]');
-    if (np) {
-      const k = np.dataset.n;
-      if (k === '±') { const v = numInput.value; numInput.value = v.startsWith('-') ? v.slice(1) : '-' + v; }
-      else numInput.value += k;
-      return;
-    }
+    if (ip) { inputOrNumpad(ip.dataset.inp); return; }
     // Helper items
     const hi = e.target.closest('[data-hv]');
     if (hi) { numInput.value = hi.dataset.hv; return; }
@@ -1579,10 +1561,6 @@ export function openCamEditor(initialCode, jumpLine) {
   }).observe(document.body, { childList: true });
 
   // ── Init ───────────────────────────────────────────────────
-  // On mobile, prevent keyboard from auto-showing on tap
-  if (window.matchMedia('(max-width: 600px)').matches) {
-    editor.readOnly = true;
-  }
   ensureFile();
 
   // Pokud byl předán initialCode, vloží se do souboru CAM_PROGRAM.MPF.

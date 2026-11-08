@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CAM editor převzal úpravy kreslicího editoru** (`camEditor.js`): nový číselník s kalkulačkou, přepínač 123
+  v horní liště, ;👁 skrytí poznámek (místo 📋 v liště – kopírování je v menu), Enter v poznámce ji nerozdělí,
+  klik pod text = nový řádek, podklad řádku s kurzorem; klávesnice telefonu jen přes ⌨ (dřív readOnly).
 - **CNC editor: nový číselník s kalkulačkou** (`cncNumpadCalc.js`): zvlášť + a −, × ÷, závorky, C a ⌫
   v horní řadě, velké OK dole; výraz (např. 100÷2+5) se při OK spočítá a vloží se výsledek, náhled „= 55“ pod polem.
 - **CNC editor: zvýrazněný řádek s kurzorem** (`cncCurLine.js`): jemný podklad s oranžovým proužkem vlevo

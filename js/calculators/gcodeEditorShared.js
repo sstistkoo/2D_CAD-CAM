@@ -316,3 +316,4 @@ export { numpadOn, wireNumpadToggle } from './cncNumpadToggle.js';
 export { wireCurrentLine } from './cncCurLine.js';
 export { numpadHTML, numpadResult, wireNumpadCalc } from './cncNumpadCalc.js';
 export { wireNoKeyboard } from './cncNoKeyboard.js';
+export { wireKeyboardMode } from './cncKeyboardMode.js';

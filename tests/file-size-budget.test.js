@@ -25,7 +25,7 @@ const BUDGET = {
   'geometry.js': 74,   // rozcestník (rozděleno 16. 10. do js/geometry/) — kód sem nepřidávat
   'calculators/vkContour.js': 2336,
   'storage/fileIO.js': 1811,
-  'calculators/camEditor.js': 1613,   // 16. 10.: shodný kód s cncEditor.js → gcodeEditorShared.js
+  'calculators/camEditor.js': 1595,   // 16. 10.: shodný kód s cncEditor.js → gcodeEditorShared.js
   'events.js': 1762,
   'calculators/cam/gcodeEmit.js': 1290,
 };
