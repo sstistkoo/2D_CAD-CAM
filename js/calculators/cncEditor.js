@@ -1059,11 +1059,13 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     const v = editor.value;
     // Kurzor v poznámce za středníkem (typicky konec řádku „Z0 ; Úsečka 3…"):
     // kód by skončil v komentáři a nikdo by ho nečetl → vložit před středník.
-    let actualIns = actual;
+    let actualIns = actual, mkGap = '';
     if (s === e && actual !== '\n' && !actual.startsWith(';')) {
       const ls = v.lastIndexOf('\n', s - 1) + 1;
-      const ci = splitComment(v.slice(ls, s));     // středník v MSG("…;…") není komentář
-      if (ci >= 0) {
+      const ci = splitComment(v.slice(ls, s)), le = v.indexOf('\n', s) < 0 ? v.length : v.indexOf('\n', s);     // středník v MSG("…;…") není komentář
+      // Řádek se značkou KONTURA_/STOCK_ START/END je jen značka: kód jde na vlastní řádek pod ni (na začátku řádku nad ni).
+      if (/^\s*;/.test(v.slice(ls, le)) && MARKER_RE.test(v.slice(ls, le))) { if (s === ls) mkGap = '\n'; else { s = e = le; actualIns = '\n' + actualIns.trimStart(); } }
+      else if (ci >= 0) {
         let p = ls + ci;
         while (p > ls && v[p - 1] === ' ') p--;
         s = e = p;
@@ -1082,9 +1084,9 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     // tokenu (";" komentář, "=" přiřazení, samotnou mezeru/nový řádek).
     const prevChar = s > 0 ? v[s - 1] : '';
     const needsSpace = prevChar && !/\s/.test(prevChar) && !/^[;=]/.test(actual) && actual !== ' ' && actual !== '\n' && !/^[\d.-]$/.test(actual);   // číslice čísla: bez mezery
-    const insert = (needsSpace ? ' ' : '') + actualIns;
+    const insert = (needsSpace && actualIns[0] !== '\n' ? ' ' : '') + actualIns;
     // Hned za vloženým kódem středník („Z0;…") → oddělit mezerou.
-    const gap = v[e] === ';' && !/\s$/.test(actualIns) && !actualIns.startsWith(';') ? ' ' : '';
+    const gap = mkGap || (v[e] === ';' && !/\s$/.test(actualIns) && !actualIns.startsWith(';') ? ' ' : '');
     captureUndoSnapshot(label, actual);
     editor.value = v.substring(0, s) + insert + gap + v.substring(e);
     editor.selectionStart = editor.selectionEnd = s + insert.length;
