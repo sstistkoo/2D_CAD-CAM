@@ -17,7 +17,7 @@ import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
 import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, digitKeysVisible, spacedPrefix } from './gcodeEditorShared.js';
+import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix } from './gcodeEditorShared.js';
 import { shownIntersections } from '../geometry/shownIntersections.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
@@ -1186,7 +1186,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     numModal.style.display = 'flex';
   }
 
-  const inputOrNumpad = p => (p && digitKeysVisible(overlay)) ? insertText(spacedPrefix(activeTarget === editor && editor, p)) : openNumpad(p); // číslice v liště → bez číselníku
+  const inputOrNumpad = p => p ? insertText(spacedPrefix(activeTarget === editor && editor, p)) : openNumpad(p); // písmeno osy vždy přímo, bez číselníku (8. 11. 2026)
 
   function buildHelpers(prefix) {
     const codes = prefix === 'G' ? G_CODES : prefix === 'M' ? M_CODES : null;

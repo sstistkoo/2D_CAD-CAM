@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **CNC editor: písmeno osy bez číselníku** (`calculators/cncEditor.js`): tlačítka X, Z, G, M,
+  sražení, zaoblení… vloží písmeno rovnou do kódu i na výšku; vyskakovací číselník se už neotevírá.
+
 ### Fixed
 
 - **Esc / Zpět zavírá nejdřív vnitřní okno** (`dialogs/innerModal.js`, volá se z `dialogFactory.js`,
