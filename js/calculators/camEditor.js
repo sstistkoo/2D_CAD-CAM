@@ -8,7 +8,7 @@ import { openCamSimulator } from './camSimulator.js';
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, spacedPrefix, numpadHTML, numpadResult, wireNumpadCalc, numpadOn, wireNumpadToggle, wireTapBelow, wireCommentTools, commentClass, wireCurrentLine, wireNoKeyboard, wireKeyboardMode } from './gcodeEditorShared.js';
+import { G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, spacedPrefix, numpadHTML, numpadResult, wireNumpadCalc, numpadOn, wireNumpadToggle, wireTapBelow, wireCommentTools, commentClass, wireCurrentLine, wireNoKeyboard, wireKeyboardMode, ensureCaretVisible } from './gcodeEditorShared.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
 const STORAGE_DATA  = 'skica-cam-editor-data';
@@ -742,6 +742,7 @@ export function openCamEditor(initialCode, jumpLine) {
     // vkládání za sebou (např. RND=5 pak Z5) způsobovalo skok na začátek.
     // Vrácením focusu se stav ustálí pro další čtení.
     editor.focus({ preventScroll: true });
+    ensureCaretVisible(editor);   // nový řádek / dlouhý řádek: kurzor vždy vidět
     onInput();
   }
 
@@ -772,6 +773,7 @@ export function openCamEditor(initialCode, jumpLine) {
     editor.scrollTop = scrollTop;
     editor.scrollLeft = scrollLeft;
     editor.focus({ preventScroll: true });
+    ensureCaretVisible(editor);
     onInput();
   }
 

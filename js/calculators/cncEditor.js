@@ -17,7 +17,7 @@ import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
 import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix, wireTapBelow, wireCommentTools, MARKER_RE, commentClass, numpadOn, wireNumpadToggle, wireCurrentLine, numpadHTML, numpadResult, wireNumpadCalc, wireNoKeyboard, openCaret, sameCode, autoRedrawOn, wireAutoRedraw } from './gcodeEditorShared.js';
+import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix, wireTapBelow, wireCommentTools, MARKER_RE, commentClass, numpadOn, wireNumpadToggle, wireCurrentLine, numpadHTML, numpadResult, wireNumpadCalc, wireNoKeyboard, openCaret, sameCode, autoRedrawOn, wireAutoRedraw, ensureCaretVisible } from './gcodeEditorShared.js';
 import { shownIntersections } from '../geometry/shownIntersections.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
@@ -1098,6 +1098,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     // vkládání za sebou (např. RND=5 pak Z5) způsobovalo skok na začátek.
     // Vrácením focusu se stav ustálí pro další čtení.
     editor.focus({ preventScroll: true });
+    ensureCaretVisible(editor);   // nový řádek / dlouhý řádek: kurzor vždy vidět
     onInput(actual === '\n' ? { inputType: 'insertLineBreak' } : undefined);
   }
 
@@ -1128,6 +1129,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     editor.scrollTop = scrollTop;
     editor.scrollLeft = scrollLeft;
     editor.focus({ preventScroll: true });
+    ensureCaretVisible(editor);
     onInput();
   }
 

@@ -3,7 +3,7 @@
  *  – po otevření kurzor rovnou na NOVÉM řádku na konci kontury, aby šlo hned
  *    pokračovat v zadávání (před `; STOCK_START` / `; KONTURA_END`, jinak na konci),
  *  – přepínač AUTO v horní liště: po zavření editoru překreslit výkres podle
- *    kódu bez dotazu „Přepsat výkres…?" (výchozí VYP = s dotazem).
+ *    kódu bez dotazu „Přepsat výkres…?" (výchozí ZAP; vypnuté = s dotazem).
  */
 
 const END_RE = /;\s*(KONTURA_END|STOCK_START)\b/i;
@@ -41,7 +41,8 @@ export const sameCode = (a, b) => {
 const KEY = 'cne_autoRedraw';
 let auto = null;
 export function autoRedrawOn() {
-  if (auto === null) { auto = false; try { auto = localStorage.getItem(KEY) === '1'; } catch { /* bez úložiště */ } }
+  // Výchozí ZAP (uživatel 8. 11. 2026: dotaz při ✕ nechce); VYP jen po vypnutí tlačítkem AUTO.
+  if (auto === null) { auto = true; try { auto = localStorage.getItem(KEY) !== '0'; } catch { /* bez úložiště */ } }
   return auto;
 }
 

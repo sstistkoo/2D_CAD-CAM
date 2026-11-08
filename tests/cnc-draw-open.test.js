@@ -26,3 +26,11 @@ describe('sameCode', () => {
     expect(sameCode('G1 X10', 'G1 X11')).toBe(false);
   });
 });
+
+// @vitest-environment-free: autoRedrawOn čte localStorage (v node chybí → výchozí ZAP)
+import { autoRedrawOn } from '../js/calculators/cncDrawOpen.js';
+describe('autoRedrawOn', () => {
+  it('výchozí ZAP – zavření editoru překreslí bez dotazu', () => {
+    expect(autoRedrawOn()).toBe(true);
+  });
+});
