@@ -310,3 +310,4 @@ export { autoCompleteMotionG } from "./gcodeAutoMotion.js";
 // Šipky ✛ u polárního úhlu (CNC Editor, Úsečka úhlem) – viz cncAngleCompass.js
 export { wireAngleCompass } from "./cncAngleCompass.js";
 export { digitKeysHTML, digitPadHTML, digitKeysVisible, spacedPrefix } from './cncDigitKeys.js';
+export { wireTapBelow } from './cncTapBelow.js';

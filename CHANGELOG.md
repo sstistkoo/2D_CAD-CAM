@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **CNC editor: písmeno osy bez číselníku** (`calculators/cncEditor.js`): tlačítka X, Z, G, M,
   sražení, zaoblení… vloží písmeno rovnou do kódu i na výšku; vyskakovací číselník se už neotevírá.
+- **CNC editor: klik pod text = nový řádek** (`calculators/cncTapBelow.js`): klepnutí do prázdného
+  místa pod posledním řádkem přesune kurzor na konec a založí nový řádek – netřeba hledat konec poznámky.
 
 ### Fixed
 
