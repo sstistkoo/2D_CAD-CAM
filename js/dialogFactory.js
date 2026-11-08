@@ -2,6 +2,8 @@
 // ║  SKICA – Dialog Factory (sdílené vytváření overlayů)       ║
 // ╚══════════════════════════════════════════════════════════════╝
 
+import { closeInnerModal } from './dialogs/innerModal.js';
+
 /**
  * Vytvoří calc-overlay se standardním layoutem (titlebar + close + body).
  * Pokud overlay daného typu již existuje, vrátí null.
@@ -82,7 +84,11 @@ export function makeOverlay(type, title, bodyHTML, windowClass, opts = {}) {
     closeOnBackdropClick(overlay, () => overlay.remove());
   }
   if (closeOnEsc) {
-    const _escHandler = (e) => { if (e.key === 'Escape') overlay.remove(); };
+    const _escHandler = (e) => {   // Esc už obsloužený (hledání, vnitřní okno) → nezavírat celé okno
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      e.preventDefault();
+      if (!closeInnerModal(overlay)) overlay.remove();
+    };
     document.addEventListener('keydown', _escHandler);
     onOverlayRemoved(overlay, () => document.removeEventListener('keydown', _escHandler));
   } else {

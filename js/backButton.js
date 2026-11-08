@@ -20,6 +20,7 @@
 
 import { state, showToast } from './state.js';
 import { bridge } from './bridge.js';
+import { closeInnerModal } from './dialogs/innerModal.js';
 
 /** Do kolika ms musí přijít druhé Zpět na nejvyšší úrovni, aby aplikace skončila. */
 export const EXIT_WINDOW_MS = 2000;
@@ -56,6 +57,7 @@ function topmost(list) {
 
 /** Zavře okno jeho vlastním křížkem (aby proběhl úklid), jinak ho odstraní. */
 function closeOverlay(overlay) {
+  if (closeInnerModal(overlay)) return;   // nejdřív vnitřní okno (číselník v editoru…)
   const btn = overlay.querySelector(CLOSE_BTN_SELECTOR);
   if (btn) btn.click();
   else overlay.remove();

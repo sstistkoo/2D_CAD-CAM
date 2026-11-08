@@ -20,6 +20,7 @@ import { getLineSegment } from './tools/helpers.js';
 import { showPostDrawPointDialog } from './dialogs/postDrawDialog.js';
 import { isAnyPickerArmed } from './dialogs/canvasPick.js';
 import { offerDuplicateAt } from './dialogs/contourCheck.js';
+import { closeInnerModal } from './dialogs/innerModal.js';
 
 // Registrace measureSelection na bridge (aby ui.js nemusel importovat přímo – kruhová závislost)
 bridge.measureSelection = measureSelection;
@@ -366,7 +367,7 @@ document.addEventListener("keydown", (e) => {
     autoCenterView();
     return;
   }
-  if (e.key === "Escape") {
+  if (e.key === "Escape" && !e.defaultPrevented) {
     // Close topmost dialog overlay if open (highest z-index first).
     // Okna s [data-keep-on-esc] (plovoucí, koexistují s kreslením) se
     // přeskakují – tam ESC patří nástroji, zavírají se křížkem.
@@ -380,7 +381,8 @@ document.addEventListener("keydown", (e) => {
         const z = parseInt(getComputedStyle(o).zIndex) || 0;
         if (z > topZ) { topOverlay = o; topZ = z; }
       });
-      topOverlay.remove();
+      e.preventDefault();   // vnitřní okno (číselník v editoru…) zavřít dřív než celé okno
+      if (!closeInnerModal(topOverlay)) topOverlay.remove();
       return;
     }
     // Close help overlay if open

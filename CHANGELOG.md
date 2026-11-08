@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Esc / Zpět zavírá nejdřív vnitřní okno** (`dialogs/innerModal.js`, volá se z `dialogFactory.js`,
+  `events.js`, `backButton.js`): s otevřeným číselníkem, úhlem, sražením, nápovědou… v CNC/CAM
+  editoru zavřel Esc i tlačítko Zpět na Androidu celý editor (kreslicí editor přitom rovnou
+  vykreslil kód na plátno). Esc ve vyhledávání editoru zavíral kromě hledání i editor –
+  Esc obsloužený polem (`preventDefault`) už okno nezavírá.
+
 ### Added
 
 - **CNC editor: číslice naležato i v editoru z pravého panelu, číselník bez automatického
