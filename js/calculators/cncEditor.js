@@ -17,7 +17,7 @@ import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
 import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix, wireTapBelow, wireCommentTools } from './gcodeEditorShared.js';
+import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix, wireTapBelow, wireCommentTools, MARKER_RE, commentClass } from './gcodeEditorShared.js';
 import { shownIntersections } from '../geometry/shownIntersections.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
@@ -1026,10 +1026,10 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     const code = editor.value;
     const out = code.split('\n').map(line => {
       const ci = line.indexOf(';');
-      if (ci === 0) return `<span class="hl-comment">${esc(line)}</span>`;
+      if (ci === 0) return `<span class="${commentClass(line)}">${esc(line)}</span>`;
 
       const work = ci > 0 ? line.substring(0, ci) : line;
-      const comment = ci > 0 ? `<span class="hl-comment">${esc(line.substring(ci))}</span>` : '';
+      const comment = ci > 0 ? `<span class="${commentClass(line)}">${esc(line.substring(ci))}</span>` : '';
 
       const html = highlightCode(work) + comment;
       // Řádek objektu označeného na plátně – podbarvit (znaky se nemění).
@@ -1733,7 +1733,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     }
     const lines = editor.value.split('\n').map(text => {
       if (!text.trim()) return { text, kept: false, comment: '' }; // prázdný řádek
-      const i = splitComment(text);
+      const i = MARKER_RE.test(text) ? -1 : splitComment(text);   // značka kontury/polotovaru zůstává celá
       if (i < 0) return { text, kept: true, comment: '' };
       const code = text.slice(0, i).replace(/[ \t]+$/, '');
       if (!code.trim()) return { text, kept: false, comment: '' };

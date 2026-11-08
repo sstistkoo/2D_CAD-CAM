@@ -33,6 +33,11 @@ export function newlinePos(v, pos) {
 
 const KEY = 'cne_hideComments';
 
+/** Značka začátku / konce kontury či polotovaru – musí zůstat vždy vidět i v kódu. */
+export const MARKER_RE = /\b(KONTURA|STOCK)_(START|END)\b/i;
+/** CSS třída poznámky: značka kontury/polotovaru se nikdy neskrývá (tlačítko ;👁). */
+export const commentClass = text => MARKER_RE.test(text) ? 'hl-comment hl-mark' : 'hl-comment';
+
 export function wireCommentTools(editor, root, insertNewline) {
   const toEnd = () => {
     if (editor.selectionStart !== editor.selectionEnd) return false;

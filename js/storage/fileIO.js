@@ -3,6 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { state, showToast, pushUndo, displayX, ensureStockLayer, STOCK_LAYER_ID } from '../state.js';
+import { normalizeDrawnObjects } from '../drawColorPrefs.js';
 import { COLORS } from '../constants.js';
 import { updateObjectList, updateProperties, updateLayerList, updateMachineTypeBtn, updateXDisplayBtn } from '../ui.js';
 import { calculateAllIntersections } from '../geometry.js';
@@ -1580,7 +1581,7 @@ function renderCncCodeToCanvas(code, { append = false } = {}) {
     // Objekty naparsované z G-kódu dřív neměly .layer vůbec (obcházely addObject()),
     // takže byly imunní vůči skrývání vrstev a ignorovaly barvu nastavenou u vrstvy
     // Kontura/Polotovar (kreslily se natvrdo COLORS.primary / COLORS.stock).
-    objs.forEach(o => { o.layer = o.isStock ? STOCK_LAYER_ID : 0; state.objects.push(o); });
+    objs.forEach(o => { o.layer = o.isStock ? STOCK_LAYER_ID : 0; state.objects.push(o); }); normalizeDrawnObjects(objs);
     // Indexy výběru ukazovaly do starého pole objektů – po přepsání by ukazovaly
     // jinam/mimo, a runCncExport() níž by pak do panelu CNC KÓD dal jen „vybraný" kus.
     state.selected = null;
@@ -1737,7 +1738,7 @@ function importCncFile() {
         const { objs, warnings } = parseGcodeToObjects(ev.target.result);
         if (!objs.length) { showToast("Nenalezeny žádné pohyby v souboru"); return; }
         pushUndo();
-        objs.forEach(o => { o.layer = o.isStock ? STOCK_LAYER_ID : 0; state.objects.push(o); });
+        objs.forEach(o => { o.layer = o.isStock ? STOCK_LAYER_ID : 0; state.objects.push(o); }); normalizeDrawnObjects(objs);
         calculateAllIntersections();
         updateObjectList();
         updateProperties();

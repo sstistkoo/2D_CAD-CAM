@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   středníkem založí Enter (i tlačítko ↵) nový řádek až za koncem řádku, poznámka zůstane za kódem.
 - **CNC editor: tlačítko ;👁** (kreslicí lišta) skryje / zobrazí poznámky za středníkem – jen zobrazení,
   kód se nemění, stav se pamatuje.
+- **Značky kontury a polotovaru vždy vidět** (`cncCommentTools.js`): `; KONTURA_START/END` a
+  `; STOCK_START/END` se při ;👁 neskrývají a ;✂ je nevystřihne; v kódu jsou zvýrazněné žlutě.
+- **Kreslení z G-kódu normalizované** (`drawColorPrefs.js` → `normalizeDrawnObjects`): kontura i polotovar
+  vykreslené z CNC editoru / importu dostanou barvu podle vrstvy (Kontura modře, Polotovar červeně) a
+  jednotnou tloušťku čar z Nastavení – stejně jako 🎨 Normalizovat v Úpravách výkresu.
 
 ### Fixed
 

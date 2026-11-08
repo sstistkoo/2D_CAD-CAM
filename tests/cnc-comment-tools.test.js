@@ -26,3 +26,13 @@ describe('newlinePos', () => {
     expect(newlinePos('MSG("a;b") X1', 8)).toBe(null);
   });
 });
+
+import { commentClass, MARKER_RE } from '../js/calculators/cncCommentTools.js';
+describe('značky kontury/polotovaru', () => {
+  it('značky se při skrytí poznámek neskrývají', () => {
+    expect(commentClass('; KONTURA_START — kontura')).toContain('hl-mark');
+    expect(commentClass('; STOCK_END')).toContain('hl-mark');
+    expect(commentClass('; Úsečka 3')).toBe('hl-comment');
+    expect(MARKER_RE.test('; stock_start')).toBe(true);
+  });
+});

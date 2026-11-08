@@ -11,6 +11,7 @@
 
 import { COLORS } from './constants.js';
 import { state, STOCK_LAYER_ID } from './state.js';
+import { planColorNormalize, applyColorNormalize } from './dialogs/drawingEditOps.js';
 
 const LS_KEY = 'skica-draw-colors';
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -62,6 +63,18 @@ export function setDrawColorPrefs(next) {
   }
   try { localStorage.setItem(LS_KEY, JSON.stringify(prefs)); } catch { /* private mode */ }
   applyDrawColorsToLayers();
+}
+
+/**
+ * Objekty vykreslené z G-kódu (CNC editor, import) srovná jako 🎨 Normalizovat:
+ * kontura ve vrstvě Kontura, polotovar ve vrstvě Polotovar, barva podle vrstvy,
+ * jednotná tloušťka čar (uživatel 8. 11. 2026: „mít normalizované barvy i tloušťku").
+ */
+export function normalizeDrawnObjects(objs) {
+  applyColorNormalize(planColorNormalize(objs, state.layers, {
+    contourLayer: 0, stockLayer: STOCK_LAYER_ID,
+    contourColor: contourDefaultColor(), stockColor: stockDefaultColor(), weight: prefs.weight,
+  }));
 }
 
 // Výchozí vrstvy při startu (načtený projekt si pak přinese vlastní barvy).
