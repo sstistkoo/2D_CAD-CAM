@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CNC kód v pravém panelu** (`js/cncOutputTools.js`): Enter v poznámce ji nerozdělí, klik pod text založí
+  nový řádek, podklad s oranžovým proužkem pod řádkem s kurzorem (i po skoku na řádek vybraného objektu).
 - **CAM editor převzal úpravy kreslicího editoru** (`camEditor.js`): nový číselník s kalkulačkou, přepínač 123
   v horní liště, ;👁 skrytí poznámek (místo 📋 v liště – kopírování je v menu), Enter v poznámce ji nerozdělí,
   klik pod text = nový řádek, podklad řádku s kurzorem; klávesnice telefonu jen přes ⌨ (dřív readOnly).

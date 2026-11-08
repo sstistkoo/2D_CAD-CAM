@@ -39,6 +39,7 @@ import './dialogs/contourCheck.js'; // zdvojené čáry + jen hlavní profil do 
 import './drawColorPrefs.js'; // výchozí barvy kontury/polotovaru z Nastavení (před auto-load)
 import './dialogs/drawingEditsDialog.js'; // 🛠 Úpravy výkresu (tlačítko v liště)
 import './faceView/faceView.js'; // ◎ bokorys (pohled na čelo) pro poháněné nástroje
+import './cncOutputTools.js'; // CNC kód v pravém panelu: Enter v poznámce, klik pod text, řádek s kurzorem
 import './calculators/calcLaunchers.js'; // tlačítka novějších kalkulaček (Oblouk, Roztažnost, Objem)
 import { initFullscreen } from './fullscreen.js'; // ⛶ celá obrazovka + okraje kolem výřezu kamery
 initFullscreen();

@@ -2114,6 +2114,11 @@ body {
   padding: 0;
   line-height: 1.5;
 }
+/* Podklad řádku s kurzorem (js/cncOutputTools.js) – roluje s textem */
+#cncOutput {
+  --cnc-curline-bg: color-mix(in srgb, var(--ctp-surface0) 70%, transparent);
+  background-repeat: no-repeat; background-attachment: local, local;
+}
 #cncOutput:focus {
   outline: 1px solid var(--ctp-surface2);
   border-radius: 3px;

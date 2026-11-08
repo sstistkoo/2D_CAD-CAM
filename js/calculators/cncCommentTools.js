@@ -38,7 +38,8 @@ export const MARKER_RE = /\b(KONTURA|STOCK)_(START|END)\b/i;
 /** CSS třída poznámky: značka kontury/polotovaru se nikdy neskrývá (tlačítko ;👁). */
 export const commentClass = text => MARKER_RE.test(text) ? 'hl-comment hl-mark' : 'hl-comment';
 
-export function wireCommentTools(editor, root, insertNewline) {
+/** Enter (klávesnice i tlačítko ↵ uvnitř `root`) s kurzorem v poznámce → nový řádek až za koncem řádku. */
+export function wireCommentEnter(editor, root, insertNewline) {
   const toEnd = () => {
     if (editor.selectionStart !== editor.selectionEnd) return false;
     const p = newlinePos(editor.value, editor.selectionStart);
@@ -62,6 +63,10 @@ export function wireCommentTools(editor, root, insertNewline) {
     const b = e.target.closest('[data-ins]');
     if (b && b.dataset.ins === '\\n') toEnd();
   }, true);
+}
+
+export function wireCommentTools(editor, root, insertNewline) {
+  wireCommentEnter(editor, root, insertNewline);
 
   // Skrytí poznámek
   let hidden = false;
