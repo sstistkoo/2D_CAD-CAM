@@ -7857,6 +7857,8 @@ button.vk-header-btn-green {
 .hl-feed    { color: var(--ctp-teal);   font-weight: 700; }
 .hl-param   { color: var(--ctp-mauve); }
 .hl-comment { color: var(--ctp-overlay0); font-style: italic; }
+.cne-hide-com .cne-backdrop .hl-comment { visibility: hidden; }   /* tlačítko ;👁 – poznámky skryté jen zobrazením */
+.cne-qb[data-hidecom].active { background: var(--ctp-surface2); color: var(--ctp-yellow); }
 .hl-msg     { color: var(--ctp-peach); }
 .hl-block   { color: var(--ctp-overlay1); }
 .hl-logic   { color: var(--ctp-red);    font-weight: 700; }

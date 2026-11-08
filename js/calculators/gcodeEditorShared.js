@@ -311,3 +311,4 @@ export { autoCompleteMotionG } from "./gcodeAutoMotion.js";
 export { wireAngleCompass } from "./cncAngleCompass.js";
 export { digitKeysHTML, digitPadHTML, digitKeysVisible, spacedPrefix } from './cncDigitKeys.js';
 export { wireTapBelow } from './cncTapBelow.js';
+export { wireCommentTools } from './cncCommentTools.js';

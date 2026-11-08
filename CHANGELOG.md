@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sražení, zaoblení… vloží písmeno rovnou do kódu i na výšku; vyskakovací číselník se už neotevírá.
 - **CNC editor: klik pod text = nový řádek** (`calculators/cncTapBelow.js`): klepnutí do prázdného
   místa pod posledním řádkem přesune kurzor na konec a založí nový řádek – netřeba hledat konec poznámky.
+- **CNC editor: Enter v poznámce ji nerozdělí** (`calculators/cncCommentTools.js`): s kurzorem v poznámce za
+  středníkem založí Enter (i tlačítko ↵) nový řádek až za koncem řádku, poznámka zůstane za kódem.
+- **CNC editor: tlačítko ;👁** (kreslicí lišta) skryje / zobrazí poznámky za středníkem – jen zobrazení,
+  kód se nemění, stav se pamatuje.
 
 ### Fixed
 
