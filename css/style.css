@@ -8041,6 +8041,18 @@ button.vk-header-btn-green {
 }
 .cnp-ok:active { filter: brightness(.9); transform: translateY(1px); }
 .cnp-card .cne-im-helpers:empty { display: none; }
+/* Na výšku (mobil): číselník přes celou šířku displeje, přilepený dole – dřív
+   se vešel jen do panelu editoru a spodek (OK) byl useknutý. */
+@media (orientation: portrait) {
+  .cne-inner-modal[data-el="numModal"] { position: fixed; inset: 0; align-items: flex-end; z-index: 60; }
+  .cnp-card {
+    width: 100%; max-width: none !important; max-height: 100dvh; box-sizing: border-box;
+    border-radius: 18px 18px 0 0; border-width: 1px 0 0;
+    padding: 12px 12px max(12px, env(safe-area-inset-bottom));
+  }
+  .cnp-key { height: clamp(42px, 7.5dvh, 60px); }
+  .cnp-input { font-size: clamp(22px, 4dvh, 30px); }
+}
 
 .cne-im-actions { display: flex; gap: 6px; }
 .cne-im-btn {
