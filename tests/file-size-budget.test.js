@@ -21,7 +21,7 @@ const BUDGET = {
   'ui.js': 128,   // rozcestník (rozděleno 16. 10. do js/ui/) — kód sem nepřidávat
   'render.js': 69,   // rozcestník (rozděleno 16. 10. do js/render/) — kód sem nepřidávat
   'calculators/cam/ops/roughLong.js': 3119,
-  'calculators/cncEditor.js': 2635,   // 16. 10.: shodný kód s camEditor.js → gcodeEditorShared.js
+  'calculators/cncEditor.js': 2628,   // 16. 10.: shodný kód s camEditor.js → gcodeEditorShared.js
   'geometry.js': 74,   // rozcestník (rozděleno 16. 10. do js/geometry/) — kód sem nepřidávat
   'calculators/vkContour.js': 2336,
   'storage/fileIO.js': 1811,

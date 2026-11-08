@@ -17,7 +17,7 @@ import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
 import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix, wireTapBelow, wireCommentTools, MARKER_RE, commentClass, numpadOn, wireNumpadToggle, wireCurrentLine } from './gcodeEditorShared.js';
+import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix, wireTapBelow, wireCommentTools, MARKER_RE, commentClass, numpadOn, wireNumpadToggle, wireCurrentLine, numpadHTML, numpadResult, wireNumpadCalc } from './gcodeEditorShared.js';
 import { shownIntersections } from '../geometry/shownIntersections.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
@@ -605,21 +605,7 @@ function buildEditorHTML(drawMode = false) {
 
   <!-- Numpad modal -->
   <div class="cne-inner-modal" data-el="numModal" style="display:none">
-    <div class="cne-im-card">
-      <div class="cne-im-title"><span data-el="numTitle">Vstup</span><button class="cne-im-close" data-act="numCancel" title="Zavřít">✕</button></div>
-      <input class="cne-im-input" data-el="numInput" type="text" readonly>
-      <div class="cne-im-helpers" data-el="numHelpers"></div>
-      <div class="cne-numpad">
-        <button class="cne-np" data-n="7">7</button><button class="cne-np" data-n="8">8</button><button class="cne-np" data-n="9">9</button>
-        <button class="cne-np" data-n="4">4</button><button class="cne-np" data-n="5">5</button><button class="cne-np" data-n="6">6</button>
-        <button class="cne-np" data-n="1">1</button><button class="cne-np" data-n="2">2</button><button class="cne-np" data-n="3">3</button>
-        <button class="cne-np sign" data-n="±">±</button><button class="cne-np" data-n="0">0</button><button class="cne-np" data-n=".">.</button>
-      </div>
-      <div class="cne-im-actions">
-        <button class="cne-im-btn cancel" data-act="numBack" title="Smazat poslední znak">⌫ Smazat</button>
-        <button class="cne-im-btn ok" data-act="numOk">OK</button>
-      </div>
-    </div>
+    ${numpadHTML()}
   </div>
 
   ${drawMode ? `<!-- Nápověda k zápisu -->
@@ -1197,7 +1183,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   }
 
   function confirmNumpad() {
-    const v = numInput.value.trim();
+    const v = numpadResult(numInput.value);   // výraz (100/2+5) → výsledek
+    if (v === null) { showToast('Neplatný výraz – zkontrolujte závorky a znaménka'); return; }
     if (v) {
       if (numTargetSel) { editor.selectionStart = numTargetSel.start; editor.selectionEnd = numTargetSel.end; }
       insertText(inputPrefix + v + ' ');
@@ -2353,7 +2340,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   editor.addEventListener('input', onInput);
   ['click', 'keyup', 'touchend', 'focus', 'select'].forEach(ev => editor.addEventListener(ev, () => { updateEntryMode(); updateInfo(); }));
   if (previewEl) window.addEventListener('resize', updateInfo);
-  editor.addEventListener('scroll', syncScroll); wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n')); wireNumpadToggle(root); wireCurrentLine(editor, backdrop);   // klik pod text / Enter v poznámce → nový řádek
+  editor.addEventListener('scroll', syncScroll); wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n')); wireNumpadToggle(root); wireCurrentLine(editor, backdrop); wireNumpadCalc(numModal, numInput);   // klik pod text / Enter v poznámce → nový řádek
 
   // Klávesy spodní lišty nesmí „ukrást" fokus z textarey – jinak po každém
   // stisku (mazání znaku, vložení) zmizí kurzor a uživatel musí znovu klikat
@@ -2490,7 +2477,6 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
         case 'chamfer':   inputOrNumpad(getChamferPrefix()); break;
         case 'round':     inputOrNumpad(getRoundPrefix()); break;
         case 'numCancel': numModal.style.display = 'none'; break;
-        case 'numBack':   numInput.value = numInput.value.slice(0, -1); break;
         case 'numOk':     confirmNumpad(); break;
         case 'valClose':  valModal.style.display = 'none'; break;
         case 'infoToggle': setInfoOpen(infoBodyEl.hidden); break;
@@ -2513,14 +2499,6 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     // Input modal
     const ip = e.target.closest('[data-inp]');
     if (ip) { showKeyHint(ip); inputOrNumpad(ip.dataset.inp); return; }
-    // Numpad keys
-    const np = e.target.closest('[data-n]');
-    if (np) {
-      const k = np.dataset.n;
-      if (k === '±') { const v = numInput.value; numInput.value = v.startsWith('-') ? v.slice(1) : '-' + v; }
-      else numInput.value += k;
-      return;
-    }
     // Helper items
     const hi = e.target.closest('[data-hv]');
     if (hi) { numInput.value = hi.dataset.hv; return; }

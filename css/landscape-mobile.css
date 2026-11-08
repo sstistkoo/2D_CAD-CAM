@@ -209,6 +209,12 @@ html.fs-cam-right { --safe-r: max(env(safe-area-inset-right, 0px), 48px); }
   .cne-inner-modal[data-el="numModal"] .cne-im-input { margin-bottom: 4px; }
   .cne-inner-modal[data-el="numModal"] .cne-numpad { gap: 3px; margin-bottom: 5px; }
   .cne-inner-modal[data-el="numModal"] .cne-np { padding: 7px; }
+  .cnp-card .cne-im-title { margin-bottom: 4px; }
+  .cnp-display { padding: 3px 10px; margin-bottom: 5px; }
+  .cnp-input { font-size: 20px; min-height: 24px; }
+  .cnp-grid { gap: 4px; margin-bottom: 5px; }
+  .cnp-key { height: 32px; font-size: 16px; border-radius: 8px; }
+  .cnp-ok { padding: 7px; }
 
   /* ── Ostatní kalkulačky (Závity, Vrtání, Řezné podmínky…): širší okno,
      pole ve třech sloupcích, náčrty nižší než displej → míň rolování ── */

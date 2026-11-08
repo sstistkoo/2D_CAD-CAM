@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CNC editor: nový číselník s kalkulačkou** (`cncNumpadCalc.js`): zvlášť + a −, × ÷, závorky, C a ⌫
+  v horní řadě, velké OK dole; výraz (např. 100÷2+5) se při OK spočítá a vloží se výsledek, náhled „= 55“ pod polem.
 - **CNC editor: zvýrazněný řádek s kurzorem** (`cncCurLine.js`): jemný podklad s oranžovým proužkem vlevo
   pod řádkem, kde se právě píše.
 - **CNC editor: přepínač číselníku 123** (horní lišta vedle ◀ ▶, `cncNumpadToggle.js`): VYP = písmeno osy

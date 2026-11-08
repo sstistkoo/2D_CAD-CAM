@@ -314,3 +314,4 @@ export { wireTapBelow } from './cncTapBelow.js';
 export { wireCommentTools, MARKER_RE, commentClass } from './cncCommentTools.js';
 export { numpadOn, wireNumpadToggle } from './cncNumpadToggle.js';
 export { wireCurrentLine } from './cncCurLine.js';
+export { numpadHTML, numpadResult, wireNumpadCalc } from './cncNumpadCalc.js';
