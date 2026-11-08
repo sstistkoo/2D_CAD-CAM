@@ -66,15 +66,18 @@ export function setDrawColorPrefs(next) {
 }
 
 /**
- * Objekty vykreslené z G-kódu (CNC editor, import) srovná jako 🎨 Normalizovat:
- * kontura ve vrstvě Kontura, polotovar ve vrstvě Polotovar, barva podle vrstvy,
- * jednotná tloušťka čar (uživatel 8. 11. 2026: „mít normalizované barvy i tloušťku").
+ * Objekty vykreslené z G-kódu (CNC editor, import): kontura do vrstvy Kontura,
+ * polotovar do vrstvy Polotovar a jednotná tloušťka čar (uživatel 8. 11. 2026).
+ * Barva se NEMĚNÍ – ručně přebarvená čára (převzatá při překreslení) i barvy
+ * vrstev zůstanou; sjednotit barvy jde ručně přes 🎨 Normalizovat.
  */
 export function normalizeDrawnObjects(objs) {
-  applyColorNormalize(planColorNormalize(objs, state.layers, {
+  const plan = planColorNormalize(objs, state.layers, {
     contourLayer: 0, stockLayer: STOCK_LAYER_ID,
     contourColor: contourDefaultColor(), stockColor: stockDefaultColor(), weight: prefs.weight,
-  }));
+  });
+  plan.objs.forEach(it => { it.color = false; });
+  applyColorNormalize({ objs: plan.objs, layers: [] });
 }
 
 // Výchozí vrstvy při startu (načtený projekt si pak přinese vlastní barvy).
