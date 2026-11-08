@@ -7561,6 +7561,8 @@ button.vk-header-btn-green {
 }
 .cne-sn-arrow:active { background: rgba(0,0,0,.3); }
 .cne-sn-arrow:disabled { opacity: .3; }
+.cne-sn-arrow.cne-sn-numtog { width: auto !important; padding: 0 6px; opacity: .5; text-decoration: line-through; }   /* 123 = číselník k písmenům os */
+.cne-sn-arrow.cne-sn-numtog.active { opacity: 1; text-decoration: none; background: #1a1a1a; color: #fab387; }
 .cne-sn-close {
   display: none;
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%);

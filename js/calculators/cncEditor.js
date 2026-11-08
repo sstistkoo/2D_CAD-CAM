@@ -17,7 +17,7 @@ import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
 import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix, wireTapBelow, wireCommentTools, MARKER_RE, commentClass } from './gcodeEditorShared.js';
+import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix, wireTapBelow, wireCommentTools, MARKER_RE, commentClass, numpadOn, wireNumpadToggle } from './gcodeEditorShared.js';
 import { shownIntersections } from '../geometry/shownIntersections.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
@@ -443,7 +443,7 @@ function buildEditorHTML(drawMode = false) {
 <div class="cne-layout">
   <div class="cne-sn-bar">
     <button class="cne-sn-arrow" data-el="undoArrowBtn" data-act="editorUndo" title="Zpět (Ctrl+Z)" disabled>◀</button>
-    <button class="cne-sn-arrow" data-el="redoArrowBtn" data-act="editorRedo" title="Vpřed (Ctrl+Y)" disabled>▶</button>
+    <button class="cne-sn-arrow" data-el="redoArrowBtn" data-act="editorRedo" title="Vpřed (Ctrl+Y)" disabled>▶</button><button class="cne-sn-arrow cne-sn-numtog" data-numpadtog>123</button>
     <span class="cne-sn-text" data-el="snBar"></span>
     <button class="cne-sn-close" data-act="closeEditor" title="Zavřít editor">✕</button>
   </div>
@@ -1186,7 +1186,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     numModal.style.display = 'flex';
   }
 
-  const inputOrNumpad = p => p ? insertText(spacedPrefix(activeTarget === editor && editor, p)) : openNumpad(p); // písmeno osy vždy přímo, bez číselníku (8. 11. 2026)
+  const inputOrNumpad = p => p && !numpadOn() ? insertText(spacedPrefix(activeTarget === editor && editor, p)) : openNumpad(p); // 123 v horní liště: VYP = písmeno přímo, ZAP = číselník (8. 11. 2026)
 
   function buildHelpers(prefix) {
     const codes = prefix === 'G' ? G_CODES : prefix === 'M' ? M_CODES : null;
@@ -2353,7 +2353,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   editor.addEventListener('input', onInput);
   ['click', 'keyup', 'touchend', 'focus', 'select'].forEach(ev => editor.addEventListener(ev, () => { updateEntryMode(); updateInfo(); }));
   if (previewEl) window.addEventListener('resize', updateInfo);
-  editor.addEventListener('scroll', syncScroll); wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n'));   // klik pod text / Enter v poznámce → nový řádek
+  editor.addEventListener('scroll', syncScroll); wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n')); wireNumpadToggle(root);   // klik pod text / Enter v poznámce → nový řádek
 
   // Klávesy spodní lišty nesmí „ukrást" fokus z textarey – jinak po každém
   // stisku (mazání znaku, vložení) zmizí kurzor a uživatel musí znovu klikat
