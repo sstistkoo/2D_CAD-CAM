@@ -17,7 +17,7 @@ import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
 import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix, wireTapBelow, wireCommentTools, MARKER_RE, commentClass, numpadOn, wireNumpadToggle, wireCurrentLine, numpadHTML, numpadResult, wireNumpadCalc } from './gcodeEditorShared.js';
+import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix, wireTapBelow, wireCommentTools, MARKER_RE, commentClass, numpadOn, wireNumpadToggle, wireCurrentLine, numpadHTML, numpadResult, wireNumpadCalc, wireNoKeyboard } from './gcodeEditorShared.js';
 import { shownIntersections } from '../geometry/shownIntersections.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
@@ -2340,7 +2340,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   editor.addEventListener('input', onInput);
   ['click', 'keyup', 'touchend', 'focus', 'select'].forEach(ev => editor.addEventListener(ev, () => { updateEntryMode(); updateInfo(); }));
   if (previewEl) window.addEventListener('resize', updateInfo);
-  editor.addEventListener('scroll', syncScroll); wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n')); wireNumpadToggle(root); wireCurrentLine(editor, backdrop); wireNumpadCalc(numModal, numInput);   // klik pod text / Enter v poznámce → nový řádek
+  editor.addEventListener('scroll', syncScroll); wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n')); wireNumpadToggle(root); wireCurrentLine(editor, backdrop); wireNumpadCalc(numModal, numInput); wireNoKeyboard(root, editor);   // klik pod text / Enter v poznámce → nový řádek
 
   // Klávesy spodní lišty nesmí „ukrást" fokus z textarey – jinak po každém
   // stisku (mazání znaku, vložení) zmizí kurzor a uživatel musí znovu klikat
@@ -2481,7 +2481,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
         case 'valClose':  valModal.style.display = 'none'; break;
         case 'infoToggle': setInfoOpen(infoBodyEl.hidden); break;
         case 'help':      helpModal.style.display = 'flex'; break;
-        case 'helpQ':     { const hs = $('helpSearch'); hs.value = ab.dataset.q; filterHelp(); hs.focus({ preventScroll: true }); break; }
+        case 'helpQ':     { const hs = $('helpSearch'); hs.value = ab.dataset.q; filterHelp(); if (!touchUI) hs.focus({ preventScroll: true }); break; }
         case 'helpClose': helpModal.style.display = 'none'; break;
         case 'cfgClose':  cfgModal.style.display = 'none'; persistCfg(); scheduleValidation(); break;
       }

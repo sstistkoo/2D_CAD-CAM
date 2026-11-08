@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CNC editor na mobilu: klávesnice nevyjíždí po tlačítkách** (`cncNoKeyboard.js`): klepnutí na tlačítka lišty,
+  horního pruhu a oken (např. ;👁) nepřesune fokus, takže telefon nevysune klávesnici; rychlé dotazy v Nápovědě
+  ji také neotevírají. Klávesnici dál zapíná ⌨, ve vyhledávání a polích pro psaní vyjíždí normálně.
 - **Esc / Zpět zavírá nejdřív vnitřní okno** (`dialogs/innerModal.js`, volá se z `dialogFactory.js`,
   `events.js`, `backButton.js`): s otevřeným číselníkem, úhlem, sražením, nápovědou… v CNC/CAM
   editoru zavřel Esc i tlačítko Zpět na Androidu celý editor (kreslicí editor přitom rovnou
