@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CNC editor: zvýrazněný řádek s kurzorem** (`cncCurLine.js`): jemný podklad s oranžovým proužkem vlevo
+  pod řádkem, kde se právě píše.
 - **CNC editor: přepínač číselníku 123** (horní lišta vedle ◀ ▶, `cncNumpadToggle.js`): VYP = písmeno osy
   se vloží rovnou, ZAP = vyskočí okno s čísly jako dřív. Stav se pamatuje.
 - **CNC editor: písmeno osy bez číselníku** (`calculators/cncEditor.js`): tlačítka X, Z, G, M,

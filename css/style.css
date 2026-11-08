@@ -7859,6 +7859,9 @@ button.vk-header-btn-green {
 .hl-feed    { color: var(--ctp-teal);   font-weight: 700; }
 .hl-param   { color: var(--ctp-mauve); }
 .hl-comment { color: var(--ctp-overlay0); font-style: italic; }
+/* Řádek s kurzorem – jemný podklad pod textem (cncCurLine.js) */
+.cne-curline { position: absolute; pointer-events: none; background: var(--ctp-surface0); opacity: .55; border-left: 2px solid var(--ctp-peach); box-sizing: border-box; }
+.cne-backdrop > [data-el="highlights"] { position: relative; }
 .hl-comment.hl-mark { color: var(--ctp-yellow); font-style: normal; font-weight: bold; }   /* KONTURA_/STOCK_ START/END */
 .cne-hide-com .cne-backdrop .hl-comment:not(.hl-mark) { visibility: hidden; }   /* tlačítko ;👁 – poznámky skryté jen zobrazením */
 .cne-qb[data-hidecom].active { background: var(--ctp-surface2); color: var(--ctp-yellow); }
