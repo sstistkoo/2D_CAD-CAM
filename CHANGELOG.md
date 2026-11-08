@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Kreslicí CNC editor: po otevření kurzor na novém řádku konce kontury** (`cncDrawOpen.js`) – hned se dá
+  pokračovat (před `; STOCK_START`, jinak na konci). Výběr jiného objektu na plátně dál skočí na jeho řádek.
+- **Přepínač AUTO** v horní liště kreslicího editoru: po zavření překreslí výkres podle kódu bez dotazu
+  „Přepsat výkres…?“ (výchozí VYP, pamatuje se). Prázdné řádky se za změnu kódu nepovažují.
 - **CNC kód v pravém panelu** (`js/cncOutputTools.js`): Enter v poznámce ji nerozdělí, klik pod text založí
   nový řádek, podklad s oranžovým proužkem pod řádkem s kurzorem (i po skoku na řádek vybraného objektu).
 - **CAM editor převzal úpravy kreslicího editoru** (`camEditor.js`): nový číselník s kalkulačkou, přepínač 123

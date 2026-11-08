@@ -17,7 +17,7 @@ import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
 import { resolveExpressions } from './cncExpr.js';
 import { createCanvasPicker } from '../dialogs/canvasPick.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
-import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix, wireTapBelow, wireCommentTools, MARKER_RE, commentClass, numpadOn, wireNumpadToggle, wireCurrentLine, numpadHTML, numpadResult, wireNumpadCalc, wireNoKeyboard } from './gcodeEditorShared.js';
+import { autoCompleteMotionG, wireAngleCompass, G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths as convertCorners, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, digitKeysHTML, digitPadHTML, spacedPrefix, wireTapBelow, wireCommentTools, MARKER_RE, commentClass, numpadOn, wireNumpadToggle, wireCurrentLine, numpadHTML, numpadResult, wireNumpadCalc, wireNoKeyboard, openCaret, sameCode, autoRedrawOn, wireAutoRedraw } from './gcodeEditorShared.js';
 import { shownIntersections } from '../geometry/shownIntersections.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
@@ -443,7 +443,7 @@ function buildEditorHTML(drawMode = false) {
 <div class="cne-layout">
   <div class="cne-sn-bar">
     <button class="cne-sn-arrow" data-el="undoArrowBtn" data-act="editorUndo" title="Zpět (Ctrl+Z)" disabled>◀</button>
-    <button class="cne-sn-arrow" data-el="redoArrowBtn" data-act="editorRedo" title="Vpřed (Ctrl+Y)" disabled>▶</button><button class="cne-sn-arrow cne-sn-numtog" data-numpadtog>123</button>
+    <button class="cne-sn-arrow" data-el="redoArrowBtn" data-act="editorRedo" title="Vpřed (Ctrl+Y)" disabled>▶</button><button class="cne-sn-arrow cne-sn-numtog" data-numpadtog>123</button>${drawMode ? '<button class="cne-sn-arrow cne-sn-numtog" data-autodraw>AUTO</button>' : ''}
     <span class="cne-sn-text" data-el="snBar"></span>
     <button class="cne-sn-close" data-act="closeEditor" title="Zavřít editor">✕</button>
   </div>
@@ -752,16 +752,15 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       let code = editor.value;
       if (!code.trim()) return;
       // Nic se nezměnilo oproti kódu z výkresu → není co přepisovat, bez dotazu.
-      const sameText = (a, b) => String(a).replace(/\r/g, '').trim() === String(b).replace(/\r/g, '').trim();
-      if (typeof baselineCode === 'string' && sameText(code, baselineCode)) return;
+      if (typeof baselineCode === 'string' && sameCode(code, baselineCode)) return;   // prázdné řádky (i ten po otevření) se nepočítají
       code = resolveExpressions(code).code;      // X=R1*2, X10+5 → čísla
       code = polarToXZ(code, drawOpts()).code;   // PU/L → X Z (CAD parser polární zadání nezná)
       code = tangentToIK(code, drawOpts()).code; // G2/G3 … T → X Z I K
       if (coordMode === 'inc') code = codeToAbsolute(code);
       code = convertCornersToPaths(code).code;
-      showConfirmDialog('Přepsat výkres podle zapsaného kódu?', () => {
-        if (typeof bridge.renderCncCodeToCanvas === 'function') bridge.renderCncCodeToCanvas(code);
-      }, { confirmLabel: 'Přepsat', danger: false, cancelLabel: 'Ponechat výkres' });
+      const draw = () => { if (typeof bridge.renderCncCodeToCanvas === 'function') bridge.renderCncCodeToCanvas(code); };
+      if (autoRedrawOn()) draw();   // AUTO v horní liště: bez dotazu
+      else showConfirmDialog('Přepsat výkres podle zapsaného kódu?', draw, { confirmLabel: 'Přepsat', danger: false, cancelLabel: 'Ponechat výkres' });
     });
   }
 
@@ -2342,7 +2341,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   editor.addEventListener('input', onInput);
   ['click', 'keyup', 'touchend', 'focus', 'select'].forEach(ev => editor.addEventListener(ev, () => { updateEntryMode(); updateInfo(); }));
   if (previewEl) window.addEventListener('resize', updateInfo);
-  editor.addEventListener('scroll', syncScroll); wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n')); wireNumpadToggle(root); wireCurrentLine(editor, backdrop); wireNumpadCalc(numModal, numInput); wireNoKeyboard(root, editor);   // klik pod text / Enter v poznámce → nový řádek
+  editor.addEventListener('scroll', syncScroll); wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n')); wireNumpadToggle(root); wireCurrentLine(editor, backdrop); wireNumpadCalc(numModal, numInput); wireNoKeyboard(root, editor); if (drawOnClose) wireAutoRedraw(root);   // klik pod text / Enter v poznámce → nový řádek
 
   // Klávesy spodní lišty nesmí „ukrást" fokus z textarey – jinak po každém
   // stisku (mazání znaku, vložení) zmizí kurzor a uživatel musí znovu klikat
@@ -2617,14 +2616,22 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     }
   }
   // Otevřeno s označenými objekty z plátna → výběr a pohled na první jejich řádek.
+  const oc = drawOnClose && caret === null ? openCaret(editor.value) : null;   // kurzor na nový řádek konce kontury
+  let idx = -1;
   if (caret === null && hlRe) {
-    const idx = editor.value.split('\n').findIndex(l => { const ci = l.indexOf(';'); return ci > 0 && hlRe.test(l.substring(ci)); });
+    idx = editor.value.split('\n').findIndex(l => { const ci = l.indexOf(';'); return ci > 0 && hlRe.test(l.substring(ci)); });
     if (idx >= 0) {
       jumpToLine(idx);
       // Jen kurzor na konec řádku (ne označený celý řádek): další zápis – třeba CHF= z klávesy Sraž. –
       // se připíše za kód řádku (insertText ho dá před komentář), místo aby řádek přepsal.
       editor.selectionStart = editor.selectionEnd = editor.selectionEnd;
     }
+  }
+  // Bez výběru (nebo vybraný je poslední prvek kontury – typicky po zavření editoru) → pokračovat v zadávání.
+  if (oc && (idx < 0 || editor.value.slice(0, editor.selectionStart).split('\n').length - 1 === editor.value.slice(0, oc.pos).split('\n').length - 1)) {
+    editor.selectionStart = editor.selectionEnd = oc.pos;
+    if (oc.newline) insertText('\n', 'Nový řádek');
+    editor.scrollTop = Math.max(0, (editor.value.slice(0, editor.selectionStart).split('\n').length - 4) * lineH()); syncScroll();
   }
   updateEntryMode();
 }

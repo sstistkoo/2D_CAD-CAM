@@ -27,3 +27,16 @@ describe('CNC editor – řádek se značkou kontury', () => {
     expect(ed.value.split('\n')[2]).toBe('; KONTURA_START — kontura');
   });
 });
+
+describe('CNC editor – otevření z kreslení', () => {
+  it('kurzor na novém řádku na konci kontury, AUTO tlačítko v liště', async () => {
+    installUiDom();
+    const { openCncEditor } = await import('../js/calculators/cncEditor.js');
+    document.querySelectorAll('[data-el="editor"]').forEach(e => e.closest('.calc-overlay, .cne-overlay, body > div')?.remove());
+    openCncEditor('; KONTURA_START — kontura\nG90 G0 X300 Z200\nG1 Z250\nX0', { drawOnClose: true });
+    const ed = [...document.querySelectorAll('[data-el="editor"]')].pop();
+    expect(ed.value.endsWith('X0\n')).toBe(true);
+    expect(ed.selectionStart).toBe(ed.value.length);
+    expect(ed.closest('.cne-layout').querySelector('[data-autodraw]')).toBeTruthy();
+  });
+});

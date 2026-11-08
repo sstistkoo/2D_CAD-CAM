@@ -317,3 +317,4 @@ export { wireCurrentLine } from './cncCurLine.js';
 export { numpadHTML, numpadResult, wireNumpadCalc } from './cncNumpadCalc.js';
 export { wireNoKeyboard } from './cncNoKeyboard.js';
 export { wireKeyboardMode } from './cncKeyboardMode.js';
+export { openCaret, sameCode, autoRedrawOn, wireAutoRedraw } from './cncDrawOpen.js';
