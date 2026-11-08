@@ -826,7 +826,7 @@ export function openCamEditor(initialCode, jumpLine) {
   }
 
   // 123 v horní liště: VYP = písmeno osy přímo do kódu, ZAP = číselník (8. 11. 2026)
-  const inputOrNumpad = p => p && !numpadOn() ? insertText(spacedPrefix(activeTarget === editor && editor, p)) : openNumpad(p);
+  const inputOrNumpad = p => p && !numpadOn('cam_numpadOn', true) ? insertText(spacedPrefix(activeTarget === editor && editor, p)) : openNumpad(p);
 
   function confirmNumpad() {
     const v = numpadResult(numInput.value);   // výraz (100/2+5) → výsledek
@@ -1385,7 +1385,7 @@ export function openCamEditor(initialCode, jumpLine) {
   // Sdílené s kreslicím CNC editorem (8. 11. 2026): klik pod text / Enter v poznámce → nový řádek,
   // ;👁 skrytí poznámek, podklad řádku s kurzorem, číselník s kalkulačkou, 123, klávesnice jen přes ⌨.
   wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n'));
-  wireNumpadToggle(root); wireCurrentLine(editor, backdrop); wireNumpadCalc(numModal, numInput); wireNoKeyboard(root, editor);
+  wireNumpadToggle(root, 'cam_numpadOn', true); wireCurrentLine(editor, backdrop); wireNumpadCalc(numModal, numInput); wireNoKeyboard(root, editor);
   const toggleKeyboard = wireKeyboardMode(editor, root);
 
   // Klávesy spodní lišty nesmí „ukrást" fokus z textarey – jinak po každém

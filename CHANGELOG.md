@@ -36,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Přepínač 123 má každý editor zvlášť**: CAM editor nemá číslice v liště, proto u něj číselník zůstává
+  výchozí ZAP (jinak by na mobilu nešlo zadat číslo); kreslicí editor výchozí VYP.
+- **Lupa v editoru** nekopíruje podklad řádku s kurzorem (byl by v ní posunutý).
 - **CNC editor na mobilu: klávesnice nevyjíždí po tlačítkách** (`cncNoKeyboard.js`): klepnutí na tlačítka lišty,
   horního pruhu a oken (např. ;👁) nepřesune fokus, takže telefon nevysune klávesnici; rychlé dotazy v Nápovědě
   ji také neotevírají. Klávesnici dál zapíná ⌨, ve vyhledávání a polích pro psaní vyjíždí normálně.

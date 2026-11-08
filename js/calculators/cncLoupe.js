@@ -87,6 +87,7 @@ export function setupLoupe(overlay, { onCaret } = {}) {
       transform: `scale(${ZOOM})`,
     });
     inner.innerHTML = backdrop.innerHTML;
+    inner.querySelector('.cne-curline')?.remove();   // podklad řádku s kurzorem (cncCurLine.js) do lupy nepatří
     caretEl = document.createElement('div');
     caretEl.className = 'cne-loupe-caret';
     caretEl.style.height = m.lh + 'px';

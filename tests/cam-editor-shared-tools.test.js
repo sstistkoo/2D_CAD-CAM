@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { installUiDom } from './helpers/uiDom.mjs';
 
 describe('CAM editor – sdílené úpravy', () => {
-  it('nový číselník, 123, ;👁, písmeno osy bez číselníku, podklad řádku', async () => {
+  it('nový číselník, 123, ;👁, 123 přepíná číselník, podklad řádku', async () => {
     installUiDom();
     const { openCamEditor } = await import('../js/calculators/camEditor.js');
     openCamEditor('G0 X10 Z0 ; start\nG1 Z-20');
@@ -17,8 +17,15 @@ describe('CAM editor – sdílené úpravy', () => {
     const ed = ov.querySelector('[data-el="editor"]');
     ed.focus();
     ed.selectionStart = ed.selectionEnd = ed.value.length;
+    // CAM editor nemá číslice v liště → výchozí 123 ZAP: písmeno otevře číselník.
+    const nm = ov.querySelector('[data-el="numModal"]');
+    ov.querySelector('.cne-quickbar [data-inp="X"]').click();
+    expect(nm.style.display).toBe('flex');
+    ov.querySelector('[data-act="numCancel"]').click();
+    // 123 VYP → písmeno rovnou do kódu, bez číselníku.
+    ov.querySelector('[data-numpadtog]').click();
     ov.querySelector('.cne-quickbar [data-inp="X"]').click();
     expect(ed.value.endsWith(' X')).toBe(true);
-    expect(ov.querySelector('[data-el="numModal"]').style.display).toBe('none');
+    expect(nm.style.display).toBe('none');
   });
 });
