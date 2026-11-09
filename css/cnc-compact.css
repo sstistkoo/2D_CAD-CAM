@@ -158,3 +158,9 @@
 
 /* Podržení ⌫ = smazat řádek (cncLongDelete.js): bez výběru textu a systémového menu */
 .cne-qb { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+/* Vnitřní okna editoru (oblouk, úhel, sražení, nápověda…): ve zmenšeném editoru se
+   centrují na celou obrazovku, ne jen do spodní části s kódem – jinak spodní tlačítka
+   utekla pod okraj displeje. Okno nikdy není vyšší než displej (zbytek se roluje). */
+.cne-overlay-draw.cne-compact .cne-inner-modal { position: fixed; inset: 0; z-index: 1000; }
+.cne-inner-modal > * { max-height: calc(100dvh - 16px); overflow-y: auto; box-sizing: border-box; }

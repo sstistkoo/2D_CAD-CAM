@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+### Fixed
+
+- **Okna v kreslicím editoru se vejdou na displej** (`cnc-compact.css`) – ve zmenšeném editoru se okna (⌒ Oblouk,
+  ∠ úsečka, sražení, nápověda…) centrují na celou obrazovku, ne jen do spodní části; žádné okno není vyšší než
+  displej (zbytek se roluje). Dřív u Oblouku utekla spodní tlačítka pod okraj.
+
+### Changed
+
 - **Kóta úhlu od osy X** (`dimension.js`) – vedle osy Z jde klepnout i na osu X; úhel se měří od osy, na kterou
   se klepne (jako na technologickém výkrese; na karuselu je X vodorovná). Kóty se při úpravě úsečky přepočítají.
 - **Karusel v kreslicím editoru: `PU` v kódu a ∠ v informačním řádku od vodorovné osy →** (`cncDrawTools.js`) –
