@@ -332,6 +332,10 @@ Každá úprava jde vrátit tlačítkem Zpět.
 3. Klikni na druhou úsečku
 4. Klikni na pozici popisku
 
+**Úhel od osy:** místo druhé úsečky klepni na osu **Z** nebo **X** (přichycení na
+osový kříž) – úhel se měří od té osy, jako na technologickém výkrese. Na karuselu je
+Z svislá a X vodorovná (na soustruhu obráceně).
+
 ### Souřadnicová kóta
 - Zobrazí X/Z souřadnici bodu
 - Dostupná v pravém panelu nebo po kliknutí na objekt

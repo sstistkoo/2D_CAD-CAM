@@ -62,25 +62,30 @@ function _buildAngleDim(C, pt1, pt2, sweep, radius, reflex) {
 }
 
 /**
- * Sestaví virtuální úsečku představující osu Z, procházející průsečíkem se
- * zadanou úsečkou. Soustruh: vodorovná (Y=0), rameno k Z+ (svět +X); karusel:
- * svislá (X=0), rameno k Z+ (svět +Y). Slouží jako druhá „úsečka" pro kótu
- * polárního úhlu úsečky od osy Z.
+ * Sestaví virtuální úsečku představující osu stroje (Z nebo X), procházející
+ * průsečíkem se zadanou úsečkou. Na obrazovce: soustruh Z vodorovně / X svisle,
+ * karusel obráceně. Vodorovná osa = Y=0 s ramenem k +X světa, svislá = X=0
+ * s ramenem k +Y. Slouží jako druhá „úsečka" pro kótu úhlu úsečky od osy
+ * (jako na technologickém výkrese: úhel se měří od osy, na kterou se klepne).
  */
-export function buildZAxisRefLine(line1, machineType = state.machineType) {
-  // Karusel = soustruh s prohozenými osami (wx ↔ wy)
-  const car = machineType === 'karusel';
-  const a1 = car ? line1.x1 : line1.y1, a2 = car ? line1.x2 : line1.y2;   // kolmo k ose
-  const b1 = car ? line1.y1 : line1.x1, b2 = car ? line1.y2 : line1.x2;   // podél osy
+export function buildAxisRefLine(line1, axis = 'Z', machineType = state.machineType) {
+  const horizontal = (axis === 'Z') !== (machineType === 'karusel');
+  const a1 = horizontal ? line1.y1 : line1.x1, a2 = horizontal ? line1.y2 : line1.x2;   // kolmo k ose
+  const b1 = horizontal ? line1.x1 : line1.y1, b2 = horizontal ? line1.x2 : line1.y2;   // podél osy
   let c;
   if (Math.abs(a2 - a1) < 1e-9) {
-    c = (b1 + b2) / 2;   // rovnoběžná s osou Z
+    c = (b1 + b2) / 2;   // rovnoběžná s osou
   } else {
     c = b1 + (-a1 / (a2 - a1)) * (b2 - b1);
   }
-  return car
-    ? { type: 'line', x1: 0, y1: c, x2: 0, y2: c + 100, _zAxis: true, id: null }
-    : { type: 'line', x1: c, y1: 0, x2: c + 100, y2: 0, _zAxis: true, id: null };
+  return horizontal
+    ? { type: 'line', x1: c, y1: 0, x2: c + 100, y2: 0, _zAxis: true, id: null }
+    : { type: 'line', x1: 0, y1: c, x2: 0, y2: c + 100, _zAxis: true, id: null };
+}
+
+/** Osa Z (viz buildAxisRefLine) – kóta polárního úhlu od osy Z. */
+export function buildZAxisRefLine(line1, machineType = state.machineType) {
+  return buildAxisRefLine(line1, 'Z', machineType);
 }
 
 /**
@@ -134,8 +139,8 @@ export function addAngleDimForPlacement(line1, line2, curX, curY, opts = {}) {
     color: COLORS.textSecondary,
   });
   if (!created) return;
-  showToast(vsAxis === 'Z'
-    ? `Kóta polárního úhlu ∠${deg.toFixed(1)}° od osy Z přidána`
+  showToast(vsAxis
+    ? `Kóta úhlu ∠${deg.toFixed(1)}° od osy ${vsAxis} přidána`
     : `Kóta ∠${deg.toFixed(1)}° přidána`);
 }
 
@@ -637,11 +642,11 @@ export function updateAssociativeDimensions() {
   for (const dim of state.objects) {
     if (!dim.isDimension) continue;
 
-    // Úhlová kóta mezi dvěma úsečkami (dimLine1Id + dimLine2Id) nebo od osy Z
-    if (dim.dimType === 'angular' && dim.dimLine1Id && (dim.dimLine2Id || dim.dimVsAxis === 'Z')) {
+    // Úhlová kóta mezi dvěma úsečkami (dimLine1Id + dimLine2Id) nebo od osy Z / X
+    if (dim.dimType === 'angular' && dim.dimLine1Id && (dim.dimLine2Id || dim.dimVsAxis)) {
       const l1 = state.objects.find(o => o.id === dim.dimLine1Id);
-      const l2 = dim.dimVsAxis === 'Z'
-        ? (l1 ? buildZAxisRefLine(l1) : null)
+      const l2 = dim.dimVsAxis
+        ? (l1 ? buildAxisRefLine(l1, dim.dimVsAxis) : null)
         : state.objects.find(o => o.id === dim.dimLine2Id);
       if (!l1 || !l2) continue;
       // Interaktivně umístěná kóta – držet zvolenou stranu (dimReflex)

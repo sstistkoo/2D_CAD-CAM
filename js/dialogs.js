@@ -18,7 +18,7 @@ export { showCombinedModal, showNumericalInputDialog, openVkContour } from './di
 export { showPolarDrawingDialog } from './dialogs/polarDrawing.js';
 export { showAngleLineDialog } from './dialogs/angleLineDialog.js';
 export { showBulgeDialog } from './dialogs/bulge.js';
-export { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, computeLinearDimPlacement, addAngleDimForPlacement, computeAngleDimPlacement, buildZAxisRefLine, addArcAngleDim, addArcRadiusLeader } from './dialogs/dimension.js';
+export { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, computeLinearDimPlacement, addAngleDimForPlacement, computeAngleDimPlacement, buildZAxisRefLine, buildAxisRefLine, addArcAngleDim, addArcRadiusLeader } from './dialogs/dimension.js';
 export { applyMobileInputMode, wireExprInputs, showMobileEditDialog, showEditObjectDialog } from './dialogs/mobileEdit.js';
 export { showOffsetDialog, showMirrorDialog, showLinearArrayDialog, showCircularArrayDialog, showRotateDialog, showFilletDialog, showChamferDialog, showFilletChamferDialog, showScaleDialog, showEndpointChoiceDialog } from './dialogs/objectDialogs.js';
 export { showTangentChoiceDialog, showTangentPositionDialog, showTangentCircleLineActionDialog, showTangentNewCircleRadiusDialog } from './dialogs/tangentDialogs.js';

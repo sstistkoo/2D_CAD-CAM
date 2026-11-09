@@ -8,7 +8,7 @@ import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
 import { setHint, resetHint } from '../ui.js';
 import { findObjectAt, calculateAllIntersections } from '../geometry.js';
-import { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, addAngleDimForPlacement, buildZAxisRefLine, addArcAngleDim, addArcRadiusLeader } from '../dialogs.js';
+import { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, addAngleDimForPlacement, buildAxisRefLine, addArcAngleDim, addArcRadiusLeader } from '../dialogs.js';
 
 // Tolerance pro shodu bodu s existující kótou souřadnic (snap body jsou přesné).
 const COORD_MATCH_TOL = 1e-3;
@@ -64,13 +64,14 @@ export function handleDimensionClick(wx, wy) {
         return;
       }
     }
-    // Klik na osu Z (snap na středovém kříži) → kóta polárního úhlu od osy Z
-    if (idx === null && state.mouse.onZAxis) {
-      state._dimSecondLine = buildZAxisRefLine(state._dimFirstLine);
+    // Klik na osu Z nebo X (snap na středovém kříži) → kóta úhlu od té osy (jako na výkrese)
+    if (idx === null && (state.mouse.onZAxis || state.mouse.onXAxis)) {
+      const axis = state.mouse.onZAxis ? 'Z' : 'X';
+      state._dimSecondLine = buildAxisRefLine(state._dimFirstLine, axis);
       state._dimAnglePlacing = true;
-      state._dimAxisRef = 'Z';
+      state._dimAxisRef = axis;
       state._dimPlacing = false;
-      setHint("Pohybem vyberte stranu, klepnutím umístěte kótu polárního úhlu od osy Z");
+      setHint(`Pohybem vyberte stranu, klepnutím umístěte kótu úhlu od osy ${axis}`);
       renderAll();
       return;
     }
@@ -221,7 +222,7 @@ export function clearDimPlacing() {
 export function finalizeAnglePlacement(wx, wy) {
   const l1 = state._dimFirstLine, l2 = state._dimSecondLine;
   if (!l1 || !l2) { clearDimPlacing(); return; }
-  addAngleDimForPlacement(l1, l2, wx, wy, state._dimAxisRef === 'Z' ? { vsAxis: 'Z' } : {});
+  addAngleDimForPlacement(l1, l2, wx, wy, state._dimAxisRef ? { vsAxis: state._dimAxisRef } : {});
   clearDimPlacing();
   calculateAllIntersections();
   renderAll();

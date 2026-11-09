@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Kóta úhlu od osy X** (`dimension.js`) – vedle osy Z jde klepnout i na osu X; úhel se měří od osy, na kterou
+  se klepne (jako na technologickém výkrese; na karuselu je X vodorovná). Kóty se při úpravě úsečky přepočítají.
 - **Karusel v kreslicím editoru: `PU` v kódu a ∠ v informačním řádku od vodorovné osy →** (`cncDrawTools.js`) –
   stejně jako dialog Úsečka úhlem (`G1 PU-20 L200` = mírně dolů vpravo; info řádek ukáže ∠ −20°). Soustruh beze změny.
 - **Úsečka úhlem na karuselu: polární úhel od vodorovné osy obrazovky** (`cncAngleCompass.js`) – → = 0°,

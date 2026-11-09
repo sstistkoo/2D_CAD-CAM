@@ -13,7 +13,7 @@ vi.mock('../js/bridge.js', () => ({
   bridge: {},
 }));
 
-import { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, computeLinearDimPlacement, addAngleDimForPlacement, computeAngleDimPlacement, buildZAxisRefLine, addArcAngleDim, addArcRadiusLeader } from '../js/dialogs/dimension.js';
+import { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, computeLinearDimPlacement, addAngleDimForPlacement, computeAngleDimPlacement, buildZAxisRefLine, buildAxisRefLine, addArcAngleDim, addArcRadiusLeader } from '../js/dialogs/dimension.js';
 import { addObject } from '../js/objects.js';
 import { showToast } from '../js/state.js';
 
@@ -573,5 +573,25 @@ describe('kóty vždy patří do vrstvy Kóty (layer: 2)', () => {
     addAngleDimForPlacement(l1, l2, Math.cos(25 * Math.PI / 180), Math.sin(25 * Math.PI / 180));
     expect(addObject).toHaveBeenCalledOnce();
     expect(addObject.mock.calls[0][0].layer).toBe(2);
+  });
+});
+
+describe('kóta úhlu od osy X (jako na technologickém výkrese)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+  it('karusel: osa X je vodorovná (Y=0) → −20° úsečka má od ní 20°', () => {
+    const r = -20 * Math.PI / 180;
+    const line = { id: 1, type: 'line', x1: 0, y1: 0, x2: 200 * Math.cos(r), y2: 200 * Math.sin(r) };
+    const x = buildAxisRefLine(line, 'X', 'karusel');
+    expect(x.y1).toBe(0); expect(x.y2).toBe(0);
+    addAngleDimForPlacement(line, x, 50, -5, { vsAxis: 'X' });
+    const dim = addObject.mock.calls[0][0];
+    expect(dim.dimAngle * 180 / Math.PI).toBeCloseTo(20, 3);
+    expect(dim.dimVsAxis).toBe('X');
+  });
+  it('soustruh: osa X je svislá (X=0)', () => {
+    const line = { id: 1, type: 'line', x1: -5, y1: 10, x2: 5, y2: 15 };
+    const x = buildAxisRefLine(line, 'X', 'soustruh');
+    expect(x.x1).toBe(0); expect(x.x2).toBe(0);
+    expect(x.y1).toBeCloseTo(12.5, 4);
   });
 });
