@@ -4,6 +4,7 @@
  * ZAP: po klepnutí na písmeno vyskočí okno s čísly (číselník), OK vloží „X50 ".
  * Každý editor má vlastní stav (localStorage): kreslicí CNC editor má číslice
  * přímo v liště, proto výchozí VYP; CAM editor číslice v liště nemá, výchozí ZAP.
+ * ZAP v kreslicím editoru navíc skryje boční číselník vpravo (třída .cne-numpad-on).
  */
 const state = new Map();
 function load(key, def) {
@@ -22,6 +23,7 @@ export function wireNumpadToggle(root, key = 'cne_numpadOn', def = false) {
   load(key, def);
   const apply = () => root.querySelectorAll('[data-numpadtog]').forEach(b => {
     const on = state.get(key);
+    root.classList.toggle('cne-numpad-on', on);   // ZAP: boční číselník se schová, kód má celou šířku
     b.classList.toggle('active', on);
     b.title = on ? 'Číselník ZAP – k písmenu osy vyskočí okno s čísly (klik vypne)' : 'Číselník VYP – písmeno osy se vloží rovnou (klik zapne okno s čísly)';
   });

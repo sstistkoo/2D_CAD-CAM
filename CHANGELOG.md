@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Kreslicí CNC editor: 123 ZAP skryje boční číselník** (telefon na výšku) – čísla se zadávají v okně
+  číselníku, kód má celou šířku a nemá dole rezervu pro číselník. 123 VYP = boční číselník jako dřív.
 - **Kreslicí CNC editor: ;👁 (skrýt poznámky) přesunuto do horní lišty vedle AUTO**; tlačítko ↵ vpravo
   dole je přes dva řádky, aby se lépe trefovalo.
 - **CNC editor: Enter seřadí osy X před Z** (`gcodeAutoMotion.js`) – řádek `Z5 X10` se po Enter (nebo ↵)

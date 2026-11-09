@@ -148,3 +148,10 @@
 /* Kreslicí lišta: ↵ vpravo přes dva řádky (lépe se trefuje), dolní řádek 20+14+14 sloupců */
 .cne-quickbar--draw .c14 { grid-column: span 14; }
 .cne-quickbar--draw .cne-qb-enter { grid-row: span 2; height: auto !important; min-height: 0; font-size: 26px; }
+
+/* 123 ZAP: čísla zadává okno číselníku → boční číselník pryč, kód přes celou šířku i výšku */
+@media (max-width: 600px) and (orientation: portrait) {
+  .cne-overlay-draw .cne-numpad-on .cne-side-numpad { display: none; }
+  .cne-overlay-draw:not(.cne-compact) .cne-numpad-on .cne-backdrop,
+  .cne-overlay-draw:not(.cne-compact) .cne-numpad-on .cne-textarea { padding-bottom: 8px; }
+}
