@@ -27,7 +27,7 @@ function wordHelp(w, num, o) {
     case 'K': return 'střed oblouku: vzdálenost od začátku v Z, jen u G2/G3';
     case 'R': return 'poloměr oblouku (alternativa k I, K); záporný = delší oblouk';
     case 'CR': return 'poloměr oblouku (Sinumerik); záporný = delší oblouk';
-    case 'PU': return 'polární úhel úsečky od osy +Z (proti směru hodin); k tomu délka L, nebo cílové X či Z. Bez G = G1';
+    case 'PU': return 'polární úhel úsečky od osy +Z, na karuselu od vodorovné osy → (proti směru hodin); k tomu délka L, nebo cílové X či Z. Bez G = G1';
     case 'L': return 'délka úsečky zadané úhlem PU';
     case 'CHF': return 'sražení hrany – délka sražení na kratší straně';
     case 'RND': return 'zaoblení hrany – poloměr';
@@ -163,8 +163,8 @@ G1 X30 Z-20`)),
       pre(`G2 X30 Z0 R10
 G2 X30 Z0 I10 K0`)),
     sec('Úsečka úhlem (PU, L) a spojení v průsečíku',
-      row('PU, L', 'úsečka polárně: <b>PU</b> = úhel od +Z (proti směru hodin), <b>L</b> = délka (místo L jde zadat cílové X nebo Z). Bez G je to G1.'),
-      row('∠', 'tlačítko <b>Úsečka úhlem</b>: Polární (od +Z), nebo Od předchozí (odklon vlevo / vpravo od směru předchozího pohybu).'),
+      row('PU, L', 'úsečka polárně: <b>PU</b> = úhel od +Z, na karuselu od vodorovné osy → (proti směru hodin), <b>L</b> = délka (místo L jde zadat cílové X nebo Z). Bez G je to G1.'),
+      row('∠', 'tlačítko <b>Úsečka úhlem</b>: Polární (od +Z, na karuselu od →), nebo Od předchozí (odklon vlevo / vpravo od směru předchozího pohybu).'),
       row('🔗', 'jedno tlačítko v horní liště, vždy u kurzoru: na řádku se sražením/zaoblením (CHF/RND) ho převede na dráhu; na druhé ze dvou křížících se úseček je <b>ořízne v průsečíku a spojí</b> do jedné kontury. Funguje i s obloukem a kružnicí (plná kružnice = G2/G3 se stejným začátkem a koncem + I, K). Platí první průsečík po první úsečce.'),
       pre(`G0 X0 Z0
 G1 PU45 L1200     ; 1. úsečka

@@ -123,3 +123,20 @@ describe('karusel: polární úhel od vodorovné osy obrazovky (9. 11. 2026)', (
     expect(dirLabel(20, {})).toBe('20° od +Z');
   });
 });
+
+describe('karusel: PU v kódu a ∠ v info řádku od vodorovné osy →', () => {
+  it('PU-20 L200 vede mírně dolů vpravo', async () => {
+    const { analyzeDrawCode } = await import('../js/calculators/cncDrawTools.js');
+    const an = analyzeDrawCode('G90\nG0 X0 Z0\nG1 PU-20 L200', { karusel: true });
+    const mv = an.moves[an.moves.length - 1];
+    expect(Math.round(mv.to.x * 1000) / 1000).toBe(187.939);
+    expect(Math.round(mv.to.z * 1000) / 1000).toBe(-68.404);
+  });
+  it('info řádek ukazuje ∠ −20° na karuselu, soustruh dál od +Z', async () => {
+    const { analyzeDrawCode, moveInfo } = await import('../js/calculators/cncDrawTools.js');
+    const kar = analyzeDrawCode('G90\nG0 X0 Z0\nG1 X187.939 Z-68.404', { karusel: true });
+    expect(moveInfo(kar.moves[1], kar)).toContain('∠ -20°');
+    const sou = analyzeDrawCode('G90\nG0 X0 Z0\nG1 X-68.404 Z187.939', {});
+    expect(moveInfo(sou.moves[1], sou)).toContain('∠ -20°');
+  });
+});

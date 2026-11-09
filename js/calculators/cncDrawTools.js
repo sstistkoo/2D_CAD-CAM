@@ -13,6 +13,7 @@
 
 import { arcFromEndpointsRadius } from '../utils.js';
 import { readAddr, updateParams, isParamLine, resolveExpressions } from './cncExpr.js';
+import { polarInputToDialog, dialogToScreenAngle } from './cncAngleCompass.js';
 
 const EPS = 1e-6;
 /** Řádek s polárním zadáním úsečky: PU<úhel> + L<délka> (nebo cílové X / Z). */
@@ -129,11 +130,13 @@ export function analyzeDrawCode(code, opts = {}) {
       : { z: Z ?? from.z, x: X !== null ? X / xs : from.x };
     let polarErr = null;
     if (PU !== null) {
-      // Polární zadání: PU = úhel od +Z, a L (délka), nebo cílové X / Z (v G91 přírůstek).
+      // Polární zadání: PU = úhel od +Z (karusel: od vodorovné osy obrazovky →, jako dialog ∠),
+      // a L (délka), nebo cílové X / Z (v G91 přírůstek).
       const L = addr(c, 'L');
+      const pu = opts.karusel ? polarInputToDialog(PU, { karusel: true }) : PU;
       const Xt = X === null ? null : (mode === 91 ? from.x * xs + X : X);
       const Zt = Z === null ? null : (mode === 91 ? from.z + Z : Z);
-      const e = angleLineEnd(from, PU, { L, X: L === null ? Xt : null, Z: L === null ? Zt : null }, xs);
+      const e = angleLineEnd(from, pu, { L, X: L === null ? Xt : null, Z: L === null ? Zt : null }, xs);
       if (e.err) { polarErr = e.err; to = { ...from }; } else to = { z: e.z, x: e.x / xs };
     }
     pos = to;
@@ -193,6 +196,8 @@ export function moveAtOrBefore(an, idx) {
 
 /** Úhel směru (Z, X) ve stupních od osy +Z, proti směru hodin, rozsah (−180, 180]. */
 function dirDeg(dz, dx) { return Math.atan2(dx, dz) * 180 / Math.PI; }
+/** Karusel: úhel od +Z → úhel od vodorovné osy obrazovky →, rozsah (−180, 180]. */
+function screenDeg(a) { const s = dialogToScreenAngle(a, { karusel: true }); return s > 180 ? s - 360 : s; }
 
 /**
  * Údaje k pohybu pro informační řádek editoru.
@@ -206,7 +211,7 @@ export function moveInfo(mv, an) {
   if (mv.g === 0 || mv.g === 1) {
     const L = Math.hypot(dz, dx);
     const parts = [mv.g === 0 ? 'Rychloposuv' : 'Úsečka', `L ${f3(L)}`];
-    if (L > EPS) parts.push(`∠ ${f3(dirDeg(dz, dx))}°`);
+    if (L > EPS) parts.push(`∠ ${f3(an.opts?.karusel ? screenDeg(dirDeg(dz, dx)) : dirDeg(dz, dx))}°`);   // karusel: od →
     parts.push(`ΔX ${f3(dx * xs)}`, `ΔZ ${f3(dz)}`, end);
     return parts;
   }

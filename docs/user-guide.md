@@ -1500,7 +1500,7 @@ programů) to nedělá.
 
 **Údaje a pomůcky pro zjišťování rozměrů (CNC Editor – kreslení):**
 - **Řádek s údaji** nad klávesnicí ukazuje k řádku s kurzorem: u úsečky délku L,
-  úhel od osy +Z, ΔX/ΔZ a konec; u oblouku R, absolutní střed, I/K, úhel výseče
+  úhel od osy +Z (na karuselu od vodorovné osy →), ΔX/ΔZ a konec; u oblouku R, absolutní střed, I/K, úhel výseče
   a délku oblouku. **`I` je vždy poloměr** (posun středu v X od začátku oblouku),
   i když je X zobrazené v průměru – stejně jako na stroji (Fanuc, Sinumerik). Tlačítka **∠** (úsečka úhlem), **📋ř** (kopírovat řádek)
   a **📋XZ** (kopírovat koncový bod).

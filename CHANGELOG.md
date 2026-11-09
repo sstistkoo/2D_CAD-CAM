@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Karusel v kreslicím editoru: `PU` v kódu a ∠ v informačním řádku od vodorovné osy →** (`cncDrawTools.js`) –
+  stejně jako dialog Úsečka úhlem (`G1 PU-20 L200` = mírně dolů vpravo; info řádek ukáže ∠ −20°). Soustruh beze změny.
 - **Úsečka úhlem na karuselu: polární úhel od vodorovné osy obrazovky** (`cncAngleCompass.js`) – → = 0°,
   nahoru 90°, −20° mírně dolů vpravo (dřív od +Z, tj. od svislé osy → −20° šlo skoro nahoru). Šipky ✛ a
   odklon „Od předchozí“ (↺ vlevo / ↻ vpravo) se řídí obrazovkou i na karuselu a se zrcadlením. Soustruh beze změny.
