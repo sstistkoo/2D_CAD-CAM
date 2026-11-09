@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Úsečka úhlem na karuselu: polární úhel od vodorovné osy obrazovky** (`cncAngleCompass.js`) – → = 0°,
+  nahoru 90°, −20° mírně dolů vpravo (dřív od +Z, tj. od svislé osy → −20° šlo skoro nahoru). Šipky ✛ a
+  odklon „Od předchozí“ (↺ vlevo / ↻ vpravo) se řídí obrazovkou i na karuselu a se zrcadlením. Soustruh beze změny.
 - **Kreslicí CNC editor: podržení ⌫ smaže celý řádek** (`cncLongDelete.js`) – po ½ s zmizí řádek s kurzorem
   (na prázdném řádku po Enter ten nad ním); krátké klepnutí maže znak jako dřív. Tlačítka lišty už při
   podržení neoznačují text ani nevyvolají menu Kopírovat / Vybrat vše. Ctrl+Z / ◀ vrátí smazaný řádek.

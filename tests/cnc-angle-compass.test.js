@@ -3,7 +3,7 @@
 // stroje a zrcadlení os. Ověřuje se i to, že vypočtený úhel opravdu vede tam,
 // kam šipka ukazuje (přes angleLineEnd, kterým dialog úsečku počítá).
 import { describe, it, expect } from 'vitest';
-import { screenDirToAngle } from '../js/calculators/cncAngleCompass.js';
+import { screenDirToAngle, polarInputToDialog, dialogToScreenAngle, screenAngleToDialog, relToDialog, dirLabel } from '../js/calculators/cncAngleCompass.js';
 import { angleLineEnd } from '../js/calculators/cncDrawTools.js';
 
 const A = (ex, ey, v) => screenDirToAngle(ex, ey, v);
@@ -72,7 +72,7 @@ describe('wireAngleCompass (obsluha mřížky)', () => {
     const popup = host.children[0];
     expect(popup).toBeTruthy();
     const angs = [...popup.innerHTML.matchAll(/data-ang="([\d.]+)"/g)].map((m) => Number(m[1]));
-    expect(angs).toEqual([315, 0, 45, 270, 90, 225, 180, 135]);   // karusel: ↑ = 0°
+    expect(angs).toEqual([135, 90, 45, 180, 0, 225, 270, 315]);   // karusel: úhel od →, ↑ = 90° (9. 11. 2026)
     expect(popup.style.left).toBe('120px');                        // pravá hrana pod tlačítkem
     expect(popup.style.top).toBe('84px');
 
@@ -89,5 +89,37 @@ describe('wireAngleCompass (obsluha mřížky)', () => {
     expect(p2.removed).toBe(true);
     expect(input.value).toBe('90');
     vi.unstubAllGlobals();
+  });
+});
+
+describe('karusel: polární úhel od vodorovné osy obrazovky (9. 11. 2026)', () => {
+  const kar = { karusel: true };
+  const r3 = (v) => Math.round(v * 1000) / 1000;
+  it('−20° vede mírně dolů vpravo: Z dolů (−), X doprava (+)', () => {
+    const a = polarInputToDialog(-20, kar);
+    const res = angleLineEnd({ x: 0, z: 0 }, a, { L: 200 });
+    expect(r3(res.x)).toBe(187.939);
+    expect(r3(res.z)).toBe(-68.404);
+  });
+  it('0° = doprava (+X), 90° = nahoru (+Z)', () => {
+    expect(polarInputToDialog(0, kar)).toBe(90);
+    expect(polarInputToDialog(90, kar)).toBe(0);
+  });
+  it('soustruh zůstává od +Z', () => {
+    expect(polarInputToDialog(-20, {})).toBe(-20);
+  });
+  it('převod obrazovka ↔ dialog je vratný i se zrcadlením', () => {
+    for (const v of [kar, { karusel: true, flipX: true }, { flipZ: true }, {}]) {
+      for (const s of [0, 30, 135, 250]) expect(dialogToScreenAngle(screenAngleToDialog(s, v), v)).toBeCloseTo(s, 6);
+    }
+  });
+  it('odklon ↺ vlevo na karuselu točí proti směru hodin na obrazovce', () => {
+    const prev = polarInputToDialog(0, kar);              // → doprava
+    const d = relToDialog(prev, 1, 90, kar);              // vlevo o 90° → nahoru
+    expect(dialogToScreenAngle(d, kar)).toBeCloseTo(90, 6);
+  });
+  it('šipky ✛ na karuselu dávají úhel od →', () => {
+    expect(dirLabel(90, kar)).toBe('0° od →');
+    expect(dirLabel(20, {})).toBe('20° od +Z');
   });
 });

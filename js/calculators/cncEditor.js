@@ -12,6 +12,7 @@ import { analyzeDrawCode, moveInfo, moveAtOrBefore, moveDirDeg, modeAtLine, pola
 import { drawPreview } from './cncDrawPreview.js';
 import { setupLiveView } from './cncEditorLive.js';
 import { wireLongDelete } from './cncLongDelete.js';
+import { angleView, polarInputToDialog, relToDialog, dirLabel, polarHint } from './cncAngleCompass.js';
 import { lineHint, helpHTML } from './cncHints.js';
 import { joinAtIntersection, chamferByAngle } from './cncJoin.js';
 import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
@@ -2012,8 +2013,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     $('angCompass').hidden = angMode === 'rel'; const tangent = angPrevArc && angMode === 'rel'; $('angTangentBtn').classList.toggle('on', tangent); $('angA').readOnly = tangent; $('angSideRow').hidden = !(angRelOk && angMode === 'rel' && !angPrevArc);   // ✛ jen u polárního úhlu; tečně = odklon pevně 0°
     $('angLabel').textContent = tangent ? 'Tečně °' : angMode === 'rel' ? 'Odklon °' : 'Úhel °';
     $('angSmall').textContent = angMode === 'rel'
-      ? (tangent ? `(tečna na konci oblouku – směr ${f3(anglePrevDir)}° od +Z)` : `(od předchozího směru ${f3(anglePrevDir)}°; 0 = rovně dál, 90 = kolmo)`)
-      : '(od osy +Z, proti směru hodin; 180 = směr −Z)' + (angRelWhy ? ' – ' + angRelWhy : '');
+      ? (tangent ? `(tečna na konci oblouku – směr ${dirLabel(anglePrevDir, angleView(state), f3)})` : `(od předchozího směru ${f3(anglePrevDir)}°; 0 = rovně dál, 90 = kolmo)`)
+      : polarHint(angleView(state)) + (angRelWhy ? ' – ' + angRelWhy : '');
     angleModal.dispatchEvent(new Event('input'));
   }
   // ── Sražení úhel × délka (výpočet v cncJoin.js: chamferByAngle) ──
@@ -2126,7 +2127,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     for (const k of ['angL', 'angX', 'angZ']) if (Number.isNaN(val(k))) return { err: 'Neplatné číslo.' };
     const rel = angMode === 'rel';
     if (rel && anglePrevDir === null) return { err: 'Není předchozí úsečka – použijte Polární.' };
-    const abs = rel ? anglePrevDir + angSide * A : A;
+    const vw = angleView(state), abs = rel ? relToDialog(anglePrevDir, angSide, A, vw) : polarInputToDialog(A, vw);   // karusel: polární od →, odklon podle obrazovky
     const xs = analysis().xs;
     const res = angleLineEnd(angleFrom, abs, { L: val('angL'), X: val('angX'), Z: val('angZ') }, xs);
     if (res.err) return { err: res.err };
@@ -2152,10 +2153,10 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   if (angleModal) {
     angleModal.addEventListener('input', () => {
       const r = angleResult();
-      $('angRes').textContent = r.err ? '' : `→ ${g1Text(r)}` + (r.inc ? ' (G91 – přírůstky)' : '') + (r.rel ? `  (směr ${f3(r.abs)}° od +Z)` : '');
+      $('angRes').textContent = r.err ? '' : `→ ${g1Text(r)}` + (r.inc ? ' (G91 – přírůstky)' : '') + (r.rel ? `  (směr ${dirLabel(r.abs, angleView(state), f3)})` : '');
     });
     angleModal.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmAngle(); } });
-    closeOnBackdropClick(angleModal, () => { angleModal.style.display = 'none'; }); wireAngleCompass($('angCompass'), $('angA'), angleModal, () => ({ karusel: state.machineType === 'karusel', flipX: !!state.flipX, flipZ: !!state.flipZ }));
+    closeOnBackdropClick(angleModal, () => { angleModal.style.display = 'none'; }); wireAngleCompass($('angCompass'), $('angA'), angleModal, () => angleView(state));
   }
   const arcModal = createArcModal({ $, editor, getOpts: drawOpts, caretLine, insertLines, closeOnBackdropClick });   // ⌒ Oblouk (cncArcModal.js)
 

@@ -1504,7 +1504,8 @@ programů) to nedělá.
   a délku oblouku. **`I` je vždy poloměr** (posun středu v X od začátku oblouku),
   i když je X zobrazené v průměru – stejně jako na stroji (Fanuc, Sinumerik). Tlačítka **∠** (úsečka úhlem), **📋ř** (kopírovat řádek)
   a **📋XZ** (kopírovat koncový bod).
-- **∠ Úsečka úhlem:** úhel (od osy +Z proti směru hodin, 180° = směr −Z) a k tomu
+- **∠ Úsečka úhlem:** úhel (od osy +Z proti směru hodin, 180° = směr −Z; **na karuselu od vodorovné osy
+  obrazovky →**, 90° = nahoru, −20° = mírně dolů vpravo) a k tomu
   délka L, nebo cílové X, nebo cílové Z → vloží `G1 X… Z…` za řádek s kurzorem.
   Tlačítko **✛** za polem úhlu otevře mřížku osmi šipek (jako rychlá volba úhlu
   v číselném zadání): šipka ukazuje směr **na obrazovce** a úhel se dopočte podle typu

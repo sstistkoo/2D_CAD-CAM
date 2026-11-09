@@ -3,7 +3,8 @@
 // ╚══════════════════════════════════════════════════════════════╝
 //
 // Stejný vzhled jako rychlá volba úhlu v číselném zadání (třídy compass-*),
-// jen úhel je ve smyslu dialogu „Úsečka úhlem": od osy +Z, proti směru hodin.
+// jen úhel je ve smyslu dialogu „Úsečka úhlem": od osy +Z, proti směru hodin
+// (na karuselu od vodorovné osy obrazovky →, viz polarInputToDialog).
 // Šipka ukazuje směr NA OBRAZOVCE, a ten se k osám stroje váže podle typu
 // stroje (soustruh: Z vodorovně, X svisle; karusel: obráceně) a zrcadlení os
 // (flipX obrací svislou osu, flipZ vodorovnou – viz vSign/hSign v canvas.js).
@@ -32,6 +33,52 @@ export function screenDirToAngle(ex, ey, { karusel = false, flipX = false, flipZ
   return a >= 360 ? 0 : a;
 }
 
+const norm360 = (a) => { a = Math.round(a * 1e6) / 1e6 % 360; if (a < 0) a += 360; return a >= 360 ? 0 : a; };
+
+/** Pohled pro převody úhlů ze stavu aplikace. */
+export function angleView(st) {
+  return { karusel: st.machineType === 'karusel', flipX: !!st.flipX, flipZ: !!st.flipZ };
+}
+
+/**
+ * Úhel dialogu (od +Z) → úhel na obrazovce (od vodorovné osy →, proti směru hodin, 0 až < 360).
+ * @param {number} a
+ * @param {{karusel?: boolean, flipX?: boolean, flipZ?: boolean}} view
+ */
+export function dialogToScreenAngle(a, { karusel = false, flipX = false, flipZ = false } = {}) {
+  const r = a * Math.PI / 180, dz = Math.cos(r), dx = Math.sin(r);
+  const wx = karusel ? dx : dz, wy = karusel ? dz : dx;
+  const ex = flipZ ? -wx : wx, ey = flipX ? -wy : wy;
+  return norm360(Math.atan2(ey, ex) * 180 / Math.PI);
+}
+
+/** Úhel na obrazovce (od →, proti směru hodin) → úhel dialogu (od +Z). */
+export function screenAngleToDialog(s, view) {
+  const r = s * Math.PI / 180;
+  return screenDirToAngle(Math.cos(r), Math.sin(r), view);
+}
+
+/**
+ * Polární úhel tak, jak ho zadává uživatel: na karuselu od vodorovné osy obrazovky
+ * (→ = 0°, nahoru 90°; uživatel 9. 11. 2026), jinak od osy +Z.
+ */
+export function polarInputToDialog(A, view) { return view.karusel ? screenAngleToDialog(A, view) : A; }
+
+/** Odklon od předchozího směru podle obrazovky: ↺ vlevo (+1) / ↻ vpravo (−1) platí i na karuselu a se zrcadlením. */
+export function relToDialog(prevDir, side, A, view) {
+  return screenAngleToDialog(dialogToScreenAngle(prevDir, view) + side * A, view);
+}
+
+/** Popis směru pro nápovědu dialogu („110° od →" na karuselu, jinak „20° od +Z"). */
+export function dirLabel(a, view, f = String) {
+  return view.karusel ? `${f(dialogToScreenAngle(a, view))}° od →` : `${f(a)}° od +Z`;
+}
+
+/** Popisek polárního úhlu v dialogu. */
+export function polarHint(view) {
+  return view.karusel ? '(od vodorovné osy →, proti směru hodin; 90 = nahoru)' : '(od osy +Z, proti směru hodin; 180 = směr −Z)';
+}
+
 /**
  * Napojí tlačítko ✛ na pole úhlu. Vyskakovací mřížka se vloží do `host`
  * (podklad dialogu, `position: absolute`) a umístí pod tlačítko.
@@ -53,7 +100,7 @@ export function wireAngleCompass(trigger, input, host, getView) {
     popup = document.createElement('div');
     popup.className = 'angle-compass-popup cne-ang-compass';
     popup.innerHTML = `<div class="compass-grid">${ARROWS.map(([area, ch, ex, ey]) => {
-      const a = screenDirToAngle(ex, ey, view);
+      const a = view.karusel ? norm360(Math.atan2(ey, ex) * 180 / Math.PI) : screenDirToAngle(ex, ey, view);   // karusel: úhel od →
       return `<button type="button" class="compass-arrow" data-ang="${a}" style="grid-area:${area}" title="${a}°">${ch}</button>`;
     }).join('')}<button type="button" class="compass-close" style="grid-area:mc" title="Zavřít">✕</button></div>`;
     host.appendChild(popup);
