@@ -4,7 +4,8 @@
 // ║   ▾  rozbalí / sbalí lišty (☰ panely, 🔍, 🔢… a Údaje)       ║
 // ║   ⇕  přepne editor přes celý displej ↔ zmenšený dole, nad     ║
 // ║      ním je vidět CAD plátno s živým náhledem psaného kódu    ║
-// ║   ⤢  (jen zmenšený) zarámuje náhled nad editor                ║
+// ║   ⤢  (jen zmenšený) zarámuje náhled nad editor; samo se       ║
+// ║      zarámuje i po každé změně nakreslené geometrie            ║
 // ║  Klepnutí na čáru náhledu na plátně → kurzor na její řádek    ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
@@ -104,6 +105,7 @@ export function setupLiveView(overlay, { analysis, caretLine }) {
   }
 
   /** Zarámuje náhled do plochy plátna nad zmenšeným editorem. */
+  let lastBounds = '';
   function fit() {
     if (!cv) return;
     const b = movesBounds(analysis());
@@ -209,6 +211,10 @@ export function setupLiveView(overlay, { analysis, caretLine }) {
     update(an, line) {
       if (!compact) return;
       data = { an, line };
+      // Změnila se nakreslená geometrie (ne jen kurzor) → náhled znovu zarámovat nad editor.
+      const b = movesBounds(an);
+      const key = b ? [b.minX, b.maxX, b.minY, b.maxY].map(v => v.toFixed(3)).join() : '';
+      if (key && key !== lastBounds) { lastBounds = key; fit(); }
       bridge.renderAll?.();
     },
   };
