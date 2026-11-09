@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v783';
+const CACHE_NAME = 'skica-v784';
 const ASSETS = [
   './',
   './index.html',
@@ -237,6 +237,7 @@ const ASSETS = [
   './js/calculators/cncHints.js',
   './js/calculators/cncJoin.js',
   './js/calculators/cncKeyboardMode.js',
+  './js/calculators/cncLongDelete.js',
   './js/calculators/cncLoupe.js',
   './js/calculators/cncNoKeyboard.js',
   './js/calculators/cncNumpadCalc.js',

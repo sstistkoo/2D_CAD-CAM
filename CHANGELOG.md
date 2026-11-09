@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Kreslicí CNC editor: podržení ⌫ smaže celý řádek** (`cncLongDelete.js`) – po ½ s zmizí řádek s kurzorem
+  (na prázdném řádku po Enter ten nad ním); krátké klepnutí maže znak jako dřív. Tlačítka lišty už při
+  podržení neoznačují text ani nevyvolají menu Kopírovat / Vybrat vše. Ctrl+Z / ◀ vrátí smazaný řádek.
 - **Zmenšený kreslicí editor: náhled se sám vycentruje** (`cncEditorLive.js`) – po každé změně nakreslené
   geometrie se plátno nad editorem zarámuje na celou kresbu (jako ⤢). Pohyb kurzoru pohled nemění.
 - **Kreslicí CNC editor: 123 ZAP skryje boční číselník** (telefon na výšku) – čísla se zadávají v okně

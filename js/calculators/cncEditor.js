@@ -11,6 +11,7 @@ import { safeEvalMath } from '../utils.js';
 import { analyzeDrawCode, moveInfo, moveAtOrBefore, moveDirDeg, modeAtLine, polarToXZ, tangentToIK, geometryChecks, angleLineEnd, convertLinesMode, f3 } from './cncDrawTools.js';
 import { drawPreview } from './cncDrawPreview.js';
 import { setupLiveView } from './cncEditorLive.js';
+import { wireLongDelete } from './cncLongDelete.js';
 import { lineHint, helpHTML } from './cncHints.js';
 import { joinAtIntersection, chamferByAngle } from './cncJoin.js';
 import { ARC_MODAL_HTML, createArcModal } from './cncArcModal.js';
@@ -2343,7 +2344,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   editor.addEventListener('input', onInput);
   ['click', 'keyup', 'touchend', 'focus', 'select'].forEach(ev => editor.addEventListener(ev, () => { updateEntryMode(); updateInfo(); }));
   if (previewEl) window.addEventListener('resize', updateInfo);
-  editor.addEventListener('scroll', syncScroll); wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n')); wireNumpadToggle(root); wireCurrentLine(editor, backdrop); wireNumpadCalc(numModal, numInput); wireNoKeyboard(root, editor); if (drawOnClose) wireAutoRedraw(root);   // klik pod text / Enter v poznámce → nový řádek
+  editor.addEventListener('scroll', syncScroll); wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n')); wireNumpadToggle(root); wireCurrentLine(editor, backdrop); wireNumpadCalc(numModal, numInput); wireNoKeyboard(root, editor); wireLongDelete(root, editor, { snapshot: captureUndoSnapshot, after: onInput, reveal: ensureCaretVisible }); if (drawOnClose) wireAutoRedraw(root);   // klik pod text / Enter v poznámce → nový řádek
 
   // Klávesy spodní lišty nesmí „ukrást" fokus z textarey – jinak po každém
   // stisku (mazání znaku, vložení) zmizí kurzor a uživatel musí znovu klikat

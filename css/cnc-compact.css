@@ -155,3 +155,6 @@
   .cne-overlay-draw:not(.cne-compact) .cne-numpad-on .cne-backdrop,
   .cne-overlay-draw:not(.cne-compact) .cne-numpad-on .cne-textarea { padding-bottom: 8px; }
 }
+
+/* Podržení ⌫ = smazat řádek (cncLongDelete.js): bez výběru textu a systémového menu */
+.cne-qb { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
