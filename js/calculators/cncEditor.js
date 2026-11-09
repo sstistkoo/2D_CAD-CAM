@@ -346,11 +346,11 @@ function quickbarHTML(drawMode) {
     <button class="cne-qb gray c12" data-ins=";" title="Středník (komentář)">;</button>
     <button class="cne-qb cne-kb-btn c12" data-act="keyboard" data-el="kbBtn" title="Zobrazit / skrýt klávesnici telefonu">⌨</button>
     <button class="cne-qb green c12" data-act="pickFromCanvas" title="Zavře editor, naklikněte bod na plátně – editor se otevře a souřadnice se vypíšou na místo kurzoru">🎯</button>
-    <button class="cne-qb green c12" data-ins="\\n" title="Nový řádek">↵</button>
+    <button class="cne-qb green c12 cne-qb-enter" data-ins="\\n" title="Nový řádek">↵</button>
 
     <button class="cne-qb accent cne-qb-wide c20" data-act="stockToggle" data-el="stockToggleBtn" title="Co právě zadávám: kontura nebo polotovar. Klik vloží značku ; STOCK_START / ; STOCK_END na kurzor.">✎ Kontura</button>
-    <button class="cne-qb gray cne-qb-wide c10" data-hidecom title="Skrýt poznámky za středníkem">;👁</button><button class="cne-qb gray cne-qb-wide c15" data-ins=" " title="Mezera">␣</button>
-    <button class="cne-qb gray cne-qb-wide cne-qb-num c15" data-inp="" title="Zadat číslo">123</button>
+    <button class="cne-qb gray cne-qb-wide c14" data-ins=" " title="Mezera">␣</button>
+    <button class="cne-qb gray cne-qb-wide cne-qb-num c14" data-inp="" title="Zadat číslo">123</button>
   </div>`;
   return `
   <div class="cne-quickbar">${digitPadHTML()}
@@ -443,7 +443,7 @@ function buildEditorHTML(drawMode = false) {
 <div class="cne-layout">
   <div class="cne-sn-bar">
     <button class="cne-sn-arrow" data-el="undoArrowBtn" data-act="editorUndo" title="Zpět (Ctrl+Z)" disabled>◀</button>
-    <button class="cne-sn-arrow" data-el="redoArrowBtn" data-act="editorRedo" title="Vpřed (Ctrl+Y)" disabled>▶</button><button class="cne-sn-arrow cne-sn-numtog" data-numpadtog>123</button>${drawMode ? '<button class="cne-sn-arrow cne-sn-numtog" data-autodraw>AUTO</button>' : ''}
+    <button class="cne-sn-arrow" data-el="redoArrowBtn" data-act="editorRedo" title="Vpřed (Ctrl+Y)" disabled>▶</button><button class="cne-sn-arrow cne-sn-numtog" data-numpadtog>123</button>${drawMode ? '<button class="cne-sn-arrow cne-sn-numtog" data-autodraw>AUTO</button><button class="cne-sn-arrow cne-sn-numtog" data-hidecom>;👁</button>' : ''}
     <span class="cne-sn-text" data-el="snBar"></span>
     <button class="cne-sn-close" data-act="closeEditor" title="Zavřít editor">✕</button>
   </div>

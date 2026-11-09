@@ -144,3 +144,7 @@
 @media (orientation: landscape) and (max-height: 500px) {
   .num-pad-key { min-height: 30px; font-size: 15px; }
 }
+
+/* Kreslicí lišta: ↵ vpravo přes dva řádky (lépe se trefuje), dolní řádek 20+14+14 sloupců */
+.cne-quickbar--draw .c14 { grid-column: span 14; }
+.cne-quickbar--draw .cne-qb-enter { grid-row: span 2; height: auto !important; min-height: 0; font-size: 26px; }

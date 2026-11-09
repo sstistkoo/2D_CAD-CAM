@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Kreslicí CNC editor: ;👁 (skrýt poznámky) přesunuto do horní lišty vedle AUTO**; tlačítko ↵ vpravo
+  dole je přes dva řádky, aby se lépe trefovalo.
 - **CNC editor: Enter seřadí osy X před Z** (`gcodeAutoMotion.js`) – řádek `Z5 X10` se po Enter (nebo ↵)
   změní na `X10 Z5`, spolu s doplněním G0/G1 (`Z5 X0` → `G0 X0 Z5`). Ostatní slova a poznámka zůstanou.
 - **Kreslicí CNC editor: po otevření kurzor na novém řádku konce kontury** (`cncDrawOpen.js`) – hned se dá
