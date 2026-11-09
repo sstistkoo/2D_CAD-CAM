@@ -1,6 +1,6 @@
 // CNC Editor: po Enter se řádek se souřadnicemi bez G dokončí (první G0, další G1).
 import { describe, it, expect } from 'vitest';
-import { completeMotionLine as C, autoCompleteMotionG } from '../js/calculators/gcodeAutoMotion.js';
+import { completeMotionLine as C, autoCompleteMotionG, orderXZLine } from '../js/calculators/gcodeAutoMotion.js';
 
 describe('completeMotionLine', () => {
   it('první řádek se souřadnicemi v prázdném editoru → G0', () => {
@@ -92,5 +92,23 @@ describe('autoCompleteMotionG (Enter v editoru)', () => {
     const ed = fakeEditor('X0 Z5\n', 6);
     ed.selectionEnd = 2;
     expect(autoCompleteMotionG(ed, ENTER)).toBe('X0 Z5\n');
+  });
+});
+
+describe('orderXZLine – X před Z', () => {
+  it('Z před X → prohodí', () => {
+    expect(orderXZLine('Z5 X10')).toBe('X10 Z5');
+    expect(orderXZLine('G1 Z-5.5 X=R1 F0.2')).toBe('G1 X=R1 Z-5.5 F0.2');
+    expect(orderXZLine('N10 z5 x10 ; konec')).toBe('N10 x10 z5 ; konec');
+  });
+  it('pořadí v pořádku nebo jen jedna osa → null', () => {
+    expect(orderXZLine('X10 Z5')).toBeNull();
+    expect(orderXZLine('Z5')).toBeNull();
+    expect(orderXZLine('; Z5 X10')).toBeNull();
+    expect(orderXZLine('IF R1>Z5 X10')).toBeNull();
+  });
+  it('Enter: seřadí osy a doplní G', () => {
+    expect(autoCompleteMotionG(fakeEditor('Z5 X0\n', 6), ENTER)).toBe('G0 X0 Z5\n');
+    expect(autoCompleteMotionG(fakeEditor('G0 X0 Z5\nG1 Z-5 X10\n', 20), ENTER)).toBe('G0 X0 Z5\nG1 X10 Z-5\n');
   });
 });

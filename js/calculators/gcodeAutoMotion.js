@@ -10,6 +10,8 @@
 //     pokud už není v platnosti G1 (pak řádek zůstane, jak je – je to platný
 //     modální zápis a nemění se text, který program už má).
 // Řádek, který G pohybu (G0–G3) nebo jiný G kód obsahuje, se nikdy nemění.
+// Když řádek obsahuje obě osy a Z je zapsané před X (`Z5 X10`), Enter je
+// seřadí: X první (`X10 Z5`). Ostatní slova (G, F, CHF, …) zůstávají na místě.
 //
 // Čisté funkce bez DOM kromě `autoCompleteMotionG` (dostane element editoru).
 
@@ -84,6 +86,26 @@ export function completeMotionLine(before, line) {
 }
 
 /**
+ * Seřadí osy na řádku tak, aby X bylo před Z (`G1 Z5 X10 F.2` → `G1 X10 Z5 F.2`).
+ * Prohodí se jen celá slova oddělená mezerou; komentář (`;…`) zůstává beze změny.
+ * @param {string} line
+ * @returns {string|null} nový řádek, nebo `null` = pořadí je v pořádku / nelze určit
+ */
+export function orderXZLine(line) {
+  const src = String(line ?? '');
+  const ci = src.indexOf(';');
+  const code = ci < 0 ? src : src.slice(0, ci);
+  if (!code.trim() || /[()]/.test(code) || isNonPlainCode(codeOf(code))) return null;
+  const parts = code.split(/(\s+)/);                      // mezery zůstávají jako samostatné části
+  const axis = (t) => (/^([XZ])(?:=\S|[-+.\d])/i.exec(t) || [])[1]?.toUpperCase();
+  const xs = [], zs = [];
+  parts.forEach((t, i) => { const a = axis(t); if (a === 'X') xs.push(i); else if (a === 'Z') zs.push(i); });
+  if (xs.length !== 1 || zs.length !== 1 || xs[0] < zs[0]) return null;   // X už je první
+  [parts[xs[0]], parts[zs[0]]] = [parts[zs[0]], parts[xs[0]]];
+  return parts.join('') + (ci < 0 ? '' : src.slice(ci));
+}
+
+/**
  * Po zalomení řádku (Enter nebo tlačítko ↵) dokončí řádek nad kurzorem.
  * @param {HTMLTextAreaElement} editor
  * @param {{inputType?: string}} [ev] událost `input`; bez `insertLineBreak/insertParagraph` se nic neděje
@@ -100,7 +122,8 @@ export function autoCompleteMotionG(editor, ev) {
 
   const lineStart = v.lastIndexOf('\n', caret - 2) + 1;
   const line = v.slice(lineStart, caret - 1);
-  const fixed = completeMotionLine(v.slice(0, lineStart), line);
+  const ordered = orderXZLine(line) ?? line;
+  const fixed = completeMotionLine(v.slice(0, lineStart), ordered) ?? (ordered !== line ? ordered : null);
   if (fixed === null) return v;
 
   const { scrollTop, scrollLeft } = editor;

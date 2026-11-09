@@ -1492,7 +1492,9 @@ potom `X10 Z-5` → `G1 X10 Z-5`. Řádek, který už nějaké G má (G0–G3, G
 G33…), řádek s `R`/`I`/`K` (oblouk se nehádá), řádky bez souřadnic, komentáře
 a Sinumerik příkazy (`IF`, `DEF`, `R1=…`) se nemění. Když už platí G1
 (předchozí pohyb byl G1), zůstane holý řádek `Z-20` beze změny – je to platný
-modální zápis. Enter uprostřed řádku nic nedopisuje a **Ctrl+Z** vrátí zalomení
+modální zápis. Jsou-li na řádku **obě osy** a Z je napsané dřív (`Z5 X10`),
+Enter je **seřadí – X první** (`X10 Z5`); ostatní slova (G, F, CHF…) a poznámka
+zůstanou na místě. Enter uprostřed řádku nic nedopisuje a **Ctrl+Z** vrátí zalomení
 i doplněné G jedním krokem. Jen CNC Editor – CAM Editor (úprava vygenerovaných
 programů) to nedělá.
 
