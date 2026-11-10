@@ -45,32 +45,53 @@ function normProvider(o) {
   return r;
 }
 
-/** Načte uložené AI nastavení (localStorage). */
+// „Pamatovat klíče v tomto prohlížeči" vypnuté (rememberKeys: false): klíče jdou
+// jen do sessionStorage (zmizí se zavřením karty), v localStorage zůstane zbytek
+// nastavení bez klíčů. Výchozí je zapnuto = chování do 10. 11. 2026.
+const SESSION_KEYS = 'skica_ai_keys_session';
+
+function readJSON(store, key) {
+  try { const raw = store.getItem(key); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+
+/** Načte uložené AI nastavení (localStorage, klíče případně ze sessionStorage). */
 export function loadAISettings() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const s = raw ? JSON.parse(raw) : {};
+    const s = readJSON(localStorage, STORAGE_KEY) || {};
     const p = s.providers || {};
+    const rememberKeys = s.rememberKeys !== false;
+    const sess = rememberKeys ? null : readJSON(sessionStorage, SESSION_KEYS);
+    const prov = (id) => normProvider(sess && sess[id] ? { ...p[id], ...sess[id] } : p[id]);
     return {
       active: AI_PROVIDERS[s.active] ? s.active : 'openrouter',
-      providers: {
-        groq: normProvider(p.groq),
-        gemini: normProvider(p.gemini),
-        openrouter: normProvider(p.openrouter),
-      },
+      rememberKeys,
+      providers: { groq: prov('groq'), gemini: prov('gemini'), openrouter: prov('openrouter') },
     };
   } catch {
     return {
       active: 'openrouter',
+      rememberKeys: true,
       providers: { groq: emptyProvider(), gemini: emptyProvider(), openrouter: emptyProvider() },
     };
   }
 }
 
-/** Uloží AI nastavení do localStorage. */
+/** Uloží AI nastavení; při rememberKeys: false klíče jen do sessionStorage. */
 export function saveAISettings(settings) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    if (settings.rememberKeys === false) {
+      const keys = {};
+      const providers = {};
+      for (const [id, cfg] of Object.entries(settings.providers || {})) {
+        keys[id] = { apiKey: cfg.apiKey || '', apiKeys: [...(cfg.apiKeys || [])] };
+        providers[id] = { ...cfg, apiKey: '', apiKeys: [] };
+      }
+      sessionStorage.setItem(SESSION_KEYS, JSON.stringify(keys));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...settings, providers }));
+    } else {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...settings, rememberKeys: true }));
+      try { sessionStorage.removeItem(SESSION_KEYS); } catch { /* bez sessionStorage nic */ }
+    }
     return true;
   } catch {
     return false;
@@ -224,7 +245,11 @@ const BODY_HTML = `
     </div>
 
     <p class="ai-note">🖼 = model umí číst obrázky (potřebné pro analýzu výkresu).</p>
-    <p class="ai-note">🔒 API klíče se ukládají pouze lokálně v tomto prohlížeči (localStorage).</p>
+    <label class="ai-row ai-remember">
+      <input type="checkbox" id="aiRememberKeys" />
+      <span>Pamatovat klíče v tomto prohlížeči</span>
+    </label>
+    <p class="ai-note">🔒 API klíče se ukládají jen v tomto prohlížeči a posílají jen zvolenému poskytovateli AI. Bez „Pamatovat“ zmizí po zavření karty (vhodné na sdíleném počítači).</p>
   </div>
 `;
 
@@ -243,6 +268,9 @@ export function openAISettings() {
   const tempInput = $('#aiTemp');
   const statusEl = $('#aiStatus');
   const keyLink = $('#aiKeyLink');
+  const rememberEl = $('#aiRememberKeys');
+  rememberEl.checked = settings.rememberKeys !== false;
+  rememberEl.addEventListener('change', () => { settings.rememberKeys = rememberEl.checked; });
 
   let current = settings.active;
   let lastModels = []; // naposledy načtené modely aktuálního providera

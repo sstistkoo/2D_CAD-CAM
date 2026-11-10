@@ -4114,6 +4114,7 @@ body.notify-open #mobileCoordBar {
   color: var(--ctp-subtext0, var(--ctp-overlay0));
   font-weight: 600;
 }
+.ai-row.ai-remember { flex-direction: row; align-items: center; gap: 8px; cursor: pointer; }
 .ai-settings select,
 .ai-settings input[type="password"] {
   width: 100%;

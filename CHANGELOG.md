@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **AI nastavení: „Pamatovat klíče v tomto prohlížeči“.** Výchozí je zapnuto, takže se chování nemění. Po vypnutí jdou API klíče jen do sessionStorage a zmizí se zavřením karty. V localStorage zůstane zbytek nastavení bez klíčů. Test `tests/ai-settings-storage.test.js`, včetně okna.
+
 - **Kontrola NC programu před uložením** (`js/calculators/ncCheck.js`). 💾 stažení i kopie do schránky v CAM simulátoru projdou text programu a při nálezu vypíšou seznam s číslem řádku a zeptají se *Přesto pokračovat?*. Hlídá se řez bez vřetena, otáček nebo posuvu, `G96` bez omezení otáček (`LIMS=` / `G50 S`; Heidenhain ne), pohyb před voláním nástroje, oblouk bez poloměru i středu nebo s nulovým poloměrem a nesmyslná souřadnice. Jako upozornění pak chybějící `M30`, kód za `M30` a nezrušené `G41`/`G42`. Nad 96 vygenerovanými programy (32 fixtures × 3 řízení) i nad spojeným programem s výměnou nože hlásí 0 nálezů, okno se tedy ukáže hlavně po ruční úpravě. Test `tests/nc-check.test.js`.
 
 ### Removed

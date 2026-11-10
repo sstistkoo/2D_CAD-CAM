@@ -2680,6 +2680,11 @@ AI panel ti umožňuje převést fotku strojírenského výkresu na CAD profil.
 
 Nastavení API klíčů: ☰ → **Nastavení** → **AI nastavení**
 
+Klíče se ukládají jen v tomto prohlížeči a posílají se jen zvolenému
+poskytovateli. Volba **Pamatovat klíče v tomto prohlížeči** je výchozí. Po
+jejím vypnutí (např. na sdíleném počítači) klíče zmizí se zavřením karty,
+model a poskytovatel zůstanou.
+
 ---
 
 ## Témata a vzhled
