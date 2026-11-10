@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Editory G-kódu: přepočet G90 ↔ G91 v jednom modulu** (`js/calculators/gcodeCoordConvert.js`). CAM Editor i CNC Editor měly vlastní kopii převodu a vyhodnocovače výrazů. Teď sdílejí jeden modul a výrazy počítá `safeEvalMath` z `utils.js`. Zhuštěný zápis zůstává jen v CNC Editoru (volba `compact`). Nad 96 NC programy z fixtures a ručními případy je výstup shodný s původními kopiemi. Jediná změna: dělení nulou (`X10/0`) se dřív přepsalo na `XInfinity`, teď zůstane původní text. `cncEditor.js` má o 127 řádků méně, `camEditor.js` o 120. Test `tests/gcode-coord-convert.test.js`.
+
 - **Úklid kořene repa:** smazány ladicí zbytky (`gear_debug.html`, `gear_profiles.html`, `internal_gear_test.svg`, `scratch_user.mjs`, `useky-podle-meznich-car.patch`). Ladicí stránky ozubení tím zmizely i z offline cache PWA. Ukázkové DXF (`test.dxf`, `test_fusion.dxf`, `Náčrt1.dxf`) jsou teď v `tests/fixtures/dxf/` a `SENIOR_REVIEW.md` v `docs/senior-review-2026-07.md`.
 
 - **VK: úhel PA na karuselu od vodorovné osy →** (jako CNC editor a CAD; 0° = doprava, 90° = nahoru, proti směru hodin). Dřív se na karuselu měřil od +Z (nahoru) po směru hodin. Soustruh beze změny. Řešič dál počítá ve strojové rovině, převod je jen na hranici textu/formuláře (`js/calculators/vkAngle.js`). **Uložené VK programy na karuselu se čtou jinak** – PA ve starých zápisech přepiš jako 90 − PA.

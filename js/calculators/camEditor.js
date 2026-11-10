@@ -7,6 +7,7 @@ import { makeOverlay, closeOnBackdropClick } from '../dialogFactory.js';
 import { openCamSimulator } from './camSimulator.js';
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
+import { codeToAbsolute as toAbsolute, codeToIncremental as toIncremental } from './gcodeCoordConvert.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
 import { G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, spacedPrefix, numpadHTML, numpadResult, wireNumpadCalc, numpadOn, wireNumpadToggle, wireTapBelow, wireCommentTools, commentClass, wireCurrentLine, wireNoKeyboard, wireKeyboardMode, ensureCaretVisible } from './gcodeEditorShared.js';
 
@@ -1159,53 +1160,6 @@ export function openCamEditor(initialCode, jumpLine) {
   editor.addEventListener('beforeinput', captureUndoSnapshot);
 
   // ── Conversion helpers ────────────────────────────────────
-  // CSP-safe vyhodnocení číselného výrazu (+ - * / a závorky) bez eval/Function.
-  // CSP stránky (index.html) nepovoluje 'unsafe-eval', takže new Function()
-  // by vyhodilo výjimku a přepočet souřadnic by tiše selhal (vrátil NaN).
-  function safeEvalArith(expr) {
-    const tokens = expr.match(/\d+\.?\d*|\.\d+|[+\-*/()]/g);
-    if (!tokens) return NaN;
-    let pos = 0;
-    const peek = () => tokens[pos];
-    const next = () => tokens[pos++];
-    function parseExpr() {                 // sčítání / odčítání
-      let v = parseTerm();
-      while (peek() === '+' || peek() === '-') {
-        const op = next(); const r = parseTerm();
-        v = op === '+' ? v + r : v - r;
-      }
-      return v;
-    }
-    function parseTerm() {                 // násobení / dělení
-      let v = parseFactor();
-      while (peek() === '*' || peek() === '/') {
-        const op = next(); const r = parseFactor();
-        v = op === '*' ? v * r : v / r;
-      }
-      return v;
-    }
-    function parseFactor() {               // unární ±, závorky, číslo
-      const t = peek();
-      if (t === '+') { next(); return parseFactor(); }
-      if (t === '-') { next(); return -parseFactor(); }
-      if (t === '(') { next(); const v = parseExpr(); if (peek() === ')') next(); return v; }
-      next(); return parseFloat(t);
-    }
-    const result = parseExpr();
-    return pos === tokens.length ? result : NaN;   // nespotřebované tokeny = chyba
-  }
-
-  function evalParam(expr, params) {
-    try {
-      let expanded = expr.replace(/R(\d+)/gi, (_, id) => {
-        const key = `R${parseInt(id, 10)}`;
-        return params.has(key) ? params.get(key) : 0;
-      });
-      if (!/^[0-9.+\-*/() ]+$/.test(expanded)) return NaN;
-      return safeEvalArith(expanded);
-    } catch { return NaN; }
-  }
-
   function getParamContext() {
     const pm = new Map();
     parser.parameters.forEach((val, key) => {
@@ -1228,82 +1182,9 @@ export function openCamEditor(initialCode, jumpLine) {
     if (mi) mi.textContent = coordMode === 'abs' ? 'G90' : 'G91';
   }
 
-  // Přepočet přírůstkového kódu (G91) zpět na absolutní (G90).
-  // Podle markerů G90/G91 v textu se sleduje režim, dopočítá absolutní
-  // poloha a souřadnice se přepíší absolutně; každý G91 se nahradí G90.
-  function codeToAbsolute(code) {
-    const lines = code.split('\n');
-    const newLines = [];
-    let x = 0, z = 0, mode = 90;
-    const params = getParamContext();
-    for (const line of lines) {
-      const ci = line.indexOf(';');
-      let clean = (ci !== -1 ? line.substring(0, ci) : line).trim().toUpperCase();
-      if (!clean) { newLines.push(line); continue; }
-      const am = clean.match(/R(\d+)\s*=\s*([^=;]+?)(?=\s+[A-Z]|$)/g);
-      if (am) am.forEach(a => { const p = a.split('='); const n = parseInt(p[0].replace('R','')); const v = evalParam(p[1], params); if (!isNaN(v)) params.set(`R${n}`, v); });
-      if (clean.includes('G90')) mode = 90;
-      if (clean.includes('G91')) mode = 91;
-      // Referenční / pevné body (G74/G75) nesou jen zástupné X0/Z0 – nejsou to
-      // souřadnice interpolace, takže je nepřepočítáváme ani jimi neposouváme polohu.
-      if (/\bG7[45]\b/.test(clean)) { newLines.push(line); continue; }
-      let mod = line;
-      if (/[XZ]/.test(clean)) {
-        mod = mod.replace(/([XZ])\s*(=?)\s*([^\s;]+)/gi, (m, ax, eq, vs) => {
-          ax = ax.toUpperCase();
-          let v = evalParam(vs, params); if (isNaN(v)) return m;
-          let abs = mode === 91 ? ((ax === 'X' ? x : z) + v) : v;
-          if (ax === 'X') x = abs; else z = abs;
-          return `${ax}${Number(abs.toFixed(3))}`;
-        });
-      }
-      if (mode === 91) mod = mod.replace(/\bG91\b/gi, 'G90');
-      newLines.push(mod);
-    }
-    return newLines.join('\n');
-  }
-
-  // Přepočet absolutního kódu (G90) na přírůstkový (G91).
-  // Nájezd (první pohyb v dané ose) zůstává absolutní v G90, navazující
-  // pohyby jsou přírůstkové v G91 – stejně jako CNC export v CAD.
-  function codeToIncremental(code) {
-    const lines = code.split('\n');
-    const newLines = [];
-    let x = 0, z = 0, curMode = 90, initX = false, initZ = false;
-    const params = getParamContext();
-    for (const line of lines) {
-      const ci = line.indexOf(';');
-      let clean = (ci !== -1 ? line.substring(0, ci) : line).trim().toUpperCase();
-      if (!clean) { newLines.push(line); continue; }
-      const am = clean.match(/R(\d+)\s*=\s*([^=;]+?)(?=\s+[A-Z]|$)/g);
-      if (am) am.forEach(a => { const p = a.split('='); const n = parseInt(p[0].replace('R','')); const v = evalParam(p[1], params); if (!isNaN(v)) params.set(`R${n}`, v); });
-      if (clean.includes('G90')) curMode = 90;
-      if (clean.includes('G91')) curMode = 91;
-      // Referenční / pevné body (G74/G75) nesou jen zástupné X0/Z0 – nejsou to
-      // souřadnice interpolace, takže je nepřepočítáváme ani jimi neposouváme polohu.
-      if (/\bG7[45]\b/.test(clean)) { newLines.push(line); continue; }
-      const hasX = /X/i.test(clean), hasZ = /Z/i.test(clean);
-      if (!hasX && !hasZ) { newLines.push(line); continue; }
-      let tgt = 91;
-      if ((hasX && !initX) || (hasZ && !initZ)) tgt = 90;
-      let mod = line;
-      mod = mod.replace(/([XZ])\s*(=?)\s*([^\s;]+)/gi, (m, ax, eq, vs) => {
-        ax = ax.toUpperCase();
-        let v = evalParam(vs, params); if (isNaN(v)) return m;
-        let abs = curMode === 91 ? ((ax === 'X' ? x : z) + v) : v;
-        let out = tgt === 91 ? (abs - (ax === 'X' ? x : z)) : abs;
-        if (ax === 'X') { x = abs; if (tgt === 90) initX = true; }
-        else { z = abs; if (tgt === 90) initZ = true; }
-        return `${ax}${Number(out.toFixed(3))}`;
-      });
-      mod = mod.replace(/\bG9[01]\b/gi, '').replace(/\s+/g, ' ');
-      const newG = tgt === 90 ? 'G90' : 'G91';
-      if (/^\s*N\d+/i.test(mod)) mod = mod.replace(/^(N\d+)\s*/i, `$1 ${newG} `);
-      else mod = `${newG} ` + mod.trim();
-      newLines.push(mod);
-    }
-    return newLines.join('\n');
-  }
+  // Přepočet G90 ↔ G91 → gcodeCoordConvert.js (společný pro CAM i CNC Editor).
+  function codeToAbsolute(code) { return toAbsolute(code, getParamContext()); }
+  function codeToIncremental(code) { return toIncremental(code, getParamContext()); }
 
   // Jedno tlačítko G90/G91 – přepne režim a přepočítá souřadnice v editoru.
   function toggleCoordMode() {

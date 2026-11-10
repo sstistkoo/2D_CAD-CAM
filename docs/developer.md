@@ -699,6 +699,10 @@ hlavička, předpony sražení/zaoblení dle řídicího systému a `convertCorn
 Rozdíly editorů se předávají volbami (CNC: X jako průměr, I/K, karusel/flip
 → G2/G3, čísla bez nul); test `tests/gcode-editor-corners.test.js`. Oprava
 sdíleného chování patří sem, ne do jednoho z editorů.
+`calculators/gcodeCoordConvert.js` – přepočet G90 ↔ G91 (tlačítko G90/G91)
+pro oba editory; editor předá R-parametry z parseru (`getParamContext()`).
+CNC Editor volá s `{ compact: true }` (G90/G91 jen při změně, zhuštěný zápis
+z 3. 10. 2026), CAM Editor bez něj. Test `tests/gcode-coord-convert.test.js`.
 `calculators/camSimulator.js` – simulátor obrysů obrábění (`openCamSimulator`,
 ~8 400 ř. — orchestrace: `draw()`, event-handlery, UI editoru/parametrů/
 zásobníku nástrojů + tenké wrappery `calculate()`/`generateAutoGCode()`/
