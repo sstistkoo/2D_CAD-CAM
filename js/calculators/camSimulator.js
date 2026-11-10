@@ -51,6 +51,7 @@ import { createCollisionValidation, createHolderGougeView } from './cam/sim/coll
 import { createXzSimView } from './cam/sim/xzSim.js'; import { createLimitMark } from './cam/sim/limitTouchMark.js'; import { hideLimits, showLimits } from './cam/sim/limitsVisibility.js'; import { xzSectionSteps, sectionStepLimits, machinedFor, noSections } from './cam/sim/xzSections.js';
 import { createSnap } from './cam/sim/snap.js';
 import { dropInsaneSavedProgram } from './cam/sim/programSanity.js';
+import { confirmNcExport } from './ncCheck.js';
 import { paramsPanelsHtml } from './cam/sim/paramsPanelsHtml.js';
 import { paramsMachiningHtml } from './cam/sim/paramsMachiningHtml.js';
 import { _defaultMagSlot, _slotNameFromFilename, _buildMagSlotFromTool, _isoMagSlot, _isoDefaultMagSlots, _setMagSlotShape } from './cam/sim/magSlots.js';
@@ -2713,6 +2714,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // všechny operace za sebou (viz outputGCode/combinedProgram).
   function handleCopyGCode() {
     const text = outputGCode();
+    if (!confirmNcExport(text, S.params.controlSystem)) return;   // ncCheck.js
     navigator.clipboard.writeText(text).then(() => {
       const btn = tabBody.querySelector('[data-act="copy-code"]');
       if (btn) { const orig = btn.textContent; btn.textContent = '✅ Zkopírováno'; setTimeout(() => { btn.textContent = orig; }, 1500); }
@@ -2720,6 +2722,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
   function handleDownload() {
     const text = outputGCode();
+    if (!confirmNcExport(text, S.params.controlSystem)) return;   // ncCheck.js
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

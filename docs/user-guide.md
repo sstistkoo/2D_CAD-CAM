@@ -1468,6 +1468,23 @@ vypisuje jen v tom, co se opravdu mění (nůž, otáčky, posuv…), `M30` zůs
 jen na konci a **při výměně nože** se vypíše nájezd do referenčního bodu
 (`G75`/`G28`) i vypnutí a znovuzapnutí vřetena a chlazení.
 
+**Kontrola NC programu před uložením.** Stažení i kopie do schránky nejdřív
+projdou text programu. Když najdou něco, co by stroj poslalo do alarmu nebo
+bylo nebezpečné, vypíšou seznam s číslem řádku a zeptají se *Přesto
+pokračovat?* Vygenerovaný program je čistý, okno se ukáže hlavně po ruční
+úpravě. Hlídá se:
+
+- ⛔ řezný pohyb (G1/G2/G3) bez zapnutého vřetena (M3/M4), bez otáček S nebo bez posuvu F,
+- ⛔ `G96` bez omezení otáček (`LIMS=` na Sinumeriku, `G50 S` na Fanucu); na Heidenhainu
+  se nehlídá, limit se tam nastavuje na řízení (hlavička programu na to upozorní),
+- ⛔ pohyb před voláním nástroje (`T…`),
+- ⛔ oblouk bez poloměru (`CR=`/`R`) i bez středu (`I`/`K`), nebo s nulovým poloměrem,
+- ⛔ nesmyslná souřadnice (mimo ±10 000 mm),
+- ⚠ chybějící `M30`, kód za `M30`, korekce `G41`/`G42` nezrušená `G40`.
+
+Cykly (`CYCLE95`, `G71` Fanuc…) a podprogramy se nekontrolují. Srážky
+nástroje s materiálem hlídá simulátor (⛔ panel), ne tahle kontrola.
+
 ### 4. CNC Editor
 - Po vygenerování dráhy se otevře CNC editor
 - Zobrazí se G-kód s barevným zvýrazněním

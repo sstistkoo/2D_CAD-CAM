@@ -499,6 +499,21 @@ nechytají do SNAP bodů. Čelo zleva (`faceDir: -1`) vrtá v CAM ve směru +Z
 (`liveModel.faceOut`). Testy: `tests/face-view.test.js`, `tests/face-hole-pattern.test.js`,
 `tests/cam-live-tools.test.js`.
 
+### Kontrola NC programu před exportem (`calculators/ncCheck.js`)
+
+`checkNcProgram(code, ctrl)` projde **text** hotového programu (ne geometrii,
+tu hlídá `cam/sim/collisionWarnings.js`) a vrátí `[{level, line, block, msg}]`.
+Komentáře (`;` a u Fanucu `( )`) a řetězce `T="…"` se před čtením zahodí,
+adresy se berou jen bez písmene před nimi (`LIMS` ≠ `S`, `DIAMOF` ≠ `M`).
+Bloky s pevným bodem a referencí (`G75`, `G28`, `G74`, `G53`) a cykly Fanucu
+se jako pohyb dráhy nečtou. Neznámé konstrukce (cykly, podprogramy) se
+nehlásí: falešný poplach by naučil okno odklikávat.
+`confirmNcExport()` se volá v simulátoru před 💾 stažením a kopií do schránky.
+Test `tests/nc-check.test.js` staví program ze skutečné hlavičky a konce
+(`controlDialect.js`), takže změna hlavičky, po které kontrola začne hlásit
+čistý program, test shodí. Nové pravidlo = nový případ v testu + řádek
+v `docs/user-guide.md` (Kontrola NC programu před uložením).
+
 ### CAM: náhled × program (`cam/gcodeSync.js`)
 
 V CAM simulátoru žijí **dvě dráhy vedle sebe** a každá se obnovuje jinak:
