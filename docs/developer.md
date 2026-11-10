@@ -703,6 +703,10 @@ sdíleného chování patří sem, ne do jednoho z editorů.
 pro oba editory; editor předá R-parametry z parseru (`getParamContext()`).
 CNC Editor volá s `{ compact: true }` (G90/G91 jen při změně, zhuštěný zápis
 z 3. 10. 2026), CAM Editor bez něj. Test `tests/gcode-coord-convert.test.js`.
+`calculators/gcodeEditorHeader.js` – menu „Hlavička" obou editorů: HTML
+formuláře, čtení formuláře do `headerCfg`, řádky hlavičky podle řízení
+(Sinumerik STOPRE/LIMS, Fanuc T0101/G50 S, Heidenhain T.. M6) a vložení za
+úvodní MSG. Modal, undo a `headerCfg` drží editor. Test `tests/gcode-editor-header.test.js`.
 `calculators/camSimulator.js` – simulátor obrysů obrábění (`openCamSimulator`,
 ~8 400 ř. — orchestrace: `draw()`, event-handlery, UI editoru/parametrů/
 zásobníku nástrojů + tenké wrappery `calculate()`/`generateAutoGCode()`/

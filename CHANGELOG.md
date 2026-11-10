@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Editory G-kódu: přepočet G90 ↔ G91 v jednom modulu** (`js/calculators/gcodeCoordConvert.js`). CAM Editor i CNC Editor měly vlastní kopii převodu a vyhodnocovače výrazů. Teď sdílejí jeden modul a výrazy počítá `safeEvalMath` z `utils.js`. Zhuštěný zápis zůstává jen v CNC Editoru (volba `compact`). Nad 96 NC programy z fixtures a ručními případy je výstup shodný s původními kopiemi. Jediná změna: dělení nulou (`X10/0`) se dřív přepsalo na `XInfinity`, teď zůstane původní text. `cncEditor.js` má o 127 řádků méně, `camEditor.js` o 120. Test `tests/gcode-coord-convert.test.js`.
+  Stejně dopadla **hlavička programu** (menu „Hlavička“): dvě shodné kopie jsou teď v `js/calculators/gcodeEditorHeader.js`, každý editor má o dalších 113 řádků méně. Výstup se nemění, nově ho zamyká test `tests/gcode-editor-header.test.js`.
 
 - **Úklid kořene repa:** smazány ladicí zbytky (`gear_debug.html`, `gear_profiles.html`, `internal_gear_test.svg`, `scratch_user.mjs`, `useky-podle-meznich-car.patch`). Ladicí stránky ozubení tím zmizely i z offline cache PWA. Ukázkové DXF (`test.dxf`, `test_fusion.dxf`, `Náčrt1.dxf`) jsou teď v `tests/fixtures/dxf/` a `SENIOR_REVIEW.md` v `docs/senior-review-2026-07.md`.
 

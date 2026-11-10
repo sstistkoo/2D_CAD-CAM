@@ -8,6 +8,7 @@ import { openCamSimulator } from './camSimulator.js';
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { codeToAbsolute as toAbsolute, codeToIncremental as toIncremental } from './gcodeCoordConvert.js';
+import { headerTitle, headerSettingsHTML, readHeaderInputs as readHeaderForm, buildHeaderLines, insertHeader } from './gcodeEditorHeader.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
 import { G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, spacedPrefix, numpadHTML, numpadResult, wireNumpadCalc, numpadOn, wireNumpadToggle, wireTapBelow, wireCommentTools, commentClass, wireCurrentLine, wireNoKeyboard, wireKeyboardMode, ensureCaretVisible } from './gcodeEditorShared.js';
 
@@ -919,134 +920,21 @@ export function openCamEditor(initialCode, jumpLine) {
   // ── Header generator ──────────────────────────────────────
   function persistHdr() { storageSave(STORAGE_HDR, headerCfg); }
 
+  // Formulář a řádky hlavičky → gcodeEditorHeader.js (společný pro CAM i CNC Editor).
   function showHeaderSettings() {
-    const h = headerCfg;
-    const ctrlNames = { sinumerik: 'SINUMERIK', fanuc: 'FANUC', heidenhain: 'HEIDENHAIN' };
     const hdrTitleEl = $('hdrTitle');
-    if (hdrTitleEl) hdrTitleEl.textContent = `Generovat hlavičku programu (${ctrlNames[getControlSystem()] || ctrlNames.sinumerik})`;
-    const coordOpts = ['G54','G55','G56','G57','G505','G53'].map(v =>
-      `<option value="${v}" ${h.coords.val === v ? 'selected' : ''}>${v}</option>`).join('');
-    const feedOpts = ['G95','G94'].map(v =>
-      `<option value="${v}" ${h.feed.mode === v ? 'selected' : ''}>${v} ${v === 'G95' ? '(mm/ot)' : '(mm/min)'}</option>`).join('');
-    const spModeOpts = ['G97','G96'].map(v =>
-      `<option value="${v}" ${h.spindle.mode === v ? 'selected' : ''}>${v} ${v === 'G97' ? '(konst. ot.)' : '(konst. řez.)'}</option>`).join('');
-    const spDirOpts = ['4','3'].map(v =>
-      `<option value="${v}" ${h.spindle.m === v ? 'selected' : ''}>M${v} ${v === '4' ? '(CCW)' : '(CW)'}</option>`).join('');
-
-    hdrList.innerHTML = `
-      <div class="cne-hdr-row">
-        <label><input type="checkbox" data-hdr="gear" ${h.gear.active ? 'checked' : ''}> Převod</label>
-        <span>M<input type="number" class="cne-hdr-inp" data-hdr-v="gear.val" value="${h.gear.val}" min="40" max="45" inputmode="numeric" style="width:40px"></span>
-      </div>
-      <div class="cne-hdr-row">
-        <label><input type="checkbox" data-hdr="door" ${h.door.active ? 'checked' : ''}> Odjezd do výměny</label>
-        <span>M<input type="number" class="cne-hdr-inp" data-hdr-v="door.val" value="${h.door.val}" min="0" max="99" inputmode="numeric" style="width:40px"></span>
-      </div>
-      <div class="cne-hdr-row">
-        <label><input type="checkbox" data-hdr="tool" ${h.tool.active ? 'checked' : ''}> Nástroj</label>
-        <span>T<input type="number" class="cne-hdr-inp" data-hdr-v="tool.t" value="${h.tool.t}" min="1" max="99" inputmode="numeric" style="width:36px">
-        D<input type="number" class="cne-hdr-inp" data-hdr-v="tool.d" value="${h.tool.d}" min="1" max="9" inputmode="numeric" style="width:36px"></span>
-      </div>
-      <div class="cne-hdr-row">
-        <label><input type="checkbox" data-hdr="coords" ${h.coords.active ? 'checked' : ''}> Souřadnice</label>
-        <select class="cne-hdr-inp" data-hdr-v="coords.val">${coordOpts}</select>
-      </div>
-      <div class="cne-hdr-row">
-        <label><input type="checkbox" data-hdr="feed" ${h.feed.active ? 'checked' : ''}> Posuv</label>
-        <select class="cne-hdr-inp" data-hdr-v="feed.mode">${feedOpts}</select>
-      </div>
-      <div class="cne-hdr-row">
-        <label><input type="checkbox" data-hdr="spindle" ${h.spindle.active ? 'checked' : ''}> Vřeteno</label>
-        <div class="cne-hdr-sp-wrap">
-          <select class="cne-hdr-inp" data-hdr-v="spindle.mode">${spModeOpts}</select>
-          <span>S<input type="number" class="cne-hdr-inp" data-hdr-v="spindle.s" value="${h.spindle.s}" min="1" max="9999" inputmode="numeric" style="width:52px"></span>
-          <select class="cne-hdr-inp" data-hdr-v="spindle.m">${spDirOpts}</select>
-          <span>LIMS<input type="number" class="cne-hdr-inp" data-hdr-v="spindle.lims" value="${h.spindle.lims}" min="1" max="9999" inputmode="numeric" style="width:52px"></span>
-        </div>
-      </div>`;
+    if (hdrTitleEl) hdrTitleEl.textContent = headerTitle(getControlSystem());
+    hdrList.innerHTML = headerSettingsHTML(headerCfg);
     hdrModal.style.display = 'flex';
   }
 
-  function readHeaderInputs() {
-    hdrModal.querySelectorAll('[data-hdr]').forEach(el => {
-      const key = el.dataset.hdr;
-      if (headerCfg[key]) headerCfg[key].active = el.checked;
-    });
-    hdrModal.querySelectorAll('[data-hdr-v]').forEach(el => {
-      const path = el.dataset.hdrV.split('.');
-      if (path.length === 2 && headerCfg[path[0]]) {
-        headerCfg[path[0]][path[1]] = el.value;
-      }
-    });
-  }
+  function readHeaderInputs() { readHeaderForm(hdrModal, headerCfg); }
 
   function applyHeader() {
     readHeaderInputs();
     persistHdr();
-    const h = headerCfg;
-    const ctrl = getControlSystem();
-    const lines = [];
-    let n = 10;
-    const N = () => { const s = `N${n} `; n += 10; return s; };
-
-    let coordLine;
-    if (ctrl === 'fanuc') {
-      // Fanuc: bez STOPRE (Siemens-specifický "stop předzpracování"),
-      // volání nástroje T0101 (nástroj+korekce po 2 číslicích),
-      // omezení otáček G50 Smax místo LIMS=.
-      if (h.gear.active)  lines.push(`${N()}M${h.gear.val}`);
-      if (h.door.active)  lines.push(`${N()}M${h.door.val}`);
-      if (h.tool.active)  lines.push(`${N()}T${String(h.tool.t).padStart(2, '0')}${String(h.tool.d).padStart(2, '0')}`);
-      coordLine = N();
-      if (h.coords.active) coordLine += `${h.coords.val} `;
-      if (h.feed.active)   coordLine += `${h.feed.mode} `;
-      coordLine += 'G90';
-      lines.push(coordLine.trim());
-      if (h.spindle.active) {
-        if (h.spindle.mode === 'G96' && h.spindle.lims) lines.push(`${N()}G50 S${h.spindle.lims}`);
-        lines.push(`${N()}${h.spindle.mode} S${h.spindle.s} M${h.spindle.m}`);
-      }
-    } else if (ctrl === 'heidenhain') {
-      // Heidenhain (ISO dialekt): bez STOPRE, nástroj T.. M6, bez LIMS.
-      if (h.gear.active)  lines.push(`${N()}M${h.gear.val}`);
-      if (h.door.active)  lines.push(`${N()}M${h.door.val}`);
-      if (h.tool.active)  lines.push(`${N()}T${h.tool.t} M6`);
-      coordLine = N();
-      if (h.coords.active) coordLine += `${h.coords.val} `;
-      if (h.feed.active)   coordLine += `${h.feed.mode} `;
-      coordLine += 'G90';
-      lines.push(coordLine.trim());
-      if (h.spindle.active) lines.push(`${N()}${h.spindle.mode} S${h.spindle.s} M${h.spindle.m}`);
-    } else {
-      // Sinumerik 840D (výchozí): STOPRE před výměnou nástroje i na konci,
-      // nástroj T.. / D.. na dvou řádcích, LIMS=.. u G96.
-      if (h.gear.active)  lines.push(`${N()}M${h.gear.val}`);
-      lines.push(`${N()}STOPRE`);
-      if (h.door.active)  lines.push(`${N()}M${h.door.val}`);
-      if (h.tool.active)  { lines.push(`${N()}T${h.tool.t}`); lines.push(`      D${h.tool.d}`); }
-      coordLine = N();
-      if (h.coords.active) coordLine += `${h.coords.val} `;
-      if (h.feed.active)   coordLine += `${h.feed.mode} `;
-      coordLine += 'G90';
-      lines.push(coordLine.trim());
-      if (h.spindle.active) {
-        let sp = `${N()}${h.spindle.mode}`;
-        if (h.spindle.mode === 'G96' && h.spindle.lims) sp += ` LIMS=${h.spindle.lims}`;
-        sp += ` S${h.spindle.s} M${h.spindle.m}`;
-        lines.push(sp);
-      }
-      lines.push(`${N()}STOPRE`);
-    }
-
-    const existing = editor.value.split('\n');
-    let result;
-    if (existing.length > 0 && existing[0].trim().toUpperCase().startsWith('MSG')) {
-      result = existing[0] + '\n' + lines.join('\n') + '\n' + existing.slice(1).join('\n');
-    } else {
-      result = lines.join('\n') + '\n' + editor.value;
-    }
     captureUndoSnapshot();
-    editor.value = result;
+    editor.value = insertHeader(editor.value, buildHeaderLines(headerCfg, getControlSystem()));
     onInput();
     hdrModal.style.display = 'none';
   }
