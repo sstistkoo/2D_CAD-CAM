@@ -75,9 +75,10 @@ node scripts/cam_sweep.mjs                           # úběr × kolize
   `test:cad`; žádný jiný soubor v `js/` nad 1500 ř.). Po zmenšení souboru strop SNIŽ.
   Dotčeno: `camSimulator.js` (5432; zbylé jádro se dál nedělí, nový kód do `cam/sim/`,
   vzory v `docs/plan-rozdeleni-cam-simulatoru.md`), `cam/ops/roughLong.js`,
-  `cncEditor.js`, `vkContour.js`, `fileIO.js`, `camEditor.js`, `events.js`. `ui.js`,
-  `geometry.js` a `render.js` jsou rozcestníky (kód nepřidávat). Společný kód obou
-  editorů G-kódu patří do `calculators/gcodeEditorShared.js`. Nelze-li kód umístit, zeptej se.
+  `cncEditor.js` (10. 11. zmenšen na 1801), `vkContour.js`, `fileIO.js`, `camEditor.js`,
+  `events.js`. `ui.js`, `geometry.js` a `render.js` jsou rozcestníky (kód nepřidávat).
+  Společný kód obou editorů G-kódu patří do `calculators/gcodeEditorShared.js` nebo
+  `gcodeEditorHeader/Parser.js`, `gcodeCoordConvert.js`. Nelze-li kód umístit, zeptej se.
 - **Tokeny:** stručně, nečti opakovaně stejné soubory, nevypisuj velké výstupy. Obří soubory
   (`css/style.css`, `js/lib/browser.maker.js`, velké `js/**`) čti přes grep + `offset/limit`,
   nikdy celé. Test výstupy ořezávej (`| tail`).
