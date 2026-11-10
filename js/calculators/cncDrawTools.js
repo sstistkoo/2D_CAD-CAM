@@ -133,7 +133,7 @@ export function analyzeDrawCode(code, opts = {}) {
       // Polární zadání: PU = úhel od +Z (karusel: od vodorovné osy obrazovky →, jako dialog ∠),
       // a L (délka), nebo cílové X / Z (v G91 přírůstek).
       const L = addr(c, 'L');
-      const pu = opts.karusel ? polarInputToDialog(PU, { karusel: true }) : PU;
+      const pu = opts.karusel ? polarInputToDialog(PU, { karusel: true, flipX: !!opts.flipX, flipZ: !!opts.flipZ }) : PU;
       const Xt = X === null ? null : (mode === 91 ? from.x * xs + X : X);
       const Zt = Z === null ? null : (mode === 91 ? from.z + Z : Z);
       const e = angleLineEnd(from, pu, { L, X: L === null ? Xt : null, Z: L === null ? Zt : null }, xs);
@@ -184,7 +184,7 @@ export function analyzeDrawCode(code, opts = {}) {
     moves.push(mv);
     byLine.set(i, mv);
   }
-  return { moves, byLine, xs, bad, params, opts: { diam: !!opts.diam, karusel: kar } };
+  return { moves, byLine, xs, bad, params, opts: { diam: !!opts.diam, karusel: kar, flipX: !!opts.flipX, flipZ: !!opts.flipZ } };
 }
 
 /** Poslední pohyb na řádku `idx` nebo před ním (poloha „kde jsem"). */
@@ -197,7 +197,7 @@ export function moveAtOrBefore(an, idx) {
 /** Úhel směru (Z, X) ve stupních od osy +Z, proti směru hodin, rozsah (−180, 180]. */
 function dirDeg(dz, dx) { return Math.atan2(dx, dz) * 180 / Math.PI; }
 /** Karusel: úhel od +Z → úhel od vodorovné osy obrazovky →, rozsah (−180, 180]. */
-function screenDeg(a) { const s = dialogToScreenAngle(a, { karusel: true }); return s > 180 ? s - 360 : s; }
+function screenDeg(a, o) { const s = dialogToScreenAngle(a, { karusel: true, flipX: !!o?.flipX, flipZ: !!o?.flipZ }); return s > 180 ? s - 360 : s; }
 
 /**
  * Údaje k pohybu pro informační řádek editoru.
@@ -211,7 +211,7 @@ export function moveInfo(mv, an) {
   if (mv.g === 0 || mv.g === 1) {
     const L = Math.hypot(dz, dx);
     const parts = [mv.g === 0 ? 'Rychloposuv' : 'Úsečka', `L ${f3(L)}`];
-    if (L > EPS) parts.push(`∠ ${f3(an.opts?.karusel ? screenDeg(dirDeg(dz, dx)) : dirDeg(dz, dx))}°`);   // karusel: od →
+    if (L > EPS) parts.push(`∠ ${f3(an.opts?.karusel ? screenDeg(dirDeg(dz, dx), an.opts) : dirDeg(dz, dx))}°`);   // karusel: od →
     parts.push(`ΔX ${f3(dx * xs)}`, `ΔZ ${f3(dz)}`, end);
     return parts;
   }

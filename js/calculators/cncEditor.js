@@ -1901,7 +1901,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   const isectListEl = $('isectList');
   let anCache = { code: null, an: null };
   function drawOpts() {
-    return { diam: state.xDisplayMode === 'diameter', karusel: state.machineType === 'karusel', flip: state.flipX !== state.flipZ };
+    return { diam: state.xDisplayMode === 'diameter', karusel: state.machineType === 'karusel', flip: state.flipX !== state.flipZ, flipX: !!state.flipX, flipZ: !!state.flipZ };
   }
   function analysis() {
     if (anCache.code !== editor.value) anCache = { code: editor.value, an: analyzeDrawCode(editor.value, drawOpts()) };

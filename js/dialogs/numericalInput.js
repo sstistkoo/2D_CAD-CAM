@@ -14,6 +14,7 @@ import { activeLineProps, activeLineStyle, lineContinuationProps, getLineStyle }
 import { bridge } from '../bridge.js';
 import { worldToScreen, screenAngle, screenCCW, fitViewToWorldBounds, autoCenterView } from '../canvas.js';
 import { attachNumPad } from './numPadBar.js';
+import { screenToWorldAngle } from './compassAngle.js';
 
 // ── Numerický vstup – dialog pro přesné zadání souřadnic ──
 // Drátování spouštěcích tlačítek žije v js/ui.js (btnNumInput,
@@ -651,7 +652,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
 
       popup.querySelectorAll('.compass-arrow').forEach(ab => {
         ab.onclick = function() {
-          const ang = this.dataset.ang;
+          const ang = screenToWorldAngle(Number(this.dataset.ang), { flipX: state.flipX, flipZ: state.flipZ });   // šipka = směr na obrazovce
           const inp = document.getElementById(angleInputId);
           if (inp) {
             inp.value = ang;

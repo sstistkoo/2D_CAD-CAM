@@ -17,6 +17,7 @@ import { state, showToast, displayX, inputX } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { bridge } from '../bridge.js';
 import { showVkHelpModal } from './vkHelp.js';
+import { vkAngleSwap, vkAngleHint } from './vkAngle.js';
 import { normalizeVkLine, normalizeVkText, vkErrorSummary, renderVkIssues, bindVkAutoNormalize } from './vkNormalize.js';
 import { lineContinuationProps } from '../lineStyles.js';
 import {
@@ -213,7 +214,7 @@ export function buildVkVpolLine(values = {}) {
   const hasAnyValue = [xRaw, zRaw, paRaw, arcRaw].some(value => value != null && String(value).trim() !== '');
   if (!hasAnyValue) return null;
   let line = `G111 X${xValue} Z${zValue}`;
-  if (paRaw != null && String(paRaw).trim() !== '') line += ` PA${paRaw}`;
+  if (paRaw != null && String(paRaw).trim() !== '') line += ` PA${Number.isFinite(Number(paRaw)) ? vkAngleSwap(Number(paRaw)) : paRaw}`;   // na soustruhu vrátí číslo beze změny
   if (arcRaw != null && String(arcRaw).trim() !== '') line += ` R${arcRaw}`;
   return line;
 }
@@ -262,7 +263,7 @@ export function vkElementCommand(type, isFirstEver, arcDir) {
 export function buildVkElementLine(values) {
   const { cmd, x = null, z = null, pa = null, pr = null, r = null, isArc = false, vpolTag = null, isT = false } = values;
   let line = `${cmd} X${x == null ? '?' : x} Z${z == null ? '?' : z}`;
-  if (pa != null) line += ` PA${pa}`;
+  if (pa != null) line += ` PA${vkAngleSwap(pa)}`;
   if (pr != null && String(pr).trim() !== '') line += ` PR${pr}`;
   if (isArc) line += ` R${r ?? 0}`;
   if (vpolTag) line += ` ${vpolTag}`;
@@ -356,7 +357,7 @@ export function parseVkLine(text) {
     const key = match[1].toLowerCase();
     const raw = match[2];
     if (key === 'x' || key === 'z' || key === 'pa' || key === 'pr' || key === 'r') {
-      data[key] = raw === '?' ? null : parseFloat(raw);
+      data[key] = raw === '?' ? null : (key === 'pa' ? vkAngleSwap(parseFloat(raw)) : parseFloat(raw));   // PA: zápis uživatele → úhel řešiče (vkAngle.js)
     }
   }
   if (/\bVPOL1\b/.test(trimmed)) data.vpolTag = 'VPOL1';
@@ -768,7 +769,7 @@ export function renderVkTab() {
 
           <div class="vk-section-title vk-red">Konstrukční nástroje vyhledání průsečíku:</div>
           <div class="cnc-fields">
-            <label class="cnc-field"><span>Konstrukční úhel (PA)</span><input type="text" data-id="vpol-pa" placeholder="Např. 45°"></label>
+            <label class="cnc-field" title="${vkAngleHint()}"><span>Konstrukční úhel (PA)</span><input type="text" data-id="vpol-pa" placeholder="Např. 45°"></label>
             <label class="cnc-field"><span>Hledat na rádiusu (R)</span><input type="text" data-id="vpol-arc" placeholder="Poloměr kružnice"></label>
           </div>
           <button class="vk-insert-btn vk-insert-red" data-act="vpol">Vložit VPOL</button>
@@ -805,7 +806,7 @@ export function renderVkTab() {
               <button class="vk-btn-q active" data-toggle="val-z2">❓</button>
             </div>
           </label>
-          <label class="cnc-field">
+          <label class="cnc-field" title="${vkAngleHint()}">
             <span>Polární úhel (PA)</span>
             <div class="vk-input-row">
               <input type="text" data-id="val-pa" value="?" class="vk-input-unknown">
@@ -873,7 +874,7 @@ export function initVkTab(container, { picker = null } = {}) {
     if (!vpolEntry) return;
     q('vpol-x').value = vpolEntry.x == null ? '' : String(vpolEntry.x);
     q('vpol-z').value = vpolEntry.z == null ? '' : String(vpolEntry.z);
-    q('vpol-pa').value = vpolEntry.pa == null ? '' : String(vpolEntry.pa);
+    q('vpol-pa').value = vpolEntry.pa == null ? '' : String(vkAngleSwap(vpolEntry.pa));
     q('vpol-arc').value = vpolEntry.r == null ? '' : String(vpolEntry.r);
   }
 
@@ -885,7 +886,7 @@ export function initVkTab(container, { picker = null } = {}) {
     const values = {
       x: nanToNull(parseVkField(q('vpol-x').value)),
       z: nanToNull(parseVkField(q('vpol-z').value)),
-      pa: nanToNull(parseVkField(q('vpol-pa').value)),
+      pa: vkAngleSwap(nanToNull(parseVkField(q('vpol-pa').value))),
       arc: nanToNull(parseVkField(q('vpol-arc').value)),
     };
     const nextCode = upsertVkVpolLine(gcodeEl.value, values);
@@ -951,7 +952,7 @@ export function initVkTab(container, { picker = null } = {}) {
 
     const paRaw = q('val-pa')?.value;
     const prRaw = q('val-pr')?.value;
-    const pa = parseVkField(paRaw);
+    const pa = vkAngleSwap(parseVkField(paRaw));
     const pr = parseVkField(prRaw);
     const end = pa != null && pr != null
       ? {
@@ -1310,7 +1311,7 @@ export function initVkTab(container, { picker = null } = {}) {
     }
     setUnknownField('val-x2', el.xRaw);
     setUnknownField('val-z2', el.z);
-    setUnknownField('val-pa', el.pa);
+    setUnknownField('val-pa', vkAngleSwap(el.pa));
     setUnknownField('val-pr', el.prRaw != null ? el.prRaw : null);
     q('val-r').value = el.r;
     q('check-t').checked = el.isT;
@@ -1673,7 +1674,7 @@ export function initVkTab(container, { picker = null } = {}) {
 
     const xRaw = parseVkField(xStr);
     const zVal = parseVkField(zStr);
-    const paVal = parseVkField(paStr);
+    const paVal = vkAngleSwap(parseVkField(paStr));
     const prVal = parseVkField(prStr);
     const rVal = parseVkField(rStr);
     const junctionVal = junctionAxis && junctionValStr.trim() !== '' ? parseVkField(junctionValStr) : null;
@@ -1728,7 +1729,7 @@ export function initVkTab(container, { picker = null } = {}) {
           el.z = Number(fmt(pt.z));
         }
         selfEnd = { z: el.z, x: el.x };
-        if (pt.reversed) selfNotes.push(`konec leží proti směru PA${fmt(el.pa)} – zkontroluj úhel`);
+        if (pt.reversed) selfNotes.push(`konec leží proti směru PA${fmt(vkAngleSwap(el.pa))} – zkontroluj úhel`);
       } catch (err) {
         solveInfo.textContent = `⚠ Nelze dopočítat: ${err.message}`;
         return;

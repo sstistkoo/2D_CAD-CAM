@@ -34,6 +34,8 @@
 //   referenčního bodu (start obrysu) – ne od VPOL samotného (obě řešení
 //   jsou od VPOL vždy stejně daleko = R, takže by nešla rozlišit).
 
+import { vkAngleSwap } from './vkAngle.js';   // jen pro text hlášky (zápis uživatele)
+
 const D2R = Math.PI / 180;
 
 function dist(a, b) { return Math.hypot(a.z - b.z, a.x - b.x); }
@@ -86,7 +88,7 @@ export function solveAngleAndCoordinate(start, el) {
     : { z0: el.z, x0: start.x, angleDeg: 90 };
   const axis = el.x != null ? 'X' : 'Z';
   const pt = intersectRays(ray, target);
-  if (!pt) throw new Error(`úhel PA${el.pa} je rovnoběžný s ${axis} = konst. – konec nejde najít`);
+  if (!pt) throw new Error(`úhel PA${vkAngleSwap(el.pa)} je rovnoběžný s ${axis} = konst. – konec nejde najít`);
   const a = el.pa * D2R;
   const t = (pt.z - start.z) * Math.cos(a) + (pt.x - start.x) * Math.sin(a);
   if (Math.abs(t) < 1e-9) throw new Error(`začátek už leží na zadaném ${axis} – prvek by měl nulovou délku`);

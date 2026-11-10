@@ -2552,7 +2552,7 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
   **📥 Vložit do výkresu** změní hotovou konturu na skutečné úsečky
   a oblouky výkresu. Od té chvíle jsou to **normální objekty** – dají se
   trimovat, zaoblovat, kótovat, exportovat do DXF i použít v CAM.
-  Celé vložení se vrací jedním **Ctrl+Z**. Konstrukční paprsky (VPOL/PA)
+  Celé vložení se vrací jedním **Ctrl+Z**. Úhel **PA**: soustruh od +Z (vodorovně →), karusel od vodorovné osy → (90° = nahoru), vždy proti směru hodin. Konstrukční paprsky (VPOL/PA)
   se nevkládají, jsou to jen pomůcky pro hledání průsečíku. Zpět do VK
   zápisu už objekty nejdou – VK syntaxe ale v okně zůstává, takže se dá
   upravit a vložit znovu (pozor, vloží se další kopie).

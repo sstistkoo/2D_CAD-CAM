@@ -9,8 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **VK: úhel PA na karuselu od vodorovné osy →** (jako CNC editor a CAD; 0° = doprava, 90° = nahoru, proti směru hodin). Dřív se na karuselu měřil od +Z (nahoru) po směru hodin. Soustruh beze změny. Řešič dál počítá ve strojové rovině, převod je jen na hranici textu/formuláře (`js/calculators/vkAngle.js`). **Uložené VK programy na karuselu se čtou jinak** – PA ve starých zápisech přepiš jako 90 − PA.
+
 ### Fixed
 
+- **CNC editor, karusel se zrcadlením os:** řádek `PU` a info ∠ nyní počítají s flipX/flipZ stejně jako dialog „Úsečka úhlem“ (dřív dialog zadaných 0° nakreslil doleva a info řádek ukázal 180°).
+- **CAD číselné zadání, kompas ✛:** šipka míří, kam ukazuje, i při zrcadlení os (`js/dialogs/compassAngle.js`).
 - **Všechna okna aplikace se vejdou na displej** (`css/modal-fit.css`, kontrola všech oken na 7 velikostech displeje):
   - referenční okna (G/M kódy, alarmy, nástroje, příklady…) a velký CNC editor na telefonu na výšku
     přetékala o 13–20 px pod spodní okraj (horní odsazení podkladu + plná výška okna);
