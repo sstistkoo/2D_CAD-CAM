@@ -9,6 +9,10 @@
 #    a nikdo to nevěděl). Selhání → e-mail. Pozn.: GitHub noční běh
 #    vypne po 60 dnech bez commitu v repu (stačí pak push nebo „Enable").
 #  • ručně: GitHub → Actions → „Testy" → Run workflow → zaškrtnout „Plná sada".
+#  • běží rozdělená na 4 paralelní joby (vitest --shard=N/4, každý na vlastním
+#    runneru) → ≈4 min místo ≈13. Vitest dělí SOUBORY podle počtu, ne času;
+#    když jeden shard trvale trvá výrazně déle, zvyš počet shardů.
+#    fail-fast: false = dopočítají se všechny čtyři, chyby jsou vidět najednou.
 name: Testy
 
 on:
@@ -32,8 +36,10 @@ concurrency:
 
 jobs:
   testy:
+    name: Testy CAD (+ ESLint)
+    if: ${{ github.event_name != 'schedule' && !inputs.plna }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,9 +47,22 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Testy CAD (+ ESLint)
-        if: ${{ github.event_name != 'schedule' && !inputs.plna }}
-        run: npm run test:cad
-      - name: Plná sada včetně CAM
-        if: ${{ github.event_name == 'schedule' || inputs.plna }}
-        run: npm test
+      - run: npm run test:cad
+
+  plna:
+    name: Plná sada včetně CAM (${{ matrix.shard }}/4)
+    if: ${{ github.event_name == 'schedule' || inputs.plna }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --shard=${{ matrix.shard }}/4
