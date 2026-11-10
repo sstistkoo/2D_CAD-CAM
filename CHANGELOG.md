@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **`VK_editor.html` a `VK_modul_help.html`.** Starší samostatná stránka Volné kontury (v aplikaci ji nahradil `js/calculators/vkContour.js`) a kus nápovědy, které aplikace nikde nenačítala. Zbytečně ležely v offline cache PWA. Případně se dají vrátit z historie gitu.
+
 ## [1.9.0] - 2026-11-10
 
 ### Added

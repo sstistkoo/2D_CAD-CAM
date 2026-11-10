@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v797';
+const CACHE_NAME = 'skica-v798';
 const ASSETS = [
   './',
   './index.html',
@@ -543,8 +543,6 @@ const ASSETS = [
   './lib/three.min.js',
   './lib/turf.min.js',
   './vitest.cad.config.js',
-  './VK_editor.html',
-  './VK_modul_help.html',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon.svg',
