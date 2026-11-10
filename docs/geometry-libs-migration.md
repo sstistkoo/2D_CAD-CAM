@@ -572,7 +572,7 @@ počítá s uzavřenými polygony množinově.
 |---|---|---|---|
 | Clipper2 (clipper2-ts 2.0.1-18) | `lib/clipper2.min.js` (125 kB) | ES modul | ✅ funguje (ověřeno testy) |
 | Turf.js | `lib/turf.min.js` (531 kB) | UMD → `globalThis.turf` | ✅ funguje, načítat lazy |
-| Detect-Collisions | `lib/detect-collisions.js` (35 kB) | ES modul | ✅ nahrazeno soběstačným bundlem `check2d@9.36.4` (balíček detect-collisions se přejmenoval na check2d; původní soubor byl nepoužitelný CommonJS rozcestník) |
+| ~~Detect-Collisions~~ | `tests/vendor/detect-collisions.js` (35 kB, jen test) | ES modul | ❌ **z aplikace odstraněno** (SAT tiše zahazoval kolize, 26. 8. 2026; loader `ensureCollisions()` a bundle z `lib/` pryč 10. 11. 2026 — zůstal jen pro test-důkaz v `collision-validator.test.js`). Dřív: nahrazeno soběstačným bundlem `check2d@9.36.4` (balíček detect-collisions se přejmenoval na check2d; původní soubor byl nepoužitelný CommonJS rozcestník) |
 
 CSP v `index.html` povoluje jen `script-src 'self'` — všechny knihovny musí
 zůstat lokální soubory (žádné CDN za běhu). Po přidání do produkce spustit
@@ -589,7 +589,7 @@ CAM kód **nikdy nevolá knihovny přímo** — vše jde přes adaptér. Ten:
 - exportuje: `polyUnion`, `polyDifference`, `polyIntersect`, `polyOffset`,
   `polyArea`, `pointInLoop`, `polySimplify`, `toolSweep` (Minkowského suma =
   stopa nástroje po dráze), třídu `StockModel` (postupné odebírání materiálu)
-  a lazy loadery `ensureTurf()` / `ensureCollisions()`.
+  a lazy loader `ensureTurf()` (`ensureCollisions()` odstraněn 10. 11. 2026).
 
 Testy: `tests/geom-core.test.js`. Regresní pojistka celé migrace:
 `tests/cam-gcode-regression.test.js` (snapshoty plného pipeline) — každá fáze

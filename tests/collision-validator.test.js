@@ -130,7 +130,7 @@ describe('validateToolpath', () => {
   // Původní test tuhle větev pustil s VÁLCEM, tedy čtyřvrcholovým obrysem —
   // proto byl roky zelený. Tady je geometrie, na které to praskne.
   it('DŮVOD ODSTRANĚNÍ: Detect-Collisions podhlásí překryv na složitém obrysu', async () => {
-    const dc = await import('../lib/detect-collisions.js');
+    const dc = await import('./vendor/detect-collisions.js');
     // Hřeben: zuby po 2 mm, hřbet u osy. Roste jen počet vrcholů, tvar je
     // pořád stejně „nafouknutý" — čtvereček uvnitř prvního zubu leží uvnitř
     // vždy, ať je zubů kolik chce.

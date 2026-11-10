@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v791';
+const CACHE_NAME = 'skica-v792';
 const ASSETS = [
   './',
   './index.html',
@@ -534,7 +534,6 @@ const ASSETS = [
   './eslint.config.js',
   './lib/bezier.js',
   './lib/clipper2.min.js',
-  './lib/detect-collisions.js',
   './lib/maker.min.js',
   './lib/opentype.min.js',
   './lib/three.min.js',

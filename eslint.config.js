@@ -18,7 +18,7 @@ const STYLE_WARNINGS = Object.fromEntries([
 
 export default [
   // Cizí knihovny (minifikované, UMD) a pracovní kopie jiných nástrojů — nejsou naše.
-  { ignores: ['js/lib/**', 'lib/**', 'node_modules/**', 'coverage/**', '.claude/**', '.kilo/**'] },
+  { ignores: ['js/lib/**', 'lib/**', 'tests/vendor/**', 'node_modules/**', 'coverage/**', '.claude/**', '.kilo/**'] },
   js.configs.recommended,
   {
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: { ...globals.browser } },

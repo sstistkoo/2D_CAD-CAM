@@ -1,7 +1,6 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  geomCore – jednotný adaptér nad geometrickými knihovnami     ║
-// ║  (Clipper2 = booleovské operace/offsety, Turf = analýza,      ║
-// ║   Detect-Collisions = rychlý broad-phase filtr kolizí)        ║
+// ║  (Clipper2 = booleovské operace/offsety, Turf = analýza)      ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
 // PROČ ADAPTÉR: CAM kód (camSimulator.js) nikdy nevolá knihovny přímo —
@@ -225,24 +224,7 @@ export function getTurf() {
   return _turf || globalThis.turf || null;
 }
 
-// ── Detect-Collisions (lazy broad-phase filtr) ───────────────────
-
-let _collisions = null;
-
-/**
- * Zajistí načtení Detect-Collisions (SAT broad-phase). Vrací modul se
- * System/Polygon/Box…, nebo null, když bundle chybí/nejde načíst — volající
- * pak musí spadnout na přesnou (pomalejší) kontrolu přes Clipper2.
- */
-export async function ensureCollisions() {
-  if (_collisions) return _collisions;
-  try {
-    const mod = await import('../../lib/detect-collisions.js');
-    _collisions = (mod && (mod.System || (mod.default && mod.default.System))) ? mod : null;
-    if (!_collisions) console.warn('geomCore: detect-collisions.js neexportuje System — je to správný browser bundle?');
-  } catch (e) {
-    console.warn('geomCore: Detect-Collisions se nepodařilo načíst:', e);
-    _collisions = null;
-  }
-  return _collisions;
-}
+// Detect-Collisions (SAT broad-phase) tu byl do 10. 11. 2026 jako lazy
+// `ensureCollisions()`. Od 26. 8. 2026 ho nic nevolalo (SAT tiše zahazoval
+// kolize, nahradil ho ruční AABB — viz collisionValidator.js). Bundle zůstal
+// jen jako důkaz pro test v tests/vendor/detect-collisions.js.
