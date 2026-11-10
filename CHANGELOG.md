@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Všechna okna aplikace se vejdou na displej** (`css/modal-fit.css`, kontrola všech oken na 7 velikostech displeje):
+  - referenční okna (G/M kódy, alarmy, nástroje, příklady…) a velký CNC editor na telefonu na výšku
+    přetékala o 13–20 px pod spodní okraj (horní odsazení podkladu + plná výška okna);
+  - běžná okna (kalkulačky, Nastavení, Poznámky, AI…) s plným obsahem přetékala na malém telefonu –
+    mobilní strop výšky přebíjelo desktopové 95vh;
+  - dialogy (zadání, potvrzení, vrstvy…) na tabletu / desktopu neměly strop výšky – s dlouhým obsahem
+    utekly nahoře i dole a tlačítka nešla dosáhnout; teď se v nich roluje;
+  - AI okno bylo na úzkém telefonu širší než displej;
+  - výšky oken ve `vh` mají i `dvh` (skutečně viditelná výška – na Androidu je 100vh vyšší, když je vidět adresní řádek).
 - **Okna v kreslicím editoru se vejdou na displej** (`cnc-compact.css`) – ve zmenšeném editoru se okna (⌒ Oblouk,
   ∠ úsečka, sražení, nápověda…) centrují na celou obrazovku, ne jen do spodní části; žádné okno není vyšší než
   displej (zbytek se roluje). Dřív u Oblouku utekla spodní tlačítka pod okraj.

@@ -1,0 +1,38 @@
+/* ╔══════════════════════════════════════════════════════════════╗
+   ║  Okna (modaly) se vždy vejdou na displej                      ║
+   ║  Načítá se PO ostatních stylech. dvh = skutečně viditelná     ║
+   ║  výška (na Androidu je 100vh vyšší, když je vidět adresní     ║
+   ║  řádek); prohlížeče bez dvh zůstanou u vh.                    ║
+   ╚══════════════════════════════════════════════════════════════╝ */
+
+/* Dialogy (zadání, potvrzení, vrstvy…) na tabletu / desktopu neměly strop výšky:
+   s dlouhým obsahem utekly nahoře i dole a tlačítka nešla dosáhnout.
+   (Do 900 px šířky platí 85vh ze style.css.) */
+@media (min-width: 901px) {
+  .input-dialog {
+    max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px);
+    overflow-y: auto; box-sizing: border-box;
+  }
+}
+
+/* Telefon na výšku: referenční okna (G/M kódy, alarmy, nástroje…) a velký editor
+   jsou přes celý displej – podklad nesmí mít horní odsazení 36 px pro titulek,
+   jinak je vystrčí pod spodní okraj. Výřez kamery drží bezpečná zóna. */
+@media (max-width: 500px) {
+  .calc-overlay:has(> .gc-window) { padding: 0; align-items: stretch; }
+  .gc-window { padding-top: env(safe-area-inset-top); box-sizing: border-box; }
+}
+@media (max-width: 600px) {
+  .calc-overlay:has(> .cnc-editor-window) { padding-top: 0; align-items: flex-start; }
+}
+
+/* Telefon / úzký tablet (mimo telefon na šířku – ten řeší landscape-mobile.css):
+   běžná okna (kalkulačky, nastavení, poznámky…) se vejdou pod horní odsazení
+   podkladu. Ve style.css mobilní strop přebíjelo desktopové 95vh (je v souboru
+   až za ním), takže okno s plným obsahem přeteklo pod spodní okraj. */
+@media (max-width: 900px) and (orientation: portrait), (max-width: 900px) and (min-height: 501px) {
+  .calc-overlay:not(.calc-overlay-float) > .calc-window:not(.gc-window):not(.cnc-editor-window) {
+    max-height: calc(100vh - max(44px, calc(env(safe-area-inset-top) + 40px)) - max(8px, env(safe-area-inset-bottom)));
+    max-height: calc(100dvh - max(44px, calc(env(safe-area-inset-top) + 40px)) - max(8px, env(safe-area-inset-bottom)));
+  }
+}
