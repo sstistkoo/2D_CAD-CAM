@@ -4,7 +4,7 @@
 
 // Verze aplikace (drž v souladu s package.json) — úvodní řádek konzole
 // a hlášení chyby (errorReport.js).
-export const APP_VERSION = '1.8.0';
+export const APP_VERSION = '1.9.0';
 
 // ── Catppuccin Mocha – barvy tématu ─────────────────────────
 const DARK_COLORS = {

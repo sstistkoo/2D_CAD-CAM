@@ -2,7 +2,7 @@
 
 Offline-first PWA pro 2D kreslení (CAD) a generování NC programů (CAM) pro CNC
 soustruhy a karusely. Client-side SPA, bez backendu a build kroků (vanilla JS +
-ES moduly, 0 runtime závislostí). UI i dokumentace česky. Verze 1.8.0, ISC.
+ES moduly, 0 runtime závislostí). UI i dokumentace česky. Verze 1.9.0, ISC.
 
 - **Řídicí systémy (CAM výstup):** Sinumerik 840D sl, Fanuc (ISO 6983), Heidenhain TNC 640.
 - **Stroje:** soustruh (X radiální, Z axiální); karusel (osy prohozené: X axiální, Z radiální).

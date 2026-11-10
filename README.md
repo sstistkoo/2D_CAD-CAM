@@ -3,7 +3,7 @@
 <div align="center">
   <img src="icons/icon.svg" alt="SKICA logo" width="120" />
   <br/>
-  <strong>Verze 1.8.0</strong>
+  <strong>Verze 1.9.0</strong>
 </div>
 
 ---
@@ -184,6 +184,7 @@ ISC
 
 | Verze   | Deník změn                          |
 |---------|-------------------------------------|
+| 1.9.0   | Vrtání a vyvrtávání, karusel (CAM po X), ISO katalog nožů a tolerance, obrábění zleva a po úsecích, kontrola NC před uložením |
 | 1.8.0   | Rozsah 📐 vymezuje obrobenou plochu, snap mezních čar, hlídání držáku dle pořadí |
 | 1.7.0   | AI fotopanel, AI integrace           |
 | 1.6.x   | Sinumerik subprogramy, opravy       |
