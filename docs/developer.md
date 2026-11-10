@@ -707,6 +707,13 @@ z 3. 10. 2026), CAM Editor bez něj. Test `tests/gcode-coord-convert.test.js`.
 formuláře, čtení formuláře do `headerCfg`, řádky hlavičky podle řízení
 (Sinumerik STOPRE/LIMS, Fanuc T0101/G50 S, Heidenhain T.. M6) a vložení za
 úvodní MSG. Modal, undo a `headerCfg` drží editor. Test `tests/gcode-editor-header.test.js`.
+`calculators/gcodeEditorParser.js` – `CNCParser` (⚠ kontrola programu) a
+`defaultParserConfig()` pro oba editory. `{ drawChecks: true }` (CNC Editor)
+přidá kontroly pro kreslení: zděděné G0, oblouk bez R/I,K, osa dvakrát
+(`checkModalMotion`) a položky arcFit/contJump/negX/tangency, které čte editor.
+Bez nich (CAM Editor) se kontroly nespustí. Test `tests/gcode-editor-parser.test.js`.
+`calculators/cncEditorHtml.js` – HTML šablony CNC Editoru (okno, rychlá lišta,
+menu, kreslicí nástroje, text lišty řídicího systému); na stav editoru nesahají.
 `calculators/camSimulator.js` – simulátor obrysů obrábění (`openCamSimulator`,
 ~8 400 ř. — orchestrace: `draw()`, event-handlery, UI editoru/parametrů/
 zásobníku nástrojů + tenké wrappery `calculate()`/`generateAutoGCode()`/
