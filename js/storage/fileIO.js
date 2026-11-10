@@ -1292,10 +1292,14 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
         // (soustruh: X=svět.y, Z=svět.x), takže se nesmí obcházet ručním
         // zápisem "X.. Z.." jako dřív – to prohazovalo osy a kroužek se pak
         // při zpětném naparsování rozpadl na dva oblouky jinde na výkrese.
-        // Střed leží na ose Z shodné s oběma body (svět.y beze změny), takže
-        // I (osa X) = 0 a K (osa Z) = ∓r.
-        out += `${circG} ${fmtCoord(obj.cx - obj.r, obj.cy)} I0.000 K${(-obj.r).toFixed(3)}\n`;
-        out += `${circG} ${fmtCoord(obj.cx + obj.r, obj.cy)} I0.000 K${obj.r.toFixed(3)}\n`;
+        // Střed je od počátečního bodu o ∓r ve SVĚTOVÉ ose x. Ta je na soustruhu
+        // osou Z (→ I0 K∓r), na karuselu osou X (→ I∓r K0). Dřív natvrdo
+        // „I0 K∓r" i na karuselu → střed o r vedle, po „Vykreslit" se kružnice
+        // rozpadla. I je poloměr i v režimu průměr (jako čte gcodeParse.js).
+        const ik = (d) => (state.machineType === 'karusel'
+          ? `I${d.toFixed(3)} K0.000` : `I0.000 K${d.toFixed(3)}`);
+        out += `${circG} ${fmtCoord(obj.cx - obj.r, obj.cy)} ${ik(-obj.r)}\n`;
+        out += `${circG} ${fmtCoord(obj.cx + obj.r, obj.cy)} ${ik(obj.r)}\n`;
         lastEndX = cStartX; lastEndY = cStartY;
         break;
       }

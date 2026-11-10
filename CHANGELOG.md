@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CNC export kružnice na karuselu: střed o r vedle.** Půlkruhy se psaly natvrdo s `I0 K∓r`, což platí jen pro soustruh. Na karuselu leží střed v ose X, správně je tedy `I∓r K0`. Po „Vykreslit CNC kód na plátno“ se kružnice rozpadla na dva oblouky jinde. I zůstává poloměr i v režimu průměr, stejně jak ho čte `gcodeParse.js`. Přenos do CAM se nemění, protože CAM bere z I/K jen velikost poloměru. Test `tests/cnc-circle-export.test.js` (export → zpětné načtení, soustruh/karusel × poloměr/průměr). Převzato z neuložené práce ve worktree z 3. 8.; import karuselu z téže práce už byl v `main` opravený.
+
 - **CAM G-kód Fanuc: limit otáček `G50 S` z pole Max. otáčky (LIMS).** Dřív byl natvrdo `G50 S2000` bez ohledu na nastavení. Sinumerik hlavička už nepíše navíc pevné `LIMS=2000`.
 - **CAM spojení operací (Fanuc/Heidenhain): další část znovu zapne vřeteno a chlazení.** Závěr předchozí části (`M9 M5`) zůstával v těle a bez výměny nože (stejné T v hlavičce) jela další část se stojícím vřetenem.
 - **CAM převod řídicího systému:** závit `G33 … K` ↔ Fanuc `G32 … F`; Sinumerik `LIMS=` uvnitř programu se mimo Sinumerik odstraní; volání nástroje (hlavička i výměny uvnitř) se převede jméno ↔ číslo přes Zásobník.
