@@ -716,7 +716,9 @@ Výpočetní jádro i čisté helpery jsou vytažené do `calculators/cam/`:
 | `cam/offsetStockEnd.js` | Kontura končí na spodním konci polotovaru (karusel na stole) → offset hrubování se protáhne svisle pod polotovar, ať vrstvy nejezdí pod dílem vzduchem; dokončovací offset se nemění |
 | `cam/ops/zigzagRough.js`, `zigzagReverse.js`, `zigzagFloor.js`, `zigzagEmit.js` | Cik cak: Podélně + vrstvy za hrbolem končící ve vzduchu obrácené (ze vzduchu ke stěně), spodek u hranice úseku cik cak, průchod `type: 'zigzag'` s hotovými pohyby `moves` (emise, náhled, zrcadlení) |
 | `cam/inserts/` | Pravidla PLÁTKU podle tvaru (`parting`, `polygon`, `round`, `threading`, `drill`) + `index.js` s `getInsert(prms)`. Vrták zapíná klíče `footprintIsOutline` (stopa = přesný obrys), `holderAxial` (pouzdro v ose za vyložením), `canDrill`, `pointLengthZ` — ostatní plátky je mají vypnuté |
-| `cam/controlDialect.js` | Hlavička/závěr programu a převod mezi Sinumerik/Fanuc/Heidenhain. Bez vlastních importů, aby z něj mohly čerpat i moduly operací (jinak cyklus s `gcodeEmit.js`). Viz „Dialekt řídicího systému" níž |
+| `cam/controlDialect.js` | Hlavička/závěr programu a převod mezi Sinumerik/Fanuc/Heidenhain. Importuje jen `toolCall.js` (sám bez importů), aby z něj mohly čerpat i moduly operací (jinak cyklus s `gcodeEmit.js`). Viz „Dialekt řídicího systému" níž |
+| `cam/toolCall.js` | Volání nástroje podle dialektu: Sinumerik `T="jméno" D1 M6`, Fanuc `T0505`, Heidenhain `T5 M6`. Číslo = slot zásobníku (`activeToolNumber(S)`), převod jméno ↔ číslo přes `S.toolMagazine` (`convertToolCallLine`) |
+| `cam/arcSign.js` | `arcSignedR(seg, x1, z1)` — poloměr oblouku se znaménkem pro `CR=`/`R`: záporný nad 180° |
 | `cam/ops/thread.js` | OPERACE závitování — `emitThread()`, celý vlastní program |
 | `cam/ops/partOff.js` | OPERACE upichnutí — `emitPartOff()`, celý vlastní program |
 | `cam/ops/grooveChamfer.js` | `chamferFinishPath` — dokončení zápichu se sražením 45° (souřadnice u podél osy od boku A, d hloubka od povrchu; roh destičky po posunutých čarách); volá grooveWide i grooveInner |
@@ -963,7 +965,29 @@ z `cam/gcodeMerge.js`, který při **výměně nože** vypíše i nájezd do
 referenčního bodu (`G75`/`G28`/`G74`) a startovní polohu, i když se oproti
 předchozí části nemění (`TOOL_CHANGE_FORCED`).
 
-#### Dialekt řídicího systému — tři místa, kde na něm záleží
+#### Dialekt řídicího systému — místa, kde na něm záleží
+
+Doplněno 10. 11. 2026 (podrobnosti v bodech 1–3 níž beze změny):
+
+- **Volání nástroje** (`cam/toolCall.js`): Sinumerik jménem, Fanuc a
+  Heidenhain **číslem slotu zásobníku** (`T0505` = nástroj 5 / korekce 5,
+  `T5 M6`). Do té doby měly natvrdo `T0101`/`T1 M6`, takže spojený program
+  s více noži nikdy nástroj nevyměnil. Předvrtání předává slot vrtáku
+  (`activeMagazineSlot: plan.idx`). Převod mezi systémy mapuje jméno ↔ číslo
+  přes `S.toolMagazine` v hlavičce i u výměn uvnitř programu.
+- **Limit otáček**: Fanuc `G50 S` a Sinumerik `LIMS=` z pole Max. otáčky.
+  Heidenhain ISO limit nepíše, hlavička na to upozorní komentářem.
+- **Závit**: Fanuc `G32 … F`, ostatní `G33 … K`. Převod umí obojí, `LIMS=`
+  v těle mimo Sinumerik odstraní.
+- **Programovaný bod = střed rádiusu** (bez G41/G42). Hlavička to píše
+  komentářem: korekce nástroje se musí měřit ke středu (poloha břitu 9).
+- **Oblouk nad 180°** má záporné `CR=`/`R` (`arcSignedR`), jinak by ho
+  stroj projel kratší cestou.
+- **Závěr** všech systémů obsahuje `M9 M5`. Spojování (`mergePrograms`)
+  u ne-posledních částí odebere celý závěrečný blok (`M9 M5 [G28] M30`);
+  při výměně nože dopíše `M5 M9` samo a vřeteno s chlazením po výměně
+  znovu zapne. `detectDialect` pozná Heidenhain (komentář hlavičky nebo
+  `T5 M6` bez `T="…"`), aby nedostal sinumerikový `STOPRE`.
 
 Sinumerik / Fanuc / Heidenhain ISO se v tomhle projektu liší jen ve třech
 věcech, a všechny tři mají jedno místo v kódu:

@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CAM G-kód Fanuc: limit otáček `G50 S` z pole Max. otáčky (LIMS).** Dřív byl natvrdo `G50 S2000` bez ohledu na nastavení. Sinumerik hlavička už nepíše navíc pevné `LIMS=2000`.
+- **CAM spojení operací (Fanuc/Heidenhain): další část znovu zapne vřeteno a chlazení.** Závěr předchozí části (`M9 M5`) zůstával v těle a bez výměny nože (stejné T v hlavičce) jela další část se stojícím vřetenem.
+- **CAM převod řídicího systému:** závit `G33 … K` ↔ Fanuc `G32 … F`; Sinumerik `LIMS=` uvnitř programu se mimo Sinumerik odstraní; volání nástroje (hlavička i výměny uvnitř) se převede jméno ↔ číslo přes Zásobník.
+- **CAM Fanuc/Heidenhain: číslo nástroje ze slotu Zásobníku** (`T0505`, `T5 M6`) místo pevného `T0101`/`T1 M6` — spojený program s více noži (části, předvrtání) teď nástroj opravdu vymění (`js/calculators/cam/toolCall.js`).
+- **CAM oblouk nad 180° se zápisem záporného `CR=`/`R`** — dřív by ho stroj projel kratší cestou (`js/calculators/cam/arcSign.js`).
+- **CAM rychloposuvy: chyba výpočtu kolize = kolize** (dřív „volno").
+- **CAM spojení operací:** Heidenhain se pozná i bez předaného systému (žádný `STOPRE`); u ne-posledních částí odpadne celý závěr `M9 M5 [G28] M30`, takže se stejným nožem vřeteno mezi částmi neběží naprázdno ani nestojí.
+
+### Added
+
+- **CAM hlavička:** poznámka, že dráhy jedou po středu rádiusu destičky (korekce ke středu, poloha břitu 9); u Heidenhainu upozornění na limit otáček. Sinumerik závěr má `M9 M5` před `M30`, komentář `G75` opraven na „Najetí na pevný bod stroje".
+
 - **CNC editor, karusel se zrcadlením os:** řádek `PU` a info ∠ nyní počítají s flipX/flipZ stejně jako dialog „Úsečka úhlem“ (dřív dialog zadaných 0° nakreslil doleva a info řádek ukázal 180°).
 - **CAD číselné zadání, kompas ✛:** šipka míří, kam ukazuje, i při zrcadlení os (`js/dialogs/compassAngle.js`).
 - **Všechna okna aplikace se vejdou na displej** (`css/modal-fit.css`, kontrola všech oken na 7 velikostech displeje):

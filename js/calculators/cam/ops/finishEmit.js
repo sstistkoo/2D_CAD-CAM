@@ -26,6 +26,7 @@ import { offsetSilhouetteLoop, makeFinishTipGuard } from '../toolEnvelope.js';
 import { mirrorsWorldZ } from '../calculatePipeline.js';
 import { makeArcFeedWriter, arcFeedFactor, ARC_FEED_MAX_FACTOR } from '../arcFeedComp.js';
 import { finishFeedFromRa, finishBaseFeed, cornerFeedFactor, innerCornerFlags, splitLineAtCorners } from '../finishFeed.js';
+import { arcSignedR } from '../arcSign.js';
 
 /**
  * @param E  sdílené emisní prostředí z `generateAutoGCode()`
@@ -536,7 +537,7 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
       simCounter += 10;
       const eXv = seg.cx + Math.sin(seg.endAngle) * seg.r;
       const eZv = seg.cz + Math.cos(seg.endAngle) * seg.r;
-      const arcLine = `${flipArc(seg.dir)} X${xDia(eXv)} Z${eZv.toFixed(3)} ${arcR(seg.r)}`;
+      const arcLine = `${flipArc(seg.dir)} X${xDia(eXv)} Z${eZv.toFixed(3)} ${arcR(arcSignedR({ ...seg, x2: eXv, z2: eZv }))}`;
       if (finFeedW) finFeedW.writeArc(arcLine, prms.arcFeedComp ? arcFeedFactor(seg) : null, simCounter);
       else addN(arcLine, simCounter);
       setPos(eXv, eZv);

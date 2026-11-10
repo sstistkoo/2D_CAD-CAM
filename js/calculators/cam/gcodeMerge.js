@@ -19,7 +19,29 @@ function detectDialect(code) {
   const text = String(code || '');
   const hasSemi = /(^|\s);/m.test(text);
   const hasParen = /\([^)]*\)/.test(text);
-  return (!hasSemi && hasParen) ? 'fanuc' : 'sinumerik';
+  if (!hasSemi && hasParen) return 'fanuc';
+  // Heidenhain ISO má `;` komentáře jako Sinumerik — bez rozlišení by se mu
+  // při výměně nože vložil STOPRE (jen Sinumerik). Pozná se podle hlavičky
+  // generátoru, nebo podle volání nástroje číslem `T5 M6` bez `T="…"`.
+  if (/HEIDENHAIN/i.test(text)) return 'heidenhain';
+  if (!/\bT="/i.test(text) && /^\s*(N\d+\s*)?T\d+\s+M0?6\b/im.test(text)) return 'heidenhain';
+  return 'sinumerik';
+}
+
+// Tělo bez posledního M30 a bezprostředně předcházejících M5/M9/G28
+// (prázdné a komentářové řádky mezi nimi se přeskakují a zůstávají).
+function stripTailBlock(body, isM30) {
+  const codeOf = (l) => l.replace(/^\s*N\d+\s*/i, '').replace(/[;(].*/, '').trim().toUpperCase();
+  let m30 = -1;
+  for (let i = body.length - 1; i >= 0; i--) if (isM30(body[i])) { m30 = i; break; }
+  if (m30 < 0) return body.slice();
+  const drop = new Set([m30]);
+  for (let i = m30 - 1; i >= 0; i--) {
+    const c = codeOf(body[i]);
+    if (!c) continue;
+    if (/^M0?[59]$/.test(c) || /^G28\b/.test(c)) drop.add(i); else break;
+  }
+  return body.filter((_, i) => !drop.has(i));
 }
 
 const mergeCmt = (ctrl) => (text) => ctrl === 'fanuc' ? `( ${text} )` : `; ${text}`;
@@ -190,7 +212,10 @@ export function mergePrograms(items, ctrl = null) {
       out.push(`M8 ${cmt('Chlazení ZAP')}`);
     }
 
-    const bodyLines = isLast ? body : body.filter(l => !isM30(l));
+    // Uprostřed programu odpadne celý ZÁVĚREČNÝ blok (`M9 M5 [G28] M30`, viz
+    // buildControlTailLines), ne jen M30: zastavení při výměně nože se dopíše
+    // níž, a u stejného nože (Po úsecích) má vřeteno běžet dál.
+    const bodyLines = isLast ? body : stripTailBlock(body, isM30).filter(l => !isM30(l));
     if (!isLast && headerChangesTool(splitHeaderBody(items[idx + 1].code).header)) {
       const stopLines = [`M5 ${cmt('Vřeteno STOP')}`, `M9 ${cmt('Chlazení VYP')}`];
       const ci = lastCodeIndex(bodyLines);
@@ -198,6 +223,17 @@ export function mergePrograms(items, ctrl = null) {
       else bodyLines.push(...stopLines);
       spindleStopped = true;
     } else if (!isLast) {
+      // Závěr Fanuc/Heidenhain (`M9 M5 [G28] M30`) nechá po odebrání M30 v těle
+      // M5 — další část by bez výměny nože (stejný T v hlavičce) řezala se
+      // STOJÍCÍM vřetenem a bez chlazení (nález 10. 11. 2026). Zapnout znovu.
+      const codeOf = (l) => l.replace(/^\s*N\d+\s*/i, '').replace(/[;(].*/, '').trim();
+      let lastStop = -1, lastRun = -1;
+      bodyLines.forEach((l, k) => {
+        const c = codeOf(l);
+        if (/\bM0?5\b/i.test(c)) lastStop = k;
+        if (/\bM0?[34]\b/i.test(c)) lastRun = k;
+      });
+      const stoppedInBody = lastStop > lastRun;
       // Stejný nůž (např. „✂ Po úsecích"): vřeteno i chlazení běží dál a
       // nejede se zpět do startovní polohy — z koncových rychloposuvů odpadne
       // jen poslední (návrat druhé osy do startovní polohy) a další část
@@ -213,7 +249,7 @@ export function mergePrograms(items, ctrl = null) {
         do { ci--; } while (ci >= 0 && !bodyLines[ci].replace(/[;(].*/, '').trim());
       }
       if (rapids.length >= 2) bodyLines.splice(rapids[rapids.length - 1], 1);
-      spindleStopped = false;
+      spindleStopped = stoppedInBody;
     }
     bodyLines.forEach(line => out.push(line));
   });

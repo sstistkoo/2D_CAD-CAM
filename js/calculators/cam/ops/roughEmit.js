@@ -22,6 +22,7 @@ import { rapidFeedGap } from '../camMath.js';
 import { makeFaceTransitGuard } from '../faceTransitGuard.js';
 import { emitZigzagPass } from './zigzagEmit.js';
 import { arcFeedFactor } from '../arcFeedComp.js';
+import { arcSignedR } from '../arcSign.js';
 import { passDepth, chipThinActive, chipRatio, chipMargin } from '../feedTuning.js';
 
 /**
@@ -361,7 +362,7 @@ calc.passes.forEach((pass, i) => {
         simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
         noteCutMove(fx, fz, seg.x2, seg.z2);
       } else {
-        simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+        simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(arcSignedR(seg, fx, fz))} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
         noteCutArc(seg, fx, fz);
       }
     }
@@ -583,7 +584,7 @@ calc.passes.forEach((pass, i) => {
           emitLeadOutLine(seg);
         } else {
           const fx = cur.x, fz = cur.z;
-          simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+          simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(arcSignedR(seg, fx, fz))} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
           noteCutArc(seg, fx, fz);
         }
       }
@@ -797,7 +798,7 @@ calc.passes.forEach((pass, i) => {
           emitLeadOutLine(seg);
         } else {
           const fx = cur.x, fz = cur.z;
-          simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+          simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(arcSignedR(seg, fx, fz))} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
           noteCutArc(seg, fx, fz);
         }
       }
@@ -925,7 +926,7 @@ calc.passes.forEach((pass, i) => {
           simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
           noteCutMove(fx, fz, seg.x2, seg.z2);
         } else {
-          simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(seg.r)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+          simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(arcSignedR(seg, fx, fz))} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
           noteCutArc(seg, fx, fz);
         }
       }

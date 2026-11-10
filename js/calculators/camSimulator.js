@@ -1446,8 +1446,8 @@ export function openCamSimulator(initialContour, initialGCode) {
   }
   function generateGCode(calc) { return _generateGCode(S, calc); }
   function generateAutoGCode(calc) { return _generateAutoGCode(S, calc); }
-  function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, flipZ) {
-    return _convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, flipZ);
+  function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, flipZ, magazine) {
+    return _convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, flipZ, magazine);
   }
 
   // ── Vykreslení kontury z bodů {x, z, type, r} (trasování profilu) ──

@@ -3,11 +3,12 @@
 exports[`CAM pipeline regrese (G-kód + struktura) > face-casting.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X500 ; Nájezd do ref. bodu
+N50 G75 X500 ; Najetí na pevný bod stroje
 N60 G75 Z500
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -250,7 +251,9 @@ N1980 G1 X2.500 Z0.800
 N1990 G1 X2.500 Z0.300 ; Rovný průměr (zbytek nejde dokončit celý)
 N2000 G0 X500.000 ; Výjezd nad konturu
 N2010 G0 Z500.000
-N2020 M30 ; Konec programu
+N2020 M9
+N2030 M5
+N2040 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z0
 ; G1 X2.5 Z0
@@ -381,11 +384,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-casting.camprog → st
 exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -568,7 +572,9 @@ N1530 G1 X15.073 Z22.537
 N1540 G1 X15.073 Z20.537 ; Rovný průměr (zbytek nejde dokončit celý)
 N1550 G1 X150.000 F0.25 ; Výjezd materiálem posuvem
 N1560 G0 Z5.000
-N1570 M30 ; Konec programu
+N1570 M9
+N1580 M5
+N1590 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X4 Z48
 ; G1 X4.293 Z47.707
@@ -652,11 +658,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-cylinder.camprog → s
 exports[`CAM pipeline regrese (G-kód + struktura) > face-parting-retract-holder.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -1262,7 +1269,9 @@ N4930 G1 X30.365 F0.25
 N4940 G1 X32.365 ; Výjezd v X (stěna)
 N4950 G0 X150.000 ; Výjezd nad konturu
 N4960 G0 Z5.000
-N4970 M30 ; Konec programu
+N4970 M9
+N4980 M5
+N4990 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -1459,11 +1468,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > face-parting-retract-holder
 exports[`CAM pipeline regrese (G-kód + struktura) > holder-casting-slanted-face.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -1743,7 +1753,9 @@ N2430 G1 X19.059 Z0.000
 N2440 G1 X19.059 Z-0.500 ; Rovný průměr (zbytek nejde dokončit celý)
 N2450 G0 X150.000 ; Výjezd nad konturu
 N2460 G0 Z5.000
-N2470 M30 ; Konec programu
+N2470 M9
+N2480 M5
+N2490 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z161.069
 ; G1 X52.988 Z161.069
@@ -1838,11 +1850,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-casting-slanted-face
 exports[`CAM pipeline regrese (G-kód + struktura) > holder-region-roughing.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -2112,7 +2125,9 @@ N2340 G1 X19.059 Z0.000
 N2350 G1 X19.059 Z-0.500 ; Rovný průměr (zbytek nejde dokončit celý)
 N2360 G0 X150.000 ; Výjezd nad konturu
 N2370 G0 Z5.000
-N2380 M30 ; Konec programu
+N2380 M9
+N2390 M5
+N2400 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z161.069
 ; G1 X52.988 Z161.069
@@ -2204,11 +2219,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > holder-region-roughing.camp
 exports[`CAM pipeline regrese (G-kód + struktura) > part-1.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -2529,7 +2545,9 @@ N2840 G1 X43.178 Z0.000
 N2850 G1 X43.178 Z-2.500 ; Rovný průměr (zbytek nejde dokončit celý)
 N2860 G0 X150.000 ; Výjezd nad konturu
 N2870 G0 Z5.000
-N2880 M30 ; Konec programu
+N2880 M9
+N2890 M5
+N2900 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -2642,11 +2660,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-1.camprog → stabiln�
 exports[`CAM pipeline regrese (G-kód + struktura) > part-2.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -2967,7 +2986,9 @@ N2840 G1 X43.178 Z0.000
 N2850 G1 X43.178 Z-2.500 ; Rovný průměr (zbytek nejde dokončit celý)
 N2860 G0 X150.000 ; Výjezd nad konturu
 N2870 G0 Z5.000
-N2880 M30 ; Konec programu
+N2880 M9
+N2890 M5
+N2900 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -3080,11 +3101,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-2.camprog → stabiln�
 exports[`CAM pipeline regrese (G-kód + struktura) > part-4.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -3445,7 +3467,9 @@ N3180 G1 X43.178 Z0.000
 N3190 G1 X43.178 Z-8.000 ; Rovný průměr (zbytek nejde dokončit celý)
 N3200 G0 X150.000 ; Výjezd nad konturu
 N3210 G0 Z5.000
-N3220 M30 ; Konec programu
+N3220 M9
+N3230 M5
+N3240 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -3563,11 +3587,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-4.camprog → stabiln�
 exports[`CAM pipeline regrese (G-kód + struktura) > part-6.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -3928,7 +3953,9 @@ N3180 G1 X43.178 Z0.000
 N3190 G1 X43.178 Z-8.000 ; Rovný průměr (zbytek nejde dokončit celý)
 N3200 G0 X150.000 ; Výjezd nad konturu
 N3210 G0 Z5.000
-N3220 M30 ; Konec programu
+N3220 M9
+N3230 M5
+N3240 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -4046,11 +4073,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-6.camprog → stabiln�
 exports[`CAM pipeline regrese (G-kód + struktura) > part-8.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -4401,7 +4429,9 @@ N3090 G1 X43.178 Z0.000
 N3100 G1 X43.178 Z-0.500 ; Rovný průměr (zbytek nejde dokončit celý)
 N3110 G0 X150.000 ; Výjezd nad konturu
 N3120 G0 Z5.000
-N3130 M30 ; Konec programu
+N3130 M9
+N3140 M5
+N3150 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -4519,11 +4549,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-8.camprog → stabiln�
 exports[`CAM pipeline regrese (G-kód + struktura) > part-9.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -4873,7 +4904,9 @@ N3080 G1 X43.178 Z0.000
 N3090 G1 X43.178 Z-0.500 ; Rovný průměr (zbytek nejde dokončit celý)
 N3100 G0 X150.000 ; Výjezd nad konturu
 N3110 G0 Z5.000
-N3120 M30 ; Konec programu
+N3120 M9
+N3130 M5
+N3140 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -4990,11 +5023,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-9.camprog → stabiln�
 exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -5268,7 +5302,9 @@ N2370 G1 X59.417 Z-9.015 ; Rampa 15.0°
 N2380 G1 X63.417 Z-7.015
 N2390 G0 X150.000 ; Výjezd nad konturu
 N2400 G0 Z5.000
-N2410 M30 ; Konec programu
+N2410 M9
+N2420 M5
+N2430 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z133.003
 ; G1 X22.776 Z133.003
@@ -5372,11 +5408,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camp
 exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -5590,7 +5627,9 @@ N1850 G1 Z369.123 F0.25
 N1860 G1 X12.317 Z367.123
 N1870 G0 X150.000 ; Výjezd nad konturu
 N1880 G0 Z5.000
-N1890 M30 ; Konec programu
+N1890 M9
+N1900 M5
+N1910 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -5707,11 +5746,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.campr
 exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -5961,7 +6001,9 @@ N2150 G1 Z369.123 F0.25
 N2160 G1 X12.312 Z367.123
 N2170 G0 X150.000 ; Výjezd nad konturu
 N2180 G0 Z5.000
-N2190 M30 ; Konec programu
+N2190 M9
+N2200 M5
+N2210 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -6089,11 +6131,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-13-zleva-flange.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -6193,7 +6236,9 @@ N890 G1 Z173.500 F0.25
 N900 G1 X61.177 Z175.329 F0.25
 N910 G0 X150.000 ; Výjezd nad konturu
 N920 G0 Z5.000
-N930 M30 ; Konec programu
+N930 M9
+N940 M5
+N950 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z449.81
 ; G1 X23.074 Z449.81
@@ -6264,11 +6309,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-13-zleva-flange.campro
 exports[`CAM pipeline regrese (G-kód + struktura) > part-14-finish-holder.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -6566,7 +6612,9 @@ N2620 G1 X50.881 Z234.990
 N2630 G1 X50.881 Z235.990 ; Rovný průměr (zbytek nejde dokončit celý)
 N2640 G0 X150.000 ; Výjezd nad konturu
 N2650 G0 Z5.000
-N2660 M30 ; Konec programu
+N2660 M9
+N2670 M5
+N2680 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -6697,11 +6745,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-14-finish-holder.campr
 exports[`CAM pipeline regrese (G-kód + struktura) > part-15-finish-zprava.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -6966,7 +7015,9 @@ N2330 G1 X31.366 Z0.000
 N2340 G1 X31.366 Z-4.000 ; Rovný průměr (zbytek nejde dokončit celý)
 N2350 G0 X150.000 ; Výjezd nad konturu
 N2360 G0 Z5.000
-N2370 M30 ; Konec programu
+N2370 M9
+N2380 M5
+N2390 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -7090,11 +7141,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-15-finish-zprava.campr
 exports[`CAM pipeline regrese (G-kód + struktura) > part-16-face-holder.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -7735,7 +7787,9 @@ N5270 G1 X28.256 Z17.084
 N5280 G3 X31.366 Z9.491 CR=10.800
 N5290 G0 X150.000 ; Výjezd nad konturu
 N5300 G0 Z5.000
-N5310 M30 ; Konec programu
+N5310 M9
+N5320 M5
+N5330 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -7933,11 +7987,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-16-face-holder.camprog
 exports[`CAM pipeline regrese (G-kód + struktura) > part-17-long-parting.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -8606,7 +8661,9 @@ N5550 G1 X22.524 Z73.781
 N5560 G3 X27.856 Z67.037 CR=6.802
 N5570 G0 X150.000 ; Výjezd nad konturu
 N5580 G0 Z5.000
-N5590 M30 ; Konec programu
+N5590 M9
+N5600 M5
+N5610 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -8804,11 +8861,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-17-long-parting.campro
 exports[`CAM pipeline regrese (G-kód + struktura) > part-18-face-big-radius.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -9528,7 +9586,9 @@ N6020 G1 X27.548 F0.25
 N6030 G1 X29.548 Z-13.068
 N6040 G0 X150.000 ; Výjezd nad konturu
 N6050 G0 Z5.000
-N6060 M30 ; Konec programu
+N6060 M9
+N6070 M5
+N6080 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -9733,11 +9793,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-18-face-big-radius.cam
 exports[`CAM pipeline regrese (G-kód + struktura) > part-18-parting-90-ramp.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -10438,7 +10499,9 @@ N5730 G1 X20.422 F0.25
 N5740 G1 X22.422 Z-7.068
 N5750 G0 X150.000 ; Výjezd nad konturu
 N5760 G0 Z5.000
-N5770 M30 ; Konec programu
+N5770 M9
+N5780 M5
+N5790 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -10649,11 +10712,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-18-parting-90-ramp.cam
 exports[`CAM pipeline regrese (G-kód + struktura) > part-19-face-tilted-insert.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -11115,7 +11179,9 @@ N3750 G1 X40.110 F0.25
 N3760 G1 X42.110 Z-4.068
 N3770 G0 X150.000 ; Výjezd nad konturu
 N3780 G0 Z5.000
-N3790 M30 ; Konec programu
+N3790 M9
+N3800 M5
+N3810 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -11288,11 +11354,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-19-face-tilted-insert.
 exports[`CAM pipeline regrese (G-kód + struktura) > part-20-zleva-parting-taper.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -11997,7 +12064,9 @@ N5780 G1 X0.127 F0.25
 N5790 G1 X2.127 Z368.000
 N5800 G0 X150.000 ; Výjezd nad konturu
 N5810 G0 Z5.000
-N5820 M30 ; Konec programu
+N5820 M9
+N5830 M5
+N5840 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -12208,11 +12277,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-20-zleva-parting-taper
 exports[`CAM pipeline regrese (G-kód + struktura) > part-21-zleva-insert-shadow.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -12629,7 +12699,9 @@ N3580 G1 Z369.240 F0.25
 N3590 G1 X7.940 Z367.240
 N3600 G0 X150.000 ; Výjezd nad konturu
 N3610 G0 Z5.000
-N3620 M30 ; Konec programu
+N3620 M9
+N3630 M5
+N3640 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -12781,11 +12853,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-21-zleva-insert-shadow
 exports[`CAM pipeline regrese (G-kód + struktura) > part-22-round-r10.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -13326,7 +13399,9 @@ N4530 G1 X29.566 Z-15.779 ; Rampa 45.0°
 N4540 G1 X31.566 ; Výjezd v X (stěna)
 N4550 G0 X150.000 ; Výjezd nad konturu
 N4560 G0 Z5.000
-N4570 M30 ; Konec programu
+N4570 M9
+N4580 M5
+N4590 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -13498,11 +13573,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-22-round-r10.camprog �
 exports[`CAM pipeline regrese (G-kód + struktura) > part-23-face-neck-round-r10.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S180 LIMS=2000 ; Konst. řezná rychlost
@@ -14149,7 +14225,9 @@ N5470 G1 X40.566 Z0.000
 N5480 G1 X40.566 Z-1.000 ; Rovný průměr (zbytek nejde dokončit celý)
 N5490 G0 X150.000 ; Výjezd nad konturu
 N5500 G0 Z5.000
-N5510 M30 ; Konec programu
+N5510 M9
+N5520 M5
+N5530 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -14336,11 +14414,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-23-face-neck-round-r10
 exports[`CAM pipeline regrese (G-kód + struktura) > part-24-zleva-finish-ramp.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -14430,7 +14509,9 @@ N800 G1 X39.362 Z137.650
 N810 G1 X39.362 Z138.650 ; Rovný průměr (zbytek nejde dokončit celý)
 N820 G0 X150.000 ; Výjezd nad konturu
 N830 G0 Z5.000
-N840 M30 ; Konec programu
+N840 M9
+N850 M5
+N860 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -14533,11 +14614,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-24-zleva-finish-ramp.c
 exports[`CAM pipeline regrese (G-kód + struktura) > part-25-face-runout-reversed.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -14880,7 +14962,9 @@ N2810 G1 X0.000 Z347.176 F0.2
 N2820 G1 X9.202 Z346.192
 N2830 G0 X150.000 ; Výjezd nad konturu
 N2840 G0 Z5.000
-N2850 M30 ; Konec programu
+N2850 M9
+N2860 M5
+N2870 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -15031,11 +15115,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-25-face-runout-reverse
 exports[`CAM pipeline regrese (G-kód + struktura) > pocket-wall-at-plunge-angle.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -15459,7 +15544,9 @@ N3720 G1 X42.778 Z0.000
 N3730 G1 X42.778 Z-0.500 ; Rovný průměr (zbytek nejde dokončit celý)
 N3740 G0 X150.000 ; Výjezd nad konturu
 N3750 G0 Z5.000
-N3760 M30 ; Konec programu
+N3760 M9
+N3770 M5
+N3780 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X29.94 Z256.014
 ; G1 X29.94 Z238.838
@@ -15588,11 +15675,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > pocket-wall-at-plunge-angle
 exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-insert-shadow.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -15766,7 +15854,9 @@ N1510 G1 X36.442 Z107.246 ; Rampa 15.0°
 N1520 G1 X38.442 Z109.246
 N1530 G0 X150.000 ; Výjezd nad konturu
 N1540 G0 Z5.000
-N1550 M30 ; Konec programu
+N1550 M9
+N1560 M5
+N1570 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -15877,11 +15967,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-insert-shadow.c
 exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-steep-face.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -15957,7 +16048,9 @@ N670 G1 X36.442 Z107.248 ; Rampa 15.0°
 N680 G1 X38.442 Z109.248
 N690 G0 X150.000 ; Výjezd nad konturu
 N700 G0 Z5.000
-N710 M30 ; Konec programu
+N710 M9
+N720 M5
+N730 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -16053,11 +16146,12 @@ exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-steep-face.camp
 exports[`CAM pipeline regrese (G-kód + struktura) > range-end-leadout.camprog → stabilní G-kód > gcode 1`] = `
 "; Vygenerovaný kód SINUMERIK 840D - SOUSTRUH
 ; Datum: <normalized>
+; Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9
 N10 G18 ; Rovina ZX
 N20 G90 ; Absolutní programování
 N30 G54 ; Posunutí počátku
 N40 G95 ; Posuv na otáčku
-N50 G75 X150 ; Nájezd do ref. bodu
+N50 G75 X150 ; Najetí na pevný bod stroje
 N60 G75 Z5
 N70 LIMS=2000 ; Limit otáček
 N80 G96 S200 LIMS=2000 ; Konst. řezná rychlost
@@ -16169,7 +16263,9 @@ N980 G1 X21.169 Z74.622 F0.25
 N990 G1 X23.169 Z76.622
 N1000 G0 X150.000 ; Výjezd nad konturu
 N1010 G0 Z5.000
-N1020 M30 ; Konec programu
+N1020 M9
+N1030 M5
+N1040 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397

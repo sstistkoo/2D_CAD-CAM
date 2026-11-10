@@ -2257,6 +2257,14 @@ posledních pár mm dráhy. Když nevíš, jestli se to na tvém dílu uplatnilo
 hledej v programu komentář `Výjezd v X (stěna)`.
 
 ### CAM tipy
+- **Program jede po STŘEDU rádiusu destičky** (bez G41/G42). Korekci nástroje
+  na stroji měř ke středu rádiusu (poloha břitu 9) — změřená na teoretickou
+  špičku by dala díl o R vedle (v X o 2R na průměru). Hlavička programu to připomíná.
+- **Číslo nástroje = slot 🔧 Zásobníku.** Fanuc píše `T0505` (nástroj 5 / korekce 5),
+  Heidenhain `T5 M6`, Sinumerik jméno `T="…" D1 M6`. Přepnutí řídicího systému
+  převede i výměny nástroje uvnitř programu.
+- **Max. otáčky (LIMS)** jdou do Fanuc `G50 S…` i Sinumerik `LIMS=`; Heidenhain
+  ISO limit nepíše — nastav ho na řízení.
 - Používej **Sjednocený směr** pro konzistentní G2/G3
 - Pokud se nástroj nevejde do oblouku, zkrať šířku řezu
 - Aktivuj **Zrcadlení** pro oboustranné obrábění

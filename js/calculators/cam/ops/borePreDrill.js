@@ -183,7 +183,8 @@ export function emitBorePreDrilled({ S, calc, generateAutoGCode }) {
     S.genNotes.push({ type: 'warning', msg: `Předvrtání: ${plan.reason}` });
     return null;
   }
-  const Sd = { ...S, params: preDrillParams(S.params, plan), genNotes: [] };
+  // activeMagazineSlot = vrták: Fanuc/Heidenhain volají nástroj číslem slotu.
+  const Sd = { ...S, params: preDrillParams(S.params, plan), genNotes: [], activeMagazineSlot: plan.idx };
   const drill = generateAutoGCode(Sd, calc);
   const Sb = { ...S, params: { ...S.params, borePreDrill: false }, genNotes: [] };
   const bore = generateAutoGCode(Sb, calc);

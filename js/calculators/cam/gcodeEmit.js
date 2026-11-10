@@ -29,7 +29,7 @@ import { emitBore } from './ops/bore.js';
 import { emitBorePreDrilled } from './ops/borePreDrill.js';
 import { boreFloorBody } from './ops/boreFloor.js';
 import { emitRoughing } from './ops/roughEmit.js';
-import { emitFinish } from './ops/finishEmit.js';
+import { emitFinish } from './ops/finishEmit.js'; import { activeToolNumber } from './toolCall.js';
 import { makeFaceTransitGuard, rapidFloorX } from './faceTransitGuard.js'; import { lowestClearLift } from './rapidLift.js';
 
 export function generateGCode(S, calc) {
@@ -81,7 +81,7 @@ export function generateAutoGCode(S, calc) {
     return code;
   };
 
-  buildControlHeaderLines(prms.controlSystem, prms, S.flipX, S.flipZ).forEach(line => {
+  buildControlHeaderLines(prms.controlSystem, prms, S.flipX, S.flipZ, { name: prms.toolName, num: activeToolNumber(S) }).forEach(line => {   // T = slot zásobníku (toolCall.js)
     if (line.startsWith(';') || line.startsWith('(')) add(line, null);
     else addN(line, null);
   });
@@ -219,7 +219,7 @@ export function generateAutoGCode(S, calc) {
     try {
       const sweep = toolSweep(rapidFootSlim, [{ x: x1, z: z1 }, { x: x2, z: z2 }]);
       return Math.abs(polyArea(rapidStock.collide(sweep))) > 0.5;
-    } catch { return false; }
+    } catch { return true; }   // chyba výpočtu = bráno jako kolize (bezpečná strana)
   };
   // Totéž proti PLÁNOVACÍMU (vůlí-posunutému) zbytku. Používá se JEN
   // u čelního přejezdu v Z — tam uživatel viděl držák pod offsetovou čarou
@@ -237,7 +237,7 @@ export function generateAutoGCode(S, calc) {
     try {
       const sweep = toolSweep(rapidFootSlim, [{ x: x1, z: z1 }, { x: x2, z: z2 }]);
       return Math.abs(polyArea(rapidStockPlan.collide(sweep))) > 0.5;
-    } catch { return false; }
+    } catch { return true; }   // chyba výpočtu = bráno jako kolize (bezpečná strana)
   };
   // ── Dva modely „kde je materiál" a jejich dělba (ÚKLID 8. 8. 2026) ──────
   // 1) PLÁNOVACÍ (pesimistický) obrys = vůlí-posunutá silueta `planLoopRef`.
@@ -674,7 +674,7 @@ export function generateAutoGCode(S, calc) {
     if (!h || !rapidStock) return false;
     try {
       return Math.abs(polyArea(rapidStock.collide(toolSweep(h, pts)))) > 0.5;
-    } catch { return false; }
+    } catch { return true; }   // chyba výpočtu = bráno jako kolize (bezpečná strana)
   };
   // Táž otázka pro PŘEJEZD (dvěma body) — stejná signatura jako
   // `rapidHitsStock`, aby se daly v podmínce střídat.

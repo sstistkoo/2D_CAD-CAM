@@ -3,11 +3,13 @@
 // ╚════════════════════════════════════════╝
 // Vyňato z `cam/gcodeEmit.js` (rozdělení podle OPERACÍ, plán §3.A).
 // Sinumerik / Fanuc / Heidenhain — JEDINÉ místo, kde se dialekty liší.
-// Nezávisí na ničem dalším (žádné importy), proto z něj smí čerpat i moduly
+// Importuje jen `toolCall.js` (sám bez importů), proto z něj smí čerpat i moduly
 // operací (`ops/thread.js`, `ops/partOff.js`) bez rizika cyklu.
 //
 // POZOR: `ctrlCmt` MUSÍ zůstat function declaration (ne const) — headless
 // test harness ho zachytává přes hoisting (viz tests/helpers/camHeadless.mjs).
+
+import { toolCallWord, convertToolCallLine, parseToolCall, toolNumberForName, toolNameForNumber } from './toolCall.js';
 
 // ── Hlavička/závěr programu podle řídicího systému ────────────
 // Sdíleno mezi generateAutoGCode() (čerstvé generování z kontury) a
@@ -41,8 +43,29 @@ function diaModeNote(ctrl, prms) {
   return `POZOR: X = POLOMĚR, řízení musí být v radiálním režimu, ${where}`;
 }
 
-export function buildControlHeaderLines(ctrl, prms, flipX, flipZ) {
+// Limit otáček z „LIMS=…" v machineType (pole Max. otáčky) — stejné čtení jako
+// machineLimitRpm ve feedRates.js; tady bez importu (viz hlavička souboru).
+// Do 10. 11. 2026 měl Fanuc natvrdo G50 S2000 a uživatelský limit ignoroval.
+function headerLimitRpm(prms) {
+  const v = parseInt(String((prms && prms.machineType) || '').match(/LIMS\s*=\s*(\d+)/i)?.[1], 10);
+  return Number.isFinite(v) && v > 0 ? v : 2000;
+}
+
+// Programovaný bod = STŘED RÁDIUSU destičky (dráhy jsou o R odsazené, bez
+// G41/G42). Nástroj změřený na teoretickou špičku by vyrobil díl o R vedle
+// (v X o 2R na průměru) — proto to hlavička musí říct.
+const NOSE_CENTER_NOTE = 'Dráhy = STŘED rádiusu destičky, bez G41/G42 - korekce měřit ke středu, poloha břitu 9';
+
+/**
+ * @param {{name?:string, num?:number}} [tool] nástroj programu; Fanuc/Heidenhain
+ *   volají číslem (slot zásobníku), Sinumerik jménem. Bez něj = prms.toolName / T1.
+ */
+export function buildControlHeaderLines(ctrl, prms, flipX, flipZ, tool) {
   const cmt = ctrlCmt(ctrl);
+  const lims = headerLimitRpm(prms);
+  const tl = { name: (tool && tool.name) || (prms && prms.toolName), num: tool && tool.num };
+  const tWord = toolCallWord(ctrl, tl);
+  const tNum = tWord.match(/^T(\d+)/)?.[1] || '';
   const note = (text) => ` ${cmt(text)}`;
   const names = { sinumerik: 'SINUMERIK 840D', fanuc: 'FANUC', heidenhain: 'HEIDENHAIN ISO' };
   const lines = [];
@@ -53,28 +76,30 @@ export function buildControlHeaderLines(ctrl, prms, flipX, flipZ) {
   lines.push(cmt(`Datum: ${new Date().toLocaleDateString()}`));
   if (flipX) lines.push(cmt('Obrábění zespodu (X+ dolů) – G2/G3 prohozeny'));
   if (flipZ) lines.push(cmt('Otočená osa Z (Z+ vlevo) – G2/G3 prohozeny'));
+  lines.push(cmt(NOSE_CENTER_NOTE));
 
   if (ctrl === 'fanuc') {
     lines.push(`G21${note('Metrický vstup')}`, `G40${note('Zrušení kompenzace')}`);
     lines.push(`G99${note('Posuv mm/ot')}`, `G18${note('Rovina ZX')}`);
     lines.push(cmt(diaModeNote(ctrl, prms)));
-    lines.push(`G28 U0 W0${note('Referenční bod')}`, `G50 S2000${note('Max otáčky')}`);
+    lines.push(`G28 U0 W0${note('Referenční bod')}`, `G50 S${lims}${note('Max otáčky')}`);
     lines.push(`G96 S${prms.speed} M3${note('Konst. řezná rychlost')}`);
-    lines.push(`T0101${note('Nástroj 1 / Korekce 1')}`, `M8${note('Chlazení ZAP')}`);
+    lines.push(`${tWord}${note(`Nástroj ${parseInt(tNum.slice(0, 2), 10)} / Korekce ${parseInt(tNum.slice(2), 10)}`)}`, `M8${note('Chlazení ZAP')}`);
   } else if (ctrl === 'heidenhain') {
     lines.push(`G18${note('Rovina ZX')}`, `G90${note('Absolutní')}`);
     lines.push(`G71${note('Metrický systém')}`, `G54${note('Nulový bod')}`);
     lines.push(cmt(diaModeNote(ctrl, prms)));
+    lines.push(cmt(`POZOR: limit otáček ${lims} 1/min nastavit na řízení, program ho nepíše`));
     lines.push(`G96 S${prms.speed} M3${note('Řezná rychlost')}`);
-    lines.push(`T1 M6${note('Nástroj')}`, 'M8');
+    lines.push(`${tWord}${note(`Nástroj ${tNum}`)}`, 'M8');
   } else {
     lines.push(`G18${note('Rovina ZX')}`, `G90${note('Absolutní programování')}`);
     lines.push(`G54${note('Posunutí počátku')}`, `G95${note('Posuv na otáčku')}`);
-    lines.push(`G75 X${prms.safeX}${note('Nájezd do ref. bodu')}`, `G75 Z${prms.safeZ}`);
-    lines.push(`LIMS=2000${note('Limit otáček')}`);
+    lines.push(`G75 X${prms.safeX}${note('Najetí na pevný bod stroje')}`, `G75 Z${prms.safeZ}`);
+    lines.push(`LIMS=${lims}${note('Limit otáček')}`);
     lines.push(`G96 S${prms.speed} ${prms.machineType}${note('Konst. řezná rychlost')}`);
     lines.push(`${prms.mode === 'DIAMON' ? 'DIAMON' : 'DIAMOF'}${note(prms.mode === 'DIAMON' ? 'Programování průměru' : 'Programování poloměru')}`);
-    lines.push(`T="${prms.toolName}" D1 M6${note('Výměna nástroje')}`);
+    lines.push(`${tWord}${note('Výměna nástroje')}`);
     lines.push(`M3${note('Vřeteno CW')}`, `M8${note('Chlazení ZAP')}`);
   }
   return lines;
@@ -84,7 +109,7 @@ export function buildControlTailLines(ctrl) {
   const cmt = ctrlCmt(ctrl);
   if (ctrl === 'fanuc') return ['M9', 'M5', 'G28 U0 W0', `M30 ${cmt('Konec programu')}`];
   if (ctrl === 'heidenhain') return ['M9', 'M5', 'M30'];
-  return [`M30 ${cmt('Konec programu')}`];
+  return ['M9', 'M5', `M30 ${cmt('Konec programu')}`];
 }
 
 export function controlArcFormatter(ctrl) {
@@ -118,7 +143,9 @@ export function renumberGCodeLines(lines, start, step) {
 // beze změny, jen se převede styl komentářů (; ↔ ( )) a zápis oblouku
 // (CR=... ↔ R...) na řádcích s G2/G3. Chce-li uživatel dráhy přegenerovat
 // od nuly z kontury, použije tlačítko "🔄 Dráhy" jako dřív.
-export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, flipZ) {
+// Volání nástroje (hlavička i výměny uvnitř) se převádí jméno ↔ číslo přes
+// zásobník `magazine` (S.toolMagazine) — viz toolCall.js.
+export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, flipZ, magazine) {
   if (!code || !code.trim() || oldCtrl === newCtrl) return code;
   const lines = code.replace(/\r\n/g, '\n').split('\n');
 
@@ -138,6 +165,13 @@ export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, f
     if (bodyStart === -1) { bodyStart = 0; headerFound = false; }
   }
   const body = lines.slice(bodyStart);
+  // Nástroj programu = první volání nástroje ve staré hlavičce.
+  const isCmtLine = (l) => /^\s*[;(]/.test(l);
+  const oldTc = lines.slice(0, bodyStart).filter(l => !isCmtLine(l)).map(parseToolCall).find(Boolean);
+  const headTool = oldTc ? (() => {
+    const num = oldTc.num || toolNumberForName(oldTc.name, magazine) || undefined;
+    return { num, name: oldTc.name || (num && toolNameForNumber(num, magazine)) || undefined };
+  })() : undefined;
 
   // Konec programu: poslední M30 + bezprostředně předcházející M5/M9/G28
   // (typický závěrečný blok — viz buildControlTailLines).
@@ -156,12 +190,22 @@ export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, f
   const trailing = hasTail ? body.slice(tailEnd) : [];
 
   const convLine = (line) => {
-    let out = line;
+    let out = isCmtLine(line) ? line : convertToolCallLine(line, newCtrl, magazine);
     if (oldCtrl !== 'fanuc' && newCtrl === 'fanuc') {
       out = out.replace(/;\s*(.*)$/, (_, t) => t.trim() ? `( ${t.trim()} )` : '');
     } else if (oldCtrl === 'fanuc' && newCtrl !== 'fanuc') {
       out = out.replace(/\(\s*(.*?)\s*\)\s*$/, (_, t) => t.trim() ? `; ${t.trim()}` : '');
     }
+    // Závit (ops/thread.js): Fanuc `G32 … F stoupání`, ostatní `G33 … K stoupání`.
+    // Bez převodu by na Fanucu zůstal G33 (na soustruhu jiný význam / alarm).
+    if (newCtrl === 'fanuc' && oldCtrl !== 'fanuc' && /\bG33\b/i.test(out)) {
+      out = out.replace(/\bG33\b/i, 'G32').replace(/\bK(\d*\.?\d+)/i, 'F$1');
+    } else if (oldCtrl === 'fanuc' && newCtrl !== 'fanuc' && /\bG32\b/i.test(out)) {
+      out = out.replace(/\bG32\b/i, 'G33').replace(/\bF(\d*\.?\d+)/i, 'K$1');
+    }
+    // LIMS= je jen Sinumerik (např. `G96 S… LIMS=…` u výměny na dokončovací nůž);
+    // limit ostatních systémů nese hlavička (Fanuc G50).
+    if (newCtrl !== 'sinumerik') out = out.replace(/\s*\bLIMS\s*=\s*\d+/i, '');
     if (/\bG0?[23]\b/i.test(out)) {
       if (oldCtrl === 'sinumerik' && newCtrl !== 'sinumerik') out = out.replace(/\bCR=(-?[\d.]+)/i, 'R$1');
       else if (oldCtrl !== 'sinumerik' && newCtrl === 'sinumerik') out = out.replace(/\bR(-?[\d.]+)\b/i, 'CR=$1');
@@ -182,7 +226,7 @@ export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, f
     return out;
   };
 
-  const newHeader = headerFound ? buildControlHeaderLines(newCtrl, prms, flipX, flipZ) : [];
+  const newHeader = headerFound ? buildControlHeaderLines(newCtrl, prms, flipX, flipZ, headTool) : [];
   const newTail = hasTail ? buildControlTailLines(newCtrl) : [];
 
   const assembled = [...newHeader, ...middle.map(convLine), ...newTail, ...trailing.map(convLine)];

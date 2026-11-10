@@ -70,7 +70,7 @@ export function attachParamsEventsGeneral(ctx) {
       // zůstává na tlačítku "🔄 Dráhy".
       const wasCurrent = !gcodeStale();
       if (S.manualGCode && S.manualGCode.trim()) {
-        S.manualGCode = convertGCodeControlSystem(S.manualGCode, oldCtrl, newCtrl, S.params, S.flipX, S.flipZ);
+        S.manualGCode = convertGCodeControlSystem(S.manualGCode, oldCtrl, newCtrl, S.params, S.flipX, S.flipZ, S.toolMagazine);
       }
       S.params.controlSystem = newCtrl;
       // Program se převedl NA MÍSTĚ (i s ručními úpravami), takže dráhám dál
