@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Úklid kořene repa:** smazány ladicí zbytky (`gear_debug.html`, `gear_profiles.html`, `internal_gear_test.svg`, `scratch_user.mjs`, `useky-podle-meznich-car.patch`). Ladicí stránky ozubení tím zmizely i z offline cache PWA. Ukázkové DXF (`test.dxf`, `test_fusion.dxf`, `Náčrt1.dxf`) jsou teď v `tests/fixtures/dxf/` a `SENIOR_REVIEW.md` v `docs/senior-review-2026-07.md`.
+
 - **VK: úhel PA na karuselu od vodorovné osy →** (jako CNC editor a CAD; 0° = doprava, 90° = nahoru, proti směru hodin). Dřív se na karuselu měřil od +Z (nahoru) po směru hodin. Soustruh beze změny. Řešič dál počítá ve strojové rovině, převod je jen na hranici textu/formuláře (`js/calculators/vkAngle.js`). **Uložené VK programy na karuselu se čtou jinak** – PA ve starých zápisech přepiš jako 90 − PA.
 
 ### Fixed
