@@ -87,6 +87,16 @@ Kolmo jen tehdy, když je v nastavení kolmo (90°).**
   je v nastavení cokoli. Materiál, kam by musela sáhnout spodní hrana,
   zůstane stát a nahlásí se.
 - **Kulatá:** přednastaveno 45°; smí i kolmo, pokud je tak nastaveno.
+- **Kulatá u strmé stěny kolmo** (uživatel 11. 11. 2026: *„v místech, kde je
+  potřeba, nastavit ten úhel 90°"*): u stěny strmější než úhel zanoření se
+  do vrstvy sjede po stěně kolmo (nos po offsetu stěny), jinde platí úhel
+  zanoření. Hrubování se proto neřídí mezní čárou zanoření, dokončování ano
+  (pravidlo 15). Bez toho u stěny zůstal klín (karusel: až 63 mm). Zapíná
+  ho přepínač „Kolmo u strmé stěny" (`prms.wallPlunge`, výchozí VYPNUTO —
+  mění vrstvy pravidla 7 a s ním 11. 11. 2026 neprošly řetězy ramp
+  pravidla 14 a údolí kulaté R10). Jen podélné hrubování (karusel: Čelně po
+  X); klíč plátku `wallPlunge`; při 0° se nezanořuje vůbec. Kontrola: P6 bere sjezd po hrubovacím offsetu dílu jako
+  „po stěně". `cam/ops/long/rule7Layers.js`, `tests/cam-round-wall-plunge.test.js`.
 - **Čelně (kulatá)** — upřesnění uživatele 13. 10. 2026: krok do strany je ap,
   takže i do plného materiálu jde průchod nejvýš o ap·tan(úhel zanoření) pod
   dno předchozí vrstvy (při 45° o ap) a další zase o ap níž — ne kolmo, jinak

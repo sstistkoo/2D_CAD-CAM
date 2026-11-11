@@ -52,7 +52,8 @@ const CUT_NEAR = 0.3; // podlaha dřívějších průchodů do 0,3 mm nad vrstvo
  */
 export function genRule7Layers(D) {
   const { passes, step, offsetXAt, traceOffsetPath, regions, depthsFor, stockLoop: stockLoopIn, stockLoopFull, noseR, plungeTan,
-    holderClamp, residEntryArea, newCutArea, cutStats, floorAt, entryTol = 0.5, clearX = 0, clearZ = 0, stockLoopRaw = null, foundErrors } = D;
+    holderClamp, residEntryArea, newCutArea, cutStats, floorAt, entryTol = 0.5, clearX = 0, clearZ = 0, stockLoopRaw = null, foundErrors,
+    wallPlunge = false } = D;   // wallPlunge: kolmý vjezd u strmé stěny (pravidlo 6, kulatá)
   let holderSkips = 0, holderShifts = 0, idleSkips = 0;
   let regionTop = Infinity;   // začátek právě obráběné oblasti (rozsah, mez úseku)
 
@@ -439,8 +440,15 @@ export function genRule7Layers(D) {
     const colAir = (z) => { const t = rawTab ? rawTop(z) : stockTop(z); return t === null || t <= Math.max(d - noseR, 0) + MAT; };
     const findEntry = () => {
       let entry = null;
-      if (f.leadIn && !steepLi(f.leadIn) && dropClear(f.leadIn[0].x1, f.leadIn[0].z1) && !outsideTouch(f.leadIn)) {
-        const c = { x: d, zStart: f.zStart, zEnd: f.zEnd, leadIn: f.leadIn };
+      // KOLMO U STRMÉ STĚNY (pravidlo 6, kulatá — uživatel 11. 11. 2026): nájezd
+      // po stěně od mělčí vrstvy se dřív zahodil, když byla stěna strmější než
+      // úhel zanoření. Vrstva pak sjela pod úhlem zanoření od začátku vrstvy nad
+      // ní a každá další začala o ap dál od stěny — u stěny zůstal klín (karusel,
+      // svislá stěna: až 63 mm). S `wallPlunge` se po strmé stěně sjede (nos po
+      // offsetu stěny, kolmo), se všemi kontrolami vjezdu (dojezd, kontura, držák).
+      const liSteep = !!f.leadIn && steepLi(f.leadIn);
+      if (f.leadIn && (!liSteep || wallPlunge) && dropClear(f.leadIn[0].x1, f.leadIn[0].z1) && !outsideTouch(f.leadIn)) {
+        const c = { x: d, zStart: f.zStart, zEnd: f.zEnd, leadIn: f.leadIn, wallPlunge: liSteep };
         if (fits(c)) entry = c;
       }
       // „Ze vzduchu" = celá kružnice nosu těsně PŘED začátkem (proti směru
@@ -525,7 +533,7 @@ export function genRule7Layers(D) {
     }
     if (!entry) { holderSkips++; return null; }
     if (entry.ramp && (f.leadIn || !colAir(f.zStart))) holderShifts++;
-    f.leadIn = entry.leadIn || null; f.ramp = entry.ramp || null; f.zStart = entry.zStart;
+    f.leadIn = entry.leadIn || null; f.ramp = entry.ramp || null; f.zStart = entry.zStart; f.wallPlunge = !!entry.wallPlunge;
     f.chainLeadIn = !!entry.chainLeadIn;
     // VRSTVA, KTERÁ NIC NEUBERE (pravidlo 5), se nevydá — u osy za čelem
     // vzaly všechno kružnice nosu mělčích vrstev. Měří se celou dráhou proti
@@ -581,6 +589,7 @@ export function genRule7Layers(D) {
       if (o.wallEnd || o.cont) pass.blocked = true;
       if (o.ramp) { pass.ramp = o.ramp; pass.rampEntryClear = true; }
       if (o.leadIn) { pass.contourLeadIn = o.leadIn; pass.leadInTrimmed = true; }
+      if (o.wallPlunge && o.leadIn) pass.wallPlunge = true;   // emise: poznámka „Kolmo u stěny"
       if (o.leadOut && o.leadOut.length) pass.contourLeadOut = o.leadOut;
       if (o.cont) pass.noRetract = true;
       if (o.holderClamped) pass.holderClamped = true;

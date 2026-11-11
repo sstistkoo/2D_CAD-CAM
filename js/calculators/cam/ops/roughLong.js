@@ -9,7 +9,7 @@ import { splitPocketsAtAir } from './long/airPieces.js';
 import { splitPocketLeadOutsOverHumps } from './long/pocketHumpSplit.js';
 import { guardInsertFlankLong } from './long/insertFlankGuard.js';
 import { checkPlanInvariants } from './long/planCheck.js';
-import { topXOnLoop, getEffectivePlungeAngle, plungeDisabled, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ, entryApproachDz } from '../camMath.js';
+import { topXOnLoop, getEffectivePlungeAngle, plungeDisabled, wallPlungeOn, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ, entryApproachDz } from '../camMath.js';
 import { applyPlungeZero, plungeZeroWarning } from './long/plungeZero.js';
 import { buildStockLoopRaw, insertExtent, offsetStockLoop, toolFootprint, toolFootprintVisual } from '../materialRemoval.js';
 import { ResidualTracker } from '../residualTracker.js';
@@ -819,7 +819,7 @@ export function genLongPasses(ctx) {
         const top = loopTopXIn(stockLoopOffsetL, zLo, zHi);
         return top === null ? [] : buildDepths(top, top);
       },
-      stockLoop: stockLoopOffsetL, stockLoopFull: stockLoopOffsetFullL, noseR: noseLiftL, plungeTan: effPlungeTanL, holderClamp: holderClampZEnd,
+      stockLoop: stockLoopOffsetL, stockLoopFull: stockLoopOffsetFullL, noseR: noseLiftL, plungeTan: effPlungeTanL, holderClamp: holderClampZEnd, wallPlunge: wallPlungeOn(prms),
       // Držák do polotovaru ani o kousek (pravidlo uživatele 25. 9. 2026) — přísně 0,05 mm².
       // Vjezd pravidla 7 se měří v POLOHÁCH po 2 mm, validátor plochu, kterou
       // držák za celý pohyb PŘEJEDE (tolerance 0,5 mm² na blok) — u stěny hrbu

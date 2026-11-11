@@ -2166,6 +2166,14 @@ nesmí ani ručně), kulatá 45° (ručně jde změnit), upichovák vždy kolmo 
 (pole je zamčené). **Upichovákem se podélně nehrubuje** — hrubuje se čelně
 a tvar objede dokončení; tlačítko *Podélně* je u něj zamčené.
 
+**Kulatá destička: Kolmo u strmé stěny** (zaškrtávátko pod Úhlem zanoření,
+výchozí vypnuté; jen podélné hrubování, na karuselu Čelně po X). U stěny strmější než úhel
+zanoření (svislá stěna pod ramenem, strmý bok drážky) sjede hrubování po stěně
+kolmo a vrstvy začínají přímo u ní. V programu to poznáš podle poznámky
+`Kolmo u stěny`. Dřív tam po 45° rampách zůstával klín (na karuselu až 63 mm).
+Jinde platí nastavený úhel zanoření. Dokončování strmou stěnu dál nesjíždí
+(pravidlo 15).
+
 **Úhel zanoření 0° = bez zanořování.** Ručně zadaná nula (vypni *Auto* a
 napiš 0) znamená, že se podélné hrubování do materiálu nezanořuje vůbec:
 žádná rampa, kapsa ani sjíždění po kontuře k ose. Vrstva vznikne jen tam,

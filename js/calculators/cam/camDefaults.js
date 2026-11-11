@@ -219,6 +219,7 @@ export function _defaultCamParams() {
     noStepRoughing: false,
     // Stejné chování i pro čelní (X) hrubování.
     noStepRoughingFace: false,
+    wallPlunge: false,   // kulatá: kolmo u strmé stěny (camMath.js wallPlungeOn), přepínač v panelu
     // Hlídání držáku podle POŘADÍ obrábění (docs/cam-order-aware-holder.md).
     // Vjezd kapsového zákroku se posuzuje proti ZBYTKU, který v tu chvíli
     // opravdu stojí (`ResidualTracker` + `holderAreaAlongResidual`), ne jen

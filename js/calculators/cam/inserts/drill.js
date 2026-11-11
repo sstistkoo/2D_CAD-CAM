@@ -68,6 +68,7 @@ export function drillInsert(prms) {
     leadInSteepToChain: false,
     approachFromNoseContact: false,
     rule7Layers: false,
+    wallPlunge: false,   // kolmý vjezd u strmé stěny — jen kulatá (round.js)
     realStockLayers: false,
     leadOutPastRampWall: false,
     closingLayerTracesFloor: false,

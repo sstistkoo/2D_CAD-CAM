@@ -478,7 +478,29 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   // posouvala začátek i kvůli zbytku 0,12 mm (díl uživatele 2026-07-07 (3)).
   if (rapidStock) {
     const startCut = finStartCut;
+    // Začátek nesmí ležet ani POD offsetem jiné části dílu (nedosažitelná
+    // strmá stěna, tečkovaně): hotovní offset ji vynechá (pravidlo 15), takže
+    // úsek po dně pokračuje až pod patu stěny a svislý nájezd na něj by do
+    // stěny zajel. Dosud to krýl klín u stěny (zbytek posunul začátek), bez
+    // něj karusel `G1 Z66` zajel 5,7 mm² do dílu (11. 11. 2026).
+    // Měří se KRUŽNICE NOSU proti obrysu dílu (vzdálenost středu od kontury
+    // < R − 0,05), ne výška offsetu v jednom Z: na čele (svislá plocha) je
+    // offset v tom Z vrch čela a „pod offsetem" by byl každý bod čela —
+    // dokončování by čelo k ose vynechalo (part-1: start X31 místo X0).
+    const partLoopF = offsetSilhouetteLoop(calc.contourSegments);
+    const noseInPart = (x, z) => {
+      if (!partLoopF || partLoopF.length < 3 || !(finTipR > 0)) return false;
+      const lim = finTipR - 0.05;
+      for (let k = 0; k < partLoopF.length; k++) {
+        const a = partLoopF[k], b = partLoopF[(k + 1) % partLoopF.length];
+        const ex = b.x - a.x, ez = b.z - a.z, L2 = ex * ex + ez * ez;
+        const t = L2 > 0 ? Math.max(0, Math.min(1, ((x - a.x) * ex + (z - a.z) * ez) / L2)) : 0;
+        if (Math.hypot(x - (a.x + ex * t), z - (a.z + ez * t)) < lim) return true;
+      }
+      return false;
+    };
     const deepAt = (x, z) => {
+      if (noseInPart(x, z)) return true;
       const top = residualTopXAtZ(z);
       return top !== null && top > x - finTipR + startCut;
     };

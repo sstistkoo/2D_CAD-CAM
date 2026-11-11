@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **CAM – kulatá destička: přepínač „Kolmo u strmé stěny“** (pravidlo 6, uživatel 11. 11. 2026, výchozí vypnutý). Zapnutý mění vrstvy pravidla 7, a s ním neprošly řetězy ramp (pravidlo 14) a vrstvy v údolí u šesti testů kulaté R10, proto je jen na vyžádání. Mezní čára zanoření (pod úhlem zanoření od vrcholu strmé stěny) dřív vedla i hrubovací offset. Vrstvy pod ramenem tak začínaly po 45° dál od stěny a u ní zůstal klín: na karuselu `carousel-face-swap-xz` až 63 mm, teď pod 2 mm. Hrubování teď sjede po stěně kolmo a v programu to značí poznámka `Kolmo u stěny`. Dokončování se čarou řídí dál (pravidlo 15). Klíč plátku `wallPlunge` (jen kulatá), zapíná ho `prms.wallPlunge === true`. Při 0° se nezanořuje vůbec. Kontrola pravidel P6 bere sjezd po hrubovacím offsetu dílu jako „po stěně“. Výchozí otisk se nemění. Test `tests/cam-round-wall-plunge.test.js`.
+
 ### Fixed
+
+- **CAM dokončování: začátek řetězu nesmí zajet do dílu.** Hotovní offset strmou stěnu vynechá (pravidlo 15), takže úsek po dně pokračoval až pod patu stěny a svislý nájezd na něj by do stěny zajel. Dosud to krýl zbytek u stěny, který začátek posunul. Teď se začátek posune i tam, kde by kružnice nosu zasáhla obrys dílu. Bez klínu na karuselu jinak zajelo 5,7 mm² do dílu. Odstranilo to i drobná zajetí 0,03 mm² na `holder-casting-slanted-face` a `holder-region-roughing`.
 
 - **CAM hrubování: zbytečný „Přejezd materiálem posuvem“ přes vzduchovou mezeru.** Řezy těla průchodu se do modelu zbytku zapisovaly až na konci průchodu. Přejezd mezerou uprostřed průchodu (drážka odlitku, kapsa po kontuře) tak narážel na materiál, který tentýž průchod právě odebral, a jel posuvem, dokud z něj zadní půlka nosu nevyjela. Na karuselu s R5 to bylo 19 přejezdů po 4 mm, na `part-22-round-r10` 3. Teď se řez zapíše hned, stejně jako už dřív u výjezdu z řezu. Skutečný zbytek po dřívějších průchodech se dál jede posuvem. `ops/roughEmit.js`, otisk: změněn jen `part-22`.
 - **Kontrola pravidel P7/P8 (pořadí) nepočítá trvalý zbytek.** „Nehotová pravá strana“ se měří jen z materiálu, který program později opravdu odebere. Klín u strmé stěny, kam hrubování při úhlu zanoření nedosáhne, zůstane navždy (hlásí ho P3), takže pořadí neporuší. Dřív se hlásil jako porušení pořadí (karusel: „vpravo ještě 50,63 mm“ = přesně klín v drážce). Test `tests/cam-rule-order-check.test.js`.

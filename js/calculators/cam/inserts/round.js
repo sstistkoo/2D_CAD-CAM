@@ -185,6 +185,11 @@ export function roundInsert(prms) {
     //                              (ops/long/rule7Layers.js) místo hloubkové smyčky
     //                              a dodatečných úprav pořadí (29. 9. 2026)
     rule7Layers: true,
+    //   wallPlunge               — u stěny strmější než úhel zanoření se do vrstvy
+    //                              sjede po stěně kolmo (bez mezní čáry zanoření,
+    //                              getPlungeGuardRange). Pravidlo 6, uživatel
+    //                              11. 11. 2026: bez toho u svislé stěny klín až 63 mm.
+    wallPlunge: true,
     //   realStockLayers          — viz polygon.js; kulatá měří skutečný polotovar
     //                              v rule7Layers.js, starý cyklus nepouští
     realStockLayers: false,

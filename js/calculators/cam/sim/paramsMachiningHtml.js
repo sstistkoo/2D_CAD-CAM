@@ -198,6 +198,15 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
       <div class="cam-sim-field" style="flex:2" title="Úhel, pod kterým nástroj rampuje do materiálu (nájezd dokončování, zanořování do kapes).${plungeNA ? ' POZOR: při ČELNÍM hrubování se úhel uplatní jen na nájezd dokončování — samotné čelní průchody jedou radiálně, bez rampy.' : ''} Auto = úhel spodní hrany destičky (podélně: natočení; čelně: natočení + ε − 90; kulatá destička: 45°; upichovák: 90° = svisle). Je-li u POLYGONÁLNÍ destičky nastaven úhel hřbetu α, omezuje výsledek shora — hřbet destičky by kontaktoval materiál při strmějším zanoření; u kulaté, upichovací a závitové destičky se α do úhlu zanoření nepromítá. 0 = bez zanořování: do materiálu se nesjíždí vůbec (žádná rampa, kapsa ani sjíždění po kontuře), co jde vzít jen zanořením, zůstane stát a nahlásí se."><label>Úhel zanoření (°)${plungeClampedByAlpha ? ` <span style="color:#fab387" title="Omezeno úhlem hřbetu α=${clearDegUI}°">⚠ α</span>` : ''}${effPlunge === 0 ? ' <span style="color:#fab387">= bez zanořování</span>' : ''}</label><input type="number" step="0.5" min="0" max="${prms.toolShape === 'parting' ? 90 : 89}" data-p="entryAngle" value="${effPlunge}"></div>
       <div class="cam-sim-field" style="flex:1"><label>&nbsp;</label><button data-act="plunge-auto" class="cam-sim-btn ${prms.entryAngleAuto ? 'cam-sim-btn-green' : 'cam-sim-btn-gray'}" style="padding:4px 8px;font-size:11px" title="Auto = dopočítat úhel ze spodní hrany destičky (u polygonální destičky omezeno úhlem hřbetu α, je-li nastaven)">${prms.entryAngleAuto ? '🔗 Auto' : 'Auto'}</button></div>
     </div>`;
+    // Kulatá: kolmo u strmé stěny (pravidlo 6, `wallPlungeOn` v camMath.js) — jen
+    // kde působí: plátek s klíčem `wallPlunge`, podélné hrubování (karusel po X
+    // = „Čelně" v prohozených osách). Výchozí vypnuto.
+    const longLike = prms.roughingStrategy === 'longitudinal' || prms.roughingStrategy == null
+      || (prms.machineStructure === 'carousel' && prms.carouselAlongX !== false && prms.roughingStrategy === 'face');
+    if (getInsert(prms).wallPlunge && longLike) html += `<div class="cam-sim-checkbox-row" data-tooltip="U stěny strmější než úhel zanoření sjede hrubování po stěně kolmo a vrstvy začnou přímo u ní (v programu „Kolmo u stěny"). Bez toho tam po rampách zůstane klín. Dokončování strmou stěnu dál nesjíždí.">
+      <input type="checkbox" id="cam-sim-wallplunge" ${prms.wallPlunge === true ? 'checked' : ''}>
+      <span>Kolmo u strmé stěny</span>
+    </div>`;
     html += `<div class="cam-sim-checkbox-row" data-tooltip="Dráha nástroje přesně po kontuře (pouze s korekcí R).">
       <input type="checkbox" id="cam-sim-fin" ${prms.doFinishing ? 'checked' : ''}>
       <span>Dokončovací operace</span>

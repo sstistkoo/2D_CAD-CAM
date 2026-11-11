@@ -358,11 +358,14 @@ calc.passes.forEach((pass, i) => {
       // tak znovu objížděla plošinu Z 9,5 … −4,4 posuvem jen proto, aby
       // se dostala k proužku za ní (23. 9. 2026).
       if (seg.type === 'line' && emitOverCutRapid(seg)) continue;
+      // Sjezd po strmé stěně (kulatá, rule7Layers `wallPlunge`, pravidlo 6):
+      // poznámku čte i kontrola pravidel — kolmo u stěny je tu dovoleno.
+      const wallCmt = pass.wallPlunge && seg.x2 < fx - 0.05 ? note('', 'Kolmo u stěny') : '';
       if (seg.type === 'line') {
-        simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+        simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}${wallCmt}`, simCounter); setPos(seg.x2, seg.z2);
         noteCutMove(fx, fz, seg.x2, seg.z2);
       } else {
-        simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(arcSignedR(seg, fx, fz))} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+        simCounter += 1; arcFeed(seg); addN(`${flipArc(seg.dir)} X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} ${arcR(arcSignedR(seg, fx, fz))} F${prms.feed}${wallCmt}`, simCounter); setPos(seg.x2, seg.z2);
         noteCutArc(seg, fx, fz);
       }
     }

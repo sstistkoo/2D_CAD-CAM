@@ -39,7 +39,7 @@ const { runCamProg } = await imp('tests/helpers/camHeadless.mjs');
 const { MaterialRemoval, toolFootprint } = await imp('js/calculators/cam/materialRemoval.js');
 const { validateToolpath } = await imp('js/calculators/cam/collisionValidator.js');
 const { offsetSilhouetteLoop } = await imp('js/calculators/cam/toolEnvelope.js');
-const { getEffectivePlungeAngle, plungeDisabled, topXOnLoop } = await imp('js/calculators/cam/camMath.js');
+const { getEffectivePlungeAngle, plungeDisabled, wallPlungeOn, topXOnLoop } = await imp('js/calculators/cam/camMath.js');
 const { getInsert } = await imp('js/calculators/cam/inserts/index.js');
 const { stripCodeOwnedParams } = await imp('js/calculators/cam/camDefaults.js');
 const { makePassHelpers } = await imp('js/calculators/cam/passHelpers.js');
@@ -233,7 +233,21 @@ async function check(file) {
       const dx = b.x - a.x, dz = b.z - a.z;
       if (!partingOk && dx < -0.2 && cut > 0.1) {
         const deg = Math.abs(dz) < 1e-9 ? 90 : Math.atan(Math.abs(dx) / Math.abs(dz)) * 180 / Math.PI;
-        const lim = finishFromLine >= 0 && sp[i].originalLineIdx > finishFromLine ? plungeLimitFinish : plungeLimit;
+        // Kolmo u strmé stěny (kulatá, pravidlo 6 — uživatel 11. 11. 2026) je
+        // schválená výjimka PRO HRUBOVÁNÍ: sjezd po stěně = střed nosu jede po
+        // hrubovacím offsetu dílu (emise ho navíc značí „Kolmo u stěny").
+        const roughing = !(finishFromLine >= 0 && sp[i].originalLineIdx > finishFromLine);
+        const onWall = () => {
+          if (!offsetXAt) return false;
+          for (let k = 0; k <= 4; k++) {
+            const t = k / 4, ox = offsetXAt(a.z + dz * t);
+            if (ox === null || Math.abs(ox - (a.x + dx * t)) > 0.1) return false;
+          }
+          return true;
+        };
+        const wall = roughing && wallPlungeOn(P)
+          && (/Kolmo u stěny/.test(lines[sp[i].originalLineIdx] || '') || onWall());
+        const lim = wall ? 90 : roughing ? plungeLimit : plungeLimitFinish;
         if (deg > lim + 1) found.plunge.push({ i, v: deg, lim });
       }
       // P7/P8 — posuzuje se na první vrstvě (posuv v Z) po rychloposuvu.

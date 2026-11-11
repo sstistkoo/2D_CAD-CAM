@@ -43,6 +43,19 @@ export function plungeDisabled(prms) {
   return parseFloat(prms.entryAngle) === 0;
 }
 
+// Kolmo u strmé stěny (pravidlo 6, uživatel 11. 11. 2026): klíč plátku
+// `wallPlunge` (jen kulatá). Stěnu strmější než úhel zanoření nehlídá mezní
+// čára zanoření (getPlungeGuardRange) a vrstvy pod ní sjedou po stěně kolmo
+// (rule7Layers.js) — bez toho u ní zůstal klín (karusel: až 63 mm).
+// Zapíná se `prms.wallPlunge === true` (přepínač); 0° = nezanořuje se vůbec.
+export function wallPlungeOn(prms) {
+  // Přepínač v panelu (výchozí VYPNUTO): mění vrstvy pravidla 7 a s nimi
+  // řetězy ramp (pravidlo 14) a vjezdy do údolí — 11. 11. 2026 to rozbilo
+  // 6 testů kulaté R10, proto jen na vyžádání (např. karusel se svislou stěnou).
+  if (!prms || prms.wallPlunge !== true || plungeDisabled(prms)) return false;
+  return !!getInsert(prms).wallPlunge;
+}
+
 // Obálka upichováku v jedné osové poloze z = maximum předlohy xAt přes šířku
 // plátku (okno [z, z + dir·span], vzorky po ≤ h); null = pod tělem plátku
 // žádná předloha není.

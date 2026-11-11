@@ -7,7 +7,7 @@
 
 import { bridge } from '../../bridge.js';
 import { topXOnLoop, _locateOnContour, dropTinyArcs, fitArcsToPolyline, getArcParams, getNormal, intersectSegAtZ, samplePartingEnvelope, segEndPoint, segStartPoint, syncArcEndpoints } from './camMath.js';
-import { getEffectivePlungeAngle } from './camMath.js';
+import { getEffectivePlungeAngle, wallPlungeOn } from './camMath.js';
 import { buildMachinableContour, extendOffsetStartToAxis, machinableRangeOf, foldContourToMachiningSide, getPlungeGuardRange, getToolClearanceRange, markDominatedGuides, normalizeContourDirection, removeContourSelfIntersections, resolveOuterProfile, resolvePointsToAbsolute, segInterferesWithTool, spliceBridgeSegments, trimAndRemoveLoops } from './contourBuild.js';
 import { buildRawOffsets, isOuterArc } from './toolOffset.js';
 import { parseManualGCodeToPath } from './gcodeParser.js';
@@ -499,7 +499,13 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     const endBeyondChain = getRoughingOperations(S)
       .some(op => !!(ROUGHING_STRATEGIES[op.kind] || {}).guideEndBeyondChain);
     if (pgs.length > 0 && tipR > 0) {
-      offsetPath = joinPlungeGuideOffsets(offsetPath, pgs,
+      // KOLMO U STRMÉ STĚNY (kulatá, `wallPlungeOn`, pravidlo 6 — uživatel
+      // 11. 11. 2026): hrubování sjede po stěně kolmo (ops/long/rule7Layers.js),
+      // takže jeho offset čáru zanoření NEKOPÍRUJE — jinak u stěny zůstal klín
+      // (karusel: až 63 mm). Hotovní čára (níž) se napojuje dál: dokončování
+      // strměji než úhel zanoření nesjíždí (pravidlo 15).
+      const rk = roughingKey(S), wallRough = wallPlungeOn(prms) && (rk === 'longitudinal' || rk === 'backside');   // jen podélně (rule7); cik cak a čelně beze změny
+      if (!wallRough) offsetPath = joinPlungeGuideOffsets(offsetPath, pgs,
         tipR + allowanceX + finishAllowance, tipR + allowanceZ + finishAllowance,
         'offRough', contourSegments, { endBeyondChain });
       // Cik cak (uživatel 1. 11. 2026): vrstvy za hrbolem jdou ze vzduchu ke

@@ -120,6 +120,7 @@ export function polygonInsert(prms) {
     leadInSteepToChain: false,
     approachFromNoseContact: false,
     rule7Layers: false,
+    wallPlunge: false,   // kolmý vjezd u strmé stěny — jen kulatá (round.js)
     // ── PRAVIDLO 9 VE STARÉM HLOUBKOVÉM CYKLU (7. 10. 2026) ───────────────
     //   realStockLayers — vrstva, která celou dráhou ze SKUTEČNÉHO polotovaru
     //                     nic neubere, se nevydá a konec dojezdu ve vůli se

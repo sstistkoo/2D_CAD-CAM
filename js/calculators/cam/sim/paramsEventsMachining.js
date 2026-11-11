@@ -65,6 +65,8 @@ export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange
   if (plungeCb) plungeCb.addEventListener('change', () => { S.params.plungeRoughing = plungeCb.checked; applyChange(); });
   const noStepCb = tabBody.querySelector('#cam-sim-nostep');
   if (noStepCb) noStepCb.addEventListener('change', () => { S.params.noStepRoughing = noStepCb.checked; applyChange(); });
+  const wallPlungeCb = tabBody.querySelector('#cam-sim-wallplunge');
+  if (wallPlungeCb) wallPlungeCb.addEventListener('change', () => { S.params.wallPlunge = wallPlungeCb.checked; applyChange(); });
   const noStepFaceCb = tabBody.querySelector('#cam-sim-nostep-face');
   if (noStepFaceCb) noStepFaceCb.addEventListener('change', () => { S.params.noStepRoughingFace = noStepFaceCb.checked; applyChange(); });
   const plungeAutoBtn = tabBody.querySelector('[data-act="plunge-auto"]');
