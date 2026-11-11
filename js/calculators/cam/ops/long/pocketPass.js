@@ -14,6 +14,7 @@ import { depthKey, mergeCollinearSegs, subdivideLineSegs, segAt } from './segUti
 import { HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
 import { RESIDUAL_FIT_TOL } from '../../residualHolder.js';
 import { getInsert } from '../../inserts/index.js';
+import { plungeDisabled } from '../../camMath.js';
 import { leadInTail } from './humpOrder.js';
 import { wallEntryLeadIn } from './wallEntry.js';
 
@@ -283,7 +284,7 @@ export function emitPocketInterval(D) {
     if (!raw || !(raw.x < currentX - 0.05)) return;
     pendingRampCompletions.push({ resumeX: currentX, resumeZ: s.z2, targetX: raw.x, targetZ: raw.z });
   };
-if (!prms.plungeRoughing) return;
+if (!prms.plungeRoughing || plungeDisabled(prms)) return;   // 0° = bez zanořování (camMath.js)
 // Když je úplně první interval blokovaný (idx===0, !firstOpen),
 // neexistuje předchozí interval → horní hranice mezery = okraj
 // polotovaru (sz.zMax). Bez fallbacku by intervals[-1] spadlo.

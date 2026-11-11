@@ -2166,6 +2166,15 @@ nesmí ani ručně), kulatá 45° (ručně jde změnit), upichovák vždy kolmo 
 (pole je zamčené). **Upichovákem se podélně nehrubuje** — hrubuje se čelně
 a tvar objede dokončení; tlačítko *Podélně* je u něj zamčené.
 
+**Úhel zanoření 0° = bez zanořování.** Ručně zadaná nula (vypni *Auto* a
+napiš 0) znamená, že se podélné hrubování do materiálu nezanořuje vůbec:
+žádná rampa, kapsa ani sjíždění po kontuře k ose. Vrstva vznikne jen tam,
+kam se vjede ze vzduchu vodorovně; dojezd přes hrb končí na jeho vrcholu.
+Co by šlo vzít jen zanořením, zůstane stát pro dokončování a ⚠ panel napíše
+„Zanořování vypnuté (úhel 0°): N vrstev vynecháno". Nájezd dokončování
+jede dál pod úhlem plátku. Upichovák (vždy kolmo) ani čelní hrubování se
+to netýká.
+
 ### Hrubování bez schodků a „i u čelního"
 **Hrub. bez schodků** = po dojezdu vrstvy na offset nástroj místo okamžitého
 odskoku dál sleduje konturu (G1/G2/G3) až na hloubku dalšího průchodu, takže se

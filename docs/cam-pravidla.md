@@ -93,6 +93,14 @@ Kolmo jen tehdy, když je v nastavení kolmo (90°).**
   hrozí vylomení držáku s plátkem. Kde je vedle vzduch (čelo, osa, za koncem
   polotovaru), mez neplatí. `cam/ops/face/plungeDescent.js`.
 - **Upichovák:** kolmo (to je jeho normální zanoření).
+- **0° = bez zanořování** (pokyn uživatele 28. 9. 2026, schváleno 11. 11. 2026):
+  při podélném hrubování se do materiálu nezanořuje vůbec — žádná rampa,
+  kapsa ani sjíždění po kontuře k ose. Vrstva jen tam, kam se vjede ze
+  vzduchu vodorovně (pravidlo 10, bod 2); zbytek zůstane stát a nahlásí se.
+  Upichovák (vždy kolmo) a čelní hrubování (jede radiálně) se to netýká;
+  nájezd dokončování jede dál pod úhlem plátku. Kontrola: žádný řezný posuv
+  hrubování k ose (P6 s limitem 0°). `plungeDisabled()` v `cam/camMath.js`,
+  `cam/ops/long/plungeZero.js`.
 - Rampa nikdy nevezme víc než jednu vrstvu (ap) — viz pravidlo 3.
 
 ## Pravidlo 7 — Vrstva jede až na konec, pravá strana nejdřív ✅ schváleno

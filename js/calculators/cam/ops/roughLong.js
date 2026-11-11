@@ -9,7 +9,8 @@ import { splitPocketsAtAir } from './long/airPieces.js';
 import { splitPocketLeadOutsOverHumps } from './long/pocketHumpSplit.js';
 import { guardInsertFlankLong } from './long/insertFlankGuard.js';
 import { checkPlanInvariants } from './long/planCheck.js';
-import { topXOnLoop, getEffectivePlungeAngle, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ, entryApproachDz } from '../camMath.js';
+import { topXOnLoop, getEffectivePlungeAngle, plungeDisabled, isAngleBetween, samplePartingEnvelope, fitArcsToPolyline, stockClearances, stockClearanceIsZero, stockOuterXAtZ, entryApproachDz } from '../camMath.js';
+import { applyPlungeZero, plungeZeroWarning } from './long/plungeZero.js';
 import { buildStockLoopRaw, insertExtent, offsetStockLoop, toolFootprint, toolFootprintVisual } from '../materialRemoval.js';
 import { ResidualTracker } from '../residualTracker.js';
 import { RESIDUAL_FIT_TOL } from '../residualHolder.js';
@@ -39,6 +40,7 @@ import { makeRealStock, passPath, pathLen } from './long/realStock.js';
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
   const ins = getInsert(ctx.prms);
+  const passesAtStart = ctx.passes.length;   // 0° = bez zanořování filtruje jen svoje (long/plungeZero.js)
   const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, machiningRange: machiningRangeIn, machiningRangeX, holderClampZEnd, interferenceGuides } = ctx;
   // KONEC ROZSAHU Z (ruční 📐 uvnitř úseku i stěna pod X max, pravidlo 12)
   // platí pro OBRYS DESTIČKY: průchody končí STŘEDEM nosu, plátek sahá dál —
@@ -555,7 +557,7 @@ export function genLongPasses(ctx) {
   let noEntrySkips = 0;
   // Vrstvy zahozené pravidlem „kolmé zanoření je zakázané" (ops/long/openPass.js).
   // Objekt, ne číslo — `emitOpenInterval` do něj zapisuje zevnitř.
-  const skipCounters = { plungeForbidden: 0 };
+  const skipCounters = { plungeForbidden: 0, plungeOff: 0 };
 
   // ── Upichovák (parting) v podélném hrubování ──
   // Zanoření je svislé a tělo plátku (šířka wIns) zasahuje od programovaného
@@ -835,6 +837,8 @@ export function genLongPasses(ctx) {
         return tab && i >= 0 && i < tab.length ? tab[i] : Infinity;
       },
     });
+    // 0° = bez zanořování i pro vrstvy pravidla 7: zbude jen vjezd ze vzduchu vodorovně (pravidlo 10, bod 2).
+    if (plungeDisabled(prms)) { applyPlungeZero({ passes, passesAtStart, skipCounters, step, noseLiftL, offsetStockTopXAtZ, blockedAt, T }); plungeZeroWarning(skipCounters, foundErrors); }
     return;
   }
   for (const _region of _regions) {
@@ -1199,7 +1203,7 @@ export function genLongPasses(ctx) {
     // pořadí obrábění (`regionCapped`, řádek s `__deferEntry` níž) se tím
     // nemění — hranice pořád patří regionu, jen se přes ni nejezdí šikmo.
     let noRampNeeded = false;
-    if (prms.plungeRoughing) {
+    if (prms.plungeRoughing && !plungeDisabled(prms)) {
       const surf0 = offsetStockTopXAtZ(entryZ);
       const rampReach = surf0 !== null ? entryZ - (surf0 - currentX) / effPlungeTanL : Infinity;
       if (!firstOpen || intervals.length === 0 || rampReach <= effZMin + 0.05 || regionCappedRaw) {
@@ -1485,8 +1489,9 @@ export function genLongPasses(ctx) {
         advanceChainOver(nBeforeOpen, currentX);
         return;
       }
-      // Kapsa za bossem kontury — viz ops/long/pocketPass.js.
-      const cnt = { partingNarrowPockets, plungeShallowed, pocketHolderSkips, noEntrySkips };
+      // Kapsa za bossem kontury — viz ops/long/pocketPass.js. 0° = bez zanořování: do kapsy se nevjede, kus se nahlásí.
+      if (prms.plungeRoughing && plungeDisabled(prms)) { skipCounters.plungeOff++; return; }
+      const cnt ={ partingNarrowPockets, plungeShallowed, pocketHolderSkips, noEntrySkips };
       const nBeforePocket = passes.length;
       emitPocketInterval({
         prms, passes, step, dzScan, currentX, idx, intervals, effZMin,
@@ -2245,7 +2250,7 @@ export function genLongPasses(ctx) {
             const clrZ = (stockClearanceIsZero(prms) ? 0 : stockClearances(prms).z) + 0.5;
             const zS = dirS < 0 ? cover.zLo - clrZ : cover.zHi + clrZ;
             if (dirS < 0 ? zS <= p.zEnd + dzScan : zS >= p.zEnd - dzScan) break;
-            p.zStart = zS; p.entryShifted = true;
+            p.zStart = zS; p.entryShifted = true; if (plungeDisabled(prms)) p.__plungeOffDrop = true;   // 0°: začátek v materiálu → vynechat
           }
         }
         const zHiP = Math.max(p.zStart, p.zEnd), zLoP = Math.min(p.zStart, p.zEnd);
@@ -2264,7 +2269,7 @@ export function genLongPasses(ctx) {
             const zS = p.zStart + dir * d;
             if (holderFitAreaAlong({ ...p, zStart: zS }) <= HOLDER_FIT_TOL) {
               dropped.push({ x: p.x, zHi: Math.max(p.zStart, zS), zLo: Math.min(p.zStart, zS) });
-              p.zStart = zS; p.entryShifted = true;
+              p.zStart = zS; p.entryShifted = true; if (plungeDisabled(prms)) p.__plungeOffDrop = true;
               break;
             }
           }
@@ -2460,6 +2465,7 @@ export function genLongPasses(ctx) {
     if (floorHO) { T.cutFloorTab = null; T.cutFloorSynced = 0; }
   }
   } // konec smyčky regionů
+  if (plungeDisabled(prms)) applyPlungeZero({ passes, passesAtStart, skipCounters, step, noseLiftL, offsetStockTopXAtZ, blockedAt, T });
 
   if (deferredHolderSkips > 0)
     foundErrors.push({ type: 'warning', msg: `Hlídání držáku: ${deferredHolderSkips} odložené zanoření vynecháno — po obrobení zbytku úseku by se do něj držák už nevešel.` });
@@ -2468,6 +2474,7 @@ export function genLongPasses(ctx) {
       : (noEntrySkips < 5 ? `${noEntrySkips} vrstvy vynechány` : `${noEntrySkips} vrstev vynecháno`);
     foundErrors.push({ type: 'warning', msg: `Zanořování: ${phrase} — do kapsy nevede ani rampa, ani nájezd po kontuře (jinak by se muselo zapíchnout kolmo). Materiál zůstává pro dokončování.` });
   }
+  plungeZeroWarning(skipCounters, foundErrors);
   if (skipCounters.plungeForbidden > 0) {
     const n = skipCounters.plungeForbidden;
     const phrase = n === 1 ? '1 vrstva vynechána' : (n < 5 ? `${n} vrstvy vynechány` : `${n} vrstev vynecháno`);
