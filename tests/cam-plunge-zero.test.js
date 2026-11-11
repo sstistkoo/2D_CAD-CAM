@@ -85,6 +85,31 @@ describe('CAM: Úhel zanoření 0° = bez zanořování', () => {
     expect(r.errors.some(e => typeof e !== 'string' && /Zanořování vypnuté \(úhel 0°\)/.test(e.msg))).toBe(true);
   });
 
+  // Karusel po X (pravidlo 21) = podélné hrubování v prohozených osách → 0°
+  // platí stejně jako na soustruhu (rozhodnutí uživatele 11. 11. 2026). „K ose"
+  // je tam skutečné −Z (dolů ke stolu): s auto úhlem 53–68 posuvů dolů a rampy,
+  // s 0° žádná rampa a jediný posuv dolů = přejezd do počáteční polohy na konci
+  // hrubování (ten je tam i s auto úhlem).
+  it.each(['carousel-face-swap-xz', 'carousel-sections3'])('karusel po X (%s): žádná rampa, posuv dolů jen do počáteční polohy', async (name) => {
+    const r = await runCamProg(zero(load(`cam-cases/${name}.camprog`)));
+    const lines = r.gcode.split('\n');
+    const finishFrom = lines.findIndex(l => /^[;(]\s*---\s*DOKON/.test(l));
+    const rough = finishFrom >= 0 ? lines.slice(0, finishFrom) : lines;
+    expect(rough.filter(l => /Rampa/.test(l))).toEqual([]);
+    let cur = { x: 0, z: 0 };
+    const down = [];
+    for (const l of rough) {
+      const c = l.split(';')[0];
+      const mx = c.match(/X(-?\d+\.?\d*)/), mz = c.match(/Z(-?\d+\.?\d*)/);
+      const n = { x: mx ? +mx[1] : cur.x, z: mz ? +mz[1] : cur.z };
+      // Dotek nosu nad začátkem vrstvy (Stop rychloposuvu, ≤ 2 mm) není zanoření.
+      if (/\bG0?[123]\b/.test(c) && n.z < cur.z - 2.5) down.push(c.trim());
+      cur = n;
+    }
+    expect(down.length, down.join('\n')).toBeLessThanOrEqual(1);
+    expect(r.errors.some(e => typeof e !== 'string' && /Zanořování vypnuté \(úhel 0°\)/.test(e.msg))).toBe(true);
+  });
+
   it('polygon (part-1): žádný posuv k ose v materiálu, hlubší vrstva nebere dvojitou třísku', async () => {
     const { r, bad, worstChip } = await roughingMovesTowardAxis(zero(load('cam/part-1.camprog')));
     expect(bad, bad.join('\n')).toEqual([]);

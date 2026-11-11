@@ -2173,7 +2173,8 @@ kam se vjede ze vzduchu vodorovně; dojezd přes hrb končí na jeho vrcholu.
 Co by šlo vzít jen zanořením, zůstane stát pro dokončování a ⚠ panel napíše
 „Zanořování vypnuté (úhel 0°): N vrstev vynecháno". Nájezd dokončování
 jede dál pod úhlem plátku. Upichovák (vždy kolmo) ani čelní hrubování se
-to netýká.
+to netýká. Na **karuselu po X** platí totéž (nůž pak nesjíždí dolů ke stolu);
+**cik cak** 0° nezná a jede s úhlem plátku.
 
 ### Hrubování bez schodků a „i u čelního"
 **Hrub. bez schodků** = po dojezdu vrstvy na offset nástroj místo okamžitého

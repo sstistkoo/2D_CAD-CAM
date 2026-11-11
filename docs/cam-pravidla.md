@@ -100,7 +100,9 @@ Kolmo jen tehdy, když je v nastavení kolmo (90°).**
   Upichovák (vždy kolmo) a čelní hrubování (jede radiálně) se to netýká;
   nájezd dokončování jede dál pod úhlem plátku. Kontrola: žádný řezný posuv
   hrubování k ose (P6 s limitem 0°). `plungeDisabled()` v `cam/camMath.js`,
-  `cam/ops/long/plungeZero.js`.
+  `cam/ops/long/plungeZero.js`. **Karusel po X** (pravidlo 21) stejně jako
+  soustruh — „k ose" je tam dolů ke stolu (uživatel 11. 11. 2026). Cik cak
+  0° nezná, jede s úhlem plátku.
 - Rampa nikdy nevezme víc než jednu vrstvu (ap) — viz pravidlo 3.
 
 ## Pravidlo 7 — Vrstva jede až na konec, pravá strana nejdřív ✅ schváleno
