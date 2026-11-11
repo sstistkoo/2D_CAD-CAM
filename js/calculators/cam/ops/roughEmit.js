@@ -565,10 +565,14 @@ calc.passes.forEach((pass, i) => {
         if (s.kind === 'G0') { emitAirZ(bodyX, s.z); continue; }
         const hitsStock = s.kind === 'G0'
           && (rapidHitsStock(bodyX, cur.z, bodyX, s.z) || rapidHitsPlan(bodyX, cur.z, bodyX, s.z));
+        const zFrom = cur.z;
         addN(s.kind === 'G0' && !hitsStock
           ? `G0 Z${s.z.toFixed(3)}`
           : `G1 Z${s.z.toFixed(3)} F${prms.feed}${hitsStock ? note('', 'Přejezd materiálem posuvem') : ''}`, simCounter);
         setPos(bodyX, s.z);
+        // Řez hned do modelu zbytku — jako u těla otevřeného průchodu níž
+        // (fantomový zbytek vlastního řezu před mezerou, 11. 11. 2026).
+        noteCutMove(bodyX, zFrom, bodyX, s.z);
       }
     }
     if (pass.contourLeadOut) {
@@ -744,10 +748,18 @@ calc.passes.forEach((pass, i) => {
       if (s.kind === 'G0') { emitAirZ(pass.x, s.z); continue; }
       const hitsStock = s.kind === 'G0'
         && (rapidHitsStock(pass.x, cur.z, pass.x, s.z) || rapidHitsPlan(pass.x, cur.z, pass.x, s.z));
+      const zFrom = cur.z;
       addN(s.kind === 'G0' && !hitsStock
         ? `G0 Z${s.z.toFixed(3)}`
         : `G1 Z${s.z.toFixed(3)} F${prms.feed}${hitsStock ? note('', 'Přejezd materiálem posuvem') : ''}`, simCounter);
       setPos(pass.x, s.z);
+      // Řez HNED do modelu zbytku (ne až `noteCutPass` na konci průchodu):
+      // přejezd vzduchovou mezerou za ním (`emitAirZ`) by jinak narazil na
+      // fantomový zbytek, který právě tenhle řez odebral, a jel by posuvem,
+      // dokud z něj zadní půlka nosu nevyjede (karusel R5: 19× „Přejezd
+      // materiálem posuvem" 4 mm, kontrola pravidel P5, 11. 11. 2026).
+      // Týž důvod jako u výjezdu z řezu níž.
+      noteCutMove(pass.x, zFrom, pass.x, s.z);
     }
     // Fáze 4: výjezd z materiálu do vzduchu — posuvem ještě o Vůli Z
     // za konec řezu, teprve pak odskok/rychloposuv. Jen u otevřeného

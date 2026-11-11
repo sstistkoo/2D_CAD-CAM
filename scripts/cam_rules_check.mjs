@@ -176,8 +176,9 @@ async function check(file) {
         const top = topAt(loopsBefore, z);
         if (top !== null && top - (x - lift) > worst) worst = top - (x - lift);
       }
-      let worstPlan = 0;
+      let worstPlan = 0, cutPlan = 0;
       if (rmPlan.model) {
+        const beforePlan = Math.abs(rmPlan.model.area());
         const lp = TL(rmPlan.model.loops);
         for (let k = 0; k <= Math.max(n, 1); k++) {
           const t = n > 0 ? k / n : 0, x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
@@ -185,6 +186,7 @@ async function check(file) {
           if (top !== null && top - (x - lift) > worstPlan) worstPlan = top - (x - lift);
         }
         rmPlan.advanceTo(spR, i);
+        cutPlan = beforePlan - Math.abs(rmPlan.model.area());
       }
       rm.advanceTo(spR, i);
       const cut = before - Math.abs(rm.model.area());
@@ -210,8 +212,12 @@ async function check(file) {
       if (Math.abs(b.x - a.x) < 1e-6 && len > 1 && cut > 0.05 && worst > 0.05 && worst < ap - THIN
           && (!rmPlan.model || worstPlan < ap - THIN))
         thinCand.push({ i, v: worst, z: (a.z + b.z) / 2, edge: b.x - lift });
-      // P5 — posuv vzduchem
-      if (len > AIR_MIN_LEN && cut < AIR_CUT_PER_MM * len) found.air.push({ i, v: len });
+      // P5 — posuv vzduchem. Vzduch = neubere nic ani z odlitku velkého až po
+      // OFFSETOVOU čáru (pravidlo 9: ta čára JE materiál). Měřeno jen proti
+      // nakreslenému odlitku se za vzduch počítal pás vůle, kterým emise
+      // správně jede posuvem (karusel R5, vůle 1 mm: 19× „Přejezd materiálem
+      // posuvem" 4 mm hlášeno jako vzduch, 11. 11. 2026).
+      if (len > AIR_MIN_LEN && Math.max(cut, cutPlan) < AIR_CUT_PER_MM * len) found.air.push({ i, v: len });
       // P6 — kolmé zanoření (pohyb k ose strmější než úhel zanoření)
       const dx = b.x - a.x, dz = b.z - a.z;
       if (!partingOk && dx < -0.2 && cut > 0.1) {
