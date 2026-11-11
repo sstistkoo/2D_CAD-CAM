@@ -24,6 +24,10 @@
 //   P4  vrstva končí uprostřed materiálu — hned za koncem průchodu
 //                              stojí materiál téže vrstvy a nebrání tomu díl
 // P1 (úseky) se z G-kódu ověřit nedá — hlídá ho test `cam-region-guide-split`.
+//
+// Parametry se berou jako v aplikaci (bez klíčů, které vlastní kód — Bp X500
+// Z500). Karusel po X (pravidlo 21) se měří v PROHOZENÝCH osách, kde dráhy
+// vznikají: „X" = výška nad stolem, „Z" = poloměr, držák svisle.
 
 import { readFileSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -37,6 +41,7 @@ const { validateToolpath } = await imp('js/calculators/cam/collisionValidator.js
 const { offsetSilhouetteLoop } = await imp('js/calculators/cam/toolEnvelope.js');
 const { getEffectivePlungeAngle, plungeDisabled, topXOnLoop } = await imp('js/calculators/cam/camMath.js');
 const { getInsert } = await imp('js/calculators/cam/inserts/index.js');
+const { stripCodeOwnedParams } = await imp('js/calculators/cam/camDefaults.js');
 const { makePassHelpers } = await imp('js/calculators/cam/passHelpers.js');
 const { polyOffset, pointInLoop } = await imp('js/geom/geomCore.js');
 const { makeOrderChecks } = await imp('scripts/lib/camRuleOrder.mjs');
@@ -81,7 +86,20 @@ const bottomAt = (loops, z) => {
 
 async function check(file) {
   const prog = JSON.parse(readFileSync(file, 'utf8'));
-  const r = await runCamProg(prog);
+  // Parametry JAKO APLIKACE při načtení: klíče, které vlastní kód (bezpečná
+  // poloha X500 Z500, …), se ze souboru neberou (camDefaults.js). Se starým
+  // Bp X150 Z5 ze souboru kontrola hlásila přejezd do polohy, kterou
+  // aplikace nikdy nejede (karusel: `G1 Z5` dolů ke stolu, 11. 11. 2026).
+  if (prog.params) prog.params = stripCodeOwnedParams(prog.params);
+  let r = await runCamProg(prog);
+  // KARUSEL PO X (pravidlo 21): dráhy se počítají podélným algoritmem
+  // v prohozených osách a všechna pravidla platí TAM („k ose" = dolů ke
+  // stolu, svislý držák). Ve skutečných osách kontrola měřila nesmysly
+  // (P2 = 200 kolizí vodorovného držáku i s výchozím úhlem). Měří se tedy
+  // prohozený výpočet; řádky programu se prohozením nemění → N… sedí.
+  const xz = r.calcSim && r.calcSim._xz;
+  const carouselXZ = !!(xz && r.calc && r.calc._xz);
+  if (carouselXZ) r = { ...r, params: { ...xz.S.params }, calc: r.calc._xz.calc, calcSim: xz.calc };
   const P = r.params;
   const ap = parseFloat(P.depthOfCut);
   // ČELNÍ HRUBOVÁNÍ: vrstva má hloubku v Z a průchod jede v X. Měří se stejným
@@ -274,7 +292,7 @@ async function check(file) {
   const coll = validateToolpath(spR, P, r.calcSim.stockPathSegments,
     { backside: P.roughingSide === 'left', maxIssues: 200 });
 
-  return { name: basename(file), P, ap, found, floors, coll, N, txt, order };
+  return { name: basename(file), P, ap, found, floors, coll, N, txt, order, carouselXZ };
 }
 
 const fmtList = (arr, fmt) => (showAll ? arr : arr.slice(0, 8)).map(fmt).join('\n      ')
@@ -284,7 +302,7 @@ let total = 0;
 for (const f of files) {
   const c = await check(f);
   const { found: F } = c;
-  console.log(`\n══ ${c.name}  (${c.P.toolShape}, ap ${c.ap}, ${c.P.roughingSide === 'left' ? 'zleva' : 'zprava'})`);
+  console.log(`\n══ ${c.name}  (${c.P.toolShape}, ap ${c.ap}, ${c.P.roughingSide === 'left' ? 'zleva' : 'zprava'}${c.carouselXZ ? ', karusel po X — měřeno v prohozených osách, Z… v hlášení = poloměr' : ''})`);
   const row = (label, arr, fmt) => {
     console.log(`  ${arr.length === 0 ? '✓' : '✗'} ${label}: ${arr.length}`);
     if (arr.length) console.log('      ' + fmtList(arr, fmt));

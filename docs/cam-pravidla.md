@@ -619,4 +619,6 @@ smykadla. Všechna pravidla platí v prohozeném světě (x' = z, z' = x).**
   neobrábí, výjezd nad ni se hlásí).
 - Kód: `cam/xzSwap.js` (výpočet, G-kód), `cam/sim/xzSim.js` (simulace,
   kolize), `cam/sim/xzSections.js` (úseky, operace). Kontrola:
-  `tests/cam-carousel-swap-xz.test.js`, `tests/cam-carousel-xz-sections.test.js`.
+  `tests/cam-carousel-swap-xz.test.js`, `tests/cam-carousel-xz-sections.test.js`;
+  `scripts/cam_rules_check.mjs` měří karusel po X v prohozených osách
+  (od 11. 11. 2026; „Z…" v jeho hlášení = poloměr).

@@ -14,6 +14,7 @@ import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { MaterialRemoval } from '../js/calculators/cam/materialRemoval.js';
 import { getEffectivePlungeAngle, plungeDisabled } from '../js/calculators/cam/camMath.js';
+import { stripCodeOwnedParams } from '../js/calculators/cam/camDefaults.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const load = (rel) => JSON.parse(readFileSync(join(__dirname, 'fixtures', rel), 'utf8'));
@@ -88,10 +89,13 @@ describe('CAM: Úhel zanoření 0° = bez zanořování', () => {
   // Karusel po X (pravidlo 21) = podélné hrubování v prohozených osách → 0°
   // platí stejně jako na soustruhu (rozhodnutí uživatele 11. 11. 2026). „K ose"
   // je tam skutečné −Z (dolů ke stolu): s auto úhlem 53–68 posuvů dolů a rampy,
-  // s 0° žádná rampa a jediný posuv dolů = přejezd do počáteční polohy na konci
-  // hrubování (ten je tam i s auto úhlem).
-  it.each(['carousel-face-swap-xz', 'carousel-sections3'])('karusel po X (%s): žádná rampa, posuv dolů jen do počáteční polohy', async (name) => {
-    const r = await runCamProg(zero(load(`cam-cases/${name}.camprog`)));
+  // s 0° žádná rampa ani posuv dolů. Bezpečná poloha jako v aplikaci
+  // (stripCodeOwnedParams → X500 Z500): se starým Bp X150 Z5 ze souboru jel
+  // přejezd do počáteční polohy `G1 Z5` dolů ke stolu (aplikace ho nemá).
+  it.each(['carousel-face-swap-xz', 'carousel-sections3'])('karusel po X (%s): žádná rampa ani posuv dolů ke stolu', async (name) => {
+    const prog = zero(load(`cam-cases/${name}.camprog`));
+    prog.params = stripCodeOwnedParams(prog.params);
+    const r = await runCamProg(prog);
     const lines = r.gcode.split('\n');
     const finishFrom = lines.findIndex(l => /^[;(]\s*---\s*DOKON/.test(l));
     const rough = finishFrom >= 0 ? lines.slice(0, finishFrom) : lines;
@@ -106,7 +110,7 @@ describe('CAM: Úhel zanoření 0° = bez zanořování', () => {
       if (/\bG0?[123]\b/.test(c) && n.z < cur.z - 2.5) down.push(c.trim());
       cur = n;
     }
-    expect(down.length, down.join('\n')).toBeLessThanOrEqual(1);
+    expect(down, down.join('\n')).toEqual([]);
     expect(r.errors.some(e => typeof e !== 'string' && /Zanořování vypnuté \(úhel 0°\)/.test(e.msg))).toBe(true);
   });
 

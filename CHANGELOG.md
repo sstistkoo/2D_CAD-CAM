@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Kontrola pravidel (`scripts/cam_rules_check.mjs`) na karuselu.** Karusel po X (pravidlo 21) se teď měří v prohozených osách, kde dráhy skutečně vznikají: „k ose“ znamená dolů ke stolu a držák je svisle. Ve skutečných osách kontrola měřila nesmysly. `carousel-face-swap-xz` hlásil 200 kolizí i s výchozím úhlem, teď 0. Kontrola také bere parametry jako aplikace, tedy bezpečnou polohu X500 Z500 z kódu, ne starou ze souboru. Se starým Bp X150 Z5 hlásila na karuselu přejezd `G1 Z5` dolů ke stolu, který aplikace nikdy nejede.
+
 ### Added
 
 - **CAM – Úhel zanoření 0° = bez zanořování** (pokyn uživatele 28. 9., schváleno 11. 11. 2026, pravidlo 6). Ručně zadaná nula se dřív přepsala na 30° (`|| 30`) a pole ji ani nepustilo (min 0,5). Teď 0° znamená, že se při podélném hrubování do materiálu nezanořuje vůbec: žádná kapsa, rampa za strmou stěnou ani na hranici úseku a žádné sjíždění po kontuře k ose. Dojezd přes hrb končí na vrcholu a otevřený průchod pod šikmým čelem odlitku vjede vodorovně ze vzduchu. Platí i pro vrstvy pravidla 7 u kulaté destičky a na karuselu po X (dolů ke stolu se nesjíždí, ověřeno testem). Cik cak 0° nezná. Hlubší vrstva nepřejede místo vynechané mělčí, takže nevznikne dvojitá tříska. Vynechané vrstvy se hlásí v ⚠ panelu a nájezd dokončování jede dál pod úhlem plátku. `plungeDisabled()` v `camMath.js`, filtr v novém `cam/ops/long/plungeZero.js`. Kontrola pravidel P6 má u hrubování s 0° limit 0°. Výchozí úhly beze změny (otisk všech 32 fixtures shodný). Test `tests/cam-plunge-zero.test.js`. Převzato z větve `claude/cool-heisenberg` (commit 74e12308) a doplněno o větev pravidla 7, která v září ještě neexistovala.
