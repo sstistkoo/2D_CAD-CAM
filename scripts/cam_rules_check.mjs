@@ -209,7 +209,11 @@ async function check(file) {
       if (cut > 0.05) {
         const loopsAfter = TL(rm.model.loops);
         const zA = Math.min(a.z, b.z) - lift - 0.25, zB = Math.max(a.z, b.z) + lift + 0.25;
-        for (let z = zA; z <= zB + 1e-9; z += 0.25) {
+        // Sloupec se měří TĚSNĚ VEDLE mřížky z obou stran: padne-li Z přesně
+        // na svislou hranu, topXOnLoop vrátí před řezem horní a po něm dolní
+        // konec téže stěny → falešná tříska výšky celé stěny (part-22 N160:
+        // schod odlitku Z 196,278 X 64,4→16,7 = „47,6 mm", reálně 1,3 mm).
+        for (let zg = zA; zg <= zB + 1e-9; zg += 0.25) for (const z of [zg - 1e-4, zg + 1e-4]) {
           const t0 = topAt(loopsBefore, z);
           if (t0 === null) continue;
           const t1 = topAt(loopsAfter, z);
