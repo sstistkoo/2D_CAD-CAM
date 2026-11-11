@@ -11,7 +11,7 @@ import { isoInternalThreadHint, isoBarFitsHole, isoBoringBarDiameter, buildIsoIn
 import { getInsert } from '../inserts/index.js';
 import { buildStockLoopRaw } from '../materialRemoval.js';
 import { holderInflate, holderInflateAll } from '../collisionValidator.js';
-import { strategyKnifeSlot } from '../strategyKnife.js';
+import { strategyKnifeSlot, knifeStrategy } from '../strategyKnife.js';
 import { drillGeom, drillAutoFaceZ } from '../ops/drill.js';
 import { preDrillPlan, catalogDrillFor, applyPreDrillPlan } from '../ops/borePreDrill.js';
 import { _defaultMagSlot, _isoMagSlot } from './magSlots.js';
@@ -76,11 +76,12 @@ export function createKnifeSlots({ S, toolUi, gcodeStale, pathInputsKey, fullUpd
   /** Polygon po změně strategie: nůž PSKNR ↔ PSBNR ze zásobníku (strategyKnife.js)
    *  a natočení se znaménkem strategie (čelně −, podélně +). */
   function _polygonForStrategy() {
-    const i = strategyKnifeSlot(S.toolMagazine, S.params, S.params.roughingStrategy);
+    const st = knifeStrategy(S);   // karusel po X: nůž podle prohozeného výpočtu
+    const i = strategyKnifeSlot(S.toolMagazine, S.params, st);
     const prev = parseFloat(S.params.toolAngle);
     if (i >= 0) _loadMagSlot(i);
     const mag = Math.abs(parseFloat(S.params.toolAngle) || 0) || 15;
-    S.params.toolAngle = S.params.roughingStrategy === 'face' ? -mag : mag;
+    S.params.toolAngle = st === 'face' ? -mag : mag;
     if (i >= 0 || S.params.toolAngle !== prev) dropInsertGuides();
   }
 

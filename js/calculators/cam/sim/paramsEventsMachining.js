@@ -12,7 +12,7 @@ import { camConfirm } from '../camSimulatorDialogs.js';
 import { attachSurfaceEvents } from './machSurface.js';
 import { attachGrooveCadEvents } from './grooveCad.js';
 
-export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange, draw, saveState, fullUpdate, applyShapeChange, applyTipMirrorToggle, canvas, showMagazineDialog, showThreadPickerDialog, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, grooveEnsureBar, partsActive, _isoDefaultMagSlots, markGCodeGenerated, _applyMagSlot }) {
+export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange, draw, saveState, fullUpdate, applyShapeChange, applyTipMirrorToggle, canvas, showMagazineDialog, showThreadPickerDialog, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, grooveEnsureBar, partsActive, _isoDefaultMagSlots, markGCodeGenerated, _applyMagSlot, _polygonForStrategy }) {
   attachSurfaceEvents({ tabBody, S, applyChange, pushHistory, autoPickToolFor, boreHoleSolid, boreEnsurePreDrill, boreTakePreHoleFromDrill, boreEnsureBar, grooveEnsureBar, _applyMagSlot });
   attachGrooveCadEvents({ tabBody, S, applyChange, pushHistory, autoPickToolFor });   // Upich + ◎ Vnitřní: zápich z výkresu
   tabBody.querySelectorAll('[data-tshape]').forEach(btn => {
@@ -51,7 +51,12 @@ export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange
     applyChange();
   });
   const swapCb = tabBody.querySelector('#cam-sim-carousel-swap');
-  if (swapCb) swapCb.addEventListener('change', () => { S.params.carouselAlongX = swapCb.checked; applyChange(); });
+  if (swapCb) swapCb.addEventListener('change', () => {
+    S.params.carouselAlongX = swapCb.checked;
+    // Přepínač mění, který algoritmus tlačítko strategie počítá → i nůž (strategyKnife.js).
+    if (S.params.toolShape === 'polygon' && _polygonForStrategy) _polygonForStrategy();
+    applyChange();
+  });
   const respCb = tabBody.querySelector('#cam-sim-respect-insert');
   if (respCb) respCb.addEventListener('change', () => { S.params.respectInsertGeometry = respCb.checked; applyChange(); });
   const clearInsertGuidesBtn = tabBody.querySelector('[data-act="clear-insert-guides"]');

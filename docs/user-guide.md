@@ -1627,6 +1627,8 @@ náhledem destičky a držáku. Pod náhledem je jeden přepínač
   ↔ Čelně i ⇋ Cik cak jedou dlouhými průchody **po X** (vodorovně) vyladěným
   podélným algoritmem, nůž svisle dolů ze smykadla. Vypnutím se vrátí staré
   čelní hrubování. Závit, vrtání, vyvrtávání a upich počítají postaru.
+  Polygon: ↔ Čelně nasadí **podélný** nůž PSBNR (natočení +), ↕ Podélně čelní PSKNR —
+  nůž patří k algoritmu, který se opravdu počítá (11. 11. 2026); přepnutí ⟲ nůž vymění také.
   Hlavička programu uvádí řídicí systém i stroj (… 840D - KARUSEL / - SOUSTRUH).
   Rozsah 📐 X = pás poloměrů, rozsah Z = výška nad stolem (nad Z max se neobrábí
   ani se pod materiál nepodjíždí). ✂ Po úsecích dělí díl po X. Strana: ← Od obvodu

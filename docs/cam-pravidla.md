@@ -627,6 +627,15 @@ smykadla. Všechna pravidla platí v prohozeném světě (x' = z, z' = x).**
 - Meze otočené o 90°: rozsah X = poloměry, rozsah Z = výška; čelisti dole
   na stole (pod jejich výšku plátek nesjede), koník = horní mez (nad ní se
   neobrábí, výjezd nad ni se hlásí).
+- **Za osou je zrcadlově týž materiál** (uživatel 11. 11. 2026: *„je tam osa
+  materiálu, tak na druhé straně je vlastně zrcadlově zas materiál"*): průchod,
+  který leží celý za osou (X < 0), se nejede — není to vzduch za čelem jako na
+  soustruhu, rádius špičky by zajel do dílu u osy. Přes osu smí jen vrstva nad
+  vrškem dílu. `dropPastAxisPasses` v `cam/xzSwap.js`, test
+  `tests/cam-carousel-past-axis.test.js`.
+- **Nůž patří k počítanému algoritmu:** ↔ Čelně (= podélný v prohozeném světě)
+  nasadí polygon PSBNR s natočením +, ↕ Podélně čelní PSKNR (`knifeStrategy()`
+  v `cam/strategyKnife.js`).
 - Kód: `cam/xzSwap.js` (výpočet, G-kód), `cam/sim/xzSim.js` (simulace,
   kolize), `cam/sim/xzSections.js` (úseky, operace). Kontrola:
   `tests/cam-carousel-swap-xz.test.js`, `tests/cam-carousel-xz-sections.test.js`;

@@ -345,6 +345,35 @@ export function swapGCodeText(text, { toReal = true, dia = false } = {}) {
   }).join('\n');
 }
 
+/**
+ * Průchody, jejichž vrstva i trasy leží celé za osou karuselu (Z' ≤ 0,05), pryč.
+ * Řetěz (průchody spojené `noRetract` — další navazuje bez odskoku, roughEmit
+ * čte noRetract souseda) se posuzuje VCELKU: zahodí se, jen když je za osou
+ * celý; jinak zůstane celý, aby emise nenavazovala na chybějící konec.
+ */
+export function dropPastAxisPasses(passes) {
+  if (!Array.isArray(passes)) return passes;
+  const past = (z) => !(z > 0.05);
+  const pastPass = (p) => {
+    if (!p || p.type !== 'long' || !Number.isFinite(p.zStart) || !Number.isFinite(p.zEnd)) return false;
+    if (!past(p.zStart) || !past(p.zEnd)) return false;
+    if (p.ramp && !past(p.ramp.z0)) return false;
+    for (const t of [p.contourLeadIn, p.contourLeadOut]) {
+      if (Array.isArray(t) && t.some(g => !past(g.z1) || !past(g.z2))) return false;
+    }
+    return true;
+  };
+  const out = [];
+  for (let i = 0; i < passes.length;) {
+    let j = i;
+    while (j < passes.length - 1 && passes[j] && passes[j].noRetract) j++;
+    const chain = passes.slice(i, j + 1);
+    if (!chain.every(pastPass)) out.push(...chain);
+    i = j + 1;
+  }
+  return out;
+}
+
 const SWAP_NOTE = 'Karusel - hrubování po X v prohozených osách, nůž svisle ze smykadla';
 
 /**
@@ -361,6 +390,11 @@ export function finishSwappedCalc(S, S2, calc2, lightOnly, simOf) {
   for (const key of ['finishOffsetPath', 'finishRefPath', 'finishUnreachablePath']) {
     if (Array.isArray(calc2[key])) calc2[key] = calc2[key].filter(s => !pastAxis(s));
   }
+  // Hrubovací průchod CELÝ za osou (Z' ≤ 0) — „Od středu" ho soustruhová logika
+  // bere jako vjezd ze vzduchu za čelem (uživatel 11. 11. 2026: vrstvy Z186/Z182
+  // `G0 X-2.8` → `G1 X-0.004` pod vrškem dílu Z189). Za osou je ale zrcadlově
+  // týž materiál: průchod nic neubere a rádius špičky zajede do dílu u osy.
+  calc2.passes = dropPastAxisPasses(calc2.passes);
   const out = swapCalcOut(calc2, S.params.mode === 'DIAMON');
   // Body kontury pro plátno (čísla, tažení bodu) z PŮVODNÍ kontury: prohozený
   // svět ji mohl otevřít na ose (openAtAxis) — jiné pořadí i počet bodů.

@@ -17,6 +17,7 @@ import { getInsert } from '../../inserts/index.js';
 import { plungeDisabled } from '../../camMath.js';
 import { leadInTail } from './humpOrder.js';
 import { wallEntryLeadIn } from './wallEntry.js';
+import { pocketCornerBuried } from './pocketCornerBuried.js';
 
 export function emitPocketInterval(D) {
   const {
@@ -1054,6 +1055,13 @@ if (!skipRiskyPocketEmit && isParting) {
       if (ox !== null && ox > pocketBottomX + 0.01) { skipRiskyPocketEmit = true; cnt.partingNarrowPockets++; break; }
     }
   }
+}
+// Roh kapsy pod materiálem: dosavadní průchody (rampy jiné, vyšší mezní
+// čáry) k rohu nedosáhly — dobrání od rohu by sjelo svisle do plného materiálu
+// a jelo dno plnou hloubkou (pocketCornerBuried.js, karusel 11. 11. 2026).
+if (!skipRiskyPocketEmit && !cleanApproach && pocketCornerBuried(passes, corner, step, typeof newCutArea === 'function' ? newCutArea : null)) {
+  skipRiskyPocketEmit = true;
+  cnt.pocketBuriedCornerSkips = (cnt.pocketBuriedCornerSkips || 0) + 1;
 }
 if (!skipRiskyPocketEmit && holderClampZEnd?.isForbidden?.(pocketBottomX, pocketBottomZ)) {
   skipRiskyPocketEmit = true;
