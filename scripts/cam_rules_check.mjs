@@ -150,9 +150,20 @@ async function check(file) {
     : makePassHelpers(r.calc.offsetPath || []).offsetXAt;
   const dir = P.roughingSide === 'left' ? -1 : 1;
   // P7/P8 (hrb, pořadí úseků) jsou v pravidlech jen podélně — čelně se nehodnotí.
+  // Co po CELÉM programu zůstane stát: „nehotová pravá strana" se měří jen
+  // z materiálu, který program později opravdu odebere. Zbytek, který tam
+  // zůstane navždy (klín u strmé stěny, kam hrubování při úhlu zanoření
+  // nedosáhne — hlásí ho P3), pořadí neporuší: dodělat se nedá nikdy
+  // (karusel: P7 „vpravo ještě 50,63 mm" = přesně klín v drážce, 11. 11. 2026).
+  let finalLoops = null;
+  if (!face) {
+    const rmEnd = new MaterialRemoval(P, r.calcSim.stockPathSegments, {});
+    rmEnd.advanceTo(spR, spR.length - 1);
+    finalLoops = rmEnd.model ? rmEnd.model.loops : null;
+  }
   const order = face ? { onPassStart: () => {}, found: { hump: [], order: [] } }
     : makeOrderChecks({ ap, part, allowLoop, stockLoop: rm.baseLoop, guides: r.calc.interferenceGuides,
-      cutsFullWidth: partingOk, offsetXAt, dir, topAt, topXOnLoop, pointInLoop });
+      cutsFullWidth: partingOk, offsetXAt, dir, topAt, topXOnLoop, pointInLoop, finalLoops });
   let afterRapid = true;
   const found = { chip: [], air: [], plunge: [], endMid: [], thin: [] };
   const thinCand = [];

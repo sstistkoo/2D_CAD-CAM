@@ -24,8 +24,10 @@ const TOL = 0.1;         // mm pod vrcholem = „níž než"
 // „Nehotovo" = zbývá víc než ap (chybí celé vrstvy). Tenčí zbytek je
 // porušení P3 (zbytek na dně) a hlásí se tam — tady by se jen zdvojil.
 
+// `finalLoops` = zbytek po celém programu (null = neznámý): materiál, který
+// zůstane navždy, se do „nehotovo" nepočítá.
 export function makeOrderChecks({ ap, part, allowLoop, stockLoop, guides, cutsFullWidth,
-  offsetXAt, dir, topAt, topXOnLoop, pointInLoop }) {
+  offsetXAt, dir, topAt, topXOnLoop, pointInLoop, finalLoops = null }) {
   let zLo = Infinity, zHi = -Infinity;
   for (const p of part) { zLo = Math.min(zLo, p.z); zHi = Math.max(zHi, p.z); }
   const uLo = Math.min(zLo * dir, zHi * dir), uHi = Math.max(zLo * dir, zHi * dir);
@@ -67,12 +69,16 @@ export function makeOrderChecks({ ap, part, allowLoop, stockLoop, guides, cutsFu
     if (Number.isFinite(top)) sections.push({ lo: cuts[k], hi: cuts[k + 1], top, zLo: zOf(cuts[k]), zHi: zOf(cuts[k + 1]) });
   }
 
-  // Nejvíc materiálu nad přídavkem v rozsahu u (0 = hotovo).
+  // Nejvíc materiálu nad přídavkem v rozsahu u (0 = hotovo) — a jen toho,
+  // který program později odebere (nad konečným zbytkem `finalLoops`).
   const leftover = (loops, u0, u1) => {
     let worst = 0;
     for (let u = Math.min(u0, u1); u <= Math.max(u0, u1); u += DZ) {
       const top = topAt(loops, zOf(u)), at = allowTop(u);
-      if (top !== null && at !== null && top - at > worst) worst = top - at;
+      if (top === null || at === null) continue;
+      const fin = finalLoops ? topAt(finalLoops, zOf(u)) : null;
+      const floor = fin !== null ? Math.max(at, fin) : at;
+      if (top - floor > worst) worst = top - floor;
     }
     return worst;
   };
