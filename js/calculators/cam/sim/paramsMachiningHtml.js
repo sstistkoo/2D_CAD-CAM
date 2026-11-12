@@ -391,7 +391,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
 /** Přepínač „Konstantní posuv na oblouku" (hrubování i dokončování, cam/arcFeedComp.js). */
 function arcFeedCompRow(prms) {
   return `<div class="cam-sim-checkbox-row" data-tooltip="Dráha jede středem rádiusu destičky rε. Na vypuklém oblouku R jede střed po R + rε, na vydutém po R − rε — posuv v bodě řezu by tak byl menší / větší než F. Zapnuto = F na každém oblouku (hrubování po kontuře i dokončení) se přepočte poměrem poloměr dráhy / poloměr řezu, aby byl posuv v bodě řezu stále F. Další blok se vrátí na F. Mez přepočtu 0,1× … 3×.">
-      <input type="checkbox" id="cam-sim-arcfeed" ${prms.arcFeedComp ? 'checked' : ''}${prms.feedAuto ? ' disabled' : ''}>
+      <input type="checkbox" id="cam-sim-arcfeed" ${prms.arcFeedComp ? 'checked' : ''}>
       <span>Konstantní posuv na oblouku (dle rε)</span>
     </div>`;
 }
@@ -399,9 +399,8 @@ function arcFeedCompRow(prms) {
 /** Zaškrtávátko + pole % (+ volitelně Auto) jednoho sníženého posuvu. */
 function feedPctRow({ id, on, label, key, value, tip, autoId, auto, lock = false }) {
   const v = parseFloat(value) > 0 ? parseFloat(value) : 50;
-  const L = lock ? ' disabled' : '';   // Auto posuvů (cam/feedAuto.js)
   return `<div class="cam-sim-row" style="align-items:center;margin-top:2px" data-tooltip="${tip}">
-      <label class="cam-sim-checkbox-item" style="flex:2"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}${L}><span>${label}</span></label>
+      <label class="cam-sim-checkbox-item" style="flex:2"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><span>${label}</span></label>
       <div class="cam-sim-field" style="flex:1"><input type="number" step="5" min="5" max="100" data-p="${key}" value="${v}"${!on || auto || lock ? ' disabled' : ''} title="% posuvu F"></div>
       ${autoId ? `<label class="cam-sim-checkbox-item" style="flex:1"><input type="checkbox" id="${autoId}" ${auto ? 'checked' : ''}${on ? '' : ' disabled'}><span>Auto</span></label>` : ''}
     </div>`;
@@ -417,7 +416,7 @@ function roughFeedRows(prms) {
     const on = !!prms.chipThinOn, F = parseFloat(prms.feed) || 0;
     const maxF = parseFloat(prms.chipMaxF) > 0 ? parseFloat(prms.chipMaxF) : Math.round(2 * F * 1000) / 1000;
     h += `<div class="cam-sim-row" style="align-items:center;margin-top:2px" data-tooltip="Jen hrubování (dokončení jede nastaveným F). Rádiusem destičky R vstupuje ostří do řezu pod úhlem κ: cos κ = 1 − ap/R, tříska je tenčí než posuv: h = F · sin κ. Nastavené F platí pro vrstvu s nastaveným ap; vrstva s jiným skutečným ap dostane F · sin κ(ap) / sin κ(ap vrstvy) — tenká poslední vrstva pojede rychleji, tlustší pomaleji (nejméně 50 % F). Strop = Max. F.">
-      <label class="cam-sim-checkbox-item" style="flex:2"><input type="checkbox" id="cam-sim-chipthin" ${on ? 'checked' : ''}${prms.feedAuto ? ' disabled' : ''}><span>Konst. tloušťka třísky</span></label>
+      <label class="cam-sim-checkbox-item" style="flex:2"><input type="checkbox" id="cam-sim-chipthin" ${on ? 'checked' : ''}><span>Konst. tloušťka třísky</span></label>
       <div class="cam-sim-field" style="flex:1"><input type="number" step="0.01" min="0.01" data-p="chipMaxF" value="${maxF}"${on && !prms.feedAuto ? '' : ' disabled'} title="Max. F [mm/ot] — strop zrychlení tenkých vrstev"></div>
       <span style="flex:1;font-size:10px;color:var(--ctp-subtext0,#a6adc8)">max F</span>
     </div>`;
@@ -445,7 +444,7 @@ function finishFeedRows(prms, S) {
       <span style="flex:1;font-size:10px;color:var(--ctp-subtext0,#a6adc8)">${parseFloat(prms.finishFeed) > 0 ? '' : `0 = auto → F ${String(finishBaseFeed(prms)).replace('.', ',')}`}</span>
     </div>`;
   h += `<div class="cam-sim-row" style="align-items:center;margin-top:2px" data-tooltip="Dokončení jede posuvem spočítaným z cílové drsnosti: Ra ≈ 1000 · F² / (32 · rε) µm → F = √(32 · rε · Ra / 1000). rε 0,8 + Ra 1,6 → F 0,2; velký rádius smí jet rychleji. Strop = max F (výchozí 2 × nastavené F dokončení). Rz ≈ 4 · Ra.">
-      <label class="cam-sim-checkbox-item" style="flex:2"><input type="checkbox" id="cam-sim-finra" ${on ? 'checked' : ''}${prms.feedAuto ? ' disabled' : ''}><span>F dok. dle Ra (µm)</span></label>
+      <label class="cam-sim-checkbox-item" style="flex:2"><input type="checkbox" id="cam-sim-finra" ${on ? 'checked' : ''}><span>F dok. dle Ra (µm)</span></label>
       <div class="cam-sim-field" style="flex:1"><input type="number" step="0.1" min="0.1" data-p="finRa" value="${ra}"${on && !prms.feedAuto ? '' : ' disabled'} title="Cílové Ra [µm]"></div>
       <div class="cam-sim-field" style="flex:1"><input type="number" step="0.01" min="0.01" data-p="finRaMaxF" value="${maxF}"${on && !prms.feedAuto ? '' : ' disabled'} title="Max. F [mm/ot]"></div>
     </div>

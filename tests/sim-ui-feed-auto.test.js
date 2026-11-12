@@ -28,7 +28,7 @@ it('Auto posuvů a „Nepřejíždět mezi hrby" v pravém panelu', async () => 
   expect(p).toMatchObject({ feedAuto: true, arcFeedComp: true, feedPlungeOn: true, feedPctPlunge: 50, chipThinOn: true, chipMaxF: 0,
     finRaOn: true, finRa: 1.6, finRaMaxF: 0, feedCornerOn: true, feedPctCorner: 50, humpFirst: true });
 
-  // S Auto jsou zaškrtávátka i pole zamčená, zaškrtávátko Auto ne.
+  // S Auto jsou pole hodnot zamčená, zaškrtávátka ne (volba jde vypnout i s Auto).
   const d = dom(p);
   expect(d.querySelector('#cam-sim-feedauto').checked).toBe(true);
   expect(d.querySelector('#cam-sim-feedauto').disabled).toBe(false);
@@ -36,7 +36,7 @@ it('Auto posuvů a „Nepřejíždět mezi hrby" v pravém panelu', async () => 
     const cb = d.querySelector(id);
     expect(cb, id).toBeTruthy();
     expect(cb.checked, id).toBe(true);
-    expect(cb.disabled, id).toBe(true);
+    expect(cb.disabled, id).toBe(false);
   }
   for (const key of ['feedPctPlunge', 'chipMaxF', 'finRa', 'finRaMaxF', 'feedPctCorner']) {
     expect(d.querySelector(`[data-p="${key}"]`).disabled, key).toBe(true);

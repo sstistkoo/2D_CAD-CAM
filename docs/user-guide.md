@@ -519,9 +519,9 @@ CAM část ti umožní generovat NC programy pro obrábění.
      - **☑ Auto (posuvy nastavit samy)** (Hrub. i Hot.): zapne všechny volby níž
        a nastaví je — konstantní posuv na oblouku, F dokončení z Ra 1,6 a rε
        destičky (strop 2 × F), 50 % ve vnitřním rohu a při zanoření, konstantní
-       tloušťka třísky (strop 2 × F) a **Nepřejíždět mezi hrby**. Dokud je Auto
-       zapnuté, volby a pole jsou zamčené; po vypnutí hodnoty zůstanou a jdou
-       měnit ručně.
+       tloušťka třísky (strop 2 × F) a **Nepřejíždět mezi hrby**. Jednotlivou volbu
+       jde i s Auto odškrtnout; hodnoty v polích ale dopočítává Auto (jsou
+       zamčené). Po vypnutí Auto hodnoty zůstanou a jdou měnit ručně.
      - **Konstantní posuv na oblouku (dle rε)** (i v Hot.): dráha jede středem
        rádiusu destičky, takže na vypuklém R jede střed po R + rε a na vydutém po
        R − rε — posuv v bodě řezu by byl menší/větší než F. Zapnuto = F oblouku

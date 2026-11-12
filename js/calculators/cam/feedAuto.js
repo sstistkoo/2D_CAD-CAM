@@ -6,8 +6,9 @@
 // oblouku (dle rε)" po „Konst. tloušťka třísky" — „šlo by udělat možnost pro
 // auto nastavení, kde by se to nastavilo automaticky a aktivovalo". Zaškrtnuté
 // Auto zapne všechny volby a dá jim hodnoty, které se dopočítávají samy
-// (strop F = 2 × F, F dokončení z Ra a rε destičky), a pole jsou pak jen pro
-// čtení (paramsMachiningHtml.js). Zapne i „Nepřejíždět mezi hrby"
+// (strop F = 2 × F, F dokončení z Ra a rε destičky); pole hodnot jsou pak
+// jen pro čtení, zaškrtávátka ne — jednotlivou volbu jde i s Auto vypnout
+// (uživatel 12. 11. 2026: „ať se dají odškrtnout"). Zapne i „Nepřejíždět mezi hrby"
 // (ops/sections/humpFirst.js) — volba sedí ve stejném bloku.
 
 import { getInsert } from './inserts/index.js';
