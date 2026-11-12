@@ -33,6 +33,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join, basename } from 'path';
 
+const PLUNGE_MIN_CUT = 0.5;   // mm² — P6: dotek bokem bez materiálu pod nosem (tolerance validátoru)
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const imp = (p) => import(pathToFileURL(join(root, p)).href);
 const { runCamProg } = await imp('tests/helpers/camHeadless.mjs');
@@ -235,7 +236,15 @@ async function check(file) {
       if (len > AIR_MIN_LEN && Math.max(cut, cutPlan) < AIR_CUT_PER_MM * len) found.air.push({ i, v: len });
       // P6 — kolmé zanoření (pohyb k ose strmější než úhel zanoření)
       const dx = b.x - a.x, dz = b.z - a.z;
-      if (!partingOk && dx < -0.2 && cut > 0.1) {
+      // DOTEK BOKEM ≠ ZANOŘENÍ: pod nosem (sloupec dráhy, `worst`) žádný materiál
+      // a úběr do tolerance validátoru (0,5 mm²) = plátek jen škrtl bokem o
+      // materiál vedle, do plného nezanořuje (pravidlo 6). Karusel od obvodu ap 10
+      // (12. 11. 2026): sjezd posuvem na vrstvu vedle hrany odlitku škrtl šikmou
+      // hlavní hranou PSBNR o roh 0,12 mm² NAD začátkem sjezdu (5× „90°").
+      // Materiál pod nosem se počítá jako dřív od 0,1 mm². Jen polygon podélně
+      // (šikmá hlavní hrana; u kulaté a čelně měří `worst` jinak).
+      const sideTouch = P.toolShape === 'polygon' && !face && !(worst > 0.05) && cut <= PLUNGE_MIN_CUT;
+      if (!partingOk && dx < -0.2 && cut > 0.1 && !sideTouch) {
         const deg = Math.abs(dz) < 1e-9 ? 90 : Math.atan(Math.abs(dx) / Math.abs(dz)) * 180 / Math.PI;
         // Kolmo u strmé stěny (kulatá, pravidlo 6 — uživatel 11. 11. 2026) je
         // schválená výjimka PRO HRUBOVÁNÍ: sjezd po stěně = střed nosu jede po

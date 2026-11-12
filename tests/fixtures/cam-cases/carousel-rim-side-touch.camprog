@@ -1,0 +1,488 @@
+{
+ "__camprog": 1,
+ "pathLogicVersion": 3,
+ "savedAt": "2026-11-11T15:52:50.925Z",
+ "params": {
+  "machineType": "LIMS=2000",
+  "mode": "RADIUS",
+  "toolName": "PSBNR2525M12",
+  "speed": 200,
+  "feed": 0.48,
+  "depthOfCut": 10,
+  "retractDistance": 2,
+  "finishFeed": 0.2,
+  "rapidFeed": 6000,
+  "retractAngle": 45,
+  "allowanceX": 0,
+  "allowanceZ": 0,
+  "toolRadius": 0.8,
+  "finishAllowance": 0.2,
+  "doFinishing": true,
+  "roughingStrategy": "face",
+  "finishOnly": false,
+  "arcFeedComp": false,
+  "feedPlungeOn": false,
+  "feedPctPlunge": 50,
+  "feedWallOn": false,
+  "feedPctWall": 50,
+  "feedWallAuto": false,
+  "chipThinOn": false,
+  "chipMaxF": 0,
+  "finRaOn": false,
+  "finRa": 1.6,
+  "finRaMaxF": 0,
+  "feedCornerOn": false,
+  "feedPctCorner": 50,
+  "roughingSide": "right",
+  "stockMode": "casting",
+  "stockMargin": 5,
+  "stockDiameter": 1702,
+  "stockLength": 5,
+  "stockFace": 191,
+  "safeX": 500,
+  "safeZ": 500,
+  "machineStructure": "carousel",
+  "controlSystem": "sinumerik",
+  "autoProfile": true,
+  "carouselAlongX": true,
+  "toolShape": "polygon",
+  "toolLength": 12.7,
+  "toolAngle": 15,
+  "toolTipAngle": 90,
+  "toolTipMirror": false,
+  "toolVbdCode": "SNMG120408",
+  "toolClearanceAngle": 0,
+  "holderWidth": 25,
+  "holderLength": 150,
+  "holderHand": "R",
+  "holderProfile": {
+   "sideA": [
+    {
+     "x": 10.477,
+     "z": 3.014
+    },
+    {
+     "x": 21.227,
+     "z": 10.542
+    },
+    {
+     "x": 21.227,
+     "z": 150
+    },
+    {
+     "x": -3.773,
+     "z": 150
+    },
+    {
+     "x": -3.773,
+     "z": 15.966
+    },
+    {
+     "x": -2.628,
+     "z": 10.58
+    },
+    {
+     "x": 10.477,
+     "z": 3.014
+    }
+   ],
+   "sideB": []
+  },
+  "knifeAngle": 270,
+  "holderInflate": 0,
+  "holderInflateAll": false,
+  "toolTipFlat": 0.1,
+  "partOffZ": null,
+  "partingApproachFeed": 1,
+  "partOffSmooth": false,
+  "partOffStartX": 64.55,
+  "partOffInner": false,
+  "grooveWidth": 0,
+  "grooveBottomX": 0,
+  "grooveHoleD": 0,
+  "grooveChamfer": 0,
+  "partOffFace": false,
+  "faceGrooveD1": 0,
+  "faceGrooveD2": 0,
+  "faceGrooveDepth": 0,
+  "finishingSlot": null,
+  "threadActive": false,
+  "threadName": "",
+  "threadType": "mc",
+  "threadDiameter": 20,
+  "threadPitch": 2.5,
+  "threadAngle": 60,
+  "threadDepth": 1.534,
+  "threadExternal": true,
+  "threadZStart": 0,
+  "threadZEnd": -20,
+  "threadRunIn": 3,
+  "threadRunOut": 0,
+  "threadPasses": 0,
+  "threadSpringPasses": 1,
+  "threadTaperRatio": 0,
+  "threadInfeed": "radial",
+  "drillActive": false,
+  "drillZStart": null,
+  "drillDepth": 20,
+  "drillZEnd": null,
+  "drillDepthFullDia": false,
+  "drillClearance": 2,
+  "drillPeck": 5,
+  "drillChipMode": "clear",
+  "drillRetract": 1,
+  "drillDwell": 0,
+  "boreActive": false,
+  "borePreDrill": false,
+  "borePreDrillSlot": null,
+  "borePreTip": 0,
+  "boreSource": "cylinder",
+  "boreFinish": false,
+  "boreZStart": 0,
+  "boreDiameter": 30,
+  "boreDepth": 20,
+  "borePreDiameter": 20,
+  "borePreDepth": 25,
+  "entryAngle": 45,
+  "entryAngleAuto": true,
+  "respectInsertGeometry": true,
+  "plungeRoughing": true,
+  "pocketFinishAtOnce": true,
+  "noStepRoughing": true,
+  "noStepRoughingFace": true,
+  "wallPlunge": false,
+  "orderAwareHolder": true,
+  "rapidClearance": 1,
+  "rapidFeedGap": 1,
+  "stockClearX": null,
+  "stockClearZ": null,
+  "holderAutoComplete": true,
+  "regionRoughing": true,
+  "booleanRoughing": false,
+  "liveOps": [
+   {
+    "id": "Lmvtwajgq8991",
+    "name": "Vrtání 1",
+    "kind": "drill",
+    "side": "face",
+    "pattern": "pcd",
+    "pcd": 70,
+    "count": 4,
+    "startAngle": 0,
+    "points": "0; 30",
+    "zTop": 282.095,
+    "faceDir": 1,
+    "xTop": 100.16,
+    "zPos": 336.371,
+    "holeD": 8,
+    "depth": 100,
+    "peck": 5,
+    "chipMode": "clear",
+    "chipBack": 1,
+    "dwell": 0,
+    "safe": 2,
+    "retract": 5,
+    "millType": "pocket",
+    "kz1": 306.371,
+    "kz2": 336.371,
+    "toolD": 8,
+    "stepDown": 2,
+    "slot": {
+     "x1": -15,
+     "y1": 0,
+     "x2": 15,
+     "y2": 0
+    },
+    "slotW": null,
+    "toolName": "Vrtak HSS D8",
+    "toolNo": 15,
+    "rpm": 995,
+    "feed": 119,
+    "enabled": true
+   }
+  ],
+  "live": {
+   "inProgram": true
+  },
+  "liveKind": null
+ },
+ "contourPoints": [
+  {
+   "id": 1793799072661,
+   "type": "G0",
+   "x": 69,
+   "z": 189,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072662,
+   "type": "G1",
+   "x": 112,
+   "z": 61,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072663,
+   "type": "G1",
+   "x": 214,
+   "z": 61,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072664,
+   "type": "G1",
+   "x": 222,
+   "z": 132,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072665,
+   "type": "G1",
+   "x": 288,
+   "z": 132,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072666,
+   "type": "G1",
+   "x": 309,
+   "z": 41,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072667,
+   "type": "G1",
+   "x": 396,
+   "z": 39,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072668,
+   "type": "G1",
+   "x": 447,
+   "z": 63,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072669,
+   "type": "G1",
+   "x": 534,
+   "z": 63,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072670,
+   "type": "G1",
+   "x": 559,
+   "z": 34,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072671,
+   "type": "G1",
+   "x": 628.279,
+   "z": 153.994,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072672,
+   "type": "G1",
+   "x": 654,
+   "z": 153.994,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072673,
+   "type": "G1",
+   "x": 673,
+   "z": 45,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072674,
+   "type": "G1",
+   "x": 842,
+   "z": 39,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072675,
+   "type": "G1",
+   "x": 846,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072676,
+   "type": "G1",
+   "x": 0,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072677,
+   "type": "G1",
+   "x": 0,
+   "z": 189,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799072678,
+   "type": "G1",
+   "x": 69,
+   "z": 189,
+   "r": 0,
+   "mode": "ABS"
+  }
+ ],
+ "stockPoints": [
+  {
+   "id": 1793799172661,
+   "type": "G0",
+   "x": 846,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799172662,
+   "type": "G1",
+   "x": 896,
+   "z": 0,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799172663,
+   "type": "G1",
+   "x": 894,
+   "z": 73,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799172664,
+   "type": "G1",
+   "x": 709,
+   "z": 73,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799172665,
+   "type": "G1",
+   "x": 682,
+   "z": 265,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799172666,
+   "type": "G1",
+   "x": 597,
+   "z": 265,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799172667,
+   "type": "G1",
+   "x": 557,
+   "z": 126,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799172668,
+   "type": "G1",
+   "x": 459,
+   "z": 126,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799172669,
+   "type": "G1",
+   "x": 446,
+   "z": 181,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799172670,
+   "type": "G1",
+   "x": 221,
+   "z": 181,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799172671,
+   "type": "G1",
+   "x": 199,
+   "z": 239,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799172672,
+   "type": "G1",
+   "x": 0,
+   "z": 243,
+   "r": 0,
+   "mode": "ABS"
+  },
+  {
+   "id": 1793799172673,
+   "type": "G1",
+   "x": 0,
+   "z": 189,
+   "r": 0,
+   "mode": "ABS"
+  }
+ ],
+ "borePoints": [],
+ "manualGCode": "",
+ "gcodeDirty": false,
+ "opParts": [],
+ "activePart": 0,
+ "opContourKey": "G0:69.00,189.00,0.00|G1:112.00,61.00,0.00|G1:214.00,61.00,0.00|G1:222.00,132.00,0.00|G1:288.00,132.00,0.00|G1:309.00,41.00,0.00|G1:396.00,39.00,0.00|G1:447.00,63.00,0.00|G1:534.00,63.00,0.00|G1:559.00,34.00,0.00|G1:628.28,153.99,0.00|G1:654.00,153.99,0.00|G1:673.00,45.00,0.00|G1:842.00,39.00,0.00|G1:846.00,0.00,0.00|G1:0.00,0.00,0.00|G1:0.00,189.00,0.00|G1:69.00,189.00,0.00",
+ "flipX": false,
+ "flipZ": false,
+ "guideLines": [],
+ "zLimits": {
+  "chuck": -46.37,
+  "tail": 497.48,
+  "chuckActive": true,
+  "tailActive": true,
+  "rangeStart": 13.64,
+  "rangeEnd": 54.57,
+  "rangeActive": false
+ },
+ "showZLimits": "on",
+ "xLimits": {
+  "rangeXMin": null,
+  "rangeXMax": null,
+  "active": false
+ },
+ "showSimPath": "all",
+ "showRemoval": true,
+ "showRefGuides": false
+}
