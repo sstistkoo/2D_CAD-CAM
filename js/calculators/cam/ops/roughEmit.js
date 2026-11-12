@@ -921,7 +921,10 @@ calc.passes.forEach((pass, i) => {
       // (`G0 X41.370` na Z−3,068). Rychloposuv skončí nejníž, kde je CELÁ
       // destička volná; zbytek do `xApp` dojede `emitDescendX` posuvem (i pod
       // úhlem zanoření, je-li tam materiál) — mez počítá sám (výchozí `minRapidX`).
-      if (cur.x - xApp > 1e-6) { emitDescendX(cur.x, xApp, pass.z, false); setPos(xApp, pass.z); }
+      // ČELNÍ průchod řeže v −X: příjezd v X na začátek vrstvy je řez, ne zanoření
+      // — rampa (couvnutí v Z do obrobeného a šikmo zpět) tu nemá smysl
+      // (uživatel 12. 11. 2026: `G0 Z682.443` → `G1 X239.150 Z588.000 ; Zanoření`).
+      if (cur.x - xApp > 1e-6) { emitDescendX(cur.x, xApp, pass.z, false, undefined, undefined, true); setPos(xApp, pass.z); }
     }
     // Dotyk povrchu polotovaru posuvem — ale NIKDY hlouběji, než kam má
     // průchod dojet. Programovaný bod je STŘED nosu, materiál pod ním leží

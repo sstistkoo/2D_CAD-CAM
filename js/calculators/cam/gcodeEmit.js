@@ -576,7 +576,7 @@ export function generateAutoGCode(S, calc) {
       rapidStock.cut(cut);
       // Plánovací model se ubírá TÍMŽ ŘEZEM — jinak by zůstal stát celý
       // a po prvních průchodech by zablokoval každý přejezd.
-      if (rapidStockPlan) rapidStockPlan.cut(cut);
+      if (rapidStockPlan) rapidStockPlan.cut(toolSweep(noteCutPts.vis || (noteCutPts.vis = toolFootprintVisual(prms) || rapidFoot), pts));   // plán = CELÁ destička (jako validátor), jinak v něm stojí fantomové schody
       if (++rapidStockCuts % 24 === 0) {
         rapidStock.loops = polySimplify(rapidStock.loops, 0.002);
         if (rapidStockPlan) rapidStockPlan.loops = polySimplify(rapidStockPlan.loops, 0.002);
@@ -1001,7 +1001,7 @@ export function generateAutoGCode(S, calc) {
   // Vůle + R). Volající, který VÍ, že celá kružnice nosu je u cíle ve
   // vzduchu (viz `rampEntryClear` v ops/roughEmit.js), smí poslat menší.
   // `minRapidX` = níž rychloposuvem ne (celá destička, faceTransitGuard.js); zbytek jde `descend`.
-  const emitDescendX = (fromX, tx, tz, touch, stopX = rapidStopX, minRapidX = rapidFloorX(bodyHitsRapid, fromX, tx, tz)) => {
+  const emitDescendX = (fromX, tx, tz, touch, stopX = rapidStopX, minRapidX = rapidFloorX(bodyHitsRapid, fromX, tx, tz), noRamp = false) => {   // noRamp: čelní průchod — sjezd v X je směr řezu, ne zanoření
     const emit = (txt) => { simCounter += 1; addN(txt, simCounter); };
     // COUVNUTÍ RAMPY PATŘÍ PŘED SJEZD V X. Dokud se emitovalo až za ním,
     // vypadal příjezd takhle (nález uživatele 10. 9. 2026, „šílené dráhy"):
@@ -1013,7 +1013,7 @@ export function generateAutoGCode(S, calc) {
     // volajícího; sjezd v X se pak udělá až na `zBack` (proto ten bod
     // `planFeedToDepth` testuje zvlášť přes `approachX`).
     const descend = (startX) => {
-      const plan = startX - tx > 1e-6 ? planFeedToDepth(startX, tx, tz, fromX) : null;
+      const plan = startX - tx > 1e-6 && !noRamp ? planFeedToDepth(startX, tx, tz, fromX) : null;
       if (plan) emitBackoffZ(plan.zBack);
       if (fromX - startX > 1e-6) emit(`G0 X${xDia(startX)}`);
       if (startX - tx > 1e-6) emitFeedToDepth(startX, tx, tz, plan, !!plan);

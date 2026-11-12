@@ -599,6 +599,14 @@ export function genFacePasses(ctx) {
       const leadOut = faceLeft
         ? traceOffsetPath(currentZ, currentZ - leadSpan)
         : reverseTrace(traceOffsetPath(currentZ + leadSpan, currentZ));
+      // ZA OSOU není plocha dílu: kontura je uzavřená po ose (X 0) a offset té
+      // hrany leží na X −R−přídavek. Trasa ho brala jako kus dojezdu a emise
+      // jela z konce vrstvy šikmo na (−1, Z846) — přes roh hotové kontury
+      // (uživatel 12. 11. 2026, `N690 G1 X-1.000 Z846.000`). Kus celý za osou pryč.
+      for (let k = leadOut.length - 1; k >= 0; k--) {
+        const sg = leadOut[k];
+        if (Math.max(sg.x1, sg.x2) < -1e-6) leadOut.splice(k, 1);
+      }
       // DNO ROZSAHU X platí i pro dojezd: kontura pod průchodem může klesat
       // pod X min (střed + `extF.down` = plátek na mezi) a dojezd by po ní
       // sjel tam, kam se nesmí. Utne se v místě, kde mez protne.

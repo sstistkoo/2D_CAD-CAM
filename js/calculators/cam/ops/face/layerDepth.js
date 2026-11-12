@@ -88,8 +88,13 @@ const enforceLayerDepth = () => {
           //      programovaný bod je střed nosu, takže tělo destičky
           //      leží o offset níž. („aby pravá strana plátku nezajížděla
           //      pod offsetovou čáru od polotovaru")
-          for (let t = -0.5; t <= 0.5001; t += 0.25) {
-            const zq = q.z + t * step;
+          // (d) 12. 11. 2026: PÁS vynechané vrstvy leží na OBROBENÉ straně jejího Z
+          // (zprava z…z+ap, zleva z−ap…z), ne kolem něj — polovina „±½ kroku" padla
+          // do vrstvy, kterou právě řeže průchod sám, a jeho vlastní šikmá stěna
+          // odlitku ho zvedla o 5 mm nad pás (uživatel: „vidíš tu fugu mezi
+          // stranou, co je níž, a polotovarem" — Z456 končila X135,94 místo 130,85).
+          for (let t = 0; t <= 1.0001; t += 0.25) {
+            const zq = q.z + (faceLeft ? -t : t) * step;
             const dz = Math.abs(p.z - zq);
             if (dz > reachM + 1e-6) continue;
             // (c) 31. 10. 2026: OPRAVDU offsetová čára (`planOuterOrNull` = vůle
