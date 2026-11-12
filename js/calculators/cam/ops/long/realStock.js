@@ -53,7 +53,9 @@ function lowerEnvelope(foot) {
     }
     tab[k - k0] = low;
   }
-  return { zMin, zMax, at: (dz) => (dz < zMin - 1e-9 || dz > zMax + 1e-9 ? null : tab[Math.round(dz / HF) - k0] ?? null) };
+  // `arr`/`k0` = táž tabulka pro horkou smyčku `lowMap` (NaN = mimo obrys).
+  const arr = Float64Array.from(tab, (v) => (v === null ? NaN : v));
+  return { zMin, zMax, arr, k0, at: (dz) => (dz < zMin - 1e-9 || dz > zMax + 1e-9 ? null : tab[Math.round(dz / HF) - k0] ?? null) };
 }
 
 /**
@@ -94,38 +96,59 @@ export function makeRealStock({ rawLoop, footprint }) {
     return pts;
   };
   // Nejnižší bod stopy v každém sloupci polotovaru, kam dráha dosáhne.
+  // Sloupcová mapa = { i0, lo } — typované pole jen přes sloupce, kam dráha
+  // sahá (Infinity = nedosáhla). Dřív `Map`: statisíce get/set na průchod,
+  // na dílu uživatele 12. 11. 2026 třetina času generování (7 s z 26 s).
+  // Hodnoty jsou TYTÉŽ (stejné vzorky, stejné minimum) — mění se jen úložiště.
   const lowMap = (segs) => {
-    const m = new Map();
-    for (const p of samplePath(segs)) {
+    const pts = samplePath(segs);
+    let a = n, b = -1;
+    for (const p of pts) {
       const iA = Math.max(0, Math.ceil((p.z + env.zMin - z0) / H - 1e-9));
       const iB = Math.min(n - 1, Math.floor((p.z + env.zMax - z0) / H + 1e-9));
+      if (iA < a) a = iA;
+      if (iB > b) b = iB;
+    }
+    if (b < a) return { i0: 0, lo: new Float64Array(0) };
+    const lo = new Float64Array(b - a + 1).fill(Infinity);
+    // `env.at` rozepsané (týž výraz, táž tabulka): volání na každý sloupec
+    // a vzorek bylo nejdražší místo celé funkce.
+    const { arr, k0 } = env, eLo = env.zMin - 1e-9, eHi = env.zMax + 1e-9;
+    for (const p of pts) {
+      const iA = Math.max(0, Math.ceil((p.z + env.zMin - z0) / H - 1e-9));
+      const iB = Math.min(n - 1, Math.floor((p.z + env.zMax - z0) / H + 1e-9));
+      const px = p.x, pz = p.z;
       for (let i = iA; i <= iB; i++) {
-        const off = env.at(z0 + i * H - p.z);
-        if (off === null) continue;
-        const low = p.x + off;
-        const cur = m.get(i);
-        if (cur === undefined || low < cur) m.set(i, low);
+        const dz = z0 + i * H - pz;
+        if (dz < eLo || dz > eHi) continue;
+        const low = px + arr[Math.round(dz / HF) - k0];   // NaN / undefined → porovnání false
+        if (low < lo[i - a]) lo[i - a] = low;
       }
     }
-    return m;
+    return { i0: a, lo };
   };
+  const isColMap = (m) => !!m && m.lo instanceof Float64Array;
+  const colAt = (m, i) => { const j = i - m.i0; return j >= 0 && j < m.lo.length ? m.lo[j] : Infinity; };
 
   // Plocha (mm²) SKUTEČNÉHO polotovaru, kterou dráha `segs` ubere a kterou
   // nevzala už dráha `floorSegs` (vlastní dřívější kus téhož průchodu).
   // `base` = předpočtená podlaha (`floors.before(k)` z `prefixFloors`) navíc
   // k `floorSegs`; `segs` smí být i hotová sloupcová mapa dráhy (`floors.maps[k]`).
   const cutArea = (segs, floorSegs = null, base = null) => {
-    const own = segs instanceof Map ? segs : lowMap(segs);
+    const own = isColMap(segs) ? segs : lowMap(segs);
     const floor = floorSegs && floorSegs.length ? lowMap(floorSegs) : null;
     let area = 0;
-    for (const [i, low] of own) {
+    for (let j = 0; j < own.lo.length; j++) {
+      const low = own.lo[j];
+      if (low === Infinity) continue;
+      const i = own.i0 + j;
       const t = top[i];
       if (t === null || t === undefined) continue;
       let ceil = t;
-      if (floor) { const f = floor.get(i); if (f !== undefined && f < ceil) ceil = f; }
+      if (floor) { const f = colAt(floor, i); if (f < ceil) ceil = f; }
       if (base) {
         if (base.arr[i] < ceil) ceil = base.arr[i];
-        for (const m of base.extra) { const v = m.get(i); if (v !== undefined && v < ceil) ceil = v; }
+        for (const m of base.extra) { const v = colAt(m, i); if (v < ceil) ceil = v; }
       }
       const thick = ceil - Math.max(low, 0);
       if (thick > 0) area += thick * H;
@@ -144,7 +167,7 @@ export function makeRealStock({ rawLoop, footprint }) {
     const cur = new Float64Array(n).fill(Infinity);
     for (let k = 0; k <= paths.length; k++) {
       if (k % CP === 0) cps.push(Float64Array.from(cur));
-      if (k < paths.length) for (const [i, low] of maps[k]) if (low < cur[i]) cur[i] = low;
+      if (k < paths.length) { const { i0, lo } = maps[k]; for (let j = 0; j < lo.length; j++) if (lo[j] < cur[i0 + j]) cur[i0 + j] = lo[j]; }
     }
     const before = (k) => {
       const c = Math.floor(k / CP);

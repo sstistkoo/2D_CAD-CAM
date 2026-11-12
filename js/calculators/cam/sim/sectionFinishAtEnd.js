@@ -8,12 +8,16 @@
 // ve volbě, že se má jet i na hotovo". Úseky se proto vygenerují bez
 // dokončování a za ně přibude jedna část „Na hotovo" (jen dokončení,
 // `finishOnly`) přes celý rozsah uživatele, na polotovaru po posledním úseku.
-// Jen strategie Cik cak — ostatní „Po úsecích" dokončují v každém úseku
-// zvlášť jako dosud. Volá camSimulator.js (sectionPathsNow).
+// Jen strategie Cik cak a podélné s „Nepřejíždět mezi hrby" — ostatní „Po
+// úsecích" dokončují v každém úseku zvlášť jako dosud. Volá camSimulator.js (sectionPathsNow).
+
+import { humpFirstOn } from './humpFirstOption.js';
 
 /** Před úseky: u Cik cak s dokončováním ho v úsecích vypne. */
 export function sectionFinishBegin(S) {
-  const on = S.params.roughingStrategy === 'zigzag' && !!S.params.doFinishing && !S.params.finishOnly;
+  // + „Nepřejíždět mezi hrby" (ops/sections/humpFirst.js): kroky se dělí i podle
+  // X (do dna údolí / pod ním) — dokončení po krocích by kontura rozsekala.
+  const on = (S.params.roughingStrategy === 'zigzag' || humpFirstOn(S.params)) && !!S.params.doFinishing && !S.params.finishOnly;
   if (on) S.params.doFinishing = false;
   return { on };
 }

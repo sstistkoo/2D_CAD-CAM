@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v807';
+const CACHE_NAME = 'skica-v810';
 const ASSETS = [
   './',
   './index.html',
@@ -40,6 +40,7 @@ const ASSETS = [
   './js/calculators/cam/contourGouge.js',
   './js/calculators/cam/controlDialect.js',
   './js/calculators/cam/faceTransitGuard.js',
+  './js/calculators/cam/feedAuto.js',
   './js/calculators/cam/feedRates.js',
   './js/calculators/cam/feedTuning.js',
   './js/calculators/cam/finishFeed.js',
@@ -120,6 +121,7 @@ const ASSETS = [
   './js/calculators/cam/ops/long/chainRelink.js',
   './js/calculators/cam/ops/long/insertFlankGuard.js',
   './js/calculators/cam/ops/long/intervalScan.js',
+  './js/calculators/cam/ops/long/leadInCutPrefix.js',
   './js/calculators/cam/ops/long/leadInChain.js',
   './js/calculators/cam/ops/long/openPass.js',
   './js/calculators/cam/ops/long/partingEnvelope.js',
@@ -144,6 +146,7 @@ const ASSETS = [
   './js/calculators/cam/ops/roughFace.js',
   './js/calculators/cam/ops/roughLong.js',
   './js/calculators/cam/ops/sections/drawSections.js',
+  './js/calculators/cam/ops/sections/humpFirst.js',
   './js/calculators/cam/ops/sections/sectionGuides.js',
   './js/calculators/cam/ops/sections/sectionLeftover.js',
   './js/calculators/cam/ops/sections/sectionPlan.js',
@@ -176,6 +179,7 @@ const ASSETS = [
   './js/calculators/cam/sim/drawOverlays.js',
   './js/calculators/cam/sim/drawStock.js',
   './js/calculators/cam/sim/drawToolpath.js',
+  './js/calculators/cam/sim/feedAutoHtml.js',
   './js/calculators/cam/sim/gcodeNodes.js',
   './js/calculators/cam/sim/geomPopups.js',
   './js/calculators/cam/sim/grooveCad.js',
@@ -183,6 +187,7 @@ const ASSETS = [
   './js/calculators/cam/sim/guideLines.js',
   './js/calculators/cam/sim/hitTest.js',
   './js/calculators/cam/sim/holderCadDraw.js',
+  './js/calculators/cam/sim/humpFirstOption.js',
   './js/calculators/cam/sim/insertSegmentModal.js',
   './js/calculators/cam/sim/knifeSlots.js',
   './js/calculators/cam/sim/knives.js',

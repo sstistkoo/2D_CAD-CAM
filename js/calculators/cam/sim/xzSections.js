@@ -72,6 +72,12 @@ export function sectionStepLimits(S, st, base) {
     if (swapsXZ(S)) L.zLimits = { ...L.zLimits, valleyStart: true };
     else L.xLimits = { ...L.xLimits, valleyStart: true };
   }
+  // Krok pod dnem údolí polotovaru (ops/sections/humpFirst.js, jen soustruh):
+  // vrstvy jen do `depthCap`, bez stěny pravidla 12 (calculatePipeline.js).
+  if (Number.isFinite(st.depthCap) && !swapsXZ(S)) {
+    L.xLimits = { ...L.xLimits, rangeXMax: st.depthCap, maxActive: true, active: true, depthCap: true };
+  }
+  if (Number.isFinite(st.gridTop) && !swapsXZ(S)) L.xLimits = { ...L.xLimits, gridTop: st.gridTop };
   // Před úsekem se obráběl jiný (materiál za začátkem patří tomuto úseku).
   if (st.afterPrev) {
     if (swapsXZ(S)) L.zLimits = { ...L.zLimits, afterPrev: true };

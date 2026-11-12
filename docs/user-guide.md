@@ -514,6 +514,12 @@ CAM část ti umožní generovat NC programy pro obrábění.
    - **Hrubování** – podélné nebo čelné
    - **Dokončování** – objezd kontury.
    - **Ladění posuvu** (Hrub. pod „Dokončovací operace"; dráha se nikdy nemění, jen F):
+     - **☑ Auto (posuvy nastavit samy)** (Hrub. i Hot.): zapne všechny volby níž
+       a nastaví je — konstantní posuv na oblouku, F dokončení z Ra 1,6 a rε
+       destičky (strop 2 × F), 50 % ve vnitřním rohu a při zanoření, konstantní
+       tloušťka třísky (strop 2 × F) a **Nepřejíždět mezi hrby**. Dokud je Auto
+       zapnuté, volby a pole jsou zamčené; po vypnutí hodnoty zůstanou a jdou
+       měnit ručně.
      - **Konstantní posuv na oblouku (dle rε)** (i v Hot.): dráha jede středem
        rádiusu destičky, takže na vypuklém R jede střed po R + rε a na vydutém po
        R − rε — posuv v bodě řezu by byl menší/větší než F. Zapnuto = F oblouku
@@ -538,6 +544,11 @@ CAM část ti umožní generovat NC programy pro obrábění.
        50 % F. Skutečné ap: podélně z modelu zbytku (+ přídavek, ať odhad
        nevyjde tenčí), čelně z výšky materiálu nad dnem řezu (model zbytku),
        cik cak každý pohyb zvlášť.
+     - **☑ Nepřejíždět mezi hrby** (jen Hrub., podélně na soustruhu, platí pro
+       **✂ Po úsecích**) — viz „✂ Po úsecích" níž: u odlitku se dvěma hrby nad
+       údolím polotovaru se nejdřív obrobí první hrb do hloubky dna údolí, pak
+       druhý hrb, a teprve potom pod dnem údolí oba vcelku. Mění pořadí drah,
+       ne posuv.
      - **Posuv dok. (F)** (Hrub. pod dokončením i Hot., výchozí 0 = auto): posuv dokončovací
        dráhy, když dokončuje týž nůž; pole Posuv (F) platí jen pro hrubování. 0 = auto podle
        plátku (vedle pole je vidět výsledné F). Nůž ze zásobníku sem při výběru dá své f dok.;
@@ -1418,6 +1429,13 @@ Nad každým úsekem je vidět **zbytek** („nedojeto" v mm², broskvově) a
 červeně čárkovaně obrys polotovaru, který po programu zůstal. Kus materiálu,
 který dráha oddělí a který visí nad dílem, se do dalšího polotovaru počítá
 i s tím, co je pod ním (nezahazuje se).
+S **☑ Nepřejíždět mezi hrby** (blok posuvů v Hrub.) dostane díl i hranici na
+**dně údolí polotovaru** (polotovar nad dílem klesne a zase stoupne víc než
+o ap — dva hrby) a úseky kolem ní se obrobí v pořadí: **Úsek 1 (do Ø…)** jen
+po dno údolí, **Úsek 2 (do Ø…)** jen po dno údolí, pak **Úsek 1+2 (pod Ø…)**
+oba vcelku pod dnem údolí (řetěz zanoření tam pokračuje až dolů, vrstvy nad
+dnem už nejede) a nakonec další úseky. Vrstvy tak nepřejíždějí rychloposuvem
+z jednoho hrbu na druhý. Dokončení jede jednou na konci (část **Na hotovo**).
 **↺ Reset** zruší rozdělení na části (po „✂ Po úsecích“ i „➕ Operace“):
 vrátí původní polotovar a rozsah, dráhy částí smaže (jde vzít zpět přes ↩ Zpět).
 

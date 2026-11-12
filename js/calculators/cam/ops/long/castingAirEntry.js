@@ -22,8 +22,15 @@
 /**
  * @returns {boolean} true = vjezd ze vzduchu, rampa netřeba (`noRampNeeded`)
  */
-export function castingAirEntry({ prms, entryZ, effZMax, rangeCapped, regionCapped, currentX, noseLift, surfAt, holderFits }) {
+export function castingAirEntry({ prms, entryZ, effZMax, rangeCapped, regionCapped, currentX, noseLift, surfAt, holderFits, chainBefore = false }) {
   if (!prms || prms.stockMode !== 'casting') return false;
+  // Běží-li ŘETĚZ RAMP z mělčí vrstvy a jeho kotva leží PŘED vjezdem, bere
+  // materiál před vjezdem (nedosažitelný kus od kraje okna) on — přímý vjezd
+  // by ho odřízl. Karusel od středu takový řetěz nemá (blok před mezerou bere
+  // vrstva sama od osy), tam vjezd ze vzduchu platí dál.
+  // Díl uživatele 12. 11. 2026 (soustruh zleva, PSBNR): řetěz z X178/Z250 skončil
+  // a v Z99–595 zůstalo 87 mm místo 37 mm (`N1450 G1 Z446.980` byl poslední).
+  if (chainBefore) return false;
   if (rangeCapped || regionCapped) return false;
   if (!(Math.abs(entryZ - effZMax) > 1e-9)) return false;
   const surf = typeof surfAt === 'function' ? surfAt(entryZ) : null;

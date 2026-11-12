@@ -583,7 +583,9 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   // vyleze nad X max; tam začíná rozsah Z (ořez, hlídání hranice i dokončení
   // pak obstará jeho stávající logika — pro podélné, čelní i zleva stejně).
   let xMaxNothing = false;
-  if (machiningRangeX && isFinite(machiningRangeX.xHi)) {
+  // `depthCap` (krok „pod dnem údolí", ops/sections/humpFirst.js): X max je jen
+  // strop hloubek vrstev — nad ním už obráběly předchozí kroky, stěna se nehledá.
+  if (machiningRangeX && isFinite(machiningRangeX.xHi) && !(S.xLimits && S.xLimits.depthCap)) {
     const w = xMaxWallZ(prms, sRad, stockPathSegments, machiningRangeX.xHi,
       machiningRange ? machiningRange.zLo : -Infinity, machiningRange ? machiningRange.zHi : Infinity);
     const zShow = (z) => (mirZ ? -z : z).toFixed(2);
@@ -621,7 +623,11 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
       // i zleva, uživatel 5. 11. 2026) — u ostatních strategií přidávala úseky
       // navíc a zleva kolize. Zleva: bez ní vrstva přeskočila rychloposuvem
       // nad kusem do další oblasti (díl (8), N380 G0 Z19 → Z103).
-      const stockValleys = !!prms.xzSwapped || roughingKey(S) === 'zigzag';
+      // + soustruh podélně s volbou „Nepřejíždět mezi hrby" (ops/sections/humpFirst.js;
+      // táž podmínka jako sim/humpFirstOption.js `humpFirstOn`).
+      const humpFirst = prms.humpFirst === true && prms.machineStructure !== 'carousel'
+        && (roughingKey(S) === 'longitudinal' || roughingKey(S) === 'backside');
+      const stockValleys = !!prms.xzSwapped || roughingKey(S) === 'zigzag' || humpFirst;
       sectionPlan = planSections({ prms, guides, stockPathSegments, planLoop: guideStockLoop, worldPoints, stockValleys });
     } catch (err) {
       console.warn('CAM: plán úseků se nepodařilo sestavit:', err);
@@ -714,6 +720,9 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
     valleyStart: !!(S.xLimits && S.xLimits.valleyStart),
     // Před úsekem se obráběl jiný úsek (ops/zigzagBeyondStart.js, zigzagReverse.js).
     afterPrev: !!(S.xLimits && S.xLimits.afterPrev),
+    // Kotva mřížky hloubek (ops/sections/humpFirst.js): kroky rozdělené podle dna
+    // údolí jedou v mřížce spojených úseků, ne každý od svého vrchu.
+    gridTopX: S.xLimits && Number.isFinite(S.xLimits.gridTop) ? S.xLimits.gridTop : null,
   };
   // operations[] model: seznam operací hrubování, každá naplní passes
   // přes svou strategii z registru. Zatím odvozeno z prms.roughingStrategy

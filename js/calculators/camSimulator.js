@@ -48,7 +48,7 @@ import { handleSendToCanvas as _handleSendToCanvas } from './cam/sim/sendToCanva
 import { openTangentLineModal as _openTangentLineModal } from './cam/sim/tangentLineModal.js';
 import { openInsertSegmentModal as _openInsertSegmentModal } from './cam/sim/insertSegmentModal.js';
 import { createCollisionValidation, createHolderGougeView } from './cam/sim/collisionWarnings.js';
-import { createXzSimView } from './cam/sim/xzSim.js'; import { createLimitMark } from './cam/sim/limitTouchMark.js'; import { hideLimits, showLimits } from './cam/sim/limitsVisibility.js'; import { xzSectionSteps, sectionStepLimits, machinedFor, noSections } from './cam/sim/xzSections.js';
+import { createXzSimView } from './cam/sim/xzSim.js'; import { createLimitMark } from './cam/sim/limitTouchMark.js'; import { hideLimits, showLimits } from './cam/sim/limitsVisibility.js'; import { xzSectionSteps, sectionStepLimits, machinedFor, noSections } from './cam/sim/xzSections.js'; import { humpFirstSteps } from './cam/ops/sections/humpFirst.js'; import { humpFirstOn } from './cam/sim/humpFirstOption.js';
 import { createSnap } from './cam/sim/snap.js';
 import { dropInsaneSavedProgram } from './cam/sim/programSanity.js';
 import { confirmNcExport } from './ncCheck.js';
@@ -1287,7 +1287,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     const zl = S.zLimits;
     const userRange = zl.rangeActive && Number.isFinite(zl.rangeStart) && Number.isFinite(zl.rangeEnd)
       ? { zLo: Math.min(zl.rangeStart, zl.rangeEnd), zHi: Math.max(zl.rangeStart, zl.rangeEnd) } : null;
-    const steps = sectionRanges(plan, { lo: Math.min(...zs), hi: Math.max(...zs) }, userRange);
+    const steps = humpFirstSteps(humpFirstOn(S.params), plan, sectionRanges(plan, { lo: Math.min(...zs), hi: Math.max(...zs) }, userRange));   // „Nepřejíždět mezi hrby"
     return steps.length ? { steps } : { error: 'Žádný úsek neleží v rozsahu obrábění.' };
   }
 

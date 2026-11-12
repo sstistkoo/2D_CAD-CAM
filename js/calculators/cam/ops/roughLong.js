@@ -42,7 +42,7 @@ export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
   const ins = getInsert(ctx.prms);
   const passesAtStart = ctx.passes.length;   // 0° = bez zanořování filtruje jen svoje (long/plungeZero.js)
-  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, machiningRange: machiningRangeIn, machiningRangeX, holderClampZEnd, interferenceGuides } = ctx;
+  const { prms, sRad, stockFace, step, offsetPath, stockWorldPoints, stockPathSegments, passes, foundErrors, offsetXAt, traceOffsetPath, findPocketExitZ, findLeadOutEndZ, machiningRange: machiningRangeIn, machiningRangeX, holderClampZEnd, interferenceGuides, gridTopX = null } = ctx;   // gridTopX: ops/sections/humpFirst.js
   // KONEC ROZSAHU Z (ruční 📐 uvnitř úseku i stěna pod X max, pravidlo 12)
   // platí pro OBRYS DESTIČKY: průchody končí STŘEDEM nosu, plátek sahá dál —
   // kulatá R 10 s X max 22 se zakousla do stěny až na X 24,9 (12. 10. 2026).
@@ -874,7 +874,7 @@ export function genLongPasses(ctx) {
       Math.min(nb.zHi, rangeClipZ ? rangeClipZ.zHi : Infinity));
     if (t !== null && (_grpTop === null || t > _grpTop)) _grpTop = t;
   }
-  let depths = _grpTop === null ? depthsAll : buildDepths(_grpTop, _grpTop);
+  let depths = _grpTop === null ? depthsAll : buildDepths(Math.max(_grpTop, gridTopX ?? -Infinity), Math.max(_grpTop, gridTopX ?? -Infinity));   // kroky „Nepřejíždět mezi hrby": mřížka celého úseku
   if (depths.length === 0) continue;
   // Schodová evidence obálky držáku platí v rámci jednoho regionu —
   // jiný region hrubuje jinou stěnu, jeho schody sem nepatří.
@@ -1323,7 +1323,7 @@ export function genLongPasses(ctx) {
     // kolmo zapíchnout — vjezd tam patří rampě.
     if (__LOG) globalThis.__DEPTH__.push({ fáze: 'po scan', x: +currentX.toFixed(3),
       entryZ: +entryZ.toFixed(2), firstOpen, ivs: intervals.map(v => `${v.zStart.toFixed(1)}→${v.zEnd.toFixed(1)}${v.blocked ? 'B' : ''}`).join(' ') });
-    if (!noRampNeeded && castingAirEntry({ prms, entryZ, effZMax, regionCapped: regionCappedRaw, rangeCapped: !!(machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6), currentX, noseLift: noseLiftL, surfAt: offsetStockTopXAtZ, holderFits: holderFitsAt })) noRampNeeded = true;   // vjezd na hraně odlitku ze vzduchu (pravidlo 10/2)
+    if (!noRampNeeded && castingAirEntry({ prms, entryZ, effZMax, regionCapped: regionCappedRaw, rangeCapped: !!(machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6), currentX, noseLift: noseLiftL, surfAt: offsetStockTopXAtZ, holderFits: holderFitsAt, chainBefore: !!(entryRampAnchor && !entryRampClosed && entryRampAnchor.z > entryZ + 0.5) })) noRampNeeded = true;   // vjezd na hraně odlitku ze vzduchu (pravidlo 10/2)
     const regionCapped = regionCappedRaw;
     const entryCapped = !noRampNeeded && ((entryZ !== effZMax)
       || (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6)
@@ -1464,7 +1464,7 @@ export function genLongPasses(ctx) {
             if (q.contourLeadOut) joined.contourLeadOut = q.contourLeadOut;
             if (q.holderClamped) joined.holderClamped = true;
             if (holderFitAreaAlong(joined) <= Math.max(holderFitAreaAlong(p), holderFitAreaAlong(q)) + 0.01) {
-              passes.length = nBefore - 1;
+              passes.length = nBefore - 1; if (T.cutFloorSynced > passes.length) T.cutFloorSynced = passes.length;   // spojený průchod do modelu zbytku znovu (jinak ho líný prefix přeskočí)
               passes.push(joined);
             }
           }

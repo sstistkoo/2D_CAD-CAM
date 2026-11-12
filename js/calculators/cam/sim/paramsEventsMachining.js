@@ -5,6 +5,7 @@
 import { showToast } from '../../../state.js';
 import { MAGAZINE_DEFAULTS_REV } from '../../magazineDefaults.js';
 import { _defaultCamParams } from '../camDefaults.js';
+import { applyFeedAuto } from '../feedAuto.js';
 import { getEffectivePlungeAngle } from '../camMath.js';
 import { getInsert } from '../inserts/index.js';
 import { applyPreDrillPlan } from '../ops/borePreDrill.js';
@@ -35,8 +36,14 @@ export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange
     S.params.arcFeedComp = arcFeedCb.checked;
     applyChange();
   });
+  // Auto posuvů (cam/feedAuto.js): zapne a nastaví všechny volby níž.
+  const feedAutoCb = tabBody.querySelector('#cam-sim-feedauto');
+  if (feedAutoCb) feedAutoCb.addEventListener('change', () => {
+    if (feedAutoCb.checked) applyFeedAuto(S.params); else S.params.feedAuto = false;
+    applyChange();
+  });
   // Snížené posuvy (cam/feedTuning.js, ops/zigzagFeed.js): zaškrtávátka.
-  for (const [id, key] of [['#cam-sim-feedplunge', 'feedPlungeOn'], ['#cam-sim-feedwall', 'feedWallOn'], ['#cam-sim-feedwall-auto', 'feedWallAuto'], ['#cam-sim-chipthin', 'chipThinOn'], ['#cam-sim-finra', 'finRaOn'], ['#cam-sim-feedcorner', 'feedCornerOn']]) {
+  for (const [id, key] of [['#cam-sim-feedplunge', 'feedPlungeOn'], ['#cam-sim-feedwall', 'feedWallOn'], ['#cam-sim-feedwall-auto', 'feedWallAuto'], ['#cam-sim-chipthin', 'chipThinOn'], ['#cam-sim-humpfirst', 'humpFirst'], ['#cam-sim-finra', 'finRaOn'], ['#cam-sim-feedcorner', 'feedCornerOn']]) {
     const cb = tabBody.querySelector(id);
     if (cb) cb.addEventListener('change', () => { S.params[key] = cb.checked; applyChange(); });
   }

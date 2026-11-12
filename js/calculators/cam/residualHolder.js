@@ -97,6 +97,30 @@ export function holderFitsInResidual(loops, holderLoop, x, z, tol = RESIDUAL_FIT
   return holderAreaInResidual(loops, holderLoop, x, z) <= tol;
 }
 
+// Zbytek ořezaný na obdélník, kam držák se špičkou kdekoli na dráze `pts`
+// vůbec sahá (+1 mm). Plocha průniku držáku se zbytkem se tím nezmění —
+// držák leží celý uvnitř obdélníku — ale každý ze 128 vzorků pak počítá
+// Clipperem s kouskem zbytku, ne s obrysem celého dílu. Díl uživatele
+// 12. 11. 2026: tahle funkce brala ~30 % času generování drah.
+function clipToHolderReach(loops, holderLoop, pts) {
+  let hx0 = Infinity, hx1 = -Infinity, hz0 = Infinity, hz1 = -Infinity;
+  for (const p of holderLoop) {
+    if (p.x < hx0) hx0 = p.x; if (p.x > hx1) hx1 = p.x;
+    if (p.z < hz0) hz0 = p.z; if (p.z > hz1) hz1 = p.z;
+  }
+  let px0 = Infinity, px1 = -Infinity, pz0 = Infinity, pz1 = -Infinity;
+  for (const p of pts) {
+    if (p.x < px0) px0 = p.x; if (p.x > px1) px1 = p.x;
+    if (p.z < pz0) pz0 = p.z; if (p.z > pz1) pz1 = p.z;
+  }
+  const v = [hx0, hx1, hz0, hz1, px0, px1, pz0, pz1];
+  if (!v.every(Number.isFinite)) return loops;
+  const x0 = px0 + hx0 - 1, x1 = px1 + hx1 + 1, z0 = pz0 + hz0 - 1, z1 = pz1 + hz1 + 1;
+  try {
+    return polyIntersect(loops, [[{ x: x0, z: z0 }, { x: x1, z: z0 }, { x: x1, z: z1 }, { x: x0, z: z1 }]]);
+  } catch { return loops; }
+}
+
 /**
  * Nejhorší vnoření držáku PODÉL dráhy (rampa, nájezd po kontuře) [mm²].
  *
@@ -117,6 +141,8 @@ export function holderAreaAlongResidual(loops, holderLoop, pts, {
   let len = 0;
   for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
   const n = Math.max(1, Math.min(maxSamples, Math.ceil(len / Math.max(step, 0.05))));
+  loops = clipToHolderReach(loops, holderLoop, pts);
+  if (!loops || loops.length === 0) return 0;
   // Bod na dráze v poměrné vzdálenosti t ∈ [0,1] + prefix dráhy k němu.
   const at = (t) => {
     let want = len * t, prev = pts[0];

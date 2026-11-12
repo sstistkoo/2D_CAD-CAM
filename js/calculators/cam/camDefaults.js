@@ -39,6 +39,11 @@ export function _defaultCamParams() {
     // a snížený posuv ve vnitřním rohu kontury (posledních/prvních rε).
     finRaOn: false, finRa: 1.6, finRaMaxF: 0,
     feedCornerOn: false, feedPctCorner: 50,
+    // Auto posuvů (cam/feedAuto.js): zapne a nastaví volby výš + humpFirst.
+    feedAuto: false,
+    // ✂ Po úsecích, podélně na soustruhu: hrb → hrb → pod dnem údolí
+    // polotovaru (ops/sections/humpFirst.js), bez přejezdů mezi hrby.
+    humpFirst: false,
     // Směr hrubování: 'right' = zprava doleva (standard), 'left' = zleva
     // doprava (druhá strana — zprava nelze, narazil by držák/destička).
     // Kombinuje se s roughingStrategy (podélně/čelně).

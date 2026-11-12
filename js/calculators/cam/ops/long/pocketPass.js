@@ -18,6 +18,7 @@ import { plungeDisabled } from '../../camMath.js';
 import { leadInTail } from './humpOrder.js';
 import { wallEntryLeadIn } from './wallEntry.js';
 import { pocketCornerBuried, pocketPathBuried } from './pocketCornerBuried.js';
+import { dropCutLeadInPrefix } from './leadInCutPrefix.js';
 
 export function emitPocketInterval(D) {
   const {
@@ -792,7 +793,7 @@ while (safety++ < 500) {
   // kapsu/roh (ten by jel skrz boss nad zápichem).
   pocketPass.noRetract = true;
   let wallAnchorX = null;
-  if (firstPlunge) { pocketPass.pocketEntry = true; linkToPrev(leadIn); }
+  if (firstPlunge) { pocketPass.pocketEntry = true; if (!dropCutLeadInPrefix(pocketPass, buriedCutArea || newCutArea)) linkToPrev(leadIn); }   // nájezd po vybrané dráze → rychloposuv (leadInCutPrefix.js)
   else {
     pocketPass.pocketReposition = true;
     if (insKeys.pocketRampAlongWall && !pocketPass.contourLeadIn) {
@@ -835,6 +836,7 @@ while (safety++ < 500) {
       if (s0 && Math.hypot(s0.x1 - prevRampEnd.x, s0.z1 - prevRampEnd.z) < 0.05) pocketPass.wallEntryClear = true;
     }
   }
+  if (!firstPlunge && !pocketPass.rampFeedFrom && !pocketPass.wallEntryClear) dropCutLeadInPrefix(pocketPass, buriedCutArea || newCutArea);
   if (!skipRiskyPocketEmit) {
     passes.push(pocketPass);
     // Tenhle zákrok sjel po přímce zanoření od své KOTVY (ne od rohu —
@@ -1087,6 +1089,7 @@ if (cleanLeadIn.length > 0 || cleanLeadOut.length > 0) {
   if (cleanLeadIn.length > 0) cleanPass.contourLeadIn = cleanLeadIn;
   if (cleanLeadOut.length > 0) cleanPass.contourLeadOut = cleanLeadOut;
   if (cleanApproach) cleanPass.cleanApproach = cleanApproach;
+  else if (cleanLeadOut.length > 0) dropCutLeadInPrefix(cleanPass, _cutFn, false);   // nájezd po vybrané čáře → rychloposuv
   if (!skipRiskyPocketEmit) {
     passes.push(cleanPass);
     // Dobrání schodku dojede po kontuře od konce POSLEDNÍ rampy až na

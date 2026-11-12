@@ -61,9 +61,16 @@ export function emitRoughing(E) {
     const z0 = cur.z;
     const n = Math.max(1, Math.ceil(Math.abs(zTo - z0)));
     const runs = [];
+    // Blok 16 mm se ptá NAJEDNOU: stopa kousku je podmnožinou stopy bloku,
+    // takže když nenarazí blok, nenarazí žádný jeho milimetr (výsledek je
+    // týž, polygonových operací desetkrát méně — dlouhé přejezdy vzduchem).
+    const zk = (k) => z0 + (zTo - z0) * k / n;
+    const hits = (a, b) => rapidHitsStock(X, zk(a), X, zk(b)) || rapidHitsPlan(X, zk(a), X, zk(b));
+    const free = new Uint8Array(n);
+    for (let a = 0; a < n; a += 16) { const b = Math.min(n, a + 16); if (b - a > 1 && !hits(a, b)) free.fill(1, a, b); }
     for (let k = 0; k < n; k++) {
-      const za = z0 + (zTo - z0) * k / n, zb = z0 + (zTo - z0) * (k + 1) / n;
-      const hit = rapidHitsStock(X, za, X, zb) || rapidHitsPlan(X, za, X, zb);
+      const za = zk(k), zb = zk(k + 1);
+      const hit = free[k] ? false : hits(k, k + 1);
       const last = runs[runs.length - 1];
       if (last && last.hit === hit) last.z = zb; else runs.push({ hit, z: zb, z0: za });
     }

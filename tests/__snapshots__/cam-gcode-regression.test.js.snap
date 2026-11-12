@@ -15661,7 +15661,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > pocket-wall-at-plunge-angle
   "Zanořování: 2 vrstvy vynechány — do kapsy nevede ani rampa, ani nájezd po kontuře (jinak by se muselo zapíchnout kolmo). Materiál zůstává pro dokončování.",
   "Zanořování: 1 vrstva vynechána — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 6 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
-  "Bez schodků: vypuštěno 2 úseků dojezdu a 0 nájezdů — vedly po dráze, kterou už dřívější průchod projel.",
+  "Bez schodků: vypuštěno 1 úseků dojezdu a 0 nájezdů — vedly po dráze, kterou už dřívější průchod projel.",
 ]
 `;
 

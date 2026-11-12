@@ -38,6 +38,18 @@ z materiálu.**
   úsecích u 27 soustruhových fixtures a zleva přidaly kolize (kontrola
   5. 11. 2026). Zleva schválil uživatel 5. 11. 2026 („ano zapni“): vrstva
   jinak přeskočila rychloposuvem nad kusem do další oblasti. Přepínač `stockValleys` v calculatePipeline.js.
+- **Údolí polotovaru — SOUSTRUH PODÉLNĚ, jen s volbou „Nepřejíždět mezi hrby“**
+  (uživatel 12. 11. 2026: *„bral by se napřed ten první hrb a zanořovalo se
+  až do hloubky [dna údolí]. Pak by se dodělal ten druhý hrb a teprve pak by
+  se dodělalo to zanořování od toho bodu, ať to tam ten druhý hrb nepřeruší,
+  a to zanoření může jít až úplně dolů“*). Hranice na dně údolí polotovaru
+  jako výš; ✂ Po úsecích pak obrábí: úsek před údolím **jen po výšku dna
+  údolí**, úsek za údolím **jen po výšku dna údolí**, potom **oba úseky
+  vcelku pod dnem údolí** (vrstvy jen do výšky dna, mřížka hloubek celého
+  úseku), pak další úseky. Žádná vrstva tak nepřejíždí rychloposuvem z hrbu
+  na hrb. Dokončení jede jednou na konci. Výchozí vypnuto (`prms.humpFirst`),
+  bez volby se nic nemění. `ops/sections/humpFirst.js`,
+  `tests/cam-hump-first-sections.test.js`.
 - Jiné dělení neexistuje — **nikdy** uprostřed údolí kontury ani uprostřed hrbu.
 - **Upichovák podélně nehrubuje** (rozhodnutí uživatele 25. 9. 2026) —
   hrubuje se jím jen čelně, tvar objede dokončení. Úseky proto nemá.
