@@ -19,6 +19,7 @@ npm run test:cad      # VÝCHOZÍ mimo js/calculators/cam/** (~10 s); běží i 
 npm test              # plná sada vč. CAM (~13 min) — jen při zásahu do cam/**
 npx vitest run tests/nazev.test.js   # cílený test při ladění
 npm run lint          # ESLint (jen chyby)
+npm run typecheck     # TS nad JSDoc v cam/, geom/, geometry/ — nový kód bez chyb (baseline jen klesá)
 npm run sw            # PO PŘIDÁNÍ JS SOUBORU — jinak chybí v offline cache
 npm run test:coverage # POZOR: zpomalí CAM ~4×, šest testů spadne na vlastní timeout (není regrese)
 npx serve .           # lokální běh (ES moduly vyžadují server, ne file://)

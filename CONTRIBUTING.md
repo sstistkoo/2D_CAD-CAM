@@ -17,13 +17,40 @@ python -m http.server 8080
 
 > POZOR: ES module importy nefungují přes `file://` – vždy potřebuješ HTTP server.
 
+### Kontrola před pushem (git hook)
+
+`npm install` zapne hooky z `.githooks/` (`git config core.hooksPath .githooks`).
+Hook `pre-push` (`scripts/pre-push-check.mjs`) push zastaví, když:
+
+- pushované commity mění soubory aplikace (to, co cachuje Service Worker), ale ne `sw.js` →
+  PWA by změnu neviděla; oprava: `npm run sw` a commitnout `sw.js`,
+- seznam `ASSETS` v commitnutém `sw.js` nesouhlasí s commitnutými soubory (chybí = nefunguje
+  offline, navíc = 404 a padá instalace Service Workeru); ruční kontrola: `npm run sw:check`,
+- ESLint hlásí chyby,
+- typová kontrola (`npm run typecheck`) hlásí novou chybu ve výpočetním jádru.
+
+Výjimečně obejít: `git push --no-verify`.
+
+### Konce řádků
+
+`.gitattributes` drží všechny textové soubory v repu i v pracovní kopii s LF
+(i při `core.autocrlf=true` na Windows). Editor nastav na LF.
+
 ## Testování
 
 ```bash
 npm test              # Vitest (run once)
 npm run test:watch    # Watch mode
 npm run test:coverage # s coverage
+npm run typecheck     # TypeScript nad JSDoc (cam/, geom/, geometry/)
 ```
+
+### Typová kontrola
+
+`js/calculators/cam/**`, `js/geom/**` a `js/geometry/**` kontroluje TypeScript
+podle JSDoc (jen devDependency, nic se nekompiluje). Nový soubor tam musí projít
+bez chyb; staré chyby jsou v `scripts/typecheck-baseline.json` a smí jen ubývat —
+po opravách `npm run typecheck -- --update`. Podrobnosti: `docs/developer.md` § Testování.
 
 Testy jsou v `tests/`. Pridavej test pro každou novou feature nebo bugfix.
 

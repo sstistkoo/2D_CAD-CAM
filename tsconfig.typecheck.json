@@ -1,0 +1,21 @@
+{
+  // Typová kontrola JS přes JSDoc (npm run typecheck → scripts/typecheck.mjs).
+  // Jméno NENÍ tsconfig.json schválně: ten by si vzal VS Code a podtrhal
+  // i UI soubory mimo rozsah kontroly. Rozsah a povolené chyby určuje skript.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsc/typecheck.tsbuildinfo",
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": false,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["js/calculators/cam/**/*.js", "js/geom/**/*.js", "js/geometry/**/*.js"],
+  "exclude": ["js/lib/**", "node_modules"]
+}

@@ -4,5 +4,8 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		// Konce řádků LF (shodně s .gitattributes)
+		"files.eol": "\n"
+	}
 }

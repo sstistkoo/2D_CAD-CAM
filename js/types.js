@@ -4,6 +4,11 @@
 // ║  Neexportuje žádný kód – slouží jako reference pro IDE.     ║
 // ╚══════════════════════════════════════════════════════════════╝
 
+// Prázdný export = ES modul: bez něj TypeScript (npm run typecheck) odmítá
+// JSDoc odkazy na typy odsud („is not a module“). Za běhu se soubor nikde
+// neimportuje, kód tím nevzniká.
+export {};
+
 // ── Základní typy ──
 
 /**

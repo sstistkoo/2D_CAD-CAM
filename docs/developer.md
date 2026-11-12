@@ -1830,6 +1830,8 @@ npm run test:cad      # bez CAM pipeline (~25 s) — výchozí mimo js/calculato
 npm run test:watch    # Watch mode
 npm run test:coverage # s coverage
 npm run lint          # ESLint — jen chyby (s cache, ~4 s)
+npm run typecheck     # TypeScript nad JSDoc ve výpočetním jádru (~5 s, poprvé ~20 s)
+npm run sw:check      # seznam assetů v sw.js × soubory (nic nezapisuje)
 ```
 
 ### Hlídače mimo běžné testy (běží v `test:cad`)
@@ -1851,6 +1853,31 @@ npm run lint          # ESLint — jen chyby (s cache, ~4 s)
   (do 13. 10. 2026 nepozorovaně padaly). `cam_gcode_repro` jede přes
   `tests/helpers/camHeadless.mjs`, takže `test:cad` zachytí i rozbitý headless
   běh CAM (~2 s). Nový skript, který čte zdroj aplikace, sem přidat.
+- **Typová kontrola** (`scripts/typecheck.mjs`, `tsconfig.typecheck.json`,
+  `tests/typecheck.test.js`). TypeScript (jen devDependency, aplikace se nemění)
+  čte JSDoc v `js/calculators/cam/**`, `js/geom/**`, `js/geometry/**`. Soubory,
+  které chyby měly už při zavedení (12. 11. 2026: 740 hlášek v 89 souborech,
+  hlavně nepřesné JSDoc a DOM `.value` na `Element`), jsou v
+  `scripts/typecheck-baseline.json` s povoleným počtem — ten smí jen klesat
+  (`npm run typecheck -- --update`). Nový soubor v rozsahu musí být čistý.
+  Config se schválně nejmenuje `tsconfig.json`, jinak by VS Code podtrhával i UI
+  mimo rozsah. `js/types.js` má kvůli tomu `export {}` (jinak „is not a module").
+
+### Nezávislý interpret NC programu (`tests/cam-nc-roundtrip*.test.js`, plná sada)
+
+Generátor, simulace i kolizní testy počítají střed oblouku stejnou funkcí
+(`getArcParams`) — kdyby se v ní nebo v prohazování G2/G3 spletly, spletou se
+stejně a nic nespadne. `tests/helpers/ncInterpreter.mjs` čte vygenerovaný
+program jako stroj, BEZ kódu aplikace (střed volí podle opsaného úhlu, ne
+vzorcem kolmice), a pro každý díl × Sinumerik / Fanuc / Heidenhain hlídá:
+(a) oblouk jde sestrojit (|R| ≥ půl tětivy − 0,005 mm, jinak alarm stroje),
+(b) simulace jede tam, kam stroj (cíle bloků i body na obloucích, 0,001 mm),
+(c) všechny tři systémy popisují tutéž dráhu. Z (b) plyne, že kolizní testy nad
+`simPath` platí i pro stroj. Soustruh: všech 32 fixtures (~2,5 min);
+`-variants`: výběr karuselů, flipX / flipZ, zleva, DIAMOF. Konvence: G2 = po
+směru hodin v pohledu Z doprava, X nahoru; překlopení (flipX XOR flipZ) smysl
+obrací; R < 0 = oblouk přes 180°. Program s I/K místo R interpret nahlásí —
+při zavedení I/K ho rozšiř.
 
 ### GitHub Actions (`.github/workflows/testy.yml`)
 

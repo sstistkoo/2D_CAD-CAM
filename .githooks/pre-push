@@ -1,0 +1,4 @@
+#!/bin/sh
+# Kontrola sw.js (PWA cache) a ESLint před pushem — viz scripts/pre-push-check.mjs.
+# Zapíná se `git config core.hooksPath .githooks` (dělá to `npm install` přes "prepare").
+exec node scripts/pre-push-check.mjs "$@"

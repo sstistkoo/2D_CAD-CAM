@@ -1,3 +1,21 @@
-# Snímky vitestu vždy s LF: vitest je zapisuje s LF, a s CRLF z core.autocrlf
-# by je na Windows po každém běhu testů přepsal (soubor pak vypadá změněný).
+# Konce řádků: v repu i v pracovní kopii vždy LF (index už LF je).
+# Bez toho core.autocrlf=true na Windows střídá LF/CRLF podle toho, kdo soubor
+# zapsal (editor × nástroj), git hlásí „LF will be replaced by CRLF" a soubory
+# vypadají změněné, i když se obsah nezměnil.
+# text=auto: binární soubory (png, ttf…) git pozná sám a nechá je být.
+* text=auto eol=lf
+
+# Snímky vitestu: vitest je zapisuje s LF, s CRLF by je po každém běhu přepsal.
 *.snap text eol=lf
+
+# Shellové skripty a git hooky musí mít LF i na Windows, jinak `#!/bin/sh` selže.
+*.sh text eol=lf
+.githooks/* text eol=lf
+
+# Binární soubory výslovně (pro jistotu, kdyby je text=auto odhadl špatně).
+*.png binary
+*.ico binary
+*.webp binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
