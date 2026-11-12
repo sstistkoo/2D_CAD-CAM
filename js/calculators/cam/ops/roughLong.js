@@ -6,6 +6,7 @@ import { envelopePartingLeads } from './long/partingEnvelope.js';
 import { makeRegions } from './long/regions.js';
 import { orderByHumps, leadInTail } from './long/humpOrder.js';
 import { splitPocketsAtAir } from './long/airPieces.js';
+import { castingAirEntry } from './long/castingAirEntry.js';
 import { splitPocketLeadOutsOverHumps } from './long/pocketHumpSplit.js';
 import { guardInsertFlankLong } from './long/insertFlankGuard.js';
 import { checkPlanInvariants } from './long/planCheck.js';
@@ -1322,6 +1323,7 @@ export function genLongPasses(ctx) {
     // kolmo zapíchnout — vjezd tam patří rampě.
     if (__LOG) globalThis.__DEPTH__.push({ fáze: 'po scan', x: +currentX.toFixed(3),
       entryZ: +entryZ.toFixed(2), firstOpen, ivs: intervals.map(v => `${v.zStart.toFixed(1)}→${v.zEnd.toFixed(1)}${v.blocked ? 'B' : ''}`).join(' ') });
+    if (!noRampNeeded && castingAirEntry({ prms, entryZ, effZMax, regionCapped: regionCappedRaw, rangeCapped: !!(machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6), currentX, noseLift: noseLiftL, surfAt: offsetStockTopXAtZ, holderFits: holderFitsAt })) noRampNeeded = true;   // vjezd na hraně odlitku ze vzduchu (pravidlo 10/2)
     const regionCapped = regionCappedRaw;
     const entryCapped = !noRampNeeded && ((entryZ !== effZMax)
       || (machiningRange && Math.abs(effZMax - machiningRange.zHi) < 1e-6)
@@ -1506,6 +1508,7 @@ export function genLongPasses(ctx) {
         noseLiftX: noseLiftL,
         // Klíč plátku `skipPocketsCuttingNothing` (dnes jen kulatá).
         newCutArea: ins.skipPocketsCuttingNothing ? newCutArea : null,
+        buriedCutArea: newCutArea,   // pojistka zasypaného dobrání (pocketCornerBuried.js), všechny tvary
         // Klíč plátku `pocketLeadOutNoStep` (dnes jen kulatá): dojezd schodu.
         pocketLeadOut: ins.pocketLeadOutNoStep && prms.noStepRoughing ? {
           prevX: depthIdx > 0 ? depths[depthIdx - 1] : null,

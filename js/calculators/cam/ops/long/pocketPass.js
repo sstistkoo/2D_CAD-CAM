@@ -17,7 +17,7 @@ import { getInsert } from '../../inserts/index.js';
 import { plungeDisabled } from '../../camMath.js';
 import { leadInTail } from './humpOrder.js';
 import { wallEntryLeadIn } from './wallEntry.js';
-import { pocketCornerBuried } from './pocketCornerBuried.js';
+import { pocketCornerBuried, pocketPathBuried } from './pocketCornerBuried.js';
 
 export function emitPocketInterval(D) {
   const {
@@ -29,7 +29,7 @@ export function emitPocketInterval(D) {
     notePlungeRun, offsetXAt, ownCutOf, pocketBestX, pocketDoneRanges,
     residEntryArea, scan, stockEntryRamp, traceOffsetPath, cnt, entryZ,
     newCutArea, pocketLeadOut, gapAtSectionEdge, noseLiftX = 0,
-    pendingRampCompletions, findRampOutTarget,
+    pendingRampCompletions, findRampOutTarget, buriedCutArea,
   } = D;
   // `iv` se v těle PŘEPISUJE (postup do další kapsy) — proto let, ne const.
   let iv = D.iv;
@@ -414,6 +414,16 @@ if (!iv.blocked) {
   // větev ne, takže se týž řez vydal DVAKRÁT: „Průchod 8" (rampa do údolí)
   // a hned za ním „Průchod 9" se stejným cílem (nález uživatele 1. 9. 2026).
   if (passOpen.ramp) notePlungeRun(passOpen.ramp.x0, passOpen.ramp.z0, passOpen.ramp.x0, passOpen.x);
+  // Pravidlo 2: nájezd po stěně / po kontuře musí projít DRŽÁKEM proti zbytku
+  // se znalostí pořadí (jako kapsové zákroky výš). Karusel Od středu 11. 11. 2026:
+  // sjezd k rohu S13 (X842) po mezní čáře, držák zavadil o klín pod rampami
+  // nad plochou S12–S13 (4 × 5,5 mm²). Nevejde-li se, průchod se nevydá.
+  if (passOpen.contourLeadIn && residEntryArea
+      && residEntryArea(passOpen, passOpen.contourLeadIn, RESIDUAL_FIT_TOL) > RESIDUAL_FIT_TOL) {
+    holderBlockedDepths.add(depthKey(currentX));
+    cnt.leadInHolderSkips = (cnt.leadInHolderSkips || 0) + 1;
+    return;
+  }
   if (cutsNothingNew(passOpen)) return;
   attachStepLeadOut(passOpen);
   passes.push(passOpen);
@@ -1059,7 +1069,9 @@ if (!skipRiskyPocketEmit && isParting) {
 // Roh kapsy pod materiálem: dosavadní průchody (rampy jiné, vyšší mezní
 // čáry) k rohu nedosáhly — dobrání od rohu by sjelo svisle do plného materiálu
 // a jelo dno plnou hloubkou (pocketCornerBuried.js, karusel 11. 11. 2026).
-if (!skipRiskyPocketEmit && !cleanApproach && pocketCornerBuried(passes, corner, step, typeof newCutArea === 'function' ? newCutArea : null)) {
+const _cutFn = typeof buriedCutArea === 'function' ? buriedCutArea : typeof newCutArea === 'function' ? newCutArea : null;
+if (!skipRiskyPocketEmit && !cleanApproach && (pocketCornerBuried(passes, corner, step, _cutFn)
+    || pocketPathBuried(passes, [...cleanLeadIn, ...cleanLeadOut], step, _cutFn))) {
   skipRiskyPocketEmit = true;
   cnt.pocketBuriedCornerSkips = (cnt.pocketBuriedCornerSkips || 0) + 1;
 }

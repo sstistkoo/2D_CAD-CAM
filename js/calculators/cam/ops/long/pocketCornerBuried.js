@@ -49,8 +49,35 @@ export function chainFloorAt(passes, z) {
  */
 export function pocketCornerBuried(passes, corner, step, newCutArea) {
   if (!corner || !Array.isArray(passes) || passes.length === 0) return false;
-  const floor = chainFloorAt(passes, corner.z);
-  if (floor === null || !(floor - corner.x > (Number(step) || 0) + 0.5)) return false;
+  return pointBuried(passes, corner, step, newCutArea);
+}
+
+function pointBuried(passes, pt, step, newCutArea) {
+  const floor = chainFloorAt(passes, pt.z);
+  if (floor === null || !(floor - pt.x > (Number(step) || 0) + 0.5)) return false;
   if (typeof newCutArea !== 'function') return true;
-  return newCutArea([{ type: 'line', x1: floor, z1: corner.z, x2: corner.x, z2: corner.z }]) > 0.5;
+  return newCutArea([{ type: 'line', x1: floor, z1: pt.z, x2: pt.x, z2: pt.z }]) > 0.5;
+}
+
+/**
+ * Vede trasa dobrání (nájezd i dojezd po kontuře) někde víc než ap pod tím,
+ * kam dosáhly dosavadní průchody? Roh může být odkrytý, a přesto rampy
+ * dojely jen kousek — dobrání by pak jelo mezní čarou zanoření skrz plný
+ * materiál. Díl uživatele (karusel Od středu, 11. 11. 2026): roh S1 X69 Z190
+ * odkrytý, rampy kapsy jen na Z178, dobrání `G1 Z133 X281.859` →
+ * `G1 Z57.152 X571.2` napříč celou kapsou: 11 069 mm² držáku.
+ * @param {Array} segs  úseky trasy {x1,z1,x2,z2} (oblouky jen krajními body)
+ */
+export function pocketPathBuried(passes, segs, step, newCutArea) {
+  if (!Array.isArray(passes) || passes.length === 0 || !Array.isArray(segs)) return false;
+  const STEP = 2;   // vzorkování po trase [mm]
+  for (const s of segs) {
+    if (!s || ![s.x1, s.z1, s.x2, s.z2].every(Number.isFinite)) continue;
+    const n = s.type === 'line' || !s.type ? Math.max(1, Math.ceil(Math.hypot(s.x2 - s.x1, s.z2 - s.z1) / STEP)) : 1;
+    for (let k = 0; k <= n; k++) {
+      const t = k / n;
+      if (pointBuried(passes, { x: s.x1 + (s.x2 - s.x1) * t, z: s.z1 + (s.z2 - s.z1) * t }, step, newCutArea)) return true;
+    }
+  }
+  return false;
 }
