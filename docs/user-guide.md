@@ -513,7 +513,9 @@ CAM část ti umožní generovat NC programy pro obrábění.
 2. Vyber operaci:
    - **Hrubování** – podélné nebo čelné
    - **Dokončování** – objezd kontury.
-   - **Ladění posuvu** (Hrub. pod „Dokončovací operace"; dráha se nikdy nemění, jen F):
+   - **Ladění posuvu** (Hrub. pod „Dokončovací operace"; dráha se nikdy nemění, jen F).
+     Volby jsou ve sbalovacím bloku **Posuvy** — v hlavičce je vidět „Auto",
+     počet zapnutých voleb nebo „vypnuto"; klikem se rozbalí:
      - **☑ Auto (posuvy nastavit samy)** (Hrub. i Hot.): zapne všechny volby níž
        a nastaví je — konstantní posuv na oblouku, F dokončení z Ra 1,6 a rε
        destičky (strop 2 × F), 50 % ve vnitřním rohu a při zanoření, konstantní

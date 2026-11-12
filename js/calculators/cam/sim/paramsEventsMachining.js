@@ -6,6 +6,7 @@ import { showToast } from '../../../state.js';
 import { MAGAZINE_DEFAULTS_REV } from '../../magazineDefaults.js';
 import { _defaultCamParams } from '../camDefaults.js';
 import { applyFeedAuto } from '../feedAuto.js';
+import { setFeedGroupOpen } from './feedAutoHtml.js';
 import { getEffectivePlungeAngle } from '../camMath.js';
 import { getInsert } from '../inserts/index.js';
 import { applyPreDrillPlan } from '../ops/borePreDrill.js';
@@ -36,6 +37,9 @@ export function attachParamsEventsMachining({ tabBody, S, renderTab, applyChange
     S.params.arcFeedComp = arcFeedCb.checked;
     applyChange();
   });
+  // Sbalovací blok posuvů (feedAutoHtml.js) si pamatuje rozbalení.
+  const feedGroupEl = tabBody.querySelector('#cam-sim-feedgroup');
+  if (feedGroupEl) feedGroupEl.addEventListener('toggle', () => setFeedGroupOpen(feedGroupEl.open));
   // Auto posuvů (cam/feedAuto.js): zapne a nastaví všechny volby níž.
   const feedAutoCb = tabBody.querySelector('#cam-sim-feedauto');
   if (feedAutoCb) feedAutoCb.addEventListener('change', () => {

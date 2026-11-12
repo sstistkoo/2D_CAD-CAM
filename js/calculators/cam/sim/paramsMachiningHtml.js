@@ -15,7 +15,7 @@ import { grooveInnerFieldsHtml, grooveCadRowHtml, grooveOuterCadRowHtml } from '
 import { SURFACE_TABS, surfaceMode, programInner } from './machSurface.js';
 import { faceGrooveFieldsHtml, faceGrooveCadRowHtml } from './paramsGrooveFaceHtml.js';
 import { finishFeedFromRa, finishBaseFeed } from '../finishFeed.js';
-import { feedAutoRow, humpFirstRow } from './feedAutoHtml.js';
+import { feedAutoRow, humpFirstRow, feedGroup } from './feedAutoHtml.js';
 
 /** @param ctx { S, escHTML, escAttr } */
 export function paramsMachiningHtml({ S, escHTML, escAttr }) {
@@ -212,9 +212,8 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
       <input type="checkbox" id="cam-sim-fin" ${prms.doFinishing ? 'checked' : ''}>
       <span>Dokončovací operace</span>
     </div>`;
-    html += feedAutoRow(prms) + arcFeedCompRow(prms);
-    if (prms.doFinishing) html += finishFeedRows(prms, S);
-    html += roughFeedRows(prms) + humpFirstRow(prms);
+    html += feedGroup(prms, feedAutoRow(prms) + arcFeedCompRow(prms)
+      + (prms.doFinishing ? finishFeedRows(prms, S) : '') + roughFeedRows(prms) + humpFirstRow(prms));
     if (prms.doFinishing && S.toolMagazine.length > 1) {
       const finSlot = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? S.toolMagazine[prms.finishingSlot] : null;
       html += `<div class="cam-sim-row" style="margin-top:6px;align-items:center">
@@ -239,7 +238,7 @@ export function paramsMachiningHtml({ S, escHTML, escAttr }) {
       <input type="checkbox" id="cam-sim-finonly" ${prms.finishOnly ? 'checked' : ''}>
       <span>Dokončovací operace</span>
     </div>`;
-    html += feedAutoRow(prms) + arcFeedCompRow(prms) + finishFeedRows(prms, S);
+    html += feedGroup(prms, feedAutoRow(prms) + arcFeedCompRow(prms) + finishFeedRows(prms, S));
     if (prms.finishOnly && S.toolMagazine.length > 1) {
       const finSlot = (prms.finishingSlot !== null && prms.finishingSlot !== undefined) ? S.toolMagazine[prms.finishingSlot] : null;
       html += `<div class="cam-sim-row" style="margin-top:6px;align-items:center">

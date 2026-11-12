@@ -149,6 +149,7 @@ export function roundInsert(prms) {
     //                              tětiva 38,7° nechala 0,18 mm a dobrání
     //                              pak jelo tentýž kus stěny podruhé)
     pocketRampAlongWall: true,
+    pocketLeadInFromPrev: false,   // kulatá to dělá přes pocketRampAlongWall
     //   leadInTailBelowPrev      — „kapsa po kontuře" jede nájezdem jen od
     //                              mělčí vrstvy (x + ap) dolů, když kus nad ní
     //                              jede vzduchem (28. 9. 2026, poslední

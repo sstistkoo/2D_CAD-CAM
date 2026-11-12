@@ -72,6 +72,10 @@ describe('Nepřejíždět mezi hrby — pořadí kroků po úsecích', () => {
         const xs = [...r.gcode.split('; --- DOKONCOVANI ---')[0].matchAll(/G1 X([\d.]+) F/g)].map((m) => +m[1]);
         expect(xs.length, st.name).toBeGreaterThan(5);
         expect(r.errors.some((e) => /Rozsah X max/.test(e.msg || '')), st.name).toBe(false);
+        // Další zákrok kapsy naváže na konec předchozího (pocketLeadInFromPrev),
+        // nevyjíždí nad roh kapsy X133 Z288 a nejede 15° čáru od něj znovu.
+        const rough = r.gcode.split('; --- DOKONCOVANI ---')[0];
+        expect((rough.match(/G0 Z288.132/g) || []).length, st.name).toBe(0);
       }
       stock = machinedFor(r.S, r.calcSim).points; mode = 'casting';
     }

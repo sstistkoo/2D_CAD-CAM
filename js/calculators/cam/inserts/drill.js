@@ -62,6 +62,7 @@ export function drillInsert(prms) {
     leadInRapidOverCut: false,
     pocketLeadOutNoStep: false,
     pocketRampAlongWall: false,
+    pocketLeadInFromPrev: false,
     leadInTailBelowPrev: false,
     airSplitFullNose: false,
     leadInStartNoPlunge: false,

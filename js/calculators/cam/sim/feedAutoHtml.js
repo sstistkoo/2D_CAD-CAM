@@ -6,6 +6,22 @@
 
 import { humpFirstApplies } from './humpFirstOption.js';
 
+// Blok posuvů je sbalovací (uživatel 12. 11. 2026: „ať tolik nezabírají").
+// Panel se po každé změně kreslí znovu, proto se stav rozbalení drží tady.
+let _feedOpen = false;
+export const setFeedGroupOpen = (v) => { _feedOpen = !!v; };
+
+/** Sbalovací blok „Posuvy" kolem řádků posuvu; v hlavičce stručný stav. */
+export function feedGroup(prms, inner) {
+  const n = ['arcFeedComp', 'finRaOn', 'feedCornerOn', 'feedPlungeOn', 'chipThinOn', 'humpFirst']
+    .filter((k) => prms[k] === true).length;
+  const info = prms.feedAuto ? 'Auto' : (n > 0 ? `zapnuto ${n}` : 'vypnuto');
+  return `<details id="cam-sim-feedgroup" style="margin:4px 0;border:1px solid #45475a;border-radius:6px;padding:2px 6px"${_feedOpen ? ' open' : ''}>
+      <summary style="cursor:pointer;padding:4px 0;font-size:12px;color:#cdd6f4;user-select:none">Posuvy <span style="color:#a6adc8;font-size:11px">(${info})</span></summary>
+      ${inner}
+    </details>`;
+}
+
 /** Zaškrtávátko Auto nad volbami posuvu. */
 export function feedAutoRow(prms) {
   return `<div class="cam-sim-checkbox-row" data-tooltip="Auto: zapne všechny úpravy posuvu níž a nastaví je samo — konstantní posuv na oblouku, F dokončení z Ra 1,6 a rε destičky (strop 2 × F), 50 % ve vnitřním rohu a při zanoření, konstantní tloušťka třísky (strop 2 × F) a Nepřejíždět mezi hrby. Dokud je zapnuté, pole se nedají měnit; po vypnutí zůstanou hodnoty a jdou upravit ručně.">

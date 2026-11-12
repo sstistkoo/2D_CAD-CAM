@@ -95,6 +95,7 @@ export function partingInsert(prms) {
     leadInRapidOverCut: false,
     pocketLeadOutNoStep: false,
     pocketRampAlongWall: false,
+    pocketLeadInFromPrev: false,
     leadInTailBelowPrev: false,
     airSplitFullNose: false,
     leadInStartNoPlunge: false,

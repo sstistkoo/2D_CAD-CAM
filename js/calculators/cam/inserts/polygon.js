@@ -114,6 +114,11 @@ export function polygonInsert(prms) {
     leadInRapidOverCut: false,
     pocketLeadOutNoStep: false,
     pocketRampAlongWall: false,
+    // pocketLeadInFromPrev — další zákrok kapsy (zanoření v kapse) začne nájezd
+    //   tam, kde skončil předchozí (prevRampEnd), ne znovu od rohu kapsy.
+    //   Díl uživatele 12. 11. 2026 (PSBNR, Úsek 1+2): každá vrstva vyjela na
+    //   G0 X135.98, najela k rohu X133 Z288 a jela 15° čáru posuvem znovu.
+    pocketLeadInFromPrev: true,
     leadInTailBelowPrev: false,
     airSplitFullNose: false,
     leadInStartNoPlunge: false,

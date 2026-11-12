@@ -822,7 +822,10 @@ while (safety++ < 500) {
     // od X 29,118 Z 82,41 — 5, 7,5, 10 a 11 mm po 45° čáře, kterou předchozí
     // krok právě projel. Nájezd začne tam, kde předchozí krok skončil (ocas
     // pod jeho hloubkou); emise k němu sjede jako k `rampFeedFrom`.
-    if (insKeys.pocketRampAlongWall && prevRampEnd && !pocketPass.ramp
+    // Polygon (klíč `pocketLeadInFromPrev`, 12. 11. 2026): tentýž ořez nájezdu
+    // po 15° čáře zanoření — bez něj každá vrstva vyjela nad roh kapsy
+    // (`G0 X135.98`) a jela celou čáru od X133 Z288 posuvem znovu.
+    if ((insKeys.pocketRampAlongWall || insKeys.pocketLeadInFromPrev) && prevRampEnd && !pocketPass.ramp
         && Array.isArray(pocketPass.contourLeadIn) && prevRampEnd.x > pocketPass.x + 0.01) {
       const tail = leadInTail(pocketPass.contourLeadIn, prevRampEnd.x);
       if (tail && tail.length > 0
