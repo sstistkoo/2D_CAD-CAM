@@ -2,6 +2,7 @@
 // ║  SKICA – Inicializace aplikace (ES Module entry point)      ║
 // ╚══════════════════════════════════════════════════════════════╝
 
+import './dialogs/innerModalViewport.js';   // okna nad softwarovou klávesnicí (--vv-top/--vv-h, pole s kurzorem)
 import { state, showToast, updateUndoButtons, ensureStockLayer, initNotifyBadge } from './state.js';
 import { expandPolylineObjects } from './utils.js';
 import { resizeCanvases, autoCenterView } from './canvas.js';

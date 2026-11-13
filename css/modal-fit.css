@@ -36,3 +36,41 @@
     max-height: calc(100dvh - max(44px, calc(env(safe-area-inset-top) + 40px)) - max(8px, env(safe-area-inset-bottom)));
   }
 }
+
+/* ── Softwarová klávesnice (mobil) ─────────────────────────────────
+   Klávesnice (a lišty prohlížeče) překryjí spodek displeje, ale okno se
+   centrovalo na celou výšku → tlačítka OK/Zrušit i pole s kurzorem byla pod
+   ní. Podklad i strop okna se drží VIDITELNÉ plochy: --vv-top / --vv-h nastavuje
+   js/dialogs/innerModalViewport.js z visualViewport (bez JS platí celá výška).
+   Pole s kurzorem posune doprostřed okna týž modul (revealFocused). */
+.input-overlay {
+  top: var(--vv-top, 0px); bottom: auto; height: var(--vv-h, 100%);
+}
+.input-overlay .input-dialog {
+  max-height: calc(var(--vv-h, 100dvh) - 16px);
+  overflow-y: auto; box-sizing: border-box;
+}
+/* Kalkulačky, nastavení, poznámky… (ne plovoucí okno a ne CNC editor – ten má vlastní lištu) */
+.calc-overlay:not(.calc-overlay-float):not(:has(> .cnc-editor-window)) {
+  top: var(--vv-top, 0px); bottom: auto; height: var(--vv-h, 100%);
+  box-sizing: border-box;
+}
+.calc-overlay:not(.calc-overlay-float) > .calc-window:not(.gc-window):not(.cnc-editor-window) {
+  max-height: min(95dvh, calc(var(--vv-h, 100dvh) - 16px));
+}
+@media (max-width: 900px) and (orientation: portrait), (max-width: 900px) and (min-height: 501px) {
+  .calc-overlay:not(.calc-overlay-float) > .calc-window:not(.gc-window):not(.cnc-editor-window) {
+    max-height: calc(var(--vv-h, 100dvh) - max(44px, calc(env(safe-area-inset-top) + 40px)) - max(8px, env(safe-area-inset-bottom)));
+  }
+}
+/* Tlačítka OK / Zrušit dialogu přilepená ke spodku okna – vidět i když se
+   dlouhý obsah (Polotovar…) roluje. Odsazení = padding .input-dialog. */
+.input-dialog > .btn-row:last-child {
+  --p: 20px;
+  position: sticky; bottom: calc(-1 * var(--p)); z-index: 2;
+  margin-left: calc(-1 * var(--p)); margin-right: calc(-1 * var(--p)); margin-bottom: calc(-1 * var(--p));
+  padding: 8px var(--p) var(--p);
+  background: var(--ctp-base);
+}
+@media (max-width: 900px) { .input-dialog > .btn-row:last-child { --p: 16px; } }
+.vk-combined-window .input-dialog > .btn-row:last-child { --p: 0px; }   /* okno bez paddingu */

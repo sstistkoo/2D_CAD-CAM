@@ -1,5 +1,6 @@
-// Vnitřní okna kreslicího editoru (oblouk, úhel, sražení…) se drží ve SKUTEČNĚ
-// viditelné ploše displeje. Na mobilu softwarová klávesnice (a lišty prohlížeče)
+// Okna se drží ve SKUTEČNĚ viditelné ploše displeje: vnitřní okna kreslicího
+// editoru (oblouk, úhel, sražení…), dialogy CAD (.input-overlay) i kalkulačky
+// (.calc-overlay) – css/cnc-compact.css a css/modal-fit.css. Na mobilu softwarová klávesnice (a lišty prohlížeče)
 // překryjí spodek layout viewportu, takže okno vycentrované na celou výšku mělo
 // spodní tlačítka (Zrušit / Vložit) pod klávesnicí nebo pod okrajem displeje.
 // `visualViewport` zná viditelnou plochu – její vršek a výšku dáváme do CSS
@@ -21,13 +22,26 @@ function syncViewportVars() {
  */
 function revealFocused() {
   const el = document.activeElement;
-  if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
-  const card = el.closest('.cne-inner-modal > *');
-  if (!card || card.scrollHeight <= card.clientHeight) return;
-  const actions = card.querySelector(':scope > .cne-im-actions');
-  const cr = card.getBoundingClientRect(), er = el.getBoundingClientRect();
-  const visible = card.clientHeight - (actions ? actions.offsetHeight : 0);
-  card.scrollTop += (er.top - cr.top) - Math.max(0, (visible - er.height) / 2);
+  // Jen pole a výběry – textarea CNC editoru se roluje sama v sobě.
+  if (!el || !/^(INPUT|SELECT)$/.test(el.tagName) || /^(checkbox|radio|button|range)$/.test(el.type)) return;
+  // Odspodu nahoru přes všechny rolovací úrovně (tabulka v těle kalkulačky v okně…).
+  for (const box of scrollParents(el)) {
+    const actions = box.querySelector(':scope > .cne-im-actions, :scope > .btn-row');
+    const sticky = actions && getComputedStyle(actions).position === 'sticky' ? actions.offsetHeight : 0;
+    const cr = box.getBoundingClientRect(), er = el.getBoundingClientRect();
+    const top = cr.top + box.clientTop, visible = box.clientHeight - sticky;
+    if (er.top >= top + 4 && er.bottom <= top + visible - 4) continue;   // je vidět → neposkakovat
+    box.scrollTop += (er.top - top) - Math.max(0, (visible - er.height) / 2);
+  }
+}
+const MODALS = '.cne-inner-modal, .input-overlay, .calc-overlay';
+/** Rolovatelní předci pole uvnitř okna, od nejbližšího (tabulka, tělo kalkulačky, karta…). */
+function scrollParents(el) {
+  const stop = el.closest(MODALS), out = [];
+  for (let n = el.parentElement; n && stop && n !== stop; n = n.parentElement) {
+    if (n.scrollHeight > n.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(n).overflowY)) out.push(n);
+  }
+  return out;
 }
 let revealTimer = 0;
 function scheduleReveal() {
@@ -42,7 +56,7 @@ if (vv) {
   syncViewportVars();
 }
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
-  document.addEventListener('focusin', (e) => { if (e.target?.closest?.('.cne-inner-modal')) scheduleReveal(); });
+  document.addEventListener('focusin', (e) => { if (e.target?.closest?.(MODALS)) scheduleReveal(); });
 }
 
 export { syncViewportVars, revealFocused };
