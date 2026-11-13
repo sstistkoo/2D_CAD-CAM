@@ -1,4 +1,5 @@
 import { makeOverlay } from '../dialogFactory.js';
+import { escapeHtml as esc } from '../htmlEscape.js';
 
 // ── M-kód data (Sinumerik 840D – soustruh) ─────────────────
 // Konsolidované kategorie – bez překryvů, bez mrtvých odkazů
@@ -357,11 +358,6 @@ const commandsList = [
 ];
 
 // ── Escape HTML ─────────────────────────────────────────────
-function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
 
 // ── Počet reálných příkazů v kategorii ──────────────────────
 function countReal(codeNames) {

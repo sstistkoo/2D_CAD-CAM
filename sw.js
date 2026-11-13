@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v821';
+const CACHE_NAME = 'skica-v822';
 const ASSETS = [
   './',
   './index.html',
@@ -432,6 +432,7 @@ const ASSETS = [
   './js/geometry/tangents.js',
   './js/geometry/transforms.js',
   './js/helperLayer.js',
+  './js/htmlEscape.js',
   './js/idb.js',
   './js/lib/browser.maker.js',
   './js/lib/dxf-parser.min.js',

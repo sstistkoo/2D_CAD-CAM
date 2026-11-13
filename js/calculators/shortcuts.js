@@ -1,4 +1,5 @@
 import { makeOverlay } from '../dialogFactory.js';
+import { escapeHtml as esc } from '../htmlEscape.js';
 
 // ── Data: Zkratky Sinumerik 840D ────────────────────────────
 const shortcutGroups = [
@@ -151,7 +152,6 @@ const shortcutGroups = [
 ];
 
 // ── Helpers ─────────────────────────────────────────────────
-function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 function totalItems() { return shortcutGroups.reduce((n, g) => n + g.items.length, 0); }
 

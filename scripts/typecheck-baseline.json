@@ -80,7 +80,6 @@
   "js/calculators/cam/sim/xzSim.js": 3,
   "js/calculators/cam/toolOffset.js": 2,
   "js/calculators/cam/toolSlotPreview.js": 15,
-  "js/geom/geomCore.js": 1,
   "js/geometry/fillet.js": 52,
   "js/geometry/hitDistance.js": 22,
   "js/geometry/intersections.js": 26,

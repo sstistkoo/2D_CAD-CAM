@@ -14,6 +14,7 @@ import { addDimensionForObject, addAngleDimensionForLines, updateAssociativeDime
 import { showEditObjectDialog, wireExprInputs } from './mobileEdit.js';
 import { projectPointToLine, distPointToInfiniteLine, angleBetweenLines, intersectInfiniteLines, calculateAllIntersections } from '../geometry.js';
 import { removeAnchorsForObject, cleanupOrphanAnchors, hasAnchoredPoint } from '../tools/index.js';
+import { escapeHtml } from '../htmlEscape.js';
 
 /**
  * Střed objektu pro měření. Dřív dvě kopie s „default: {0,0}" – kontura,
@@ -908,7 +909,7 @@ export function showMeasureMultiObjectResult(objs, indices) {
   for (let i = 0; i < objs.length; i++) {
     const o = objs[i];
     const label = o.name || typeLabel(o.type);
-    const safeLabel = label.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const safeLabel = escapeHtml(label);
     rows += `<tr><td colspan="2" style="border-top:1px solid ${COLORS.border};padding-top:4px;color:${COLORS.dimension};font-weight:bold">${i + 1}. ${safeLabel}</td></tr>`;
     switch (o.type) {
       case 'point':

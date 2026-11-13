@@ -8,16 +8,13 @@
 import { closeOnBackdropClick } from '../../dialogFactory.js';
 import { drawInsertAndHolderPreview } from './insertPreview.js';
 import { isBoringBarLike } from '../knifeThumb.js';
+import { escapeHtml as esc } from '../../htmlEscape.js';
 
 const SHAPE_LABEL = {
   round: '⬤ Kulatá', polygon: '◼ Čtyřstranná / polygon',
   parting: '▮ Upichovací', threading: '▽ Závitová', drill: '⌀ Vrták',
 };
 
-function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"]/g, ch => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
-}
 
 function num(v, fallback) {
   const n = parseFloat(v);

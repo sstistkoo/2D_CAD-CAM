@@ -1,15 +1,11 @@
 import { makeOverlay } from '../dialogFactory.js';
+import { escapeHtml as esc } from '../htmlEscape.js';
 
 // ── Společné okno referenční příručky řídicího systému ──────
 // Sinumerik má vlastní moduly (gcode.js, mcode.js, …). Fanuc a Heidenhain
 // používají tyto tři obecné funkce + datové soubory (fanuc*.js, heidenhain*.js).
 // Vzhled sdílí CSS třídy `gc-*` / `sn-*` (viz css/style.css).
 
-function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
 
 /** Zkratka pro položku s jedním příkladem: ref(název, syntaxe, popis, kód, [poznámka]). */
 export function ref(name, syntax, description, code, note = '') {

@@ -17,9 +17,9 @@ import {
   fmt, numVal as val, numField, selectField, tabsHtml, wireTabs,
   outRow, outWarn, outHint, outMain, outFormula, copyText,
 } from './calcKit.js';
+import { escapeHtml as esc } from '../htmlEscape.js';
 
 const STORE_KEY = 'skica-torque-tools';
-const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const nm = (x) => fmt(x, x < 10 ? 2 : 1).replace('.', ',');
 const range = (lo, hi) => lo === hi ? nm(lo) : nm(lo) + '–' + nm(hi);
 

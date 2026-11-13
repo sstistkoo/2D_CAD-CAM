@@ -10,8 +10,8 @@
 
 import { parseIsoKnifeName, isoTypeById, isoSizes, isoInsertLabel, buildIsoKnife } from '../isoToolCatalog.js';
 import { holderForResizedInsert, insertOfParams } from './holderFollowsInsert.js';
+import { escapeHtml as esc } from '../../htmlEscape.js';
 
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const dimOf = (type, tool) => (type.shape === 'R' ? tool.toolRadius : tool.toolLength);
 
 /** Katalogové velikosti pro nůž s parametry `prms`, nebo null (cizí nůž / jiný tvar). */

@@ -29,6 +29,7 @@ import {
 } from './isoInternalTools.js';
 import { isoThreadInsertLabel } from './isoThreadInserts.js';
 import { FACE_GROOVE_TYPE, FACE_GROOVE_RANGES, isoFaceGrooveWidths, buildIsoFaceGroove, isoFaceGrooveCount } from './isoFaceGrooves.js';
+import { escapeHtml as esc } from '../htmlEscape.js';
 
 const PREF_KEY = 'skica.isoCatalog';   // jen pohodlí: naposledy zvolený dřík a skupina
 
@@ -47,7 +48,6 @@ const typeById = (id) => (id === FACE_GROOVE_TYPE.id ? FACE_GROOVE_TYPE : id ===
   : ISO_HOLDER_TYPES.find((t) => t.id === id) || ISO_INTERNAL_TYPES.find((t) => t.id === id));
 const isInternal = (t) => ISO_INTERNAL_TYPES.includes(t);
 
-const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const cz = (v) => String(v).replace('.', ',');
 const spaced = (code) => code.replace(/^([A-Z]+)(\d)/, '$1 $2');
 const spacedInsert = (code) => code.replace(/^(\d+[EI][RL])(.*)$/, '$1 $2').replace(/^([A-Z]{4})(\d)/, '$1 $2');

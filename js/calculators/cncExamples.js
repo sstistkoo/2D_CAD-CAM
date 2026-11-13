@@ -1,4 +1,5 @@
 import { makeOverlay } from '../dialogFactory.js';
+import { escapeHtml as esc } from '../htmlEscape.js';
 
 // ── Data: Ukázky CNC kódů (Sinumerik 840D – soustruh) ──────
 const examples = [
@@ -106,7 +107,6 @@ MSG()                                  ; Vypnutí/vymazání zprávy`
 ];
 
 // ── Helpers ─────────────────────────────────────────────────
-function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 // ── Hlavní funkce ───────────────────────────────────────────
 export function openCncExamples() {

@@ -4,6 +4,7 @@
 
 import { bridge } from './bridge.js';
 import { COLORS, MOBILE_BREAKPOINT } from './constants.js';
+import { escapeHtml } from './htmlEscape.js';
 
 // ── Hook pro rozšíření pushUndo (autosave) ──
 let _pushUndoHook = null;
@@ -50,9 +51,6 @@ function shouldDeferToast() {
   return !!document.querySelector('.calc-overlay, .input-overlay');
 }
 
-function escapeHtml(str) {
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 function renderNotifyPanel() {
   const panel = document.getElementById('mobileNotifyPanel');

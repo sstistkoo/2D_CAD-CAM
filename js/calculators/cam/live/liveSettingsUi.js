@@ -4,8 +4,8 @@
 // dřív i pod pohledem na čelo — uživatel 21. 10. 2026). Čisté HTML + zápis
 // změny — bez stavu panelu.
 import { LIVE_MODES } from './liveModel.js';
+import { escapeHtml as esc } from '../../../htmlEscape.js';
 
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export function modeNote(mode, ctrl) {
   if (ctrl === 'heidenhain') return 'Heidenhain: díry polohuje osa C, pohyby se rozepíší (G0/G1); frézování po krátkých G1 v X + C. Přepnutí stroje na osu C (FUNCTION MODE) řeší stroj — zadejte příslušný kód v M-kódech.';

@@ -1,4 +1,5 @@
 import { makeOverlay } from '../dialogFactory.js';
+import { escapeHtml as esc } from '../htmlEscape.js';
 
 // ── Data: Příkazy a Syntax Sinumerik 840D ───────────────────
 const commandGroups = {
@@ -204,7 +205,6 @@ const commandsList = [
 ];
 
 // ── Helpers ─────────────────────────────────────────────────
-function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 function countReal(codeNames) { const names = new Set(commandsList.map(c => c.name)); return codeNames.filter(n => names.has(n)).length; }
 

@@ -72,6 +72,7 @@ import { initLiveTools } from './cam/live/livePanel.js';
 import { simStockArgs } from './cam/sim/grooveSim.js';
 import { radialFlip } from './cam/toolRadialFlip.js';
 import { nextBlockTarget } from './cam/sim/singleBlock.js'; import { sectionFinishBegin, sectionFinishEnd, baseFinishOnly } from './cam/sim/sectionFinishAtEnd.js';
+import { escapeHtml as escHTML } from '../htmlEscape.js';
 // Verze logiky generování drah. ZVYŠ při každé změně, která mění vygenerovaný
 // G-kód (hrubování/dokončování/hlídání/…). Uložený manualGCode s jinou verzí se
 // při otevření CAM zahodí a dráhy se přegenerují automaticky — jinak by uživatel
@@ -2392,7 +2393,6 @@ export function openCamSimulator(initialContour, initialGCode) {
     for (let i = arr.length - 1; i >= 0; i--) if (fn(arr[i])) return i;
     return -1;
   }
-  function escHTML(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   // Text do HTML atributu (title=…) — navíc uvozovky, kterými by šel atribut ukončit.
   function escAttr(s) { return escHTML(s).replace(/"/g, '&quot;'); }
 

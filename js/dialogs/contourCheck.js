@@ -22,6 +22,7 @@ import { deleteObjectsByIndices } from '../ui.js';
 import { findDrawingFixes } from './drawingFixes.js';
 import { applyFixItems, fixKey, fmt } from './fixShared.js';
 import { findLeftoverFixes, nearestLeftoverGap, MAX_GAP } from './leftoverFixes.js';
+import { escapeHtml as _esc } from '../htmlEscape.js';
 
 // Otisky zdvojených čar, které uživatel už v nabídce viděl (za celou session) –
 // runCncExport běží po každé úpravě výkresu a stejnou nabídku by jinak
@@ -249,7 +250,6 @@ export function openCamFromDrawing(openCam) {
 // Opravy, které uživatel v okně nechal nezaškrtnuté (za celou session) —
 // zvoneček o nich znovu nehlásí (vstup do CAM a ruční kontrola je ukážou).
 const _fixDeclined = new Set();
-const _esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // Opravy, o kterých už zvoneček hlásil (za celou session) — hlásí se jen nové.
 const _fixNotified = new Set();

@@ -3,6 +3,8 @@
 // change). Pod formulářem chyby zadání (liveOpProblems) a nálezy kontroly
 // proti dílu (liveChecks.js), u karty tečka nálezu. Vyňato z livePanel.js.
 import { liveOpProblems, liveOpSummary, isKeyway } from './liveModel.js';
+import { escapeHtml as esc } from '../../../htmlEscape.js';
+export { esc };
 
 /**
  * Karta operace: hlavička (barva druhu, název, souhrn, nález) + formulář vybrané.
@@ -78,4 +80,3 @@ export function opForm(op, chk) {
   return h;
 }
 
-export function esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }

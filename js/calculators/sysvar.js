@@ -1,4 +1,5 @@
 import { makeOverlay } from '../dialogFactory.js';
+import { escapeHtml as esc } from '../htmlEscape.js';
 
 // ── Data: Systémové proměnné Sinumerik 840D ─────────────────
 const variableGroups = {
@@ -50,7 +51,6 @@ const variableGroups = {
 };
 
 // ── Helpers ─────────────────────────────────────────────────
-function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 function allVars() {
   return Object.values(variableGroups).flat();

@@ -10,6 +10,7 @@ import { calculateAllIntersections } from '../geometry.js';
 import { saveProjectToDB, loadProjectFromDB, deleteProjectFromDB, getAllProjects, setMeta, getMeta } from '../idb.js';
 import { deepClone, expandPolylineObjects } from '../utils.js';
 import { saveSettings } from './settingsStore.js';
+import { escapeHtml as _esc } from '../htmlEscape.js';
 
 // ── Pomocné funkce ──
 
@@ -303,9 +304,9 @@ export async function showProjectsDialog() {
         const count = p.objectCount || (p.objects || []).length;
         const isActive = name === state.projectName;
         html += `
-          <li class="project-item${isActive ? ' active' : ''}" data-name="${name.replace(/"/g, '&quot;')}">
+          <li class="project-item${isActive ? ' active' : ''}" data-name="${_esc(name)}">
             <div class="project-info">
-              <div class="project-name">${name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}</div>
+              <div class="project-name">${_esc(name)}</div>
               <div class="project-meta">${date} · ${count} objektů</div>
             </div>
             <div class="project-actions">
@@ -402,7 +403,6 @@ export async function saveToLibrary(customName) {
 export async function showLibraryDialog() {
   let library = (await getMeta('library')) || [];
 
-  function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   function buildList(lib) {
     if (lib.length === 0) {

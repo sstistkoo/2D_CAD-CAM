@@ -36,8 +36,8 @@ import { pickMill, magazineMills, catalogMillD, addCatalogMills } from './liveMi
 import { autoTapSpotTools, addCatalogTapsSpots } from './liveTapTools.js';
 import { withHoleExtras } from './liveHoleExtras.js';
 import { safeEvalMath } from '../../../utils.js';
+import { escapeHtml as esc } from '../../../htmlEscape.js';
 
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /**
  * @param d { S, root, toast, commit(mutate), saveState, isoMagSlot(rec, T),

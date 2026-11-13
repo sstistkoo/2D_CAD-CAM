@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Nepoužívané knihovny** (úklid 13. 11. 2026): `lib/three.min.js` (Three.js, 670 kB — nic ji nenačítalo), `lib/maker.min.js` (460 kB, stará kopie; aplikace používá `js/lib/browser.maker.js`) a `lib/turf.min.js` (540 kB) i s nevolaným loaderem `ensureTurf()` / `getTurf()` v `geom/geomCore.js`. Offline cache PWA je o ~1,7 MB menší.
+
+### Changed
+
+- **Jedna funkce pro escapování HTML** (úklid 13. 11. 2026). 26 vlastních kopií v dialozích, editorech a CAM panelech (dvě varianty: přes DOM a přes `replace`, některé neescapovaly `"` nebo vypisovaly „null") nahradila `escapeHtml()` z nového `js/htmlEscape.js`. Escapuje `& < > "`, null/undefined vrací prázdně. Seznam projektů teď escapuje název správně i v atributu `data-name`. Test `tests/html-escape.test.js`.
+
 ### Added
 
 - **CAM: volba „Nepřejíždět mezi hrby"** (blok posuvů v Hrub., podélně na soustruhu, pro ✂ Po úsecích; uživatel 12. 11. 2026). U odlitku se dvěma hrby nad údolím polotovaru jely vrstvy přes oba hrby a mezi nimi přejížděly rychloposuvem (díl uživatele: `G0 Z585.810`, 30 přejezdů). S volbou dostane plán úseků hranici na dně údolí polotovaru a kroky jdou v pořadí: hrb 1 do dna údolí → hrb 2 do dna údolí → oba vcelku pod dnem (`depthCap`, X max bez stěny pravidla 12, mřížka hloubek spojených úseků `gridTop`) → další úseky. Dokončení jede jednou na konci. Na dílu uživatele 0 přejezdů a 0 kolizí ve všech krocích. Výchozí vypnuto, otisk 32 fixtures shodný. Pravidlo 1 doplněno. `ops/sections/humpFirst.js`, test `tests/cam-hump-first-sections.test.js`.

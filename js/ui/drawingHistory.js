@@ -15,6 +15,7 @@ import { bridge } from '../bridge.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { getMeta, setMeta } from '../idb.js';
 import { updateObjectList, updateProperties, updateIntersectionList, updateStatusProject } from '../ui.js';
+import { escapeHtml as _esc } from '../htmlEscape.js';
 
 // ── Smazat vše ──
 /** Listener 🗑 Smazat vše (při načtení — volá js/ui.js na původním místě). */
@@ -67,7 +68,6 @@ export async function showHistoryDialog() {
     return;
   }
 
-  function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   function buildHistoryHTML(hist) {
     return hist.map((h, i) => {

@@ -5,11 +5,8 @@
 import { makeOverlay } from '../dialogFactory.js';
 import { state } from '../state.js';
 import { listHersheyFonts } from '../lib/hersheyFont.js';
+import { escapeHtml as escHTML } from '../htmlEscape.js';
 
-/** Escape HTML pro bezpečné vložení uživatelského textu */
-function escHTML(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
 
 const FONT_FAMILIES = [
   { value: 'Consolas, monospace', label: 'Consolas (mono)' },

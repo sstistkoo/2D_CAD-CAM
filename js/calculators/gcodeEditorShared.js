@@ -4,6 +4,8 @@
 // (průměr/karusel/I,K u převodu rohů) se předávají parametry.
 
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
+import { escapeHtml as esc } from '../htmlEscape.js';
+export { esc };
 export const G_CODES = {
   '0':'Rychloposuv','1':'Lineární interpolace','2':'Kruhová int. (CW)',
   '3':'Kruhová int. (CCW)','4':'Časová prodleva','17':'Rovina XY',
@@ -40,7 +42,6 @@ export const TOKEN_RE = new RegExp(
 );
 
 // ── Helpers ────────────────────────────────────────────────────
-export function esc(t) { return String(t ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 export function storageSave(key, data) {
   try { localStorage.setItem(key, JSON.stringify(data)); } catch { /* quota */ }

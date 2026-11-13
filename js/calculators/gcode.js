@@ -1,4 +1,5 @@
 import { makeOverlay } from '../dialogFactory.js';
+import { escapeHtml as esc } from '../htmlEscape.js';
 
 // ── G-kód data ──────────────────────────────────────────────
 const commandGroups = {
@@ -111,11 +112,6 @@ const commandsList = [
 ];
 
 // ── Escape HTML ─────────────────────────────────────────────
-function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
 
 // ── Hlavní funkce ───────────────────────────────────────────
 export function openGcodeReference() {

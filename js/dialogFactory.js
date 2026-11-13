@@ -3,14 +3,12 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { closeInnerModal } from './dialogs/innerModal.js';
+import { escapeHtml as escHTML } from './htmlEscape.js';
 
 /**
  * Vytvoří calc-overlay se standardním layoutem (titlebar + close + body).
  * Pokud overlay daného typu již existuje, vrátí null.
  */
-function escHTML(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
 
 // ── Dotyková zařízení: automatický focus vytáhne softwarovou klávesnici ──
 /**

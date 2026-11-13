@@ -1,3 +1,4 @@
+import { escapeHtml as esc } from '../htmlEscape.js';
 /**
  * Chyby validace přímo u řádku v kódu (uživatel 13. 11. 2026): řádek s chybou
  * má v podkladu (backdrop) červený pruh vlevo a podbarvení, hláška se ukáže
@@ -17,7 +18,6 @@ export function errorsByLine(errs) {
   return m;
 }
 
-const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /**
  * @param {HTMLTextAreaElement} editor

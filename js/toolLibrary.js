@@ -16,6 +16,7 @@
 import { showToast } from './state.js';
 import { getMeta, setMeta } from './idb.js';
 import { mountIsoCatalog } from './calculators/isoCatalogPanel.js';
+import { escapeHtml as _esc } from './htmlEscape.js';
 
 const META_KEY = 'toolLibrary';
 
@@ -52,9 +53,6 @@ export async function deleteToolFromLibrary(id) {
   return filtered;
 }
 
-function _esc(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 function _fmt(n) {
   return (n === undefined || n === null || n === '') ? '–' : n;
