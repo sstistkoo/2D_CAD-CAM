@@ -49,7 +49,11 @@ export function createErrMarks(editor, backdrop, root) {
   mo.observe(hl, { childList: true });
   editor.addEventListener('scroll', schedule);
   window.addEventListener('resize', schedule);
-  function unwire() { mo.disconnect(); window.removeEventListener('resize', schedule); }
+  function unwire() {
+    mo.disconnect();
+    editor.removeEventListener('scroll', schedule);
+    window.removeEventListener('resize', schedule);
+  }
 
   return {
     /** Nové výsledky validace (po každém jejím doběhnutí). */

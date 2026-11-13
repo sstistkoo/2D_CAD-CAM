@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // Akce s řádky (≡), výběr šipkami a chyby u řádku v CNC editoru (13. 11. 2026).
 import 'fake-indexeddb/auto';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { moveLines, duplicateLines, deleteLines, selectLines, lineBlock } from '../js/calculators/cncLineTools.js';
 import { errorsByLine } from '../js/calculators/cncErrMarks.js';
 import { installUiDom } from './helpers/uiDom.mjs';
@@ -75,10 +75,14 @@ describe('CNC editor – chyba u řádku', () => {
     installUiDom();
     const { openCncEditor } = await import('../js/calculators/cncEditor.js');
     document.querySelectorAll('.cne-layout').forEach(r => r.closest('body > *')?.remove());
-    openCncEditor('G0 X0 Z0\nG1 Z-10\nG2 X40 Z-50 R1', { drawOnClose: true });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      openCncEditor('G0 X0 Z0\nG1 Z-10\nG2 X40 Z-50 R1', { drawOnClose: true });
+      vi.advanceTimersByTime(1000);                        // validace běží se zpožděním 800 ms
+    } finally { vi.useRealTimers(); }
     const ed = [...document.querySelectorAll('[data-el="editor"]')].pop();
     const root = ed.closest('.cne-layout');
-    await new Promise(r => setTimeout(r, 1000));          // validace běží se zpožděním 800 ms
+    await new Promise(r => setTimeout(r, 30));             // pruhy se kreslí v requestAnimationFrame
     const marks = root.querySelectorAll('.cne-errmark');
     expect(marks.length).toBeGreaterThan(0);
     const cs = getComputedStyle(ed), lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.4 || 20;
