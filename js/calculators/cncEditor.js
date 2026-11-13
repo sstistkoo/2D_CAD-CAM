@@ -891,18 +891,19 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   function caretInStock() { return inStockAt(editor.value, editor.selectionStart); }
   function updateEntryMode() { syncQuickKeys(root, editor); }   // ✎K/✎P a G90/G91 v liště
   /** Vloží blok textu na kurzor, na vlastní řádek (bez auto-mezery quickbaru). */
-  // caretAtEnd: kurzor zůstane na konci vloženého řádku (⌒ / ∠ z něj hned navážou, tečně), ne na dalším řádku.
-  function insertLines(text, label = 'Značka', detail = /STOCK_END/.test(text) ? 'konec polotovaru' : 'polotovar', { caretAtEnd = false } = {}) {
+  // newLine: za vložený řádek „Enter" – kurzor na nový prázdný řádek hned pod ním (psát dál; ⌒ / ∠ z něj navážou
+  // na vložený prvek, i tečně). Na prázdném řádku se text vloží přímo do něj (řetězení oken bez mezer).
+  function insertLines(text, label = 'Značka', detail = /STOCK_END/.test(text) ? 'konec polotovaru' : 'polotovar', { newLine = false } = {}) {
     editor.readOnly = false;
     const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
     const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
     const lead = s > 0 && v[s - 1] !== '\n' ? '\n' : '';
     // Na konci řádku se použije jeho stávající zalomení – dřív tu vznikal prázdný řádek navíc.
     const atLineEnd = v[e] === '\n';
-    const ins = lead + text + (atLineEnd ? '' : '\n');
+    const ins = lead + text + (atLineEnd && !newLine ? '' : '\n');
     captureUndoSnapshot(label, detail);
     editor.value = v.slice(0, s) + ins + v.slice(e);
-    editor.selectionStart = editor.selectionEnd = s + ins.length + (caretAtEnd ? (atLineEnd ? 0 : -1) : (atLineEnd ? 1 : 0));
+    editor.selectionStart = editor.selectionEnd = s + ins.length + (!newLine && atLineEnd ? 1 : 0);
     editor.scrollTop = scrollTop; editor.scrollLeft = scrollLeft;
     editor.focus({ preventScroll: true });
     onInput();
@@ -1263,7 +1264,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     let pos = 0;
     v.split('\n').slice(0, angleLineIdx + 1).forEach(l => { pos += l.length + 1; });
     editor.selectionStart = editor.selectionEnd = Math.max(0, Math.min(v.length, pos - 1));
-    insertLines(`${g1Text(r)} ; ${r.rel && angPrevArc ? '⟿ tečně' : '∠' + f3(r.A) + (r.rel ? '° od předchozí' : '°')}`, 'Úsečka úhlem', `∠${f3(r.abs)}°`, { caretAtEnd: true });
+    insertLines(`${g1Text(r)} ; ${r.rel && angPrevArc ? '⟿ tečně' : '∠' + f3(r.A) + (r.rel ? '° od předchozí' : '°')}`, 'Úsečka úhlem', `∠${f3(r.abs)}°`, { newLine: true });
   }
   if (angleModal) {
     angleModal.addEventListener('input', () => {

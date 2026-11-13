@@ -68,8 +68,8 @@ describe('dialog Oblouk', () => {
     expect(t.els.arcModal.style.display).toBe('none');
     // kurzor se před vložením přesune na konec řádku, ze kterého oblouk vychází
     expect(t.inserted[0].caret).toBe('G90 G00 X0 Z0\nG01 X5 Z-5'.length);
-    // po vložení zůstane kurzor na oblouku → ∠ na něj hned naváže (⟿ Tečně)
-    expect(t.inserted[0].opts).toEqual({ caretAtEnd: true });
+    // po vložení „Enter" – kurzor na novém řádku pod obloukem
+    expect(t.inserted[0].opts).toEqual({ newLine: true });
   });
 
   it('úhel rozevření místo R dopočte R', () => {
