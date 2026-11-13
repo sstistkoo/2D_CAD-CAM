@@ -41,7 +41,7 @@ if (vv) {
   vv.addEventListener('scroll', syncViewportVars);
   syncViewportVars();
 }
-if (typeof document !== 'undefined') {
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
   document.addEventListener('focusin', (e) => { if (e.target?.closest?.('.cne-inner-modal')) scheduleReveal(); });
 }
 

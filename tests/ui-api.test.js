@@ -141,6 +141,7 @@ describe('ui.js — kód při načtení', () => {
         "js/canvas.js window resize",
         "js/canvas.js window pointerdown capture",
         "js/canvas.js window pointermove capture",
+        "js/dialogs/innerModalViewport.js document focusin",
         "ui #sidebar focus capture",
         "ui #btnAddLayer click",
         "ui #btnDelLayer click",
