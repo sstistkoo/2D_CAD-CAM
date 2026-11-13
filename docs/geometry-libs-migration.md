@@ -1,6 +1,6 @@
 # Plán přechodu CAM na geometrické knihovny
 
-> Clipper2 (booleovské operace, offsety) · Turf.js (prostorová analýza) ·
+> Clipper2 (booleovské operace, offsety) · ~~Turf.js~~ (odstraněn 13. 11. 2026) ·
 > Detect-Collisions (rychlý broad-phase filtr kolizí) · adaptér
 > `js/geom/geomCore.js`
 
@@ -571,7 +571,7 @@ počítá s uzavřenými polygony množinově.
 | Knihovna | Soubor | Formát | Stav |
 |---|---|---|---|
 | Clipper2 (clipper2-ts 2.0.1-18) | `lib/clipper2.min.js` (125 kB) | ES modul | ✅ funguje (ověřeno testy) |
-| Turf.js | `lib/turf.min.js` (531 kB) | UMD → `globalThis.turf` | ✅ funguje, načítat lazy |
+| ~~Turf.js~~ | — | — | ❌ **odstraněno 13. 11. 2026** — loader `ensureTurf()` nikdo nevolal, knihovna jen zabírala offline cache |
 | ~~Detect-Collisions~~ | `tests/vendor/detect-collisions.js` (35 kB, jen test) | ES modul | ❌ **z aplikace odstraněno** (SAT tiše zahazoval kolize, 26. 8. 2026; loader `ensureCollisions()` a bundle z `lib/` pryč 10. 11. 2026 — zůstal jen pro test-důkaz v `collision-validator.test.js`). Dřív: nahrazeno soběstačným bundlem `check2d@9.36.4` (balíček detect-collisions se přejmenoval na check2d; původní soubor byl nepoužitelný CommonJS rozcestník) |
 
 CSP v `index.html` povoluje jen `script-src 'self'` — všechny knihovny musí
@@ -589,7 +589,7 @@ CAM kód **nikdy nevolá knihovny přímo** — vše jde přes adaptér. Ten:
 - exportuje: `polyUnion`, `polyDifference`, `polyIntersect`, `polyOffset`,
   `polyArea`, `pointInLoop`, `polySimplify`, `toolSweep` (Minkowského suma =
   stopa nástroje po dráze), třídu `StockModel` (postupné odebírání materiálu)
-  a lazy loader `ensureTurf()` (`ensureCollisions()` odstraněn 10. 11. 2026).
+  (lazy loadery `ensureCollisions()` a `ensureTurf()` odstraněny 10. a 13. 11. 2026).
 
 Testy: `tests/geom-core.test.js`. Regresní pojistka celé migrace:
 `tests/cam-gcode-regression.test.js` (snapshoty plného pipeline) — každá fáze
@@ -603,8 +603,8 @@ musí buď nechat snapshoty beze změny, nebo je změnit **vědomě** (`-u`).
 | kolize držáku/plátku × zbytkový polotovar | AABB (broad-phase) → Clipper2 (přesně) | `polyIntersect` — Detect-Collisions odtud 26. 8. 2026 ODSTRANĚN, `quickDecomp` na složitém obrysu tiše zahazoval kusy polygonu a filtr pak podhlásil kolizi; navíc byl pomalejší než AABB (viz CHANGELOG) |
 | offset kontury o rádius špičky + přídavky | Clipper2 | `polyOffset(loops, R + přídavek)` |
 | vrstvy hrubování, regiony, zbytkový materiál | Clipper2 | `polyIntersect` s pásem vrstvy |
-| vzdálenost bodu od kontury, nejbližší bod, uvnitř/vně | Turf.js | `getTurf()` → `pointToLineDistance`, `nearestPointOnLine`, `booleanPointInPolygon` |
-| zjednodušení hustých křivek pro plátno | Clipper2 / Turf | `polySimplify` / `turf.simplify` |
+| uvnitř/vně kontury | vlastní kód | `pointInLoop` (Turf se nakonec nepoužil, odstraněn 13. 11. 2026) |
+| zjednodušení hustých křivek pro plátno | Clipper2 | `polySimplify` |
 
 ## Fáze migrace
 
@@ -1640,7 +1640,6 @@ Ze tří checkboxů (Zanořování · Dobrat naráz · Hrubovat po regionech) dv
   až při hlášeném kontaktu.
 - Smyčky pro kreslení průběžně `polySimplify` (ε ≈ 0,005 mm), ať plátno
   neseká; pro výpočty držet nesimplifikovaná data.
-- Turf načítat lazy přes `ensureTurf()` až při otevření CAM (531 kB).
 
 ## Pořadí prací a rizika
 

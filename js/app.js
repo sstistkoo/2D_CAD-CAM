@@ -15,7 +15,7 @@ import { loadFont } from './lib/fontLoader.js';
 import { installErrorReporter } from './errorReport.js';
 import { APP_VERSION } from './constants.js';
 import { initBackButton } from './backButton.js';
-// Geometrické knihovny (Clipper2/Turf) se importují
+// Geometrická knihovna Clipper2 se importuje
 // výhradně přes adaptér js/geom/geomCore.js — ne přímo z lib/.
 
 // Preload font pro vektorový text v DXF (na pozadí, nedrží start aplikace)

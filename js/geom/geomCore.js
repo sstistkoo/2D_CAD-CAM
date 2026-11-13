@@ -1,6 +1,6 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  geomCore – jednotný adaptér nad geometrickými knihovnami     ║
-// ║  (Clipper2 = booleovské operace/offsety, Turf = analýza)      ║
+// ║  (Clipper2 = booleovské operace a offsety)                    ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
 // PROČ ADAPTÉR: CAM kód (camSimulator.js) nikdy nevolá knihovny přímo —
@@ -199,30 +199,8 @@ export class StockModel {
   }
 }
 
-// ── Turf.js (lazy — načítá se až při prvním použití v CAM) ──────
-
-let _turf = null;
-
-/**
- * Zajistí načtení Turf.js (UMD bundle → globalThis.turf). Volat na začátku
- * openCamSimulator(); do té doby se ~540 kB knihovny vůbec nenačítá.
- */
-export async function ensureTurf() {
-  if (_turf) return _turf;
-  try {
-    const mod = await import('../../lib/turf.min.js');
-    _turf = globalThis.turf || mod;
-  } catch (e) {
-    console.warn('geomCore: Turf.js se nepodařilo načíst:', e);
-    _turf = null;
-  }
-  return _turf;
-}
-
-/** Synchronní přístup k Turf (null, pokud ensureTurf() ještě neproběhl). */
-export function getTurf() {
-  return _turf || globalThis.turf || null;
-}
+// Turf.js tu byl do 13. 11. 2026 jako lazy `ensureTurf()` / `getTurf()`.
+// Nic je nevolalo, knihovna (540 kB) jen zabírala offline cache — odstraněna.
 
 // Detect-Collisions (SAT broad-phase) tu byl do 10. 11. 2026 jako lazy
 // `ensureCollisions()`. Od 26. 8. 2026 ho nic nevolalo (SAT tiše zahazoval
