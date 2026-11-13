@@ -19,6 +19,7 @@ import { onOverlayRemoved } from '../dialogFactory.js';
 import { storageLoad, storageSave } from './gcodeEditorShared.js';
 import { W, movePoints, movesBounds, segDist } from './cncDrawPreview.js';
 import { setupLoupe } from './cncLoupe.js';
+import { stockDefaultColor } from '../drawColorPrefs.js';
 
 const KEY_COMPACT = 'skica-cnc-editor-compact';
 const KEY_BARS = 'skica-cnc-editor-bars';
@@ -79,7 +80,8 @@ export function setupLiveView(overlay, { analysis, caretLine }) {
     c.lineJoin = 'round'; c.lineCap = 'round';
     for (const mv of an.moves) {
       if (mv.g === 0) { c.strokeStyle = col('--ctp-overlay2', '#999'); c.lineWidth = 1; c.setLineDash([4, 4]); }
-      else { c.strokeStyle = mv.stock ? col('--ctp-peach', '#fab387') : col('--ctp-sky', '#89dceb'); c.lineWidth = 2; c.setLineDash(mv.stock ? [6, 4] : []); }
+      // Polotovar plnou čarou v barvě kreslení polotovaru (červená), ne oranžově přerušovaně.
+      else { c.strokeStyle = mv.stock ? stockDefaultColor() : col('--ctp-sky', '#89dceb'); c.lineWidth = 2; c.setLineDash([]); }
       path(mv);
     }
     c.setLineDash([]);
@@ -192,6 +194,7 @@ export function setupLiveView(overlay, { analysis, caretLine }) {
   };
 
   import('../canvas.js').then(m => {
+    if (!overlay.isConnected) return;   // editor zavřen dřív, než se plátno načetlo – nic nepřipojovat
     cv = m;
     cv.drawCanvas?.addEventListener('pointerdown', onDown);
     cv.drawCanvas?.addEventListener('pointerup', onUp);

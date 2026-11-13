@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v812';
+const CACHE_NAME = 'skica-v819';
 const ASSETS = [
   './',
   './index.html',
@@ -244,15 +244,20 @@ const ASSETS = [
   './js/calculators/cncEditor.js',
   './js/calculators/cncEditorHtml.js',
   './js/calculators/cncEditorLive.js',
+  './js/calculators/cncErrMarks.js',
   './js/calculators/cncExamples.js',
   './js/calculators/cncExpr.js',
   './js/calculators/cncJoin.js',
   './js/calculators/cncKeyboardMode.js',
+  './js/calculators/cncLineTools.js',
   './js/calculators/cncLongDelete.js',
   './js/calculators/cncLoupe.js',
   './js/calculators/cncNoKeyboard.js',
   './js/calculators/cncNumpadCalc.js',
   './js/calculators/cncNumpadToggle.js',
+  './js/calculators/cncQuickKeys.js',
+  './js/calculators/cncSearch.js',
+  './js/calculators/cncStockMarkers.js',
   './js/calculators/cncTapBelow.js',
   './js/calculators/cncHints.js',
   './js/calculators/commands.js',

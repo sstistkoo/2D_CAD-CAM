@@ -145,9 +145,22 @@
   .num-pad-key { min-height: 30px; font-size: 15px; }
 }
 
-/* Kreslicí lišta: ↵ vpravo přes dva řádky (lépe se trefuje), dolní řádek 20+14+14 sloupců */
-.cne-quickbar--draw .c14 { grid-column: span 14; }
+/* Kreslicí lišta: vlevo dole kříž šipek (⇤ ▲ ⇥ / ◀ ▼ ▶, cncQuickKeys.js),
+   vpravo ↵ pod ⌫ přes dva řádky, vedle něj dole mezerník */
+.cne-quickbar--draw .c8 { grid-column: span 8; }
 .cne-quickbar--draw .cne-qb-enter { grid-row: span 2; height: auto !important; min-height: 0; font-size: 26px; }
+.cne-quickbar--draw .cne-qb-caret {
+  font-size: 13px; color: var(--ctp-sky);
+  background: color-mix(in srgb, var(--ctp-sky) 10%, var(--ctp-surface0));
+}
+.cne-quickbar--draw .cne-qb-caret:active { background: var(--ctp-sky); color: var(--ctp-base); }
+/* ✎K / ✎P: barva kreslení kontury (modrá) / polotovaru (červená), --mode-c nastaví JS */
+.cne-quickbar--draw .cne-qb-mode {
+  --mode-c: var(--ctp-blue);
+  font-size: 15px; color: var(--mode-c); border: 2px solid var(--mode-c);
+  background: color-mix(in srgb, var(--mode-c) 18%, var(--ctp-surface0));
+}
+.cne-quickbar--draw .cne-qb-mode b { margin-left: 2px; font-size: 16px; font-weight: 800; }
 
 /* 123 ZAP: čísla zadává okno číselníku → boční číselník pryč, kód přes celou šířku i výšku */
 @media (max-width: 600px) and (orientation: portrait) {
@@ -164,3 +177,26 @@
    utekla pod okraj displeje. Okno nikdy není vyšší než displej (zbytek se roluje). */
 .cne-overlay-draw.cne-compact .cne-inner-modal { position: fixed; inset: 0; z-index: 1000; }
 .cne-inner-modal > * { max-height: calc(100dvh - 16px); overflow-y: auto; box-sizing: border-box; }
+
+/* Proužek akcí s řádkem (≡, cncLineTools.js) – nad klávesnicí přes celou šířku */
+.cne-quickbar--draw .cne-linebar {
+  grid-column: 1 / -1; display: grid; grid-template-columns: 1.3fr 1.2fr 1.2fr 0.8fr 0.8fr 1fr; gap: 4px;
+  padding-bottom: 4px; margin-bottom: 2px; border-bottom: 2px solid var(--ctp-surface2);
+}
+.cne-quickbar--draw .cne-linebar[hidden] { display: none; }
+.cne-linebar .cne-qb { font-size: 12px; min-height: 30px; white-space: nowrap; }
+.cne-linebar .cne-qb.on,
+.cne-quickbar--draw .cne-qb-line.on { background: var(--ctp-surface2); border-color: var(--ctp-lavender); color: var(--ctp-lavender); }
+.cne-quickbar--draw .cne-qb-line { font-size: 18px; font-weight: 700; color: var(--ctp-lavender); }
+/* Režim Výběr: šipky žlutě, ať je vidět, že označují */
+.cne-quickbar--draw .cne-qb-line.sel-on { box-shadow: inset 0 -3px 0 var(--ctp-yellow); }
+.cne-selmode .cne-quickbar--draw .cne-qb-caret { color: var(--ctp-yellow); border-color: var(--ctp-yellow); }
+
+/* Řádek s chybou validace (cncErrMarks.js): červený pruh vlevo a jemné podbarvení */
+.cne-errmarks { position: absolute; top: 0; left: 0; width: 0; height: 0; pointer-events: none; }
+.cne-errmark {
+  position: absolute; pointer-events: none;
+  background: color-mix(in srgb, var(--ctp-red) 14%, transparent); box-shadow: inset 3px 0 0 var(--ctp-red);
+}
+.cne-hint .err, .cne-info-text .err { color: var(--ctp-red); font-weight: 600; }
+.cne-info-toggle.err { color: var(--ctp-red); }

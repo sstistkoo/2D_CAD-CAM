@@ -20,6 +20,7 @@ import { showExportImageDialog } from './exportImage.js';
 import { findContourGaps, findContourBranches, findContourDuplicates, jumpToContourGaps } from '../stockTools.js';
 import { renderAll } from '../render.js';
 import { withoutHelperObjects } from '../helperLayer.js';
+import { STOCK_START_LINE, STOCK_END_LINE } from '../calculators/cncStockMarkers.js';
 
 // ── Export / Import ──
 
@@ -1416,9 +1417,9 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     // i kdyby náhodou souřadnice navazovala na poslední bod kontury.
     lastEndX = null; lastEndY = null;
     if (asDrawn) _orientInDrawnOrder(stockItems);
-    out += "; STOCK_START — polotovar (isStock objekty)\n";
+    out += STOCK_START_LINE + "\n";   // popisky jako ✎K/✎P v editoru (cncStockMarkers.js)
     stockItems.forEach(emitObj);
-    out += "; STOCK_END\n\n";
+    out += STOCK_END_LINE + "\n\n";
   }
 
   // Díra pro vyvrtávání (samostatný řetěz, viz _findBoreChain) — vlastní

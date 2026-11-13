@@ -7926,7 +7926,6 @@ button.vk-header-btn-green {
 .cne-quickbar--draw .cne-qb-wide { font-size: 13px; min-height: 34px; }
 .cne-quickbar--draw .cne-qb-num { font-size: 18px; font-weight: 700; }
 .cne-quickbar--draw [data-act="pickFromCanvas"] { font-size: 18px; }
-.cne-qb.stock-on { color: var(--ctp-base); background: var(--ctp-peach); border-color: var(--ctp-peach); }
 /* (x) / (z) za I a K – jen upřesnění, o které osy jde */
 .cne-qb .cne-qb-axis { font: 600 9px/1 system-ui, sans-serif; color: var(--ctp-subtext0); margin-left: 1px; align-self: flex-end; padding-bottom: 2px; }
 /* Plovoucí „zpět" při výběru bodu z plátna (editor je zavřený) */

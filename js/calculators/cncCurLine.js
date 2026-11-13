@@ -21,12 +21,24 @@ export function wireCurrentLine(editor, backdrop) {
     bar.style.left = backdrop.scrollLeft + 'px';
     bar.style.width = backdrop.clientWidth + 'px';
   };
-  const schedule = () => { if (!raf) raf = requestAnimationFrame(update); };
+  // Globální posluchače (document, window) se po zavření editoru odpojí – jinak
+  // by každé otevření (i návrat z 🎯 bodu z plátna) přidalo další a držely by
+  // zavřený editor v paměti.
+  const mo = new MutationObserver(() => schedule());
+  const unwire = () => {
+    document.removeEventListener('selectionchange', schedule);
+    window.removeEventListener('resize', schedule);
+    mo.disconnect();
+  };
+  function schedule() {
+    if (!editor.isConnected) { unwire(); return; }
+    if (!raf) raf = requestAnimationFrame(update);
+  }
   ['input', 'click', 'keyup', 'select', 'focus', 'scroll', 'touchend'].forEach(ev => editor.addEventListener(ev, schedule));
   document.addEventListener('selectionchange', schedule);
   window.addEventListener('resize', schedule);
   // Vložení tlačítky lišty přepíše zvýraznění kódu → přepočítat i tehdy.
-  new MutationObserver(schedule).observe(backdrop, { childList: true, subtree: true });
+  mo.observe(backdrop, { childList: true, subtree: true });
   schedule();
   return update;
 }

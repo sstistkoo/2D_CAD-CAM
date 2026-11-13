@@ -16,6 +16,9 @@ import { analyzeDrawCode, moveInfo, moveAtOrBefore, moveDirDeg, modeAtLine, pola
 import { drawPreview } from './cncDrawPreview.js';
 import { setupLiveView } from './cncEditorLive.js';
 import { wireLongDelete } from './cncLongDelete.js';
+import { wireSearch } from './cncSearch.js';
+import { createErrMarks } from './cncErrMarks.js';
+import { caretInStock as inStockAt, syncQuickKeys, nextCoordG, wireCaretKeys, applyStockToggle } from './cncQuickKeys.js';
 import { angleView, polarInputToDialog, relToDialog, dirLabel, polarHint } from './cncAngleCompass.js';
 import { lineHint } from './cncHints.js';
 import { joinAtIntersection, chamferByAngle } from './cncJoin.js';
@@ -247,7 +250,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   }
 
   function displayFile(name) {
-    if (!programs[name]) return;
+    if (typeof programs[name] !== 'string') return;   // prázdný program ('') je platný soubor
     storeHistory();                   // historie opouštěného souboru
     currentFile = name;
     editor.value = programs[name];
@@ -277,7 +280,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
 
   function createNew() {
     let n = 1;
-    while (programs[`PROG_${n}.MPF`]) n++;
+    while (typeof programs[`PROG_${n}.MPF`] === 'string') n++;
     const nm = `PROG_${n}.MPF`;
     programs[nm] = `; ${nm}\nG54 G90 G18\nG95\nG97 S500 M4\nSTOPRE\n\n\nM30\n`;
     displayFile(nm);
@@ -329,7 +332,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     if (!/\.(MPF|SPF)$/i.test(nw)) {
       nw += /\.SPF$/i.test(currentFile) ? '.SPF' : '.MPF';
     }
-    if (programs[nw]) return;
+    if (typeof programs[nw] === 'string') { showToast(`Soubor ${nw} už existuje`); return; }
     programs[nw] = programs[currentFile];
     delete programs[currentFile];
     delete histByFile[currentFile];
@@ -381,7 +384,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     if (mergeQueue.length < 2) return;
     const merged = mergePrograms(mergeQueue, getControlSystem());
     let n = 1;
-    while (programs[`SPOJENY_${n}.MPF`]) n++;
+    while (typeof programs[`SPOJENY_${n}.MPF`] === 'string') n++;
     const nm = `SPOJENY_${n}.MPF`;
     programs[nm] = merged;
     displayFile(nm);
@@ -617,7 +620,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   }
 
   function updateStatus() {
-    const errs = runValidation();
+    const errs = runValidation(); errMarks.set(errs);   // červený pruh u chybných řádků (cncErrMarks.js)
     if (errs.length === 0) {
       statusBtn.textContent = '✓';
       statusBtn.className = 'cne-tb-btn cne-status cne-st-ok';
@@ -750,15 +753,15 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     const blob = new Blob([out], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'cnc_balicek.txt'; a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function downloadFile() {
-    if (!currentFile || !programs[currentFile]) return;
+    if (!currentFile || typeof programs[currentFile] !== 'string') return;
     const blob = new Blob([programs[currentFile]], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = currentFile; a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
   }
 
   // ── Clipboard ──────────────────────────────────────────────
@@ -772,48 +775,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     copyText(editor.value, 'celý kód');
   }
 
-  // ── Hledání v kódu ─────────────────────────────────────────
-  let searchMatches = [];
-  let searchIdx = -1;
-  function openSearch() {
-    searchBar.classList.add('open');
-    searchInput.focus();
-    searchInput.select();
-  }
-  function closeSearch() {
-    searchBar.classList.remove('open');
-    editor.focus();
-  }
-  function doSearch(dir) {
-    const q = searchInput.value;
-    if (!q) { searchCountEl.textContent = ''; searchMatches = []; searchIdx = -1; return; }
-    searchMatches = [];
-    let i = -1;
-    const lower = editor.value.toLowerCase();
-    const ql = q.toLowerCase();
-    while ((i = lower.indexOf(ql, i + 1)) !== -1) searchMatches.push(i);
-    if (!searchMatches.length) { searchCountEl.textContent = '0 / 0'; searchIdx = -1; return; }
-    searchIdx = (searchIdx + dir + searchMatches.length) % searchMatches.length;
-    searchCountEl.textContent = (searchIdx + 1) + ' / ' + searchMatches.length;
-    // Zvýraznění nálezu bez odebrání fokusu z vyhledávacího pole
-    // (setSelectionRange funguje i bez focus() — jinak by focus() na
-    // editoru "ukradl" fokus z inputu při psaní dalšího znaku).
-    const pos = searchMatches[searchIdx];
-    editor.setSelectionRange(pos, pos + q.length);
-    const lineIdx = editor.value.slice(0, pos).split('\n').length - 1;
-    editor.scrollTop = Math.max(0, lineIdx * lineH() - editor.clientHeight / 2);
-    syncScroll();
-  }
-  searchInput.addEventListener('input', () => { searchIdx = -1; doSearch(1); });
-  searchInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); doSearch(e.shiftKey ? -1 : 1); }
-    if (e.key === 'Escape') { e.preventDefault(); closeSearch(); }
-  });
-  editor.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); openSearch(); }
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); performUndo(); }
-    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); performRedo(); }
-  });
+  // ── Hledání v kódu + zkratky Ctrl+F / Z / Y → cncSearch.js ───
+  const { openSearch, closeSearch, doSearch } = wireSearch({ editor, searchBar, searchInput, searchCountEl, lineH, syncScroll, undo: () => performUndo(), redo: () => performRedo() });
   editor.addEventListener('beforeinput', captureUndoSnapshot);
 
   // ── Conversion helpers ────────────────────────────────────
@@ -925,17 +888,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   // Co se zrovna zadává, určuje poloha kurzoru: za posledním `STOCK_START`, který
   // ještě nebyl uzavřen `STOCK_END`, je polotovar. Tlačítko vloží příslušnou
   // značku (stejné, jaké píše export a čte kreslicí parser).
-  const stockToggleBtn = $('stockToggleBtn');
-  function caretInStock() {
-    const before = editor.value.slice(0, editor.selectionStart ?? 0);
-    return before.lastIndexOf('STOCK_START') > before.lastIndexOf('STOCK_END');
-  }
-  function updateEntryMode() {
-    if (!stockToggleBtn) return;
-    const inStock = caretInStock();
-    stockToggleBtn.textContent = inStock ? '✎ Polotovar' : '✎ Kontura';
-    stockToggleBtn.classList.toggle('stock-on', inStock);
-  }
+  function caretInStock() { return inStockAt(editor.value, editor.selectionStart); }
+  function updateEntryMode() { syncQuickKeys(root, editor); }   // ✎K/✎P a G90/G91 v liště
   /** Vloží blok textu na kurzor, na vlastní řádek (bez auto-mezery quickbaru). */
   function insertLines(text, label = 'Značka', detail = /STOCK_END/.test(text) ? 'konec polotovaru' : 'polotovar') {
     editor.readOnly = false;
@@ -953,7 +907,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     onInput();
   }
   function toggleEntryMode() {
-    insertLines(caretInStock() ? '; STOCK_END' : '; STOCK_START — polotovar (isStock objekty)');
+    applyStockToggle(editor, captureUndoSnapshot, onInput);   // párování značek: cncStockMarkers.js
   }
 
   // ── Bod z plátna ─────────────────────────────────────────────
@@ -1117,7 +1071,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     let le = v.indexOf('\n', pos); if (le < 0) le = v.length;
     const h = lineHint(v.slice(ls, le), pos - ls, { diam: state.xDisplayMode === 'diameter', hasPrevMove: !!moveAtOrBefore(an, ln - 1) });
     const chips = h.items.map(i => `<span class="${i.cur ? 'cur' : ''}"><b>${esc(i.k)}</b> ${esc(i.t)}</span>`);
-    const parts = h.comment ? [`<span>${esc(h.comment)}</span>`] : chips;
+    const parts = [errMarks.msgHTML(ln), ...(h.comment ? [`<span>${esc(h.comment)}</span>`] : chips)].filter(Boolean);
     if (h.tip) parts.push(`<span class="tip">💡 ${esc(h.tip)}</span>`);
     hintEl.innerHTML = parts.join('');
   }
@@ -1505,7 +1459,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   editor.addEventListener('input', onInput);
   ['click', 'keyup', 'touchend', 'focus', 'select'].forEach(ev => editor.addEventListener(ev, () => { updateEntryMode(); updateInfo(); }));
   if (previewEl) window.addEventListener('resize', updateInfo);
-  editor.addEventListener('scroll', syncScroll); wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n')); wireNumpadToggle(root); wireCurrentLine(editor, backdrop); wireNumpadCalc(numModal, numInput); wireNoKeyboard(root, editor); wireLongDelete(root, editor, { snapshot: captureUndoSnapshot, after: onInput, reveal: ensureCaretVisible }); if (drawOnClose) wireAutoRedraw(root);   // klik pod text / Enter v poznámce → nový řádek
+  editor.addEventListener('scroll', syncScroll); wireTapBelow(editor, () => insertText('\n')); wireCommentTools(editor, root, () => insertText('\n')); wireNumpadToggle(root); wireCurrentLine(editor, backdrop); wireNumpadCalc(numModal, numInput); wireNoKeyboard(root, editor); wireLongDelete(root, editor, { snapshot: captureUndoSnapshot, after: onInput, reveal: ensureCaretVisible }); wireCaretKeys(root, editor, { snapshot: captureUndoSnapshot, after: onInput }); const errMarks = createErrMarks(editor, backdrop, root); if (drawOnClose) wireAutoRedraw(root);   // klik pod text / Enter v poznámce → nový řádek
 
   // Klávesy spodní lišty nesmí „ukrást" fokus z textarey – jinak po každém
   // stisku (mazání znaku, vložení) zmizí kurzor a uživatel musí znovu klikat
@@ -1538,7 +1492,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
         case 'fontDown':  changeFontSize(-1); break;
         case 'fontUp':    changeFontSize(1); break;
         case 'clearEditor': clearEditor(); break;
-        case 'lineG':     setLineG(ab.dataset.g); break;
+        case 'lineG':     setLineG(ab.dataset.g || nextCoordG(editor)); break;
         case 'closeEditor': overlay.remove(); break;
         case 'editorUndo': performUndo(); break;
         case 'editorRedo': performRedo(); break;
@@ -1569,7 +1523,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
           break;
         }
         case 'undoRenum':
-          if (codeBeforeRenum) { editor.value = codeBeforeRenum; codeBeforeRenum = ''; onInput(); }
+          if (codeBeforeRenum) { captureUndoSnapshot('Přečíslování N', 'vráceno'); editor.value = codeBeforeRenum; codeBeforeRenum = ''; onInput(); }
           $('renumModal').style.display = 'none';
           break;
         case 'convMode':
@@ -1788,7 +1742,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
       jumpToLine(idx);
       // Jen kurzor na konec řádku (ne označený celý řádek): další zápis – třeba CHF= z klávesy Sraž. –
       // se připíše za kód řádku (insertText ho dá před komentář), místo aby řádek přepsal.
-      editor.selectionStart = editor.selectionEnd = editor.selectionEnd;
+      editor.setSelectionRange(editor.selectionEnd, editor.selectionEnd);
     }
   }
   // Bez výběru (nebo vybraný je poslední prvek kontury – typicky po zavření editoru) → pokračovat v zadávání.

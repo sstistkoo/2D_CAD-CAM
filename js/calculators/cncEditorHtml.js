@@ -22,6 +22,16 @@ export function getControlSystemBarText(programName, fromCalc = false) {
   return `${names[ctrl] || names.sinumerik} (CAD${fromCalc ? ' kal.' : ''}) &mdash; ${esc(programName || '')}`;
 }
 
+// Proužek akcí s řádkem nad klávesnicí (tlačítko ≡, cncLineTools.js).
+const linebarHTML = () => `<div class="cne-linebar" hidden>
+    <button class="cne-qb" data-line-act="selmode" title="Výběr – šipky označují text (kotva zůstane, druhý konec jede); znovu = konec výběru">⬚ Výběr</button>
+    <button class="cne-qb" data-line-act="sel" title="Označit celý řádek (nebo všechny řádky výběru)">▤ Řádek</button>
+    <button class="cne-qb" data-line-act="dup" title="Kopie řádku pod něj (na počítači Alt+Shift+↓)">⧉ Kopie</button>
+    <button class="cne-qb" data-line-act="up" title="Posunout řádek nahoru (Alt+↑)">⇡</button>
+    <button class="cne-qb" data-line-act="down" title="Posunout řádek dolů (Alt+↓)">⇣</button>
+    <button class="cne-qb del" data-line-act="del" title="Smazat celý řádek (nebo řádky výběru)">✕ ř.</button>
+  </div>`;
+
 // ── Build HTML ─────────────────────────────────────────────────
 // Rychlá lišta. Kreslicí varianta (editor z Kalkulaček) má jen to, co čte kreslicí
 // parser G-kódu: G, X, Z, R + G0/G1 jako velká tlačítka s popiskem.
@@ -29,7 +39,7 @@ function quickbarHTML(drawMode) {
   // X se zapisuje podle nastavení „X displej" (Radius / Průměr) – stejně jako export.
   const xWord = state.xDisplayMode === 'diameter' ? 'průměr' : 'poloměr';
   if (drawMode) return `
-  <div class="cne-quickbar cne-quickbar--draw">${digitKeysHTML()}
+  <div class="cne-quickbar cne-quickbar--draw">${linebarHTML()}${digitKeysHTML()}
     <button class="cne-qb c12" data-inp="R" title="R – poloměr / parametr">R</button>
     <button class="cne-qb c12" data-inp="I" title="I &ndash; st&#345;ed oblouku (posun v X, v&#382;dy polom&#283;r)">I<small class="cne-qb-axis">(x)</small></button>
     <button class="cne-qb c12" data-inp="K" title="K &ndash; st&#345;ed oblouku (posun v Z)">K<small class="cne-qb-axis">(z)</small></button><button class="cne-qb blue c12" data-inp="G" title="G-kód – otevře číselník se seznamem G-kódů">G</button>
@@ -41,21 +51,26 @@ function quickbarHTML(drawMode) {
     <button class="cne-qb cne-qb-big c12" data-inp="Z" title="Osa Z (délka)"><span>Z</span><small>délka</small></button>
     <button class="cne-qb accent cne-qb-big c12" data-act="angleLine" title="Úsečka úhlem – polárně od osy Z, nebo od předchozí úsečky"><span>∠</span><small>úsečka</small></button>
 
-    <button class="cne-qb blue c12" data-act="lineG" data-g="G90" title="Napíše G90 (absolutní) na začátek řádku s kurzorem">G90</button>
-    <button class="cne-qb blue c12" data-act="lineG" data-g="G91" title="Napíše G91 (přírůstkové) na začátek řádku s kurzorem">G91</button>
+    <button class="cne-qb cne-qb-mode c12" data-act="stockToggle" data-el="stockToggleBtn" title="Co právě zadávám: kontura (K) nebo polotovar (P). Klik vloží značku ; STOCK_START / ; STOCK_END na kurzor.">✎<b>K</b></button>
     <button class="cne-qb accent c12" data-act="chamfer" title="Sražení hrany (CHF= / C / CHF – dle řídicího systému)">Sraž.</button>
     <button class="cne-qb accent c12" data-act="round" title="Zaoblení hrany (RND= / R / RND R – dle řídicího systému)">Zaobl.</button>
+    <button class="cne-qb blue c12" data-act="lineG" data-el="lineGBtn" title="Platný režim G90 / G91 – klik zapíše na řádek s kurzorem ten druhý">G90</button>
     <button class="cne-qb del c12" data-act="backspace" title="Smazat znak">⌫</button>
 
-    <button class="cne-qb red c12" data-act="toggleComments" title="Zkrátit kód o poznámky za středníkem a prázdné řádky – další klik je vrátí">;✂</button>
-    <button class="cne-qb gray c12" data-ins=";" title="Středník (komentář)">;</button>
-    <button class="cne-qb cne-kb-btn c12" data-act="keyboard" data-el="kbBtn" title="Zobrazit / skrýt klávesnici telefonu">⌨</button>
-    <button class="cne-qb green c12" data-act="pickFromCanvas" title="Zavře editor, naklikněte bod na plátně – editor se otevře a souřadnice se vypíšou na místo kurzoru">🎯</button>
+    <button class="cne-qb cne-qb-caret c8" data-caret="home" title="Na začátek řádku">⇤</button>
+    <button class="cne-qb cne-qb-caret c8" data-caret="up" title="Kurzor o řádek nahoru (podržet = opakovat)">▲</button>
+    <button class="cne-qb cne-qb-caret c8" data-caret="end" title="Na konec řádku">⇥</button>
+    <button class="cne-qb gray c8" data-ins=";" title="Středník (komentář)">;</button>
+    <button class="cne-qb cne-kb-btn c8" data-act="keyboard" data-el="kbBtn" title="Zobrazit / skrýt klávesnici telefonu">⌨</button>
+    <button class="cne-qb green c8" data-act="pickFromCanvas" title="Zavře editor, naklikněte bod na plátně – editor se otevře a souřadnice se vypíšou na místo kurzoru">🎯</button>
     <button class="cne-qb green c12 cne-qb-enter" data-ins="\\n" title="Nový řádek">↵</button>
 
-    <button class="cne-qb accent cne-qb-wide c20" data-act="stockToggle" data-el="stockToggleBtn" title="Co právě zadávám: kontura nebo polotovar. Klik vloží značku ; STOCK_START / ; STOCK_END na kurzor.">✎ Kontura</button>
-    <button class="cne-qb gray cne-qb-wide c14" data-ins=" " title="Mezera">␣</button>
-    <button class="cne-qb gray cne-qb-wide cne-qb-num c14" data-inp="" title="Zadat číslo">123</button>
+    <button class="cne-qb cne-qb-caret c8" data-caret="left" title="Kurzor o znak doleva (podržet = opakovat)">◀</button>
+    <button class="cne-qb cne-qb-caret c8" data-caret="down" title="Kurzor o řádek dolů (podržet = opakovat)">▼</button>
+    <button class="cne-qb cne-qb-caret c8" data-caret="right" title="Kurzor o znak doprava (podržet = opakovat)">▶</button>
+    <button class="cne-qb cne-qb-line c8" data-line-act="bar" title="Řádek: výběr šipkami, kopie, posun nahoru / dolů, smazání">≡</button>
+    <button class="cne-qb gray cne-qb-wide cne-qb-num c8" data-inp="" title="Zadat číslo">123</button>
+    <button class="cne-qb gray cne-qb-wide c8" data-ins=" " title="Mezera">␣</button>
   </div>`;
   return `
   <div class="cne-quickbar">${digitPadHTML()}

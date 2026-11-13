@@ -21,7 +21,7 @@ const BUDGET = {
   'ui.js': 128,   // rozcestník (rozděleno 16. 10. do js/ui/) — kód sem nepřidávat
   'render.js': 69,   // rozcestník (rozděleno 16. 10. do js/render/) — kód sem nepřidávat
   'calculators/cam/ops/roughLong.js': 3119,
-  'calculators/cncEditor.js': 1801,   // 10. 11.: G90↔G91, hlavička, parser, HTML → gcodeCoordConvert/gcodeEditorHeader/gcodeEditorParser/cncEditorHtml (dřív 2628)
+  'calculators/cncEditor.js': 1755,   // 13. 11.: přepínače lišty → cncQuickKeys.js, hledání → cncSearch.js; 10. 11.: G90↔G91, hlavička, parser, HTML → gcodeCoordConvert/gcodeEditorHeader/gcodeEditorParser/cncEditorHtml (dřív 2628)
   'geometry.js': 74,   // rozcestník (rozděleno 16. 10. do js/geometry/) — kód sem nepřidávat
   'calculators/vkContour.js': 2336,
   'storage/fileIO.js': 1811,

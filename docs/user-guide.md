@@ -1520,7 +1520,27 @@ zapíná/vypíná ji tlačítko **⌨** dole. Horní lišta: **☰** vlevo soubo
 **⌒** sražení/zaoblení → dráha, **G90/G91** přepočet celého kódu, 🔍, 🔢,
 ✓ validace, **A− / A+** velikost textu, 🔄 vykreslit, **☰** vpravo nástroje
 editoru (nový, stáhnout, import/export, přečíslování, hlavička, nastavení
-validace…). Spodní **G90 / G91** jen zapíše značku na začátek řádku. Šipky
+validace…). Spodní klávesnice: **G90/G91** je jedno tlačítko – ukazuje režim
+platný na řádku s kurzorem (G91 žlutě) a klik zapíše na řádek ten druhý (bez
+přepočtu souřadnic). **✎K / ✎P** ukazuje, co se zadává – **K**ontura (modře) nebo
+**P**olotovar (červeně, barvy kreslení) – a klik vloží značku
+`; STOCK_START — kontura konec, polotovar začátek` nebo
+`; STOCK_END — polotovar konec, dál kontura`. Je-li pod kurzorem ještě kód,
+vloží se dvojice (konec + znovu začátek) s kurzorem mezi nimi – kód pod ním
+zůstane tím, čím byl. Když za poslední značkou do kurzoru nic nepřibylo, klik ji
+naopak smaže. Osiřelé, zdvojené a prázdné značky (třeba dva `STOCK_END` pod
+sebou) se při každém kliku uklidí.
+Vlevo dole je kříž šipek: **◀ ▶** posun kurzoru o znak, **▲ ▼**
+o řádek (drží sloupec), **⇤ ⇥** na začátek / konec řádku; podržením se posun
+opakuje. Vpravo je **↵** pod ⌫ a vedle něj dole mezerník, **G90/G91** je vlevo od ⌫.
+Tlačítko **≡** otevře nad klávesnicí proužek akcí s řádkem: **⬚ Výběr** (šipky
+pak text označují – jeden konec stojí, druhý jede; dalším klepnutím výběr skončí),
+**▤ Řádek** (označí celý řádek), **⧉ Kopie** (kopie řádku pod něj), **⇡ ⇣**
+(posun řádku nahoru / dolů) a **✕ ř.** (smazání řádku). S výběrem přes víc řádků
+platí pro všechny. Na počítači Alt+↑ / Alt+↓ posouvá a Alt+Shift+↓ kopíruje.
+Řádek s chybou validace má v kódu **červený pruh** a hláška se ukáže v nápovědě
+k řádku s kurzorem („Údaje a nápověda" pak zčervená).
+Poznámky za středníkem skryje **;👁** v oranžové liště. Šipky
 **◀ ▶** v oranžové liště vrací/opakují úpravy i po zavření editoru a vykreslení
 (30 kroků). Validace navíc hlásí souřadnice bez G po G0 („chybí G1?"), oblouk
 bez R/I,K a osu dvakrát v bloku – každé pravidlo jde vypnout v Nastavení validace.

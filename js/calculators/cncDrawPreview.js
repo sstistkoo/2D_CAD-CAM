@@ -4,6 +4,10 @@
 // ║  řádek s kurzorem je zvýrazněný (editor → „plátno").         ║
 // ╚══════════════════════════════════════════════════════════════╝
 
+// Polotovar plnou čarou v barvě kreslení polotovaru (červená, Nastavení) –
+// dřív oranžově přerušovaně (uživatel 13. 11. 2026).
+import { stockDefaultColor } from '../drawColorPrefs.js';
+
 /**
  * @param {HTMLCanvasElement} cv
  * @param {ReturnType<import('./cncDrawTools.js').analyzeDrawCode>} an
@@ -87,7 +91,7 @@ export function drawPreview(cv, an, opts = {}) {
   };
   for (const seg of segs) {
     if (seg.mv.g === 0) drawSeg(seg, col('--ctp-overlay2'), 1, [3, 3]);
-    else drawSeg(seg, seg.mv.stock ? col('--ctp-peach') : col('--ctp-text'), 1.5, seg.mv.stock ? [5, 3] : null);
+    else drawSeg(seg, seg.mv.stock ? stockDefaultColor() : col('--ctp-text'), 1.5, null);
   }
   const cur = segs.find(s => s.mv.line === opts.curLine);
   if (cur) {
