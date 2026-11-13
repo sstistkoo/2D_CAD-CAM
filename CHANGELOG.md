@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - **Nepoužívané knihovny** (úklid 13. 11. 2026): `lib/three.min.js` (Three.js, 670 kB — nic ji nenačítalo), `lib/maker.min.js` (460 kB, stará kopie; aplikace používá `js/lib/browser.maker.js`) a `lib/turf.min.js` (540 kB) i s nevolaným loaderem `ensureTurf()` / `getTurf()` v `geom/geomCore.js`. Offline cache PWA je o ~1,7 MB menší.
+- **Mrtvý kód** (úklid 13. 11. 2026): 13 exportů, které nic nevolalo (ani testy) — `renderProfile`, `renderGcode` (AI panel), `simplifyLoops`, `machinedStockLoops`, `feedAutoLocked`, `grooveFaceActive`, `stockHoleMinRadius`, `isoIcOf`, `DRILL_PRESET` (od 7. 10. ho nahradil nůž ze Zásobníku/katalogu u tlačítka tvaru), `getDrawColorPrefs`, `objectMidpoint`, `saveToLibrary` (dialog Knihovny má vlastní uložení) a zbloudilý řádek `export const __X = 0` v `ops/finish.js`. Chování aplikace ani výstup CAM se nemění. `svgDimV` v `calcKit.js` zůstává jako pár k `svgDimH`.
 
 ### Changed
 

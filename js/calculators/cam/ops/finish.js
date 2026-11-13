@@ -615,7 +615,7 @@ export function wallsTopDown(path, prms) {
  * Pásový ořez dokončovací dráhy (rozsah 📐 i čelisti/koník).
  * @returns { path, trimmed, dropped }
  */
-export const __X = 0; // Díl se obrábí po ÚSECÍCH — hrubování pás respektuje (podélné i čelní),
+// Díl se obrábí po ÚSECÍCH — hrubování pás respektuje (podélné i čelní),
 // dokončování jelo pořád přes celý díl. Hrubovací strategie si rozsah
 // vyzvedávají z `passCtx`, dokončovací dráha vzniká tady, takže se ořezává
 // tady.

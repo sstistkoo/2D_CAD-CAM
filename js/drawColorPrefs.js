@@ -41,8 +41,6 @@ export function setDrawLineWeight(w) {
 export function contourDefaultColor() { return prefs.contour || COLORS.primary; }
 /** Výchozí barva polotovaru (předvolba, jinak barva tématu). */
 export function stockDefaultColor() { return prefs.stock || COLORS.stock; }
-/** Uložené předvolby (barvy: null = výchozí tématu). */
-export function getDrawColorPrefs() { return { ...prefs }; }
 
 /** Obarví vrstvy Kontura a Polotovar aktuálního výkresu výchozími barvami. */
 export function applyDrawColorsToLayers(layers = state.layers) {

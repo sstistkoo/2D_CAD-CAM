@@ -357,8 +357,3 @@ export function computeResidualRegions(residualLoops, zMax, zMin, dz = 0.2, minD
 export function residualArea(residualLoops) {
   return Math.abs(polyArea(residualLoops));
 }
-
-/** Zjednodušení smyček pro kreslení/rychlost (ε default 0,005 mm). */
-export function simplifyLoops(loops, eps = 0.005) {
-  return polySimplify(loops, eps);
-}

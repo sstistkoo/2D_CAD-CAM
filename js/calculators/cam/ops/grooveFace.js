@@ -27,11 +27,6 @@ import { isoFaceGrooveFromName } from '../../isoFaceGrooves.js';
 const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
 const STEP_FRAC = 0.8;
 
-/** Je aktivní čelní zápich (Upich + ⊚ Čelní)? */
-export function grooveFaceActive(prms) {
-  return !!(prms && prms.partOffFace === true && prms.partOffZ != null && isFinite(parseFloat(prms.partOffZ)));
-}
-
 /**
  * Geometrie čelního zápichu (sdílí emise, UI i testy).
  * @param stockLoop  polotovar (čelo polotovaru před čelem dílu → bezpečné Z)

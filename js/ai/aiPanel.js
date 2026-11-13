@@ -476,12 +476,6 @@ function addProfileObject(vertices, bulges) {
   return segments.length > 0 ? segments[0] : null;
 }
 
-/** Vykreslí profil ze skeletu / elementů (JSON) jako jednu polyline. */
-export function renderProfile(items) {
-  const { vertices, bulges } = buildProfile(items);
-  return addProfileObject(vertices, bulges);
-}
-
 /**
  * Parsuje G-kód na vrcholy + bulge. Podporuje:
  *  - G0/G1 lineární, G2/G3 oblouky (CR=/R nebo I/K),
@@ -588,12 +582,6 @@ export function gcodeToProfile(text) {
     }
   }
   return { vertices, bulges };
-}
-
-/** Vykreslí profil z G-kódu (výstup AI v režimu „G-kód"). */
-export function renderGcode(text) {
-  const { vertices, bulges } = gcodeToProfile(text);
-  return addProfileObject(vertices, bulges);
 }
 
 /**

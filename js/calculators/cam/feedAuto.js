@@ -33,6 +33,3 @@ export function applyFeedAuto(prms) {
   prms.feedAuto = true;
   return prms;
 }
-
-/** Jsou volby posuvu zamčené Autem? */
-export const feedAutoLocked = (prms) => !!(prms && prms.feedAuto);

@@ -300,14 +300,6 @@ export function stripCodeOwnedParams(loaded) {
 export const SHAPE_PRESET_RADIUS = { round: 10, polygon: 1.2, parting: 0.5, drill: 10 };
 
 /**
- * Výchozí vrták při přepnutí tvaru na ⌀ (panel, Geometrie, slot zásobníku):
- * HSS ⌀20 118° jako v 📚 katalogu (isoDrills.js — DIN 345, vyložení 145,
- * redukční pouzdro MK2 ⌀40 × 80). Rádius (⌀/2) je v SHAPE_PRESET_RADIUS.
- * Orientační hodnoty — uživatel je hned přepíše.
- */
-export const DRILL_PRESET = { toolLength: 145, toolTipAngle: 118, holderWidth: 40, holderLength: 80 };
-
-/**
  * Odhad řezných podmínek podle tvaru plátku: vc [m/min], f [mm/ot], ap [mm].
  * Při PŘEPNUTÍ tvaru (panel, Geometrie, slot zásobníku) se dosadí vc a f
  * (uživatel 30. 9. 2026: „přednastavit posuv a otáčky"), ap zůstává —

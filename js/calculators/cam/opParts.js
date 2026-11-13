@@ -142,11 +142,6 @@ export function machinedStockModel(prms, stockPathSegments, simPath) {
   return mr;
 }
 
-export function machinedStockLoops(prms, stockPathSegments, simPath) {
-  const mr = machinedStockModel(prms, stockPathSegments, simPath);
-  return mr && mr.model ? mr.model.loops : null;
-}
-
 /** Plocha smyčky se znaménkem (shoelace) — jen pro výběr té největší. */
 function loopArea(loop) {
   let a = 0;

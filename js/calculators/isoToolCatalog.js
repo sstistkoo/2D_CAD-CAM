@@ -468,7 +468,6 @@ function knifeRecord({ name, vbdCode, holder, prms, sh, hand, cut, desc, iso }) 
 // Vyvrtávací tyče berou destičky, kódy, řezné podmínky a záznam odsud,
 // obrys držáku si staví samy (tyč leží podél osy, ne napříč).
 export const ISO_HOLDER_GEOM = HOLDER_GEOM[ISO_HOLDER_VERSION];
-export const isoIcOf = icOf;
 export const isoInsertCode = insertCode;
 export const isoKnifeRecord = knifeRecord;
 export const isoCutData = cutData;

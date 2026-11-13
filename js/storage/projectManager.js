@@ -383,21 +383,6 @@ export async function showProjectsDialog() {
 
 // ── Knihovna výkresů ──
 
-/** Uloží aktuální výkres do knihovny. */
-export async function saveToLibrary(customName) {
-  const library = (await getMeta('library')) || [];
-  const name = (customName || state.projectName || 'Bez názvu').trim();
-  const data = _buildProjectData();
-  library.unshift({
-    id: 'lib_' + Date.now(),
-    name: name,
-    date: new Date().toLocaleString('cs-CZ'),
-    objectCount: (data.objects || []).length,
-    data: data,
-  });
-  await setMeta('library', library);
-  showToast(`Uloženo do knihovny: "${name}"`);
-}
 
 /** Otevře dialog knihovny výkresů. */
 export async function showLibraryDialog() {

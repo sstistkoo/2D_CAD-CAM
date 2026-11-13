@@ -327,12 +327,6 @@ export function findContourDuplicates() {
   return dups;
 }
 
-/** Bod uprostřed objektu úsečky/oblouku (popisek zvýraznění na plátně). */
-export function objectMidpoint(obj) {
-  const sg = _objectsToSegments([obj])[0];
-  return sg ? _segMid(sg) : null;
-}
-
 /** Ohraničení objektů (pro přiblížení na ně), nebo null. */
 export function objectsBounds(objs) {
   const pts = [];
