@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Kreslicí editor: spodní tlačítka vnitřních oken vždy vidět** (uživatel 13. 11. 2026). V okně ⌒ Oblouk (i úhel, sražení…) byla na telefonu tlačítka Zrušit / Vložit oblouk pod klávesnicí nebo pod okrajem displeje. Vnitřní okna se teď drží ve skutečně viditelné ploše (`visualViewport` → CSS `--vv-top` / `--vv-h`, nový `js/dialogs/innerModalViewport.js`) a lišta s tlačítky je přilepená ke spodku okna i při rolování obsahu (`css/cnc-compact.css`).
+
 ### Removed
 
 - **Nepoužívané knihovny** (úklid 13. 11. 2026): `lib/three.min.js` (Three.js, 670 kB — nic ji nenačítalo), `lib/maker.min.js` (460 kB, stará kopie; aplikace používá `js/lib/browser.maker.js`) a `lib/turf.min.js` (540 kB) i s nevolaným loaderem `ensureTurf()` / `getTurf()` v `geom/geomCore.js`. Offline cache PWA je o ~1,7 MB menší.

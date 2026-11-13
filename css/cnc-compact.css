@@ -174,9 +174,22 @@
 
 /* Vnitřní okna editoru (oblouk, úhel, sražení, nápověda…): ve zmenšeném editoru se
    centrují na celou obrazovku, ne jen do spodní části s kódem – jinak spodní tlačítka
-   utekla pod okraj displeje. Okno nikdy není vyšší než displej (zbytek se roluje). */
-.cne-overlay-draw.cne-compact .cne-inner-modal { position: fixed; inset: 0; z-index: 1000; }
-.cne-inner-modal > * { max-height: calc(100dvh - 16px); overflow-y: auto; box-sizing: border-box; }
+   utekla pod okraj displeje. Okno nikdy není vyšší než displej (zbytek se roluje).
+   Výška i vršek podle viditelné plochy (--vv-top/--vv-h, js/dialogs/innerModalViewport.js):
+   na mobilu klávesnice ani lišta prohlížeče tlačítka nepřekryje. */
+.cne-overlay-draw .cne-inner-modal {
+  position: fixed; left: 0; right: 0; bottom: auto; z-index: 1000;
+  top: var(--vv-top, 0px); height: var(--vv-h, 100dvh);
+}
+.cne-inner-modal > * { max-height: calc(var(--vv-h, 100dvh) - 16px); overflow-y: auto; box-sizing: border-box; }
+/* Zrušit / Vložit … přilepené ke spodku okna – vidět i když se obsah roluje */
+.cne-im-card > .cne-im-actions {
+  --p: 14px;                       /* = padding karty (naležato 10px, landscape-mobile.css) */
+  position: sticky; bottom: calc(-1 * var(--p)); z-index: 1;
+  margin: 8px calc(-1 * var(--p)) calc(-1 * var(--p)); padding: 8px var(--p) var(--p);
+  background: var(--ctp-base); border-top: 1px solid var(--ctp-surface0);
+}
+@media (orientation: landscape) and (max-height: 500px) { .cne-im-card > .cne-im-actions { --p: 10px; } }
 
 /* Proužek akcí s řádkem (≡, cncLineTools.js) – nad klávesnicí přes celou šířku */
 .cne-quickbar--draw .cne-linebar {

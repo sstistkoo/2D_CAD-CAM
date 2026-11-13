@@ -2,6 +2,8 @@
 // Esc i tlačítko Zpět mají zavřít NEJDŘÍV je – ne celé okno pod nimi (kreslicí editor
 // by se zavřel a rovnou vykreslil kód na plátno).
 
+import './innerModalViewport.js';   // okna drží ve viditelné ploše nad klávesnicí
+
 const INNER_SELECTOR = '.cne-inner-modal';
 const CLOSE_SELECTOR = '.cne-im-close, [data-act$="Cancel"], [data-act$="Close"]';
 
