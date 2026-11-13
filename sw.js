@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v825';
+const CACHE_NAME = 'skica-v826';
 const ASSETS = [
   './',
   './index.html',
@@ -470,6 +470,7 @@ const ASSETS = [
   './js/storage.js',
   './js/storage/autoSave.js',
   './js/storage/cncCompact.js',
+  './js/storage/drawOrder.js',
   './js/storage/exportImage.js',
   './js/storage/fileIO.js',
   './js/storage/gcodeParse.js',

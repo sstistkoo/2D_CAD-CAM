@@ -21,6 +21,7 @@ import { findContourGaps, findContourBranches, findContourDuplicates, jumpToCont
 import { renderAll } from '../render.js';
 import { withoutHelperObjects } from '../helperLayer.js';
 import { STOCK_START_LINE, STOCK_END_LINE } from '../calculators/cncStockMarkers.js';
+import { alignChainsToDrawOrder } from './drawOrder.js';
 
 // ── Export / Import ──
 
@@ -1397,8 +1398,9 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
       ep = _getEp(list[i]);
       curEnd = { x: ep.ex, y: ep.ey };
     }
+    return list;
   }
-  if (asDrawn) _orientInDrawnOrder(items);
+  if (asDrawn) alignChainsToDrawOrder(_orientInDrawnOrder(items), _revObj);   // směr jako při kreslení (drawOrder.js)
   out += "; KONTURA_START — kontura (obrobek)\n";
   items.forEach(emitObj);
 
@@ -1416,7 +1418,7 @@ function runCncExport({ forCam = false, asDrawn = false } = {}) {
     // Reset polohy mezi sekcemi: další G00 v polotovaru musí být vždy emitován,
     // i kdyby náhodou souřadnice navazovala na poslední bod kontury.
     lastEndX = null; lastEndY = null;
-    if (asDrawn) _orientInDrawnOrder(stockItems);
+    if (asDrawn) alignChainsToDrawOrder(_orientInDrawnOrder(stockItems), _revObj);
     out += STOCK_START_LINE + "\n";   // popisky jako ✎K/✎P v editoru (cncStockMarkers.js)
     stockItems.forEach(emitObj);
     out += STOCK_END_LINE + "\n\n";
