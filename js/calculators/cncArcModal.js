@@ -108,7 +108,7 @@ export function createArcModal({ $, editor, getOpts, caretLine, insertLines, clo
     let pos = 0;
     v.split('\n').slice(0, ctx.idx + 1).forEach((l) => { pos += l.length + 1; });
     editor.selectionStart = editor.selectionEnd = Math.max(0, Math.min(v.length, pos - 1));
-    insertLines(`${last.line} ; ${last.comment}`, 'Oblouk', `G${last.g}`);
+    insertLines(`${last.line} ; ${last.comment}`, 'Oblouk', `G${last.g}`, { caretAtEnd: true });   // kurzor na oblouku → ∠ Tečně hned naváže
   }
 
   function open() {

@@ -34,7 +34,7 @@ function setup(code, caret, optsIn = {}) {
     editor,
     getOpts: () => ({ diam: false, karusel: false, flip: false, ...optsIn }),
     caretLine: () => code.slice(0, caret).split('\n').length - 1,
-    insertLines: (text, label, detail) => inserted.push({ text, label, detail, caret: editor.selectionStart }),
+    insertLines: (text, label, detail, opts) => inserted.push({ text, label, detail, opts, caret: editor.selectionStart }),
     closeOnBackdropClick: (el, fn) => { backdrop = fn; },
   });
   const click = (b) => els.arcModal.fire('click', { target: { closest: () => b } });
@@ -68,6 +68,8 @@ describe('dialog Oblouk', () => {
     expect(t.els.arcModal.style.display).toBe('none');
     // kurzor se před vložením přesune na konec řádku, ze kterého oblouk vychází
     expect(t.inserted[0].caret).toBe('G90 G00 X0 Z0\nG01 X5 Z-5'.length);
+    // po vložení zůstane kurzor na oblouku → ∠ na něj hned naváže (⟿ Tečně)
+    expect(t.inserted[0].opts).toEqual({ caretAtEnd: true });
   });
 
   it('úhel rozevření místo R dopočte R', () => {

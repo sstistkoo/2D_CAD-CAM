@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Kreslicí editor: ∠ úsečka hned za obloukem nabídne ⟿ Tečně** (uživatel 13. 11. 2026). Po vložení oblouku (⌒) nebo úsečky (∠) doprostřed programu skočil kurzor až na další řádek, takže následující ∠ navazovalo na něj, a ne na právě vložený oblouk. Tečné napojení se proto nenabídlo. Kurzor teď zůstane na konci vloženého řádku (`insertLines(…, { caretAtEnd: true })`).
 - **Kreslicí editor: spodní tlačítka vnitřních oken vždy vidět** (uživatel 13. 11. 2026). V okně ⌒ Oblouk (i úhel, sražení…) byla na telefonu tlačítka Zrušit / Vložit oblouk pod klávesnicí nebo pod okrajem displeje. Vnitřní okna se teď drží ve skutečně viditelné ploše (`visualViewport` → CSS `--vv-top` / `--vv-h`, nový `js/dialogs/innerModalViewport.js`) a lišta s tlačítky je přilepená ke spodku okna i při rolování obsahu (`css/cnc-compact.css`).
 
 ### Removed

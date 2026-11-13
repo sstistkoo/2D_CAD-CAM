@@ -891,7 +891,8 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
   function caretInStock() { return inStockAt(editor.value, editor.selectionStart); }
   function updateEntryMode() { syncQuickKeys(root, editor); }   // ✎K/✎P a G90/G91 v liště
   /** Vloží blok textu na kurzor, na vlastní řádek (bez auto-mezery quickbaru). */
-  function insertLines(text, label = 'Značka', detail = /STOCK_END/.test(text) ? 'konec polotovaru' : 'polotovar') {
+  // caretAtEnd: kurzor zůstane na konci vloženého řádku (⌒ / ∠ z něj hned navážou, tečně), ne na dalším řádku.
+  function insertLines(text, label = 'Značka', detail = /STOCK_END/.test(text) ? 'konec polotovaru' : 'polotovar', { caretAtEnd = false } = {}) {
     editor.readOnly = false;
     const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value;
     const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
@@ -901,7 +902,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     const ins = lead + text + (atLineEnd ? '' : '\n');
     captureUndoSnapshot(label, detail);
     editor.value = v.slice(0, s) + ins + v.slice(e);
-    editor.selectionStart = editor.selectionEnd = s + ins.length + (atLineEnd ? 1 : 0);
+    editor.selectionStart = editor.selectionEnd = s + ins.length + (caretAtEnd ? (atLineEnd ? 0 : -1) : (atLineEnd ? 1 : 0));
     editor.scrollTop = scrollTop; editor.scrollLeft = scrollLeft;
     editor.focus({ preventScroll: true });
     onInput();
@@ -1262,7 +1263,7 @@ export function openCncEditor(initialCode, { drawOnClose = false, baseline = nul
     let pos = 0;
     v.split('\n').slice(0, angleLineIdx + 1).forEach(l => { pos += l.length + 1; });
     editor.selectionStart = editor.selectionEnd = Math.max(0, Math.min(v.length, pos - 1));
-    insertLines(`${g1Text(r)} ; ${r.rel && angPrevArc ? '⟿ tečně' : '∠' + f3(r.A) + (r.rel ? '° od předchozí' : '°')}`, 'Úsečka úhlem', `∠${f3(r.abs)}°`);
+    insertLines(`${g1Text(r)} ; ${r.rel && angPrevArc ? '⟿ tečně' : '∠' + f3(r.A) + (r.rel ? '° od předchozí' : '°')}`, 'Úsečka úhlem', `∠${f3(r.abs)}°`, { caretAtEnd: true });
   }
   if (angleModal) {
     angleModal.addEventListener('input', () => {
