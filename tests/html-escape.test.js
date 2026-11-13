@@ -1,5 +1,18 @@
+// @vitest-environment happy-dom
 import { describe, it, expect } from 'vitest';
 import { escapeHtml } from '../js/htmlEscape.js';
+
+describe('escapeHtml v atributu (📋 Kopírovat u příkladů)', () => {
+  it('kód s uvozovkami projde data-code beze ztráty', () => {
+    // Dřívější DOM varianta neescapovala " → atribut skončil u první
+    // uvozovky a tlačítko zkopírovalo jen „MSG(".
+    const code = 'MSG("hodnoty osy X "<<R1<<" mm")';
+    const div = document.createElement('div');
+    div.innerHTML = `<button data-code="${escapeHtml(code)}">📋</button><pre>${escapeHtml(code)}</pre>`;
+    expect(div.querySelector('button').dataset.code).toBe(code);
+    expect(div.querySelector('pre').textContent).toBe(code);
+  });
+});
 
 describe('escapeHtml', () => {
   it('escapuje & < > " (text i atribut v uvozovkách)', () => {
