@@ -3564,8 +3564,8 @@ export function openCamSimulator(initialContour, initialGCode) {
     S.flipZ = e.detail;
     draw(); saveState(); renderTab();
   }, { signal: _flipXAC.signal });
-  new MutationObserver(() => {
-    if (!document.contains(overlay)) _flipXAC.abort();
+  new MutationObserver((_m, mo) => {   // po zavření vše odpojit, jinak drží zavřený simulátor v paměti
+    if (!document.contains(overlay)) { _flipXAC.abort(); mo.disconnect(); }
   }).observe(document.body, { childList: true });
 
   // toolbar
@@ -3831,8 +3831,8 @@ export function openCamSimulator(initialContour, initialGCode) {
   });
   document.addEventListener('mousemove', e => {
     if (_scrubbing) scrubProgress(e);
-  });
-  document.addEventListener('mouseup', () => { _scrubbing = false; });
+  }, { signal: _flipXAC.signal });
+  document.addEventListener('mouseup', () => { _scrubbing = false; }, { signal: _flipXAC.signal });
   progressBar.addEventListener('touchstart', e => {
     if (e.touches.length === 1) { _scrubbing = true; scrubProgress(e.touches[0]); }
   }, { passive: true });

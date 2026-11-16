@@ -3,6 +3,8 @@ import { state } from '../../state.js';
 import { bulgeToArc } from '../../utils.js';
 import { findLiveBlock } from './live/liveMarkers.js';
 
+const TWO_PI = 2 * Math.PI;
+
 // ── G-code parser (manual code → sim path) ─────────────────────
 export function parseManualGCodeToPath(code, prms, unflipArc) {
   const lines = code.split('\n');
@@ -176,7 +178,7 @@ export function buildStockPointsFromCanvas(camParams) {
   if (stockObjs.length === 0) return [];
 
   // Rozložit polyline/rect na úsečky a oblouky, sjednotit s lines/arcs.
-  /** @type {{p1:{x:number,y:number}, p2:{x:number,y:number}, type:'line'|'arc', cx?:number, cy?:number, r?:number, ccw?:boolean}[]} */
+  /** @type {{p1:{x:number,y:number}, p2:{x:number,y:number}, type:'line'|'arc', cx?:number, cy?:number, r?:number, ccw?:boolean, long?:boolean}[]} */
   const segs = [];
   for (const obj of stockObjs) {
     if (obj.type === 'line') {
@@ -186,7 +188,9 @@ export function buildStockPointsFromCanvas(camParams) {
       const p1 = { x: obj.cx + obj.r * Math.cos(sa), y: obj.cy + obj.r * Math.sin(sa) };
       const p2 = { x: obj.cx + obj.r * Math.cos(ea), y: obj.cy + obj.r * Math.sin(ea) };
       // p1 → p2 jde ve smyslu oblouku (ccw: false = po směru hodin, viz render).
-      segs.push({ p1, p2, type: 'arc', cx: obj.cx, cy: obj.cy, r: obj.r, ccw: obj.ccw !== false });
+      const ccw = obj.ccw !== false;
+      const sweep = (((ccw ? ea - sa : sa - ea) % TWO_PI) + TWO_PI) % TWO_PI;
+      segs.push({ p1, p2, type: 'arc', cx: obj.cx, cy: obj.cy, r: obj.r, ccw, long: sweep > Math.PI + 1e-6 });
     } else if (obj.type === 'polyline') {
       const vs = obj.vertices || [];
       const bs = obj.bulges || [];
@@ -196,7 +200,8 @@ export function buildStockPointsFromCanvas(camParams) {
         const b = bs[i] || 0;
         if (b !== 0) {
           const arc = bulgeToArc(v1, v2, b);
-          if (arc) segs.push({ p1: { x: v1.x, y: v1.y }, p2: { x: v2.x, y: v2.y }, type: 'arc', cx: arc.cx, cy: arc.cy, r: arc.r, ccw: b > 0 });
+          // |bulge| > 1 ⇔ oblouk přes 180°
+          if (arc) segs.push({ p1: { x: v1.x, y: v1.y }, p2: { x: v2.x, y: v2.y }, type: 'arc', cx: arc.cx, cy: arc.cy, r: arc.r, ccw: b > 0, long: Math.abs(b) > 1 + 1e-9 });
         } else {
           segs.push({ p1: { x: v1.x, y: v1.y }, p2: { x: v2.x, y: v2.y }, type: 'line' });
         }
@@ -298,7 +303,9 @@ export function buildStockPointsFromCanvas(camParams) {
       // u karuselu (X→x, Z→y) je prohození os ZRCADLENÍ (ne otočení), takže CCW
       // ve výkresu je v rovině CAM (Z vodorovně, X svisle) CW. V CAM: G3 = CCW, G2 = CW.
       const cnc = (seg.ccw !== isKarusel) ? 'G3' : 'G2';
-      pts.push({ id: id++, type: cnc, x: round3(endCnc.X), z: round3(endCnc.Z), r: round3(seg.r), mode: 'ABS' });
+      // Oblouk přes 180° = ZÁPORNÉ R (konvence G-kódu i getArcParams, viz
+      // arcSign.js). Kladné R by z něj udělalo kratší oblouk na druhé straně.
+      pts.push({ id: id++, type: cnc, x: round3(endCnc.X), z: round3(endCnc.Z), r: round3(seg.long ? -seg.r : seg.r), mode: 'ABS' });
     }
   }
   return pts;
@@ -324,11 +331,15 @@ export function _parseGCodeRange(lines, startLine, endLine, idBase) {
     if (!clean) continue;
     const gMatch = clean.match(/\bG0?([0-3])\b/);
     if (gMatch) currentType = 'G' + gMatch[1];
-    const xMatch = clean.match(/X([-]?\d+\.?\d*)/);
-    const zMatch = clean.match(/Z([-]?\d+\.?\d*)/);
-    const rMatch = clean.match(/(?:R|CR=)([-]?\d+\.?\d*)/);
-    const iMatch = clean.match(/I([-]?\d+\.?\d*)/);
-    const kMatch = clean.match(/K([-]?\d+\.?\d*)/);
+    // Číslo i s úvodní tečkou (`Z-.5`, `X.8` — běžný fanucovský zápis) i s
+    // koncovou (`X10.`). Dřív `\d+` vyžadovalo číslici před tečkou, takže
+    // `Z-.5` se tiše nepřečetlo a bod zůstal na předchozím Z.
+    const NUM = '(-?(?:\\d+\\.?\\d*|\\.\\d+))';
+    const xMatch = clean.match(new RegExp('X' + NUM));
+    const zMatch = clean.match(new RegExp('Z' + NUM));
+    const rMatch = clean.match(new RegExp('(?:R|CR=)' + NUM));
+    const iMatch = clean.match(new RegExp('I' + NUM));
+    const kMatch = clean.match(new RegExp('K' + NUM));
     if (xMatch || zMatch) {
       const newX = xMatch ? parseFloat(xMatch[1]) : lastX;
       const newZ = zMatch ? parseFloat(zMatch[1]) : lastZ;

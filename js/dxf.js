@@ -405,6 +405,10 @@ function parseEntity(type, data) {
         }
       }
 
+      // Méně než 2 vrcholy = nic k nakreslení (stejně jako POLYLINE níž);
+      // prázdná polyline ve výkresu shodila CNC export (vertices[0]).
+      if (rawVerts.length < 2) return null;
+
       // Zrcadlený OCS: x → −x a bulge mění znaménko (opačný směr oblouků)
       const m = ocsMirrorX(data) ? -1 : 1;
       const vertices = rawVerts.map(v => ({ x: m * v.x, y: v.y }));
@@ -457,7 +461,9 @@ function parseEntity(type, data) {
       }
       // MTEXT může mít formátovací kódy – odstraň je
       if (type === 'MTEXT') {
-        text = text.replace(/\\[pPfFcChHwWaAqQtT][^;]*;/g, '')
+        // Velké \P (nový odstavec) středník nemá — ve třídě by s `[^;]*;`
+        // spolkl text až po další formátování (`A\PB\fArial;C` → „AC").
+        text = text.replace(/\\[pfFcChHwWaAqQtT][^;]*;/g, '')
                    .replace(/\{|\}/g, '')
                    .replace(/\\P/g, '\n');
       }
@@ -924,7 +930,8 @@ function entityLines(obj) {
       out.push(gc(0, 'TEXT'), gc(8, layerName));
       out.push(gc(10, fmt(obj.x)), gc(20, fmt(obj.y)), gc(30, '0'));
       out.push(gc(40, (obj.fontSize || 14).toFixed(6)));
-      out.push(gc(1, obj.text || ''));
+      // Jednořádkový TEXT: `\n` v hodnotě by posunul všechny další páry kód/hodnota.
+      out.push(gc(1, String(obj.text || '').replace(/\s*\r?\n\s*/g, ' ')));
       if (obj.rotation) out.push(gc(50, (obj.rotation * RAD2DEG).toFixed(6)));
       break;
 
@@ -1070,14 +1077,19 @@ export function objToMakerModel(obj, mk) {
     case 'text': {
       if (!obj.text) return null;
       const rot = obj.rotation || 0; // rotace 1:1 (bez negace, data jsou Y-nahoru)
+      // DXF TEXT/caption je jednořádkový — konec řádku (víceřádkový MTEXT
+      // z importu) by rozbil párovou strukturu souboru. Řádky spojit mezerou.
+      const txt = String(obj.text).replace(/\s*\r?\n\s*/g, ' ');
 
       // Vektorový text přes makerjs.models.Text + opentype font, je-li
       // načtený. Jinak fallback na Maker.js caption (původní chování).
       const font = (typeof window !== 'undefined' && window.__skicaFont) || null;
       if (font && mk.models && mk.models.Text) {
         try {
-          const fontSize = obj.size || obj.height || 10;
-          const textModel = new mk.models.Text(font, String(obj.text), fontSize, false, false);
+          // Výška = `fontSize` (mm, jako na plátně — render/text.js). Textové
+          // objekty `size`/`height` nemají, takže dřív měl každý text 10 mm.
+          const fontSize = obj.fontSize || obj.size || obj.height || 14;
+          const textModel = new mk.models.Text(font, txt, fontSize, false, false);
           // Maker.js Text vykreslí baseline na y=0, počátek na x=0.
           // Posun na (obj.x, obj.y) + volitelná rotace okolo (obj.x, obj.y).
           mk.model.move(textModel, [obj.x, obj.y]);
@@ -1092,7 +1104,7 @@ export function objToMakerModel(obj, mk) {
         [obj.x, obj.y],
         [obj.x + Math.cos(rot), obj.y + Math.sin(rot)],
       );
-      return { paths: {}, caption: { text: String(obj.text), anchor } };
+      return { paths: {}, caption: { text: txt, anchor } };
     }
     default:
       return null;

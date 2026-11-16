@@ -649,6 +649,25 @@ describe('parseDXF – TEXT/MTEXT', () => {
     expect(entities[0].text).toBe('Test text');
   });
 
+  it('MTEXT: nový odstavec \\P před formátováním nespolkne řádek', () => {
+    const dxf = makeDXF([
+      '0', 'MTEXT',
+      '10', '0', '20', '0',
+      '40', '5',
+      '1', 'Ø50 h7\\PRa 1,6\\fArial|b0;Poznámka',
+    ]);
+    const { entities } = parseDXF(dxf);
+    expect(entities[0].text).toBe('Ø50 h7\nRa 1,6Poznámka');
+  });
+
+  it('LWPOLYLINE s 0 nebo 1 vrcholem se nenaimportuje (prázdná shodila CNC export)', () => {
+    const dxf = makeDXF([
+      '0', 'LWPOLYLINE', '90', '1', '70', '0', '10', '5', '20', '5',
+      '0', 'LWPOLYLINE', '90', '0', '70', '1',
+    ]);
+    expect(parseDXF(dxf).entities).toHaveLength(0);
+  });
+
   it('přeskočí TEXT s prázdným obsahem', () => {
     const dxf = makeDXF([
       '0', 'TEXT',

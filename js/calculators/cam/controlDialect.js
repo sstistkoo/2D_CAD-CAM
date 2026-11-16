@@ -192,7 +192,12 @@ export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, f
   const convLine = (line) => {
     let out = isCmtLine(line) ? line : convertToolCallLine(line, newCtrl, magazine);
     if (oldCtrl !== 'fanuc' && newCtrl === 'fanuc') {
-      out = out.replace(/;\s*(.*)$/, (_, t) => t.trim() ? `( ${t.trim()} )` : '');
+      // Závorky z textu pryč (jako ctrlCmt): `; Výjezd (čelo)` → `( Výjezd (čelo) )`
+      // by první `)` komentář ukončil a „ )" by řízení četlo jako kód.
+      out = out.replace(/;\s*(.*)$/, (_, t) => {
+        const s = t.replace(/[()]/g, '').trim();
+        return s ? `( ${s} )` : '';
+      });
     } else if (oldCtrl === 'fanuc' && newCtrl !== 'fanuc') {
       out = out.replace(/\(\s*(.*?)\s*\)\s*$/, (_, t) => t.trim() ? `; ${t.trim()}` : '');
     }

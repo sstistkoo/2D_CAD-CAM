@@ -39,6 +39,10 @@ describe('volání nástroje', () => {
     expect(activeToolNumber({ toolMagazine: [], params: { toolName: 'X' } })).toBe(1);
     expect(toolCallWord('fanuc', { num: 12 })).toBe('T1212');
   });
+  it('Sinumerik: uvozovky a konce řádků ze jména nástroje pryč (jinak syntaktická chyba)', () => {
+    expect(toolCallWord('sinumerik', { num: 4, name: 'HRUB"80\n' })).toBe('T="HRUB80" D1 M6');
+    expect(toolCallWord('sinumerik', { num: 4, name: '""' })).toBe('T="T4" D1 M6');
+  });
 });
 
 describe('převod Sinumerik → Fanuc', () => {

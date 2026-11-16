@@ -13,6 +13,7 @@
 // M-kódy osy C a poháněného nástroje jsou strojní — bere se je z nastavení
 // (`liveSettings().m`), výchozí hodnoty jsou jen příklad (viz liveModel.js).
 import { LIVE_BEGIN, LIVE_END } from './liveMarkers.js';
+import { sinumerikToolName } from '../toolCall.js';
 import { liveRunOps, liveOpOn, liveSettings, livePositions, millMoves, liveOpSummary, liveOpProblems, faceOut, isKeyway, keywayPath, rampPossible, RAMP_DEG, drillDepth, drillLevels } from './liveModel.js';
 
 const f3 = v => String(+(+v).toFixed(3));
@@ -74,7 +75,7 @@ export function buildLiveBlock(prms) {
     // Ne „; ---": tak začíná dělicí řádek hlavičky, podle kterého spojování
     // částí programu (gcodeMerge.splitHeaderBody) dělí hlavičku od těla.
     add(cmt(`[${i + 1}] ${op.name}: ${liveOpSummary(op)}`));
-    if (ctrl === 'sinumerik') add(`T="${String(op.toolName).replace(/"/g, '')}" D1 M6`);
+    if (ctrl === 'sinumerik') add(`T="${sinumerikToolName(op.toolName)}" D1 M6`);
     else if (ctrl === 'fanuc') add(`T${pad2(op.toolNo)}${pad2(op.toolNo)}${note(op.toolName)}`);
     else add(`T${op.toolNo} M6${note(op.toolName)}`);
     // Vrtání: NC jede špičkou o 0,3·Ø za hloubku plného Ø (liveModel.drillDepth).

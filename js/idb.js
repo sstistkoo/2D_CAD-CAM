@@ -9,11 +9,19 @@ const STORE_PROJECTS = 'projects';   // key: name → project data
 const STORE_META     = 'meta';       // key-value store (currentProject, helpShown, calcHistory…)
 
 let _db = null;
+let _opening = null;   // souběžná volání openDB() sdílí jedno otevírání
 
-/** Otevře / vytvoří databázi. Vrací Promise<IDBDatabase>. */
-function openDB() {
+/**
+ * Otevře / vytvoří databázi. Vrací Promise<IDBDatabase>.
+ * Spojení se drží, dokud ho prohlížeč nezavře (iOS Safari po uspání na
+ * pozadí, tlak na úložiště, jiná karta s novou verzí DB) — pak se zahodí
+ * a příští operace otevře nové (viz `_tx`). Dřív zůstalo zavřené spojení
+ * v `_db` a autosave selhával až do obnovení stránky.
+ */
+export function openDB() {
   if (_db) return Promise.resolve(_db);
-  return new Promise((resolve, reject) => {
+  if (_opening) return _opening;
+  _opening = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
@@ -24,24 +32,43 @@ function openDB() {
         db.createObjectStore(STORE_META);
       }
     };
-    req.onsuccess = (e) => { _db = e.target.result; resolve(_db); };
+    req.onsuccess = (e) => {
+      const db = e.target.result;
+      const forget = () => { if (_db === db) _db = null; };
+      db.onclose = forget;
+      db.onversionchange = () => { db.close(); forget(); };
+      _db = db;
+      resolve(db);
+    };
     req.onerror = (e) => reject(e.target.error);
-  });
+  }).finally(() => { _opening = null; });
+  return _opening;
+}
+
+/**
+ * Transakce nad úložištěm. Zavřené spojení (InvalidStateError) se jednou
+ * otevře znovu — jinak by po jeho ztrátě selhalo každé další uložení.
+ */
+async function _tx(storeName, mode) {
+  const db = await openDB();
+  try {
+    return db.transaction(storeName, mode);
+  } catch (e) {
+    if (!e || e.name !== 'InvalidStateError') throw e;
+    if (_db === db) _db = null;
+    return (await openDB()).transaction(storeName, mode);
+  }
 }
 
 // ── Generické operace ──
 
 async function _put(storeName, key, value) {
-  const db = await openDB();
+  const tx = await _tx(storeName, 'readwrite');
   return new Promise((resolve, reject) => {
-    let tx;
-    try {
-      tx = db.transaction(storeName, 'readwrite');
-    } catch (e) {
-      return reject(e);
-    }
     const req = tx.objectStore(storeName).put(value, key);
     tx.oncomplete = () => resolve();
+    // Přerušení bez chyby (zavřené spojení) — jinak by promise nikdy neskončil.
+    tx.onabort = () => reject(tx.error || new DOMException('Zápis do úložiště byl přerušen', 'AbortError'));
     tx.onerror = (e) => {
       const err = e.target.error;
       if (err && err.name === 'QuotaExceededError') {
@@ -60,9 +87,8 @@ async function _put(storeName, key, value) {
 }
 
 async function _get(storeName, key) {
-  const db = await openDB();
+  const tx = await _tx(storeName, 'readonly');
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readonly');
     const req = tx.objectStore(storeName).get(key);
     req.onsuccess = () => resolve(req.result);
     req.onerror = (e) => reject(e.target.error);
@@ -71,9 +97,8 @@ async function _get(storeName, key) {
 }
 
 async function _delete(storeName, key) {
-  const db = await openDB();
+  const tx = await _tx(storeName, 'readwrite');
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readwrite');
     tx.objectStore(storeName).delete(key);
     tx.oncomplete = () => resolve();
     tx.onerror = (e) => reject(e.target.error);
@@ -81,9 +106,8 @@ async function _delete(storeName, key) {
 }
 
 async function _getAllKeys(storeName) {
-  const db = await openDB();
+  const tx = await _tx(storeName, 'readonly');
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readonly');
     const req = tx.objectStore(storeName).getAllKeys();
     req.onsuccess = () => resolve(req.result);
     req.onerror = (e) => reject(e.target.error);
@@ -91,9 +115,8 @@ async function _getAllKeys(storeName) {
 }
 
 async function _getAll(storeName) {
-  const db = await openDB();
+  const tx = await _tx(storeName, 'readonly');
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readonly');
     const store = tx.objectStore(storeName);
     const keys = [];
     const values = [];

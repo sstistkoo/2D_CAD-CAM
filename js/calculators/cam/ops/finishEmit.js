@@ -27,6 +27,7 @@ import { mirrorsWorldZ } from '../calculatePipeline.js';
 import { makeArcFeedWriter, arcFeedFactor, ARC_FEED_MAX_FACTOR } from '../arcFeedComp.js';
 import { finishFeedFromRa, finishBaseFeed, cornerFeedFactor, innerCornerFlags, splitLineAtCorners } from '../finishFeed.js';
 import { arcSignedR } from '../arcSign.js';
+import { sinumerikToolName } from '../toolCall.js';
 
 /**
  * @param E  sdílené emisní prostředí z `generateAutoGCode()`
@@ -174,7 +175,7 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
     // Bezpečná poloha před výměnou
     addN(`G0 X${prms.safeX} Z${prms.safeZ}${note('', 'Výjezd do bezpečné polohy')}`);
     if (prms.controlSystem === 'sinumerik') {
-      addN(`T="${finSlotData.name}" D1 M6${note('', `Výměna na dokončovací nástroj T${finSlotData.slot}`)}`);
+      addN(`T="${sinumerikToolName(finSlotData.name)}" D1 M6${note('', `Výměna na dokončovací nástroj T${finSlotData.slot}`)}`);
       addN(`G96 S${finSpeed} ${prms.machineType}${note('', 'Řezná rychlost – dokončování')}`);
     } else if (prms.controlSystem === 'fanuc') {
       const tNum = String(finSlotData.slot).padStart(2, '0');

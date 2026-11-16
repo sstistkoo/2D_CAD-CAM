@@ -48,6 +48,17 @@ export function toolNameForNumber(num, magazine) {
 }
 
 /**
+ * Jméno nástroje pro Sinumerik `T="…"`: bez uvozovek a konců řádků. Jméno
+ * zadává uživatel v 🔧 Zásobníku (nebo přijde z importu) — `T="HRUB"80"`
+ * by řídicí systém odmítl jako syntaktickou chybu.
+ * @param {unknown} name
+ * @returns {string}
+ */
+export function sinumerikToolName(name) {
+  return String(name ?? '').replace(/["\r\n]/g, '').trim();
+}
+
+/**
  * Slovo volání nástroje (bez N a komentáře).
  * Sinumerik `T="jméno" D1 M6` · Fanuc `T0505` (nástroj + korekce) · Heidenhain `T5 M6`.
  * @param {string} ctrl
@@ -60,7 +71,7 @@ export function toolCallWord(ctrl, tool) {
     return `T${t}${t}`;
   }
   if (ctrl === 'heidenhain') return `T${num} M6`;
-  const name = (tool && tool.name) || `T${num}`;
+  const name = sinumerikToolName(tool && tool.name) || `T${num}`;
   return `T="${name}" D1 M6`;
 }
 

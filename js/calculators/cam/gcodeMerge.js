@@ -44,7 +44,9 @@ function stripTailBlock(body, isM30) {
   return body.filter((_, i) => !drop.has(i));
 }
 
-const mergeCmt = (ctrl) => (text) => ctrl === 'fanuc' ? `( ${text} )` : `; ${text}`;
+// Fanuc: závorky z textu pryč (jako ctrlCmt) — jméno části „díl (2)" by
+// komentář ukončilo dřív a zbytek by řízení četlo jako kód.
+const mergeCmt = (ctrl) => (text) => ctrl === 'fanuc' ? `( ${String(text).replace(/[()]/g, '')} )` : `; ${text}`;
 
 // Rozdělí kód na "hlavičku" (úvodní nastavení stroje – rovina, G90/91,
 // nulový bod, posuv, otáčky, nástroj…) a "tělo" (vlastní dráhy). Hranice
@@ -73,7 +75,10 @@ export const HEADER_GROUP_PATTERNS = [
   ['sval',     /\bS([\d.]+)\b/i],
   ['spdir',    /\bM[34]\b/i],
   ['coolant',  /\bM[89]\b/i],
-  ['tool',     /\bT="?[^"\s]+"?|\bT\d+\b/i],
+  // Celé jméno v uvozovkách i s mezerami: `[^"\s]+` končilo na první mezeře,
+  // takže `T="HRUB 80"` a `T="HRUB 55"` byly „týž nástroj" a výměna nože
+  // ze spojeného programu zmizela (druhá část jela starým nožem).
+  ['tool',     /\bT="[^"]*"|\bT\d+\b/i],
   ['dcorr',    /\bD\d+\b/i],
   ['diamode',  /\bDIAMOF\b|\bRADIUS\b/i],
   ['g75x',     /\bG75\b.*\bX-?[\d.]+/i],
@@ -92,8 +97,11 @@ export function classifyHeaderLine(line) {
   const clean = line.replace(/^N\d+\s*/, '').replace(/[;(].*/, '').trim();
   if (!clean) return [];
   const out = [];
+  // Jméno v uvozovkách je jen pro klíč `tool` — jinak by `D8` nebo `S16`
+  // ze jména (`T="D8 VRTAK"`) četl vzor korekce D / otáček S.
+  const unquoted = clean.replace(/"[^"]*"/g, '""');
   for (const [key, re] of HEADER_GROUP_PATTERNS) {
-    const m = clean.match(re);
+    const m = (key === 'tool' ? clean : unquoted).match(re);
     if (m) out.push([key, m[1] !== undefined ? m[1] : m[0]]);
   }
   return out;

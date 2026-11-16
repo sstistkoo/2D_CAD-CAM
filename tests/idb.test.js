@@ -29,7 +29,7 @@ vi.mock('../js/render.js', () => ({ renderAll: vi.fn(), renderAllDebounced: vi.f
 
 import {
   saveProjectToDB, loadProjectFromDB, deleteProjectFromDB,
-  getAllProjects, getProjectNames, setMeta, getMeta,
+  getAllProjects, getProjectNames, setMeta, getMeta, openDB,
 } from '../js/idb.js';
 
 // ════════════════════════════════════════
@@ -116,5 +116,18 @@ describe('idb – Meta API', () => {
     await setMeta('flag', true);
     const val = await getMeta('flag');
     expect(val).toBe(true);
+  });
+});
+
+// ════════════════════════════════════════
+// ── Zavřené spojení (iOS Safari na pozadí, jiná karta) ──
+// ════════════════════════════════════════
+describe('idb – obnova po zavření spojení', () => {
+  it('po zavření spojení prohlížečem se uloží i načte dál (nové spojení)', async () => {
+    const db = await openDB();
+    db.close();   // další db.transaction() → InvalidStateError
+    await saveProjectToDB('poZavreni', { objects: [] });
+    expect(await loadProjectFromDB('poZavreni')).toEqual({ objects: [] });
+    expect(await openDB()).not.toBe(db);
   });
 });

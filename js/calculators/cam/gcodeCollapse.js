@@ -99,7 +99,13 @@ export function mergeCollinearMoves(lines) {
   const info = lines.map((ln) => {
     const { body, comment } = splitLine(ln.text || '');
     const w = words(body);
-    if (w.G !== undefined) g = w.G.value;
+    // Modální je jen skupina POHYBU (G0–G3, závit G32/G33). `G4 F1` (prodleva),
+    // `G96`, `G90 G1` apod. ji nesmí přepsat prvním G-slovem — jinak by se pohyb
+    // bez G za prodlevou sloučil a vypsal jako `G4 X…`.
+    for (const gm of body.matchAll(/G\s*(\d+)/gi)) {
+      const gv = parseInt(gm[1], 10);
+      if (gv <= 3 || gv === 32 || gv === 33) g = gv;
+    }
     if (w.F !== undefined) f = w.F.value;
     const moves = /[XZ]/i.test(body);
     const from = { x, z };
