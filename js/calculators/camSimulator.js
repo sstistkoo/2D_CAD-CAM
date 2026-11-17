@@ -647,7 +647,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // podle ní se níž pozná, že z CAD přišel JINÝ výkres (viz _staleProgramDropped).
   const _prevContourKey = contourKey(S.contourPoints);
   if (initialContour && typeof initialContour === 'string' && initialContour.trim()) {
-    const parsed = parseContourAndStockGCode(initialContour);
+    const parsed = parseContourAndStockGCode(initialContour, { mode: S.params.mode });
     if (parsed.contour.length > 0) {
       S.contourPoints = parsed.contour; _importedContour = true;
       // CAD je zdroj pravdy i pro díru: přenos bez ní = díra už ve výkresu není.
@@ -2687,7 +2687,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     if (importBtn) importBtn.addEventListener('click', () => {
       const text = ta.value;
       if (!text.trim()) return;
-      const pts = parseContourGCode(text);
+      const pts = parseContourGCode(text, { mode: S.params.mode });
       if (pts.length > 0) {
         pushHistory();
         if (S.editMode === 'contour') S.contourPoints = pts;

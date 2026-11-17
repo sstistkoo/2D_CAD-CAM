@@ -167,3 +167,41 @@ describe('řetězové kolo: obrys se nekříží', () => {
     expect(bulges[0]).toBeLessThan(0);   // sedlo po směru hodin kolem válečku
   });
 });
+
+// ── 17. 11. 2026: oblouky I/K se znaménkem R, hřeben zuby nahoru ─────
+import { generateRackProfile } from '../js/tools/gearGenerator.js';
+
+describe('import kontury: oblouk I/K přes 180° dostane záporné R', () => {
+  // Střed (poloměr 20, Z −10), r 10: start poloměr 30 Z −10 → konec poloměr 20 Z −20.
+  // Jeden smysl je 90°, druhý 270° — oba musí trefit skutečný střed.
+  const cases = [
+    { mode: 'DIAMON', text: (g) => `G0 X60 Z-10\n${g} X40 Z-20 I-10 K0`, div: 2 },
+    { mode: 'DIAMOF', text: (g) => `G0 X30 Z-10\n${g} X20 Z-20 I-10 K0`, div: 1 },
+    { mode: 'DIAMOF', text: (g) => `DIAMON\nG0 X60 Z-10\n${g} X40 Z-20 I-10 K0`, div: 2 },  // řádek DIAMON přebije
+  ];
+  for (const c of cases) it(`${c.mode}${c.div === 2 && c.mode === 'DIAMOF' ? ' + řádek DIAMON' : ''}`, () => {
+    const signs = [];
+    for (const g of ['G2', 'G3']) {
+      const [p0, p1] = parseContourGCode(c.text(g), { mode: c.mode });
+      expect(Math.abs(p1.r)).toBeCloseTo(10, 6);
+      signs.push(Math.sign(p1.r));
+      const a = getArcParams({ x: p0.x / c.div, z: p0.z }, { x: p1.x / c.div, z: p1.z }, p1.r, g);
+      expect(a.cx).toBeCloseTo(20, 6);
+      expect(a.cz).toBeCloseTo(-10, 6);
+    }
+    expect(signs.sort()).toEqual([-1, 1]);
+  });
+
+  it('R zadané přímo se nemění', () => {
+    expect(parseContourGCode('G0 X60 Z0\nG2 X40 Z-10 R-10')[1].r).toBe(-10);
+  });
+});
+
+describe('hřeben: zuby nahoru (osa Y výkresu nahoru)', () => {
+  it('hlava nad roztečnou čárou, tělo pod ní', () => {
+    const { vertices } = generateRackProfile(2, 4, 20, 0, 0, 50);
+    const ys = vertices.map(v => v.y);
+    expect(Math.max(...ys)).toBeCloseTo(52, 6);        // cy + ha
+    expect(Math.min(...ys)).toBeCloseTo(50 - 2.5 - 2, 6); // pata cy − hf, tělo o m níž
+  });
+});

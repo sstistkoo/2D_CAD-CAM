@@ -157,9 +157,12 @@ export function generateRackProfile(m, zCount, alpha = 20, x = 0, cx = 0, cy = 0
   // Vystředit hřeben na pozici kliknutí
   const startX = cx - totalLen / 2;
 
-  const yTip = cy - ha;       // vrchol zubu (nahoru)
-  const yRoot = cy + hf;      // pata zubu (dolů)
-  const yBase = yRoot + m;    // spodek tělesa hřebenu
+  // Výkres má osu Y NAHORU (canvas ji obrací až při kreslení): zuby nahoru,
+  // tělo pod roztečnou čárou — kolo zabírá shora. Do 17. 11. 2026 byla
+  // znaménka podle obrazovkové osy (Y dolů), hřeben vyšel vzhůru nohama.
+  const yTip = cy + ha;       // vrchol zubu (nahoru)
+  const yRoot = cy - hf;      // pata zubu (dolů)
+  const yBase = yRoot - m;    // spodek tělesa hřebenu
 
   // Polovina tloušťky zubu na roztečné čáře
   const halfW = p / 4;

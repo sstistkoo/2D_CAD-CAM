@@ -1,4 +1,5 @@
 import { getArcParams } from './camMath.js';
+import { arcSignedR } from './arcSign.js';
 import { state } from '../../state.js';
 import { bulgeToArc } from '../../utils.js';
 import { findLiveBlock } from './live/liveMarkers.js';
@@ -314,9 +315,12 @@ export function buildStockPointsFromCanvas(camParams) {
 // Parser řádků G-kódu do bodů {type, x, z, r, mode} v daném rozsahu řádků.
 // `startLine` inclusive, `endLine` exclusive. Polohu/typ trackujeme lokálně,
 // aby polotovarová sekce nebyla ovlivněna posledním bodem kontury.
-export function _parseGCodeRange(lines, startLine, endLine, idBase) {
+// `mode` = zápis X ('DIAMON' průměr / jinak poloměr) — potřeba jen pro střed
+// oblouku z I/K; řádek DIAMON/DIAMOF v textu ho přepíše.
+export function _parseGCodeRange(lines, startLine, endLine, idBase, mode = 'DIAMON') {
   const pts = [];
   let currentType = 'G1', idCounter = idBase, lastX = 100, lastZ = 0;
+  let xDiv = mode === 'DIAMON' ? 2 : 1;
   for (let i = startLine; i < endLine; i++) {
     const line = lines[i];
     let clean = (line || '').toUpperCase().trim();
@@ -329,6 +333,8 @@ export function _parseGCodeRange(lines, startLine, endLine, idBase) {
     const parenIdx = clean.indexOf('(');
     if (parenIdx >= 0) clean = clean.substring(0, parenIdx).trim();
     if (!clean) continue;
+    if (/\bDIAMON\b/.test(clean)) xDiv = 2;
+    else if (/\bDIAMOF\b/.test(clean)) xDiv = 1;
     const gMatch = clean.match(/\bG0?([0-3])\b/);
     if (gMatch) currentType = 'G' + gMatch[1];
     // Číslo i s úvodní tečkou (`Z-.5`, `X.8` — běžný fanucovský zápis) i s
@@ -345,10 +351,14 @@ export function _parseGCodeRange(lines, startLine, endLine, idBase) {
       const newZ = zMatch ? parseFloat(zMatch[1]) : lastZ;
       let rVal = rMatch ? parseFloat(rMatch[1]) : 0;
       if (!rVal && (iMatch || kMatch) && (currentType === 'G2' || currentType === 'G3')) {
+        // I/K = přírůstek od začátku oblouku ke středu, I vždy v POLOMĚRU
+        // (Fanuc; Sinumerik 840D i pod DIAMON), X podle zápisu (průměr/poloměr).
+        // Ze středu se pozná oblouk přes 180° → záporné R (konvence getArcParams
+        // a G-kódu). Dřív kladné R = vždy kratší oblouk na opačné straně.
         const ci = iMatch ? parseFloat(iMatch[1]) : 0;
         const ck = kMatch ? parseFloat(kMatch[1]) : 0;
-        const cx = lastX + ci, cz = lastZ + ck;
-        rVal = Math.hypot(lastX - cx, lastZ - cz);
+        const x1 = lastX / xDiv, cx = x1 + ci, cz = lastZ + ck;
+        rVal = arcSignedR({ r: Math.hypot(ci, ck), dir: currentType, cx, cz, x2: newX / xDiv, z2: newZ }, x1, lastZ);
       }
       pts.push({ id: idCounter++, type: currentType, x: newX, z: newZ, r: rVal, mode: 'ABS' });
       lastX = newX; lastZ = newZ;
@@ -358,14 +368,14 @@ export function _parseGCodeRange(lines, startLine, endLine, idBase) {
 }
 
 // Kompatibilní wrapper – jen kontura (žádné STOCK_START/END značky).
-export function parseContourGCode(text) {
+export function parseContourGCode(text, { mode = 'DIAMON' } = {}) {
   const lines = text.split('\n');
-  return _parseGCodeRange(lines, 0, lines.length, Date.now());
+  return _parseGCodeRange(lines, 0, lines.length, Date.now(), mode);
 }
 
 // Rozdělí G-kód podle značek STOCK_START / STOCK_END do dvou sekcí.
 // Vrací { contour: pts[], stock: pts[] }. Pokud značky chybí, vrátí jen konturu.
-export function parseContourAndStockGCode(text) {
+export function parseContourAndStockGCode(text, { mode = 'DIAMON' } = {}) {
   const lines = text.split('\n');
   let stockStart = -1, stockEnd = lines.length;
   // Díra pro vyvrtávání nakreslená jako SAMOSTATNÝ řetěz (storage/fileIO.js,
@@ -379,9 +389,9 @@ export function parseContourAndStockGCode(text) {
     else if (u.includes('DIRA_END') && boreStart !== -1 && boreEnd === lines.length) boreEnd = i;
   }
   const idBase = Date.now();
-  const bore = boreStart === -1 ? [] : _parseGCodeRange(lines, boreStart + 1, boreEnd, idBase + 200000);
+  const bore = boreStart === -1 ? [] : _parseGCodeRange(lines, boreStart + 1, boreEnd, idBase + 200000, mode);
   const contourEnd = Math.min(stockStart === -1 ? lines.length : stockStart, boreStart === -1 ? lines.length : boreStart);
-  const contour = _parseGCodeRange(lines, 0, contourEnd, idBase);
-  const stock = stockStart === -1 ? [] : _parseGCodeRange(lines, stockStart + 1, stockEnd, idBase + 100000);
+  const contour = _parseGCodeRange(lines, 0, contourEnd, idBase, mode);
+  const stock = stockStart === -1 ? [] : _parseGCodeRange(lines, stockStart + 1, stockEnd, idBase + 100000, mode);
   return { contour, stock, bore };
 }
