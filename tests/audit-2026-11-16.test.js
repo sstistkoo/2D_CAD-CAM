@@ -102,3 +102,68 @@ describe('DXF export: víceřádkový text', () => {
     for (let k = 0; k < lines.length - 1; k += 2) expect(lines[k]).toMatch(/^-?\d+$/);
   });
 });
+
+// ── Druhé kolo kontroly 16. 11. 2026 ───────────────────────────────
+import { parseSVGPath } from '../js/storage/svgPath.js';
+import { buildLiveBlock } from '../js/calculators/cam/live/liveGcode.js';
+import { generateSprocketProfile } from '../js/tools/gearGenerator.js';
+
+describe('import SVG: cesta <path>', () => {
+  it('číslo s exponentem není příkaz', () => {
+    const objs = parseSVGPath('M 0 0 L 1e1 0 L 10 5e0');
+    expect(objs.map(o => [o.x2, o.y2])).toEqual([[10, -0], [10, -5]]);
+  });
+
+  it('Bézierova křivka posune aktuální bod a vznikne kontura', () => {
+    const objs = parseSVGPath('M 0 0 C 0 10 10 10 10 0 L 20 0');
+    expect(objs[0].type).toBe('polyline');
+    const v = objs[0].vertices;
+    expect(v[v.length - 1]).toMatchObject({ x: 10 });
+    expect(objs[1]).toMatchObject({ type: 'line', x1: 10, x2: 20 });
+  });
+
+  it('S zrcadlí řídicí bod, Q/T kvadratické', () => {
+    const objs = parseSVGPath('M 0 0 Q 5 10 10 0 T 20 0');
+    expect(objs.length).toBe(2);
+    // T zrcadlí (5,10) přes (10,0) → (15,−10): křivka jde pod osu (svět +y)
+    expect(Math.max(...objs[1].vertices.map(p => p.y))).toBeGreaterThan(1);
+  });
+
+  it('oblouk s rx = 0 je úsečka', () => {
+    expect(parseSVGPath('M 0 0 A 0 0 0 0 1 10 0')).toEqual([{ type: 'line', x1: 0, y1: -0, x2: 10, y2: -0 }]);
+  });
+});
+
+describe('prodleva Fanuc: G04 P (ms) i v bloku poháněných nástrojů', () => {
+  it('rozepsané vrtání píše G04 P500, ne G4 X', () => {
+    const L = buildLiveBlock({ controlSystem: 'fanuc', mode: 'DIAMON', safeX: 100, safeZ: 5,
+      live: { cycles: false }, liveOps: [{ kind: 'drill', dwell: 0.5, peck: 0 }] });
+    expect(L.some(l => /^G04 P500\b/.test(l))).toBe(true);
+    expect(L.some(l => /\bG0?4 X/.test(l))).toBe(false);
+  });
+
+  it('převod Fanuc → Sinumerik přepíše i G04 X2.5', () => {
+    const code = ['G21', 'T0101', '( --- )', 'G1 X10 Z-5 F0.1', 'G04 X2.5', 'M30'].join('\n');
+    const out = convertGCodeControlSystem(code, 'fanuc', 'sinumerik', { mode: 'DIAMON', speed: 200, safeX: 100, safeZ: 5, machineType: 'M4' }, false, false);
+    expect(out).toMatch(/\bG4 F2\.5\b/);
+    expect(out).not.toMatch(/G0?4 X/);
+  });
+});
+
+describe('řetězové kolo: obrys se nekříží', () => {
+  const seg = (a, b, c, d) => {
+    const o = (p, q, r) => Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x));
+    return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
+  };
+  for (const z of [6, 10, 17, 40]) it(`z = ${z}`, () => {
+    const { vertices: v, bulges } = generateSprocketProfile(12.7, z, 8.51);
+    const N = v.length;
+    let n = 0;
+    for (let i = 0; i < N; i++) for (let j = i + 2; j < N; j++) {
+      if (i === 0 && j === N - 1) continue;
+      if (seg(v[i], v[(i + 1) % N], v[j], v[(j + 1) % N])) n++;
+    }
+    expect(n).toBe(0);
+    expect(bulges[0]).toBeLessThan(0);   // sedlo po směru hodin kolem válečku
+  });
+});

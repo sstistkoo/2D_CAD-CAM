@@ -217,16 +217,20 @@ export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, f
     }
     // Prodleva (vrtání, ops/drill.js): Sinumerik `G4 F s`, Heidenhain
     // `G04 F s`, Fanuc `G04 P ms` — X/U by Fanuc i simulace četly jako osu.
+    // Fanuc umí i `G04 X s` / `G04 U s` (ruční programy) — Sinumerik by X
+    // v bloku G4 odmítl, proto se převede taky.
     const dwellS = (() => {
       const f = out.match(/\bG0?4\s+F(\d*\.?\d+)/i);
       if (f) return parseFloat(f[1]);
       const p = out.match(/\bG0?4\s+P(\d+)/i);
-      return p ? parseInt(p[1], 10) / 1000 : null;
+      if (p) return parseInt(p[1], 10) / 1000;
+      const x = oldCtrl === 'fanuc' ? out.match(/\bG0?4\s+[XU](\d*\.?\d+)/i) : null;
+      return x ? parseFloat(x[1]) : null;
     })();
     if (dwellS !== null) {
       const word = newCtrl === 'fanuc' ? `G04 P${Math.round(dwellS * 1000)}`
         : newCtrl === 'heidenhain' ? `G04 F${dwellS}` : `G4 F${dwellS}`;
-      out = out.replace(/\bG0?4\s+[FP]\d*\.?\d+/i, word);
+      out = out.replace(/\bG0?4\s+[FPXU]\d*\.?\d+/i, word);
     }
     return out;
   };

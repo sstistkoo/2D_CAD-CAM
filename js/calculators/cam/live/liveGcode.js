@@ -124,7 +124,9 @@ function rotate({ ctrl, set, add }, a) {
 }
 function dwell({ ctrl, add }, sec) {
   if (!(sec > 0)) return;
-  if (ctrl === 'fanuc') add(`G4 X${f3(sec)}`);
+  // Fanuc `G04 P` v ms jako ops/drill.js: `G4 X` čtou parsery jako pohyb osy
+  // a převod řídicího systému (controlDialect) zná jen F/P.
+  if (ctrl === 'fanuc') add(`G04 P${Math.round(sec * 1000)}`);
   else add(`G4 F${f3(sec)}`);
 }
 

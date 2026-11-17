@@ -9,6 +9,7 @@ import { updateObjectList, updateProperties, updateLayerList, updateMachineTypeB
 import { calculateAllIntersections } from '../geometry.js';
 import { bulgeToArc, exportFileName, expandPolylineObjects } from '../utils.js';
 import { parseDXF, exportDXF, exportDXFMaker } from '../dxf.js';
+import { parseSVGPath } from './svgPath.js';
 import { loadFont, isVectorTextAvailable } from '../lib/fontLoader.js';
 import { autoCenterView } from '../canvas.js';
 import { bridge } from '../bridge.js';
@@ -418,111 +419,8 @@ function parseSVGPointsList(str) {
   return pts;
 }
 
-function svgArcToCenter(x1, y1, r, largeArc, sweep, x2, y2) {
-  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-  const dx = (x1 - x2) / 2, dy = (y1 - y2) / 2;
-  const d2 = dx * dx + dy * dy;
-  if (d2 < 1e-12 || r <= 0) return null;
-  let r2 = r * r;
-  if (r2 < d2) r2 = d2;
-  const sign = (largeArc !== sweep) ? 1 : -1;
-  const sq = sign * Math.sqrt(Math.max(0, (r2 - d2) / d2));
-  const acx = mx + sq * dy;
-  const acy = my - sq * dx;
-  return {
-    cx: acx, cy: acy, r: Math.sqrt(r2),
-    startAngle: Math.atan2(y1 - acy, x1 - acx),
-    endAngle:   Math.atan2(y2 - acy, x2 - acx),
-  };
-}
-
-export function parseSVGPath(d) {
-  const result = [];
-  const tokens = d.match(/[MmLlHhVvAaZzCcSsQqTt]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) || [];
-  let i = 0;
-  let px = 0, py = 0, subX = 0, subY = 0;
-  let cmd = null, rel = false;
-
-  function num() { return parseFloat(tokens[i++]); }
-  function hasNum() { return i < tokens.length && /^[-+0-9.]/.test(tokens[i]); }
-
-  while (i < tokens.length) {
-    if (/[A-Za-z]/.test(tokens[i])) {
-      cmd = tokens[i].toUpperCase();
-      rel = tokens[i] !== tokens[i].toUpperCase();
-      i++;
-    }
-    if (!cmd) { i++; continue; }
-
-    const ax = v => rel ? px + v : v;
-    const ay = v => rel ? py + v : v;
-
-    switch (cmd) {
-      case 'M': {
-        px = ax(num()); py = ay(num());
-        subX = px; subY = py;
-        cmd = 'L'; // subsequent pairs become implicit L
-        break;
-      }
-      case 'L': {
-        const nx = ax(num()), ny = ay(num());
-        if (Math.hypot(nx - px, ny - py) > 1e-6)
-          result.push({ type: 'line', x1: px, y1: -py, x2: nx, y2: -ny });
-        px = nx; py = ny;
-        break;
-      }
-      case 'H': {
-        const nx = rel ? px + num() : num();
-        if (Math.abs(nx - px) > 1e-6)
-          result.push({ type: 'line', x1: px, y1: -py, x2: nx, y2: -py });
-        px = nx;
-        break;
-      }
-      case 'V': {
-        const ny = rel ? py + num() : num();
-        if (Math.abs(ny - py) > 1e-6)
-          result.push({ type: 'line', x1: px, y1: -py, x2: px, y2: -ny });
-        py = ny;
-        break;
-      }
-      case 'A': {
-        const rx = Math.abs(num());
-        num(); num(); // ry, x-rotation (ignored — assume circular)
-        const la = Math.round(num()), sw = Math.round(num());
-        const nx = ax(num()), ny = ay(num());
-        const arc = svgArcToCenter(px, py, rx, la, sw, nx, ny);
-        if (arc) {
-          // Y-flip: world_y = -SVG_y → world angles negated, world center cy = -arc.cy
-          result.push({
-            type: 'arc',
-            cx: arc.cx, cy: -arc.cy, r: arc.r,
-            startAngle: -arc.startAngle,
-            endAngle: -arc.endAngle,
-            // sweep-flag 1 = kladný směr úhlu v SVG (osa Y dolů) = po směru
-            // hodin; po otočení osy Y zůstává po směru hodin → ccw:false.
-            // (Dřív ccw: sw === 1 → čtvrtoblouk se kreslil jako doplněk 270°.)
-            ccw: sw === 0,
-          });
-        }
-        px = nx; py = ny;
-        break;
-      }
-      case 'Z': {
-        if (Math.hypot(subX - px, subY - py) > 1e-6)
-          result.push({ type: 'line', x1: px, y1: -py, x2: subX, y2: -subY });
-        px = subX; py = subY;
-        break;
-      }
-      default:
-        while (hasNum()) num(); // přeskoč neznámé příkazy (Bezier C, Q, T…)
-        break;
-    }
-
-    if (cmd === 'Z') cmd = null;
-    else if (!hasNum()) { /* čekej na další písmeno */ }
-  }
-  return result;
-}
+// Parser atributu d (<path>) žije v storage/svgPath.js; export kvůli testům.
+export { parseSVGPath };
 
 // ── Tlačítko Soubor (overlay) ──
 export function showFileDialog() {

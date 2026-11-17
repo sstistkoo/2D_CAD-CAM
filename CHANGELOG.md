@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Import kontury z G-kódu: `Z-.5`, `X.8`** (fanucovský zápis s úvodní tečkou) se tiše nepřečetly a bod zůstal na předchozí souřadnici.
 - **Polotovar z výkresu: oblouk přes 180°** šel do CAM s kladným R, tedy jako kratší oblouk na druhé straně. Teď záporné R (oblouk i polyline s |bulge| > 1).
 - **DXF export textu**: vektorový text měl vždy výšku 10 mm (četl neexistující `size`/`height` místo `fontSize`); víceřádkový text (např. MTEXT z importu) rozbil párovou strukturu souboru — řádky se teď spojí mezerou.
+- **Import SVG** (parser přesunut do nového `js/storage/svgPath.js`): číslo s exponentem (`1.2e-4`, běžné z Inkscape) se bralo jako příkaz a cesta se rozpadla; Bézierovy křivky C/S/Q/T se přeskakovaly BEZ posunu aktuálního bodu, takže všechny další úsečky začínaly jinde — teď se rozloží na konturu (16 úseček na křivku); oblouk `A` s rx = 0 je úsečka (dřív díra v obrysu).
+- **Řetězové kolo: obrys se v každé mezeře křížil** — sedlo válečku se procházelo opačným směrem než zuby (z = 10: 10 křížení). Teď po směru hodin kolem válečku, obrys bez křížení.
+- **Fanuc prodleva v bloku poháněných nástrojů** `G4 X…` → `G04 P…` (ms) jako u vrtání v ose; převod Fanuc → Sinumerik/Heidenhain teď přepíše i ruční `G04 X/U`.
 - Testy: `tests/audit-2026-11-16.test.js`.
 
 ### Removed

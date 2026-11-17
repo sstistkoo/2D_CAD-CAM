@@ -392,12 +392,17 @@ export function generateSprocketProfile(pChain, z, d1, steps = 8, cx = 0, cy = 0
     const rcy = rp * Math.sin(tc);
 
     // ── Sedlový oblouk (spodek zubu) ──
-    const seatStartA = tc + Math.PI - seatHalf;
-    const seatEndA   = tc + Math.PI + seatHalf;
-    const seatSweep = seatEndA - seatStartA; // = 2 * seatHalf
+    // Obrys jde kolem kola PROTI směru hodin (zub po zubu, tip na tc + ½ rozteče),
+    // takže sedlo se musí projít od bodu ZA válečkem (π + ½ sedla) k bodu PŘED
+    // ním (π − ½ sedla) — po směru hodin kolem válečku, záporný bulge, oblouk
+    // přes stranu k ose kola. Dřív opačně: obrys se v každé mezeře křížil
+    // (kontrola kódu 16. 11. 2026, z = 10: 10 křížení).
+    const seatStartA = tc + Math.PI + seatHalf;
+    const seatEndA   = tc + Math.PI - seatHalf;
+    const seatSweep = 2 * seatHalf;
 
-    // Počáteční bod sedla s bulge pro oblouk
-    const seatBulge = Math.tan(seatSweep / 4);
+    // Počáteční bod sedla s bulge pro oblouk (CW = záporný)
+    const seatBulge = -Math.tan(seatSweep / 4);
     addVert(
       cx + rcx + rSeat * Math.cos(seatStartA),
       cy + rcy + rSeat * Math.sin(seatStartA),
