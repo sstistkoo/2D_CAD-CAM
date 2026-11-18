@@ -14,7 +14,9 @@
 //
 // Konvence souřadnic:
 //   • CAD plátno: (cad_x, cad_y) — cad_x horizontální, cad_y vertikální (osa
-//     rotace soustruhu na y=0, kontura nad osou).
+//     rotace soustruhu na y=0, kontura nad osou). Karusel (SOU/KAR prohodí výkres):
+//     osa rotace x=0, radiální X vodorovně – řeší _karusel()/_rad() a převody
+//     _cadSegmentsToCam / _camSegmentToCadObject.
 //   • Offset algoritmus v contourOffset.js používá (z = cad_x, x = cad_y) —
 //     historické CAM značení. Adaptace probíhá v tomto modulu.
 
@@ -217,7 +219,7 @@ export function findContourGaps() {
   if (segs.length === 0) return [];
   const tol = 0.01;
   const eq = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < tol;
-  const onAxis = (p) => Math.abs(p.y) < tol;
+  const onAxis = (p) => Math.abs(_rad(p)) < tol;
 
   // Sbírej všechny koncové body všech segmentů
   const pts = [];
@@ -358,36 +360,33 @@ export function jumpToContourGaps(gaps) {
 // osu/podlahu polotovaru, ne skutečný povrch — offsetováním by se posunul na
 // špatnou stranu (pod osu). Uzávěr polotovaru k ose si generateStockFromAllowance
 // dopočítá sama (viz caps níže), takže takové úsečky z offsetu vynecháme.
+// Karusel (SOU/KAR prohodí i výkres): osa rotace je svislá (wx = 0), radiální X
+// vodorovně. Soustruh: osa rotace y = 0. _rad() = radiální souřadnice bodu.
+const _karusel = () => state.machineType === 'karusel';
+const _rad = (p) => _karusel() ? p.x : p.y;
+
 function _isAxisLine(seg) {
   const tol = 0.01;
-  return seg.type === 'line' && Math.abs(seg.p1.y) < tol && Math.abs(seg.p2.y) < tol;
+  return seg.type === 'line' && Math.abs(_rad(seg.p1)) < tol && Math.abs(_rad(seg.p2)) < tol;
 }
 
 // ── Konverze CAD canvas ↔ CAM (z = cad_x, x = cad_y) ───────────
 function _cadSegmentsToCam(chain) {
-  // Pro řetězení segmentů v CAM značení: line a arc segmenty s konvencí:
-  //   z = cad_x (horizontální), x = cad_y (vertikální)
-  //   atan2(P.x_cam - cx_cam, P.z_cam - cz_cam) ≡ atan2(dy_cad, dx_cad) (standard)
-  //   G3 = CCW (= cad ccw=true), G2 = CW (= cad ccw=false)
+  // CAM značení: z = axiální, x = radiální; úhel oblouku atan2(x − cx, z − cz),
+  // G3 = CCW v rovině (z vodorovně, x svisle). Soustruh: z = cad_x, x = cad_y.
+  // Karusel: z = cad_y, x = cad_x – prohození os je zrcadlení, takže se otočí
+  // i smysl oblouku (cad ccw → G2).
+  const K = _karusel();
+  const P = (p) => K ? { x: p.x, z: p.y } : { x: p.y, z: p.x };
   return chain.map(s => {
-    if (s.type === 'line') {
-      return {
-        type: 'line',
-        p1: { x: s.p1.y, z: s.p1.x },
-        p2: { x: s.p2.y, z: s.p2.x },
-      };
-    }
-    // arc
-    const cx_cam = s.cy, cz_cam = s.cx;
-    const startAngle = Math.atan2(s.p1.y - cx_cam, s.p1.x - cz_cam);
-    const endAngle   = Math.atan2(s.p2.y - cx_cam, s.p2.x - cz_cam);
+    if (s.type === 'line') return { type: 'line', p1: P(s.p1), p2: P(s.p2) };
+    const p1 = P(s.p1), p2 = P(s.p2), c = P({ x: s.cx, y: s.cy });
     return {
-      type: 'arc',
-      p1: { x: s.p1.y, z: s.p1.x },
-      p2: { x: s.p2.y, z: s.p2.x },
-      cx: cx_cam, cz: cz_cam, r: s.r,
-      dir: s.ccw ? 'G3' : 'G2',
-      startAngle, endAngle,
+      type: 'arc', p1, p2,
+      cx: c.x, cz: c.z, r: s.r,
+      dir: (s.ccw !== K) ? 'G3' : 'G2',
+      startAngle: Math.atan2(p1.x - c.x, p1.z - c.z),
+      endAngle: Math.atan2(p2.x - c.x, p2.z - c.z),
     };
   });
 }
@@ -433,21 +432,21 @@ function _isOutwardDirection(camChain) {
 
 // ── Konverze CAM výstupu → CAD canvas objekty ──────────────────
 function _camSegmentToCadObject(seg) {
+  const K = _karusel();
   if (seg.type === 'line') {
-    return {
-      type: 'line',
-      x1: seg.p1.z, y1: seg.p1.x,
-      x2: seg.p2.z, y2: seg.p2.x,
-    };
+    return K
+      ? { type: 'line', x1: seg.p1.x, y1: seg.p1.z, x2: seg.p2.x, y2: seg.p2.z }
+      : { type: 'line', x1: seg.p1.z, y1: seg.p1.x, x2: seg.p2.z, y2: seg.p2.x };
   }
-  // arc: cad cx = cam cz, cad cy = cam cx
-  return {
-    type: 'arc',
-    cx: seg.cz, cy: seg.cx, r: seg.r,
-    startAngle: seg.startAngle,
-    endAngle: seg.endAngle,
-    ccw: seg.dir === 'G3',
-  };
+  if (!K) {
+    // soustruh: cad cx = cam cz, cad cy = cam cx, úhel stejný
+    return { type: 'arc', cx: seg.cz, cy: seg.cx, r: seg.r,
+      startAngle: seg.startAngle, endAngle: seg.endAngle, ccw: seg.dir === 'G3' };
+  }
+  // karusel: cad (x, y) = cam (x, z); úhel CAM atan2(dx, dy) = π/2 − úhel CAD
+  return { type: 'arc', cx: seg.cx, cy: seg.cz, r: seg.r,
+    startAngle: Math.PI / 2 - seg.startAngle, endAngle: Math.PI / 2 - seg.endAngle,
+    ccw: seg.dir === 'G2' };
 }
 
 // ── Společné: dávkové přidání objektů (polotovar nebo kontura) ──
@@ -576,12 +575,17 @@ export function generateCylinderStock({ allowanceX, allowanceZ, asContour = fals
     );
   }
 
-  // Bbox: xMin, xMax (osa Z), yMax (max poloměr). Osu rotace bereme jako y=0.
+  // Bbox v (axiální a, radiální r): soustruh a = wx, r = wy (osa rotace
+  // y = 0); karusel naopak a = wy, r = wx (osa rotace x = 0, X vodorovně).
   // Ze segmentů (stejných jako pro kontrolu kontury), ne z objektů: dřív se
   // u polyline braly jen vrcholy – oblouk (bulge) vyboulený nad ně trčel
   // z polotovaru ven – a obdélník bez natočení.
-  let xMin = Infinity, xMax = -Infinity, yMax = 0;
-  const grow = (x, y) => { xMin = Math.min(xMin, x); xMax = Math.max(xMax, x); yMax = Math.max(yMax, y); };
+  const karusel = state.machineType === 'karusel';
+  let xMin = Infinity, xMax = -Infinity, yMax = 0;   // xMin/xMax = axiálně, yMax = max. poloměr
+  const grow = (wx, wy) => {
+    const a = karusel ? wy : wx, r = karusel ? wx : wy;
+    xMin = Math.min(xMin, a); xMax = Math.max(xMax, a); yMax = Math.max(yMax, r);
+  };
   for (const sg of _objectsToSegments(objs)) {
     grow(sg.p1.x, sg.p1.y);
     grow(sg.p2.x, sg.p2.y);
@@ -592,7 +596,7 @@ export function generateCylinderStock({ allowanceX, allowanceZ, asContour = fals
     const a2 = Math.atan2(sg.p2.y - sg.cy, sg.p2.x - sg.cx);
     let sweep = ((sg.ccw ? a2 - a1 : a1 - a2) % TAU + TAU) % TAU;
     if (sweep < 1e-9) sweep = TAU; // plná kružnice
-    for (const t of [0, Math.PI / 2, Math.PI]) {
+    for (const t of [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2]) {
       const off = ((sg.ccw ? t - a1 : a1 - t) % TAU + TAU) % TAU;
       if (off <= sweep + 1e-12) grow(sg.cx + sg.r * Math.cos(t), sg.cy + sg.r * Math.sin(t));
     }
@@ -607,10 +611,8 @@ export function generateCylinderStock({ allowanceX, allowanceZ, asContour = fals
   const y1 = 0;
   const y2 = yMax + allowanceX;
 
-  const corners = [
-    { x: x1, y: y1 }, { x: x2, y: y1 },
-    { x: x2, y: y2 }, { x: x1, y: y2 },
-  ];
+  const toW = (a, r) => karusel ? { x: r, y: a } : { x: a, y: r };
+  const corners = [toW(x1, y1), toW(x2, y1), toW(x2, y2), toW(x1, y2)];
   const objLikes = [];
   for (let i = 0; i < 4; i++) {
     const a = corners[i], b = corners[(i + 1) % 4];

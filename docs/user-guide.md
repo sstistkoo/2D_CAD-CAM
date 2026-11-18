@@ -89,7 +89,7 @@ kvůli přepnutí nemusí otvírat ⚙️ Nastavení:
 |-----------|--------------|
 | SOU / KAR | typ stroje – soustruh ↔ karusel; prohodí osy i výkres (díl zůstane na svých X/Z) |
 | ABS / INC | absolutní ↔ inkrementální souřadnice |
-| R / ⌀     | osa X jako poloměr ↔ průměr (platí i pro pole X v Číselném zadání, Polárním kreslení a vlastnostech objektu) |
+| R / ⌀     | osa X jako poloměr ↔ průměr (platí i pro pole X v Číselném zadání, Polárním kreslení, vlastnostech po nakreslení a v okně Upravit objekt) |
 | #         | snap na mřížku ON ↔ OFF |
 | ∠         | úhlový snap ON ↔ OFF |
 | 📐        | režim kót: vše → průsečíky → kóty → skryté → vše |

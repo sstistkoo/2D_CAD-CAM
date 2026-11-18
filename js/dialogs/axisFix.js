@@ -59,7 +59,7 @@ export function detectAxis(grp, ctx) {
     }
     moveEnd(item, e.o, e.i, R === 'x' ? 0 : e.x, R === 'y' ? 0 : e.y); claim(e.o, e.i);
     item.at = placeLabel(e.x, e.y, machineType);
-    item.label = `${G(grp.name)}: konec čáry ${fmt(Math.abs(r))} mm ${r < 0 ? 'pod osou' : 'nad osou'} → na osu (${item.at})`;
+    item.label = `${G(grp.name)}: konec čáry ${fmt(Math.abs(r))} mm ${R === 'x' ? (r < 0 ? 'vlevo od osy' : 'vpravo od osy') : (r < 0 ? 'pod osou' : 'nad osou')} → na osu (${item.at})`;
     items.push(item); mine.push({ item, o: e.o });
   }
   // 2. Pahýl zkrácený na nulu → smazat (místo přitažení).

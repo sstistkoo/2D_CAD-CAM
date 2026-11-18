@@ -107,3 +107,23 @@ describe('Oblouk segmentu (bulge): oblouk přes 180° se po OK nezkrátí', () =
     }
   });
 });
+
+describe('Upravit objekt (mobileEdit): ⌀ na ose X a ochrana proti NaN', () => {
+  it('soustruh ⌀: svislé pole v průměru; neplatná hodnota objekt nezmění', async () => {
+    const { showEditObjectDialog } = await import('../js/dialogs/mobileEdit.js');
+    state.machineType = 'soustruh'; state.xDisplayMode = 'diameter';
+    const line = { id: 9101, type: 'line', x1: 0, y1: 10, x2: 20, y2: 15, layer: 0, name: 'L' };
+    state.objects.push(line);
+    showEditObjectDialog(state.objects.length - 1);
+    const q = (s) => document.querySelector(s);
+    expect(+q('#editY1').value).toBe(20);
+    expect(+q('#editX2').value).toBe(20);
+    q('#editY2').value = '1o';            // překlep
+    q('#editOk').click();
+    expect(line).toMatchObject({ x1: 0, y1: 10, x2: 20, y2: 15 });
+    q('#editY2').value = '40';
+    q('#editOk').click();
+    expect(line.y2).toBe(20);
+    document.querySelectorAll('.input-overlay').forEach(o => o.remove());
+  });
+});

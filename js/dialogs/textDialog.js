@@ -286,7 +286,8 @@ export function showTextDialog(opts, onConfirm) {
     }
     const result = {
       text,
-      fontSize: parseFloat(elSize.value) || 14,
+      // Záporná/nulová velikost (min="1" se při psaní nevynucuje) by text otočila/skryla.
+      fontSize: parseFloat(elSize.value) > 0 ? parseFloat(elSize.value) : 14,
       fontFamily: elFont.value,
       rotation: (parseFloat(elRotation.value) || 0) * Math.PI / 180,
       textAlign: currentAlign,

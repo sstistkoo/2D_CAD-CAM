@@ -119,3 +119,48 @@ describe('generateCylinderStock – rozměr podle skutečné kontury', () => {
     expect(stockTop()).toBeCloseTo(5 + 5 * Math.SQRT2, 9);
   });
 });
+
+describe('Přídavek na plochu na karuselu (osa rotace svisle, x = 0)', () => {
+  const el = () => new Proxy(function () {}, { get: (t, p) => (p === Symbol.toPrimitive ? () => '' : el()), apply: () => el(), set: () => true });
+  beforeEach(() => {
+    vi.stubGlobal('document', el());
+    vi.stubGlobal('window', el());
+    state.objects = []; state.nextId = 1; state.undoStack = [];
+  });
+  // Geometrický otisk objektu: koncové body + bod uprostřed (u oblouku po jeho směru)
+  const sig = (o, swap) => {
+    const T = (x, y) => (swap ? [y, x] : [x, y]);
+    let pts;
+    if (o.type === 'line') pts = [T(o.x1, o.y1), T(o.x2, o.y2), T((o.x1 + o.x2) / 2, (o.y1 + o.y2) / 2)];
+    else {
+      const TAU = 2 * Math.PI, ccw = o.ccw !== false;
+      const sw = ((ccw ? o.endAngle - o.startAngle : o.startAngle - o.endAngle) % TAU + TAU) % TAU;
+      const m = o.startAngle + (ccw ? sw : -sw) / 2;
+      const at = (a) => T(o.cx + o.r * Math.cos(a), o.cy + o.r * Math.sin(a));
+      pts = [at(o.startAngle), at(o.endAngle), at(m)];
+    }
+    const [a, b, m] = pts.map(p => p.map(v => v.toFixed(4)).join(','));
+    return [a, b].sort().join('|') + '#' + m;
+  };
+  const run = async (machine, fn, objs) => {
+    const { generateStockFromAllowance } = await import('../js/stockTools.js');
+    state.machineType = machine; state.objects = structuredClone(objs); state.nextId = 1;
+    expect((fn === 'cyl' ? generateCylinderStock({ allowanceX: 3, allowanceZ: 2 })
+      : generateStockFromAllowance({ allowance: 2 })).ok).toBe(true);
+    return state.objects.filter(o => o.isStock);
+  };
+  const lathe = [{ type: 'polyline', closed: false,
+    vertices: [{ x: 0, y: 0 }, { x: 0, y: 10 }, { x: 10, y: 10 }, { x: 20, y: 14 }, { x: 30, y: 14 }, { x: 30, y: 0 }],
+    bulges: [0, 0, 0.3, 0, 0] }];
+  // Karusel = stejný díl, výkres transponovaný (zrcadlení → bulge opačně)
+  const kar = [{ ...lathe[0], vertices: lathe[0].vertices.map(v => ({ x: v.y, y: v.x })), bulges: lathe[0].bulges.map(b => -b) }];
+
+  for (const fn of ['offset', 'cyl']) {
+    it(`${fn}: karusel = transpozice soustruhu`, async () => {
+      const a = (await run('soustruh', fn, lathe)).map(o => sig(o, false)).sort();
+      const b = (await run('karusel', fn, kar)).map(o => sig(o, true)).sort();
+      expect(b).toEqual(a);
+      state.machineType = 'soustruh';
+    });
+  }
+});

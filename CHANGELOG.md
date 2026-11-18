@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Přídavek na plochu (př/pl) na karuselu** (kontrola 18. 11. 2026). Offset kontury i „Polotovar tvaru válce“ počítaly vždy s osou rotace vodorovně (soustruh). Na karuselu, kde je výkres prohozený a osa rotace svislá, vznikl polotovar otočený o 90° a uzávěry k ose vedly na špatnou osu; i kontrola mezer brala „konec na ose“ podle vodorovné osy. Teď se osy řídí typem stroje (test: karuselový výkres = transpozice soustruhového dá transponovaný polotovar).
+- **Okno Upravit objekt: neplatná hodnota už nezapíše NaN** (kontrola 18. 11. 2026). Překlep v souřadnici (např. „1o“) se dřív uložil jako NaN – objekt zmizel z výkresu a rozbil průsečíky. Teď se hodnoty nejdřív ověří (i poloměr > 0) a při chybě se nic nezmění. Okno zároveň používá režim průměru (⌀) na ose X jako ostatní dialogy.
+- Drobnosti: text se zápornou velikostí písma se nevytvoří (použije se 14); Kontrola výkresu na karuselu píše „vlevo/vpravo od osy“ místo „pod/nad osou“.
 - **Zrcadlit / Překlopit: popisky os podle stroje** (kontrola 18. 11. 2026). Zrcadlení nabízelo „Osa X (horizontální)“ a „Osa Z (vertikální)“ a překlopení „⇔ Z / ⇕ X“ bez ohledu na stroj – na soustruhu je ale vodorovně osa Z (zrcadlení přes osu rotace bylo označené jako osa X), na karuselu zase vodorovně X. Popisky i hláška teď berou osy podle typu stroje. Výběr osy zrcadlení kliknutím na x = 0 obrazovky už nedá NaN.
 - **Oblouk segmentu kontury přes 180° se po OK nezkrátí** (kontrola 18. 11. 2026). Okno ⌒ Oblouk segmentu ukázalo poloměr dlouhého oblouku, ale po potvrzení z něj udělalo krátký oblouk. Teď platí jako v G-kódu: záporné R = oblouk přes 180°, a stávající dlouhý oblouk se předvyplní záporně.
 - **Kružnice – zadání poloměru**: neplatný poloměr okno už tiše nezavře, ukáže hlášku.
