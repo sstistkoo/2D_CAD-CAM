@@ -5,12 +5,12 @@
 
 import { COLORS } from '../constants.js';
 import { makeInputOverlay } from '../dialogFactory.js';
-import { state, showToast, coordHelpers } from '../state.js';
+import { state, showToast, coordHelpers, withUndoBatch } from '../state.js';
 import { renderAll } from '../render.js';
 import { addDimensionForObject } from './dimension.js';
 import { intersectInfiniteLines } from '../geometry.js';
 import { bulgeToArc, getRectCorners } from '../utils.js';
-import { drawCanvas, vSign } from '../canvas.js';
+import { drawCanvas, vSign, hSign } from '../canvas.js';
 import { writeClipboard } from '../clipboard.js';
 
 const EPS = 1e-4;      // tolerance pro shodu bodů
@@ -108,7 +108,7 @@ function extractSegments(objects) {
           const arc = bulgeToArc(p1, p2, b);
           if (arc) {
             arcs.push({
-              obj: { type: 'arc', cx: arc.cx, cy: arc.cy, r: arc.r, startAngle: arc.startAngle, endAngle: arc.endAngle },
+              obj: { type: 'arc', cx: arc.cx, cy: arc.cy, r: arc.r, startAngle: arc.startAngle, endAngle: arc.endAngle, ccw: arc.ccw },
               idx,
               segIdx: si,
             });
@@ -335,11 +335,12 @@ function detectGrooves(segments) {
         // Zápichy mají typicky hloubku > 0 a šířku > 0
         if (width < EPS || depth < EPS) continue;
 
-        // Stěny by měly směřovat stejným směrem (obě "dolů" do zápichu)
-        const dot = s1Dx * s2Dx + s1Dy * s2Dy;
-        // Pokud dot < 0, stěny směřují proti sobě → potenciální zápich
-        // Pokud dot > 0, stěny směřují stejným směrem → potenciální zápich
-        // Obojí může být platné podle orientace koncových bodů
+        // U-tvar: volné konce obou stěn leží na STEJNÉ straně dna.
+        // Na opačných stranách je to schodek (osazení), ne zápich.
+        const far1 = lineEndpoints(side1.line.obj)[1 - side1.endpointIdx];
+        const far2 = lineEndpoints(side2.line.obj)[1 - side2.endpointIdx];
+        const side = (p) => bDx * (p.y - bottom.obj.y1) - bDy * (p.x - bottom.obj.x1);
+        if (side(far1) * side(far2) <= 0) continue;
 
         usedLines.add(segKey(bottom));
         usedLines.add(segKey(side1.line));
@@ -382,11 +383,8 @@ function detectCorners(segments, fillets, chamfers, grooves) {
     for (const ep of cEps) usedPoints.add(`${ep.x.toFixed(4)},${ep.y.toFixed(4)}`);
   }
   for (const g of grooves) {
-    // Vyloučit spoje uvnitř zápichu (dno-stěna)
-    for (const seg of [g.bottom, g.side1, g.side2]) {
-      const eps = lineEndpoints(seg.obj);
-      for (const ep of eps) usedPoints.add(`${ep.x.toFixed(4)},${ep.y.toFixed(4)}`);
-    }
+    // Vyloučit spoje uvnitř zápichu (dno-stěna); horní hrany stěn jsou běžné rohy
+    for (const ep of lineEndpoints(g.bottom.obj)) usedPoints.add(`${ep.x.toFixed(4)},${ep.y.toFixed(4)}`);
   }
 
   // Najdi všechny páry segmentů (úseček), které sdílejí koncový bod
@@ -480,6 +478,16 @@ function detectCorners(segments, fillets, chamfers, grooves) {
 // Hlavní analýza a dialog
 // ══════════════════════════════════════════════════════════════
 
+/** Detekce nad rozloženými segmenty (export kvůli testům). */
+export function detectFeatures(segments) {
+  const fillets = detectFillets(segments);
+  const chamfers = detectChamfers(segments);
+  const grooves = detectGrooves(segments);
+  const corners = detectCorners(segments, fillets, chamfers, grooves);
+  return { fillets, chamfers, grooves, corners };
+}
+export { extractSegments };
+
 export function autoDetectFeatures() {
   const objects = state.objects;
   if (objects.length === 0) {
@@ -493,10 +501,7 @@ export function autoDetectFeatures() {
     return;
   }
 
-  const fillets = detectFillets(segments);
-  const chamfers = detectChamfers(segments);
-  const grooves = detectGrooves(segments);
-  const corners = detectCorners(segments, fillets, chamfers, grooves);
+  const { fillets, chamfers, grooves, corners } = detectFeatures(segments);
 
   const totalCount = fillets.length + chamfers.length + grooves.length + corners.length;
   if (totalCount === 0) {
@@ -569,7 +574,7 @@ function showAutoDetectDialog(fillets, chamfers, grooves, corners) {
 
   // ── Rohy / spoje ──
   if (corners.length > 0) {
-    rows += `<tr><td colspan="3" style="color:${COLORS.dimension};font-weight:bold;padding-top:12px;font-size:13px">
+    rows += `<tr><td colspan="4" style="color:${COLORS.dimension};font-weight:bold;padding-top:12px;font-size:13px">
       ∠ Rohy / spoje — ${corners.length}×</td></tr>`;
     rows += `<tr style="color:${COLORS.textMuted};font-size:11px">
       <td>#</td><td>Úhel</td><td>Pozice</td></tr>`;
@@ -653,12 +658,10 @@ function showAutoDetectDialog(fillets, chamfers, grooves, corners) {
   const addDimsBtn = overlay.querySelector('#adAddDims');
   if (addDimsBtn) {
     addDimsBtn.addEventListener('click', () => {
-      let added = 0;
-      for (const f of fillets) {
-        addDimensionForObject(f.arc.obj);
-        added++;
-      }
-      showToast(`Přidáno ${added} kót R`);
+      // Jeden krok Zpět pro všechny kóty; duplicitní kóty addObject odmítne
+      const before = state.objects.length;
+      withUndoBatch(() => { for (const f of fillets) addDimensionForObject(f.arc.obj); });
+      showToast(`Přidáno ${state.objects.length - before} kót`);
       overlay.remove();
     });
   }
@@ -694,7 +697,7 @@ function showAutoDetectDialog(fillets, chamfers, grooves, corners) {
       if (fillets.length > 0) {
         text += `ZAOBLENÍ (R): ${fillets.length}×\n`;
         fillets.forEach((f, i) => {
-          text += `  ${i + 1}. R${f.radius.toFixed(3)} mm  střed: [${f.center.x.toFixed(3)}, ${f.center.y.toFixed(3)}]\n`;
+          text += `  ${i + 1}. R${f.radius.toFixed(3)} mm  střed: ${Hp}${H}${fH(f.center.x).toFixed(3)} ${Vp}${V}${fV(f.center.y).toFixed(3)}\n`;
         });
         text += '\n';
       }
@@ -719,7 +722,7 @@ function showAutoDetectDialog(fillets, chamfers, grooves, corners) {
         text += `ROHY / SPOJE: ${corners.length}×\n`;
         corners.forEach((co, i) => {
           const angle = isNaN(co.angleDeg) ? (co.label || '—') : `${co.angleDeg.toFixed(1)}°`;
-          text += `  ${i + 1}. ${angle}  pozice: [${co.point.x.toFixed(3)}, ${co.point.y.toFixed(3)}]\n`;
+          text += `  ${i + 1}. ${angle}  pozice: ${Hp}${H}${fH(co.point.x).toFixed(3)} ${Vp}${V}${fV(co.point.y).toFixed(3)}\n`;
         });
       }
       writeClipboard(text)
@@ -745,7 +748,7 @@ function showAutoDetectDialog(fillets, chamfers, grooves, corners) {
       const pt = corner.point;
       const canvasW = drawCanvas.width;
       const canvasH = drawCanvas.height;
-      state.panX = canvasW / 2 - pt.x * state.zoom;
+      state.panX = canvasW / 2 - hSign() * pt.x * state.zoom;
       state.panY = canvasH / 2 - vSign() * pt.y * state.zoom;
 
       overlay.remove();
