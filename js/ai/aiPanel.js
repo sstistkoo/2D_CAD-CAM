@@ -344,6 +344,15 @@ function _arcBulge(T1, T2, cx, cy) {
   return Math.tan(d / 4);
 }
 
+// Bulge oblouku p1→p2 kolem známého středu v daném smyslu (i přes 180°).
+function bulgeAroundCenter(p1, p2, cx, cy, cw) {
+  const TAU = 2 * Math.PI;
+  const a1 = Math.atan2(p1.y - cy, p1.x - cx), a2 = Math.atan2(p2.y - cy, p2.x - cx);
+  const s = (((cw ? a1 - a2 : a2 - a1) % TAU) + TAU) % TAU;
+  if (s < 1e-9) return 0;
+  return (cw ? -1 : 1) * Math.tan(s / 4);
+}
+
 // Skeleton = pole rohových bodů {z,d} (zleva doprava, Z0 vlevo u sklíčidla).
 // Roh může mít r (fillet), chamfer:[délka,úhel] nebo střed cz/cx (přednost).
 function isSkeletonFormat(items) {
@@ -532,11 +541,14 @@ export function gcodeToProfile(text) {
             // I,K = poloměrové inkrementy ke středu (Sinumerik I/K jsou v poloměru)
             const cx = isKarusel ? prev.x + parseFloat(im[1]) : prev.x + parseFloat(km[1]);
             const cy = isKarusel ? prev.y + parseFloat(km[1]) : prev.y + parseFloat(im[1]);
-            bulge = radiusToBulge(prev, pt, Math.hypot(prev.x - cx, prev.y - cy), cw) || 0;
+            // Rozvin ze středu – radiusToBulge by vzal vždy kratší oblouk.
+            bulge = bulgeAroundCenter(prev, pt, cx, cy, cw);
           } else if (rm) {
             const rv = parseFloat(rm[1]);
             bulge = radiusToBulge(prev, pt, Math.abs(rv), cw) || 0;
-            if (rv < 0) bulge = -bulge;
+            // R < 0 = oblouk přes 180° STEJNÝM směrem: tan((2π − θ)/4) = 1 / tan(θ/4).
+            // Dřív se jen otočilo znaménko – vyšel krátký oblouk opačným směrem.
+            if (rv < 0 && bulge) bulge = 1 / bulge;
           }
         }
         segBulge.push(bulge);
@@ -608,7 +620,9 @@ export function profileToGcode(vertices, bulges) {
     const b = bulges[i - 1] || 0;
     const arc = Math.abs(b) > 1e-9 ? bulgeToArc(p1, p2, b) : null;
     if (arc) {
-      g += `${b < 0 ? 'G2' : 'G3'} X${xOf(p2)} Z${zOf(p2)} CR=${arc.r.toFixed(dec)}${F()}\n`;
+      // |bulge| > 1 = oblouk přes 180° → záporné CR (jinak stroj ujede kratší).
+      const cr = Math.abs(b) > 1 ? -arc.r : arc.r;
+      g += `${b < 0 ? 'G2' : 'G3'} X${xOf(p2)} Z${zOf(p2)} CR=${cr.toFixed(dec)}${F()}\n`;
     } else {
       g += `G1 X${xOf(p2)} Z${zOf(p2)}${F()}\n`;
     }

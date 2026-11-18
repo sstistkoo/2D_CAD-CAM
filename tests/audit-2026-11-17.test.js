@@ -25,3 +25,26 @@ describe('numerický vstup: R se znaménkem v ručním G-kódu', () => {
     }
   });
 });
+
+describe('import G-kódu do výkresu: Sinumerik CR=', () => {
+  it('oblouk s CR= se nakreslí, záporné CR= = oblouk přes 180°', async () => {
+    const { parseGcodeToObjects } = await import('../js/storage/gcodeParse.js');
+    const short = parseGcodeToObjects('G0 X0 Z0\nG3 X10 Z-5 CR=8');
+    expect(short.warnings).toEqual([]);
+    expect(short.objs.map(o => o.type)).toEqual(['arc']);
+    const long = parseGcodeToObjects('G0 X0 Z0\nG3 X10 Z-5 CR=-8');
+    expect(long.objs[0].r).toBeCloseTo(8, 6);
+    expect(long.objs[0].cx).not.toBeCloseTo(short.objs[0].cx, 3);
+  });
+});
+
+describe('kalkulačka Kužel: Morse podle normy', () => {
+  it('délky L dávají normovou kuželovitost', async () => {
+    const fs = await import('node:fs');
+    const src = fs.readFileSync(new URL('../js/calculators/taper.js', import.meta.url), 'utf8');
+    const norm = { MT0: 19.212, MT1: 20.047, MT2: 20.020, MT3: 19.922, MT4: 19.254, MT5: 19.002 };
+    const rows = [...src.matchAll(/name: "(MT\d)", D: ([\d.]+), d: ([\d.]+), L: ([\d.]+)/g)];
+    expect(rows.length).toBe(6);
+    for (const [, n, D, d, L] of rows) expect(Math.abs(+L / (+D - +d) - norm[n])).toBeLessThan(0.03);
+  });
+});

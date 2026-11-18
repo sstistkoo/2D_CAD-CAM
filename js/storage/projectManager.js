@@ -226,6 +226,9 @@ export function newProject() {
   state.multiSelected.clear();
   state.selectedPoint = null;
   state.intersections = [];
+  // Kotvy patří výkresu (ukládají se s projektem i do Zpět) – dřív zůstaly
+  // z předchozího výkresu viset v prázdném novém projektu.
+  state.anchors = [];
   state.projectName = 'Bez názvu';
   state.layers = [
     { id: 0, name: 'Kontura', color: contourDefaultColor(), visible: true, locked: false },

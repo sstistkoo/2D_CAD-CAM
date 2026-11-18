@@ -10,12 +10,16 @@ import { closeInlineEdit } from './svgInlineEdit.js';
 
 export function openTaperCalc() {
   const morseData = [
-    { name: "MT0", D: 9.045, d: 6.401, L: 49.8 },
-    { name: "MT1", D: 12.065, d: 9.371, L: 53.5 },
-    { name: "MT2", D: 17.780, d: 14.533, L: 64.0 },
-    { name: "MT3", D: 23.825, d: 19.761, L: 80.5 },
-    { name: "MT4", D: 31.267, d: 25.908, L: 102.5 },
-    { name: "MT5", D: 44.399, d: 37.468, L: 129.5 },
+    // L = hloubka zasunutí P (2", 2⅛", 2 9/16", 3 3/16", 4 1/16", 5 3/16"),
+    // na které se Ø mění z D na d. Dřív tu byly kratší délky (MT2 64,0 →
+    // 1:19,71, úhel o 0,02° větší); s P sedí kuželovitost s normou
+    // (MT0 1:19,212 … MT5 1:19,002).
+    { name: "MT0", D: 9.045, d: 6.401, L: 50.8 },
+    { name: "MT1", D: 12.065, d: 9.371, L: 53.975 },
+    { name: "MT2", D: 17.780, d: 14.533, L: 65.088 },
+    { name: "MT3", D: 23.825, d: 19.761, L: 80.963 },
+    { name: "MT4", D: 31.267, d: 25.908, L: 103.188 },
+    { name: "MT5", D: 44.399, d: 37.468, L: 131.763 },
   ];
   const metricData = [
     { name: "4 (1:20)", D: 4, ratio: 20 },

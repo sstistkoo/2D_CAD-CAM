@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fanuc prodleva v bloku poháněných nástrojů** `G4 X…` → `G04 P…` (ms) jako u vrtání v ose; převod Fanuc → Sinumerik/Heidenhain teď přepíše i ruční `G04 X/U`.
 - **Import kontury z G-kódu: oblouk I/K přes 180°** (17. 11. 2026) dostal kladné R, tedy kratší oblouk na opačné straně. Střed se teď spočítá (I v poloměru — Fanuc i Sinumerik 840D pod DIAMON; X podle režimu průměr/poloměr z CAM nebo řádku DIAMON/DIAMOF) a oblouk přes 180° dostane záporné R.
 - **Číselné zadání oblouku** (kontrola 17. 11. 2026): do ručního G-kódu se oblouk přes 180° zapisoval s kladným R, takže se po 🔄 vykreslil krátký oblouk. Teď záporné R (`js/dialogs/numArcSign.js`). Režim „Start + konec“ přijímá záporné R (oblouk přes 180°) a nenabízí už „📏 R“, které bez středu měřilo od počátku.
+- **Import G-kódu do výkresu: Sinumerik `CR=`** (kontrola 18. 11. 2026). Oblouk z programu z CAM (`.mpf`, `G3 X… Z… CR=6.5`) se nenakreslil a hlásil „oblouk nemá R ani I/K“ – parser hledal jen `R`. Teď čte i `CR=` (záporné = přes 180°). `js/storage/gcodeParse.js`.
+- **Kalkulačka Kužel: Morse kužely** měly v tabulce kratší délky L, takže kuželovitost vycházela o 1–2 % jinak (MT2 1:19,71 místo 1:20,02, úhel o 0,02° větší). Délky jsou teď hloubka zasunutí podle normy (MT0 50,8 … MT5 131,763 mm).
+- **Nový projekt nechával kotvy** z předchozího výkresu – zakotvené body dál omezovaly přesuny v prázdném výkresu.
+- **AI profil: oblouk přes 180°** – převod profilu na G-kód psal `CR=` vždy kladně a zpětné čtení `CR<0` jen otočilo směr (krátký oblouk opačně); I/K oblouk se bral vždy jako kratší. Teď záporné CR, dlouhý oblouk stejným směrem a I/K ze středu. Test `tests/ai-profile-arcs.test.js`.
 - **Ozubený hřeben byl vzhůru nohama** (17. 11. 2026): zuby mířily dolů, protože znaménka počítala s osou Y obrazovky. Teď zuby nahoru, tělo pod roztečnou čárou.
 - Testy: `tests/audit-2026-11-16.test.js`.
 

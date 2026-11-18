@@ -172,7 +172,9 @@ export function parseGcodeToObjects(code) {
     }
 
     if (thisMotion === 2 || thisMotion === 3) {
-      const gRval = getAddr(line, 'R');
+      // Sinumerik píše rádius jako CR= (programy z CAM, .mpf) – R ho nechytí,
+      // protože před R stojí písmeno; oblouk se pak hlásil „nemá R ani I/K".
+      const gRval = getAddr(line, 'R') ?? getAddr(line, 'CR');
       const gIval = getAddr(line, 'I');  // offset středu v X od aktuální polohy
       const gKval = getAddr(line, 'K');  // offset středu v Z od aktuální polohy
       // Smysl oblouku ve světě: G2/G3 v textu jsou při zrcadlení jedné osy
