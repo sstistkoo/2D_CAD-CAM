@@ -62,9 +62,10 @@ function involuteAngleAt(rb, r) {
  * @param {number} steps  počet úseček na bok evolventy
  * @param {number} cx     X středu
  * @param {number} cy     Y středu
+ * @param {number} [tipShorten] zkrácení hlavy k·m [mm] (soukolí s korekcemi)
  * @returns {{vertices: {x:number,y:number}[], bulges: number[]}}
  */
-export function generateFullGearProfile(m, z, alpha = 20, x = 0, steps = 20, cx = 0, cy = 0) {
+export function generateFullGearProfile(m, z, alpha = 20, x = 0, steps = 20, cx = 0, cy = 0, tipShorten = 0) {
   if (z < 1) return { vertices: [], bulges: [] };
 
   const gear = new InvoluteGear(
@@ -75,6 +76,7 @@ export function generateFullGearProfile(m, z, alpha = 20, x = 0, steps = 20, cx 
     0,              // backlash
     x,
     steps,
+    tipShorten,     // zkrácení hlavy k·m (soukolí s korekcemi, gearPairMath.js)
   );
 
   return makerGearToPolyline(gear, cx, cy);

@@ -3,6 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { makeOverlay } from '../dialogFactory.js';
+import { operatingCenterDistance, operatingPressureAngle, tipShortening } from '../tools/gearPairMath.js';
 
 /**
  * Pure validace parametrů gear pair.
@@ -124,6 +125,8 @@ export function showGearPairDialog(onConfirm) {
   const elZ1 = overlay.querySelector('[data-id="gp-z1"]');
   const elZ2 = overlay.querySelector('[data-id="gp-z2"]');
   const elResults = overlay.querySelector('[data-id="gp-results"]');
+  const elX1 = overlay.querySelector('[data-id="gp-x1"]');
+  const elX2 = overlay.querySelector('[data-id="gp-x2"]');
 
   function recalc() {
     const m = parseFloat(elM.value) || 0;
@@ -131,16 +134,26 @@ export function showGearPairDialog(onConfirm) {
     const z2 = parseInt(elZ2.value, 10) || 0;
     const rp1 = m * z1 / 2;
     const rp2 = m * z2 / 2;
-    const axis = m * (z1 + z2) / 2;
+    // Stejný výpočet jako kreslení (gearPairMath.js): s korekcemi x1, x2
+    // provozní osová vzdálenost a_w a zkrácení hlavy k·m.
+    const alpha = parseFloat(elA.value) || 20;
+    const x1 = parseFloat(elX1.value) || 0, x2 = parseFloat(elX2.value) || 0;
+    const ok = m > 0 && z1 > 0 && z2 > 0;
+    const axis = ok ? operatingCenterDistance(m, z1, z2, alpha, x1, x2) : 0;
+    const shifted = ok && Math.abs(x1 + x2) > 1e-12;
+    const awDeg = shifted ? operatingPressureAngle(z1, z2, alpha, x1, x2) * 180 / Math.PI : alpha;
+    const tip = ok ? tipShortening(m, z1, z2, alpha, x1, x2) : 0;
     const ratio = z2 > 0 ? (z1 / z2) : 0;
     elResults.innerHTML = `
       <span>Roztečný ⌀ kola A: <strong>${(rp1 * 2).toFixed(2)} mm</strong></span>
       <span>Roztečný ⌀ kola B: <strong>${(rp2 * 2).toFixed(2)} mm</strong></span>
-      <span>Osová vzdálenost: <strong>${axis.toFixed(2)} mm</strong></span>
+      <span>Osová vzdálenost${shifted ? ' a<sub>w</sub>' : ''}: <strong>${axis.toFixed(shifted ? 3 : 2)} mm</strong>${shifted ? ` (α<sub>w</sub> ${awDeg.toFixed(3)}°)` : ''}</span>
+      ${tip > 0 ? `<span>Zkrácení hlavy: <strong>${tip.toFixed(3)} mm</strong> (k = ${(tip / m).toFixed(3)})</span>` : ''}
       <span>Převodový poměr: <strong>${ratio.toFixed(3)} (A→B)</strong></span>
     `;
   }
-  [elM, elZ1, elZ2].forEach(el => el.addEventListener('input', recalc));
+  [elM, elZ1, elZ2, elX1, elX2].forEach(el => el.addEventListener('input', recalc));
+  elA.addEventListener('change', recalc);
   recalc();
 
   overlay.querySelector('.gp-btn-draw').addEventListener('click', () => {

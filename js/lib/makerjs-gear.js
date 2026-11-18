@@ -32,8 +32,9 @@ function involuteRotAt(rb, r) {
  * @param {number} backlash      boční vůle při tloušťce (def. 0)
  * @param {number} profileShift  koeficient korekce x (def. 0)
  * @param {number} accuracy      počet úseček na bok evolventy (def. 16)
+ * @param {number} [tipShorten]  zkrácení hlavy k·m [mm] – soukolí s korekcemi (def. 0)
  */
-export function InvoluteGear(teeth, circularPitch, pressureAngle, clearance, backlash, profileShift, accuracy) {
+export function InvoluteGear(teeth, circularPitch, pressureAngle, clearance, backlash, profileShift, accuracy, tipShorten) {
   teeth = Math.max(4, teeth | 0);
   circularPitch = circularPitch || Math.PI;
   pressureAngle = (typeof pressureAngle === 'number') ? pressureAngle : 20;
@@ -46,7 +47,7 @@ export function InvoluteGear(teeth, circularPitch, pressureAngle, clearance, bac
   const alpha = pressureAngle * Math.PI / 180;
   const Rp = (m * teeth) / 2;
   const Rb = Rp * Math.cos(alpha);
-  const ha = m * (1 + profileShift);
+  const ha = m * (1 + profileShift) - Math.max(0, tipShorten || 0);
   const hf = m * (1.25 - profileShift) + clearance;
   const Ra = Rp + ha;
   const Rf = Math.max(Rp - hf, 0.1 * m);

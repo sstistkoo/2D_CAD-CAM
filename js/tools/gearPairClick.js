@@ -21,12 +21,12 @@ export function handleGearPairClick(wx, wy) {
     if (!params) return;
     const { m, z1, z2, alpha, x1, x2, steps, addRefCircles, addAxisLine } = params;
     const cx1 = wx, cy1 = wy;
-    const { axis, cx2, cy2, rotation2 } = computeGearPairLayout(params, cx1, cy1);
+    const { axis, cx2, cy2, rotation2, tipShorten } = computeGearPairLayout(params, cx1, cy1);
 
     withUndoBatch(() => {
 
     // Kolo A (pastorek)
-    const profile1 = generateFullGearProfile(m, z1, alpha, x1, steps, cx1, cy1);
+    const profile1 = generateFullGearProfile(m, z1, alpha, x1, steps, cx1, cy1, tipShorten);
     addObject({
       type: 'polyline',
       vertices: profile1.vertices,
@@ -37,7 +37,7 @@ export function handleGearPairClick(wx, wy) {
     });
 
     // Kolo B (rotované a posunuté)
-    const profile2 = generateFullGearProfile(m, z2, alpha, x2, steps, cx2, cy2);
+    const profile2 = generateFullGearProfile(m, z2, alpha, x2, steps, cx2, cy2, tipShorten);
     const rotated2 = rotateProfile(profile2, cx2, cy2, rotation2);
     addObject({
       type: 'polyline',
@@ -48,18 +48,23 @@ export function handleGearPairClick(wx, wy) {
       name: `Pár B: m${m} z${z2}`,
     });
 
-    // Volitelně ref kružnice (roztečné u obou kol)
+    // Volitelně ref kružnice: kružnice, které se v bodě záběru dotýkají.
+    // Bez korekcí roztečné (r = m·z/2); s korekcemi valivé r_w = a_w·z/(z1+z2)
+    // – roztečné by se v provozní vzdálenosti a_w nedotýkaly.
     if (addRefCircles) {
       const dim1 = calculateGearDimensions(m, z1, alpha, x1);
       const dim2 = calculateGearDimensions(m, z2, alpha, x2);
+      const rolling = Math.abs(axis - (dim1.rp + dim2.rp)) > 1e-9;
+      const rw1 = axis * z1 / (z1 + z2), rw2 = axis * z2 / (z1 + z2);
+      const kind = rolling ? 'Valivá' : 'Roztečná';
       addObject({
-        type: 'circle', cx: cx1, cy: cy1, r: dim1.rp,
-        name: `Roztečná A ⌀${(dim1.rp * 2).toFixed(1)}`,
+        type: 'circle', cx: cx1, cy: cy1, r: rw1,
+        name: `${kind} A ⌀${(rw1 * 2).toFixed(1)}`,
         layer: 1, dashed: true, skipIntersections: true,
       });
       addObject({
-        type: 'circle', cx: cx2, cy: cy2, r: dim2.rp,
-        name: `Roztečná B ⌀${(dim2.rp * 2).toFixed(1)}`,
+        type: 'circle', cx: cx2, cy: cy2, r: rw2,
+        name: `${kind} B ⌀${(rw2 * 2).toFixed(1)}`,
         layer: 1, dashed: true, skipIntersections: true,
       });
     }
@@ -75,7 +80,7 @@ export function handleGearPairClick(wx, wy) {
     }
 
     renderAll();
-    showToast(`Pár kol m=${m}, z₁=${z1}, z₂=${z2}, a=${axis.toFixed(1)} mm ✓`);
+    showToast(`Pár kol m=${m}, z₁=${z1}, z₂=${z2}, a=${axis.toFixed(tipShorten > 0 || x1 || x2 ? 3 : 1)} mm${tipShorten > 0 ? `, hlava −${tipShorten.toFixed(3)} mm` : ''} ✓`);
     });
   });
 }

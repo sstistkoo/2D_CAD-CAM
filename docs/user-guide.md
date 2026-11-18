@@ -406,6 +406,11 @@ do SVG.
 ### Pár ozubených kol
 - Automaticky vygeneruje dvě za sebou zapojená kola
 - Zadej parametry prvního kola, druhý se dopočítá
+- S korekcemi x1, x2 se kola postaví v **provozní osové vzdálenosti a_w**
+  (inv α_w = inv α + 2·tg α·(x1+x2)/(z1+z2), a_w = a·cos α / cos α_w) – zuby
+  zabírají bez vůle a bez překrytí. Je-li potřeba, hlava obou kol se zkrátí
+  o k·m, aby zůstala hlavová vůle 0,25·m. Dialog ukáže a_w, α_w i zkrácení;
+  „ref. kružnice" jsou pak valivé (dotýkají se v bodě záběru).
 
 ### Drážka (DIN 374 / VDI)
 1. Vyber **Drážka**
