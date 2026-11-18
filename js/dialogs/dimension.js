@@ -433,6 +433,31 @@ function _updatePolySegDim(dim, poly) {
   dim.name = `Kóta ${len.toFixed(2)}mm`;
 }
 
+/**
+ * Geometrie kóty šířky ('w', nad horní hranou) nebo výšky ('h', vpravo)
+ * obdélníku – i natočeného (obj.rotation kolem středu, viz getRectCorners):
+ * kóta se spočte v nenatočené poloze a otočí se s obdélníkem.
+ */
+function _rectDimGeom(rect, side, dimOff) {
+  const minX = Math.min(rect.x1, rect.x2), maxX = Math.max(rect.x1, rect.x2);
+  const minY = Math.min(rect.y1, rect.y2), maxY = Math.max(rect.y1, rect.y2);
+  const g = side === 'w'
+    ? { x1: minX, y1: maxY + dimOff, x2: maxX, y2: maxY + dimOff,
+        dimSrcX1: minX, dimSrcY1: maxY, dimSrcX2: maxX, dimSrcY2: maxY, len: maxX - minX }
+    : { x1: maxX + dimOff, y1: minY, x2: maxX + dimOff, y2: maxY,
+        dimSrcX1: maxX, dimSrcY1: minY, dimSrcX2: maxX, dimSrcY2: maxY, len: maxY - minY };
+  const rot = rect.rotation || 0;
+  if (rot) {
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, c = Math.cos(rot), sn = Math.sin(rot);
+    const turn = (xk, yk) => {
+      const dx = g[xk] - cx, dy = g[yk] - cy;
+      g[xk] = cx + dx * c - dy * sn; g[yk] = cy + dx * sn + dy * c;
+    };
+    turn('x1', 'y1'); turn('x2', 'y2'); turn('dimSrcX1', 'dimSrcY1'); turn('dimSrcX2', 'dimSrcY2');
+  }
+  return g;
+}
+
 // ── Přidání kót k objektu ──
 export function addDimensionForObject(obj) {
   // Duplicitní kóty addObject odmítne (vrátí null) – počítáme jen přidané
@@ -516,51 +541,24 @@ export function addDimensionForObject(obj) {
       break;
     }
     case "rect": {
-      const w = Math.abs(obj.x2 - obj.x1);
-      const h = Math.abs(obj.y2 - obj.y1);
-      const minX = Math.min(obj.x1, obj.x2);
-      const maxX = Math.max(obj.x1, obj.x2);
-      const minY = Math.min(obj.y1, obj.y2);
-      const maxY = Math.max(obj.y1, obj.y2);
       const dimOff = 15;
-      // Šířka – horní hrana (odsazená)
-      add({
-        type: "line",
-        x1: minX,
-        y1: maxY + dimOff,
-        x2: maxX,
-        y2: maxY + dimOff,
-        name: `Kóta ${w.toFixed(2)}mm`,
-        isDimension: true,
-        layer: 2,
-        dimType: 'linear',
-        sourceObjId: obj.id || null,
-        dimOffset: dimOff,
-        dimSrcX1: minX,
-        dimSrcY1: maxY,
-        dimSrcX2: maxX,
-        dimSrcY2: maxY,
-        color: COLORS.textSecondary,
-      });
-      // Výška – pravá hrana (odsazená)
-      add({
-        type: "line",
-        x1: maxX + dimOff,
-        y1: minY,
-        x2: maxX + dimOff,
-        y2: maxY,
-        name: `Kóta ${h.toFixed(2)}mm`,
-        isDimension: true,
-        layer: 2,
-        dimType: 'linear',
-        sourceObjId: obj.id || null,
-        dimOffset: dimOff,
-        dimSrcX1: maxX,
-        dimSrcY1: minY,
-        dimSrcX2: maxX,
-        dimSrcY2: maxY,
-        color: COLORS.textSecondary,
-      });
+      const gw = _rectDimGeom(obj, 'w', dimOff), gh = _rectDimGeom(obj, 'h', dimOff);
+      const w = gw.len, h = gh.len;
+      for (const [side, g] of [['w', gw], ['h', gh]]) {
+        const { len, ...geo } = g;
+        add({
+          type: "line",
+          ...geo,
+          name: `Kóta ${len.toFixed(2)}mm`,
+          isDimension: true,
+          layer: 2,
+          dimType: 'linear',
+          sourceObjId: obj.id || null,
+          dimOffset: dimOff,
+          dimRectSide: side,
+          color: COLORS.textSecondary,
+        });
+      }
       if (added === 2) showToast(`Kóty ${w.toFixed(2)} × ${h.toFixed(2)}mm přidány`);
       else if (added === 1) showToast(`Přidána 1 kóta (druhá už ve výkresu je)`);
       break;
@@ -723,24 +721,12 @@ export function updateAssociativeDimensions() {
         } else if (src.type === 'polyline') {
           _updatePolySegDim(dim, src);
         } else if (src.type === 'rect') {
-          // Aktualizovat dle dimSrc bodů – zjistit, zda je to šířka nebo výška
-          const isHoriz = Math.abs(dim.dimSrcY1 - dim.dimSrcY2) < 0.01;
-          const minX = Math.min(src.x1, src.x2), maxX = Math.max(src.x1, src.x2);
-          const minY = Math.min(src.y1, src.y2), maxY = Math.max(src.y1, src.y2);
-          const dimOff = dim.dimOffset || 15;
-          if (isHoriz) {
-            dim.x1 = minX; dim.y1 = maxY + dimOff;
-            dim.x2 = maxX; dim.y2 = maxY + dimOff;
-            dim.dimSrcX1 = minX; dim.dimSrcY1 = maxY;
-            dim.dimSrcX2 = maxX; dim.dimSrcY2 = maxY;
-            dim.name = `Kóta ${(maxX - minX).toFixed(2)}mm`;
-          } else {
-            dim.x1 = maxX + dimOff; dim.y1 = minY;
-            dim.x2 = maxX + dimOff; dim.y2 = maxY;
-            dim.dimSrcX1 = maxX; dim.dimSrcY1 = minY;
-            dim.dimSrcX2 = maxX; dim.dimSrcY2 = maxY;
-            dim.name = `Kóta ${(maxY - minY).toFixed(2)}mm`;
-          }
+          // Šířka nebo výška? Nové kóty to nesou (dimRectSide); starší se
+          // poznají podle vodorovné kóty v nenatočeném obdélníku.
+          const side = dim.dimRectSide || (Math.abs(dim.dimSrcY1 - dim.dimSrcY2) < 0.01 ? 'w' : 'h');
+          const { len, ...geo } = _rectDimGeom(src, side, dim.dimOffset || 15);
+          Object.assign(dim, geo);
+          dim.name = `Kóta ${len.toFixed(2)}mm`;
         }
         break;
       }

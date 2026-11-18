@@ -4,6 +4,7 @@
 
 import { COLORS, LINE_WIDTH, PREVIEW_DASH, NUM_GCODE_STORAGE_KEY } from '../constants.js';
 import { state, showToast, fromIncToAbs, axisLabels, toDisplayCoords } from '../state.js';
+import { dH, dV, pfxH, pfxV, fieldToWorld } from './diamAxis.js';
 import { addObject } from '../objects.js';
 import { safeEvalMath, arcFromEndpointsRadius } from '../utils.js';
 import { normalizeGcodeText } from '../gcodeNormalize.js';
@@ -683,6 +684,11 @@ export function initNumericalTab(container, { picker = null } = {}) {
   const isInc = state.coordMode === 'inc';
   const [H, V] = axisLabels();
   const lbl = (name) => isInc ? 'Δ' + name : name;
+  // Popisky s ⌀ na ose X (režim průměru); H/V samotné řídí jen pořadí polí.
+  const HL = pfxH() + H, VL = pfxV() + V;
+  // World hodnota → text pole (⌀ na ose X); nula zůstává „0“.
+  const dispH = (n) => n === 0 ? '0' : dH(n).toFixed(3);
+  const dispV = (n) => n === 0 ? '0' : dV(n).toFixed(3);
 
   // Chain-závislé výchozí hodnoty pro počáteční bod. `let`, ne module-level
   // `const` – „Vytvořit" teď okno nezavírá a rovnou pokračuje dalším
@@ -707,8 +713,8 @@ export function initNumericalTab(container, { picker = null } = {}) {
       ? (isInc ? (state.lastClickPoint.y - state.incReference.y).toFixed(3) : state.lastClickPoint.y.toFixed(3))
       : "0";
     // Výchozí hodnota počátečního bodu: chain (pokračování kreslení) > poslední klik > 0
-    startDispX = hasChain ? chainDispX : lastClickDispX;
-    startDispY = hasChain ? chainDispY : lastClickDispY;
+    startDispX = dispH(+(hasChain ? chainDispX : lastClickDispX));
+    startDispY = dispV(+(hasChain ? chainDispY : lastClickDispY));
   }
 
   // Zobrazovat osy vždy v pořadí X, Z (jako zbytek UI – viz fmtStatusCoords),
@@ -729,7 +735,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
    */
   function readFormGeometry() {
     const t = typeSelect.value;
-    const toAbs = (vx, vy) => isInc ? fromIncToAbs(vx, vy) : { x: vx, y: vy };
+    const toAbs = (vx, vy) => { const p = fieldToWorld(vx, vy); return isInc ? fromIncToAbs(p.x, p.y) : p; };
     const val = (id) => safeEvalMath(container.querySelector(id)?.value);
     const finite2 = (a, b) => isFinite(a) && isFinite(b);
 
@@ -820,21 +826,21 @@ export function initNumericalTab(container, { picker = null } = {}) {
     switch (t) {
       case "point":
         html = `<div class="input-row">${axisPair(
-                  `<div class="num-coord-field"><label>${lbl(H)}:</label><input type="text" id="nx" value="${startDispX}"></div>`,
-                  `<div class="num-coord-field"><label>${lbl(V)}:</label><input type="text" id="ny" value="${startDispY}"></div>`
+                  `<div class="num-coord-field"><label>${lbl(HL)}:</label><input type="text" id="nx" value="${startDispX}"></div>`,
+                  `<div class="num-coord-field"><label>${lbl(VL)}:</label><input type="text" id="ny" value="${startDispY}"></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯", "point")}${okBtn()}</div></div>
                 ${hasChain ? `<div id="numChainInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>` : ''}`;
         break;
       case "line":
         html = `<div class="input-row">${axisPair(
-                  `<div class="num-coord-field"><label>${lbl(H+'1')}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
-                  `<div class="num-coord-field"><label>${lbl(V+'1')}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
+                  `<div class="num-coord-field"><label>${lbl(HL+'1')}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
+                  `<div class="num-coord-field"><label>${lbl(VL+'1')}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯", "p1")}</div></div>
                 <div class="input-row">${axisPair(
-                  `<div class="num-coord-field"><label>${lbl(H+'2')}:</label><input type="text" id="nx2" value=""></div>`,
-                  `<div class="num-coord-field"><label>${lbl(V+'2')}:</label><input type="text" id="ny2" value=""></div>`
+                  `<div class="num-coord-field"><label>${lbl(HL+'2')}:</label><input type="text" id="nx2" value=""></div>`,
+                  `<div class="num-coord-field"><label>${lbl(VL+'2')}:</label><input type="text" id="ny2" value=""></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯", "p2")}</div></div>
                 <div id="numLineInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>
@@ -845,8 +851,8 @@ export function initNumericalTab(container, { picker = null } = {}) {
         break;
       case "circle":
         html = `<div class="input-row">${axisPair(
-                  `<div class="num-coord-field"><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
-                  `<div class="num-coord-field"><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
+                  `<div class="num-coord-field"><label>${lbl('Střed '+HL)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
+                  `<div class="num-coord-field"><label>${lbl('Střed '+VL)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯", "center")}</div></div>
                 <div class="input-row"><div class="num-coord-field"><label>Poloměr:</label><input type="text" id="nr" value="10"></div>
@@ -861,18 +867,18 @@ export function initNumericalTab(container, { picker = null } = {}) {
                 </div>`;
         const shapeRows = arcMode === 'endpoints'
           ? `<div class="input-row">${axisPair(
-                  `<div class="num-coord-field"><label>${lbl('Start '+H)}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
-                  `<div class="num-coord-field"><label>${lbl('Start '+V)}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
+                  `<div class="num-coord-field"><label>${lbl('Start '+HL)}:</label><input type="text" id="nx1" value="${startDispX}"></div>`,
+                  `<div class="num-coord-field"><label>${lbl('Start '+VL)}:</label><input type="text" id="ny1" value="${startDispY}"></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯", "p1")}</div></div>
                 <div class="input-row">${axisPair(
-                  `<div class="num-coord-field"><label>${lbl('Konec '+H)}:</label><input type="text" id="nx2" value=""></div>`,
-                  `<div class="num-coord-field"><label>${lbl('Konec '+V)}:</label><input type="text" id="ny2" value=""></div>`
+                  `<div class="num-coord-field"><label>${lbl('Konec '+HL)}:</label><input type="text" id="nx2" value=""></div>`,
+                  `<div class="num-coord-field"><label>${lbl('Konec '+VL)}:</label><input type="text" id="ny2" value=""></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯", "p2")}</div></div>`
           : `<div class="input-row">${axisPair(
-                  `<div class="num-coord-field"><label>${lbl('Střed '+H)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
-                  `<div class="num-coord-field"><label>${lbl('Střed '+V)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
+                  `<div class="num-coord-field"><label>${lbl('Střed '+HL)}:</label><input type="text" id="ncx" value="${startDispX}"></div>`,
+                  `<div class="num-coord-field"><label>${lbl('Střed '+VL)}:</label><input type="text" id="ncy" value="${startDispY}"></div>`
                 )}
                 <div class="pick-col">${pickBtn("🎯", "center")}</div></div>
                 <div class="input-row">
@@ -904,14 +910,15 @@ export function initNumericalTab(container, { picker = null } = {}) {
           const setPair = (xSel, ySel) => {
             const fx = container.querySelector(xSel);
             const fy = container.querySelector(ySel);
-            if (fx) fx.value = dp.x.toFixed(3);
-            if (fy) fy.value = dp.y.toFixed(3);
+            if (fx) fx.value = dH(dp.x).toFixed(3);
+            if (fy) fy.value = dV(dp.y).toFixed(3);
           };
           /** Absolutní střed oblouku/kružnice a úhel kliknutého bodu od něj. */
           const fromCenter = () => {
             const cx = safeEvalMath(container.querySelector("#ncx")?.value) || 0;
             const cy = safeEvalMath(container.querySelector("#ncy")?.value) || 0;
-            const c = isInc ? fromIncToAbs(cx, cy) : { x: cx, y: cy };
+            const cw = fieldToWorld(cx, cy);
+            const c = isInc ? fromIncToAbs(cw.x, cw.y) : cw;
             return { c, deg: Math.atan2(wy - c.y, wx - c.x) * 180 / Math.PI };
           };
 
@@ -957,7 +964,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
               break;
             }
           }
-          showToast(`Bod: X${wx.toFixed(2)} Z${wy.toFixed(2)}`);
+          showToast(`Bod: ${HL}${dH(wx).toFixed(2)} ${VL}${dV(wy).toFixed(2)}`);
           scheduleNumPreview();
         }, btn);
       });
@@ -979,10 +986,8 @@ export function initNumericalTab(container, { picker = null } = {}) {
     function updateLineInfo() {
       const info = fieldsDiv.querySelector("#numLineInfo");
       if (!info) return;
-      const x1 = safeEvalMath(fieldsDiv.querySelector("#nx1")?.value);
-      const y1 = safeEvalMath(fieldsDiv.querySelector("#ny1")?.value);
-      const x2 = safeEvalMath(fieldsDiv.querySelector("#nx2")?.value);
-      const y2 = safeEvalMath(fieldsDiv.querySelector("#ny2")?.value);
+      const { x: x1, y: y1 } = fieldToWorld(safeEvalMath(fieldsDiv.querySelector("#nx1")?.value), safeEvalMath(fieldsDiv.querySelector("#ny1")?.value));
+      const { x: x2, y: y2 } = fieldToWorld(safeEvalMath(fieldsDiv.querySelector("#nx2")?.value), safeEvalMath(fieldsDiv.querySelector("#ny2")?.value));
       if ([x1,y1,x2,y2].every(v => isFinite(v))) {
         const d = Math.hypot(x2-x1, y2-y1);
         const a = Math.atan2(y2-y1, x2-x1) * 180 / Math.PI;
@@ -1017,13 +1022,12 @@ export function initNumericalTab(container, { picker = null } = {}) {
         // .value= v updateLineInfo() žádný input event nevyvolává) – od
         // teď je pro createObject() autoritativní tahle dvojice, ne X2/Z2.
         lineUsesLenAng = true;
-        const x1 = safeEvalMath(fieldsDiv.querySelector("#nx1")?.value) || 0;
-        const y1 = safeEvalMath(fieldsDiv.querySelector("#ny1")?.value) || 0;
+        const { x: x1, y: y1 } = fieldToWorld(safeEvalMath(fieldsDiv.querySelector("#nx1")?.value) || 0, safeEvalMath(fieldsDiv.querySelector("#ny1")?.value) || 0);
         const rad = (ang * Math.PI) / 180;
         const nx2 = fieldsDiv.querySelector("#nx2");
         const ny2 = fieldsDiv.querySelector("#ny2");
-        if (nx2) nx2.value = (x1 + len * Math.cos(rad)).toFixed(3);
-        if (ny2) ny2.value = (y1 + len * Math.sin(rad)).toFixed(3);
+        if (nx2) nx2.value = dH(x1 + len * Math.cos(rad)).toFixed(3);
+        if (ny2) ny2.value = dV(y1 + len * Math.sin(rad)).toFixed(3);
         // Update info text
         const info = fieldsDiv.querySelector("#numLineInfo");
         if (info) info.textContent = `Délka: ${len.toFixed(3)} mm  |  Úhel: ${ang.toFixed(2)}°`;
@@ -1046,7 +1050,8 @@ export function initNumericalTab(container, { picker = null } = {}) {
       const ny = safeEvalMath(fieldsDiv.querySelector("#ny")?.value);
       if (isFinite(nx) && isFinite(ny)) {
         // V INC režimu pole obsahuje delta – převést na absolutní pro porovnání s chain
-        const abs = isInc ? fromIncToAbs(nx, ny) : { x: nx, y: ny };
+        const w = fieldToWorld(nx, ny);
+        const abs = isInc ? fromIncToAbs(w.x, w.y) : w;
         const d = Math.hypot(abs.x - state.numDialogChain.x, abs.y - state.numDialogChain.y);
         const a = Math.atan2(abs.y - state.numDialogChain.y, abs.x - state.numDialogChain.x) * 180 / Math.PI;
         info.textContent = `Od předchozího: ${d.toFixed(3)} mm  |  Úhel: ${a.toFixed(2)}°`;

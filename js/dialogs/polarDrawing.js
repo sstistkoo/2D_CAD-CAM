@@ -5,6 +5,12 @@
 import { COLORS, SNAP_POINT_THRESHOLD } from '../constants.js';
 import { makeInputOverlay, onOverlayRemoved, focusInput } from '../dialogFactory.js';
 import { state, showToast, axisLabels } from '../state.js';
+import { dH, dV, pfxH, pfxV, fieldToWorld } from './diamAxis.js';
+
+// Popisky os s ⌀ na ose X (režim průměru) – [vodorovná, svislá].
+const refLabels = () => { const [H, V] = axisLabels(); return [pfxH() + H, pfxV() + V]; };
+/** World bod → text pole ref. bodu (⌀ na ose X). */
+const fmtRef = (x, y) => [String(+dH(x).toFixed(3)), String(+dV(y).toFixed(3))];
 import { addObject } from '../objects.js';
 import { screenToWorld, snapPt, drawCanvas } from '../canvas.js';
 import { safeEvalMath, bulgeToArc } from '../utils.js';
@@ -158,8 +164,8 @@ export function showPolarDrawingDialog() {
       </div>
       <label>Referenční bod:</label>
       <div class="input-row">
-        <div><label>${axisLabels()[0]}:</label><input type="text" id="polRefX" value="${refX}"></div>
-        <div><label>${axisLabels()[1]}:</label><input type="text" id="polRefZ" value="${refZ}"></div>
+        <div><label>${refLabels()[0]}:</label><input type="text" id="polRefX" value="${fmtRef(refX, refZ)[0]}"></div>
+        <div><label>${refLabels()[1]}:</label><input type="text" id="polRefZ" value="${fmtRef(refX, refZ)[1]}"></div>
       </div>
       <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
         <button class="btn-ok" id="polMarkRef" style="font-size:16px;padding:4px 8px" title="Označit ref. bod">📍</button>
@@ -231,6 +237,10 @@ export function showPolarDrawingDialog() {
 
   const polRefX = overlay.querySelector("#polRefX");
   const polRefZ = overlay.querySelector("#polRefZ");
+  /** Ref. bod z polí → world (⌀ na ose X se půlí). */
+  const readRef = () => fieldToWorld(safeEvalMath(polRefX.value), safeEvalMath(polRefZ.value));
+  /** World bod → pole ref. bodu. */
+  const setRef = (x, y) => { [polRefX.value, polRefZ.value] = fmtRef(x, y); };
   const polLen = overlay.querySelector("#polLen");
   const polAng = overlay.querySelector("#polAng");
   const polType = overlay.querySelector("#polType");
@@ -256,8 +266,7 @@ export function showPolarDrawingDialog() {
   let _lastAddHistoryDiv = null;
 
   overlay.querySelector("#polMarkRef").addEventListener("click", () => {
-    const rx = safeEvalMath(polRefX.value);
-    const rz = safeEvalMath(polRefZ.value);
+    const { x: rx, y: rz } = readRef();
     if (isNaN(rx) || isNaN(rz)) return;
     addObject({
       type: "point",
@@ -265,7 +274,7 @@ export function showPolarDrawingDialog() {
       y: rz,
       name: `Ref ${state.nextId}`,
     });
-    showToast(`Referenční bod ${axisLabels()[0]}${rx} ${axisLabels()[1]}${rz} vytvořen`);
+    showToast(`Referenční bod ${refLabels()[0]}${fmtRef(rx, rz)[0]} ${refLabels()[1]}${fmtRef(rx, rz)[1]} vytvořen`);
   });
 
   overlay
@@ -277,17 +286,13 @@ export function showPolarDrawingDialog() {
       }
       const sel = state.objects[state.selected];
       if (sel.type === "point") {
-        polRefX.value = sel.x;
-        polRefZ.value = sel.y;
+        setRef(sel.x, sel.y);
       } else if (sel.type === "line" || sel.type === "constr") {
-        polRefX.value = sel.x2;
-        polRefZ.value = sel.y2;
+        setRef(sel.x2, sel.y2);
       } else if (sel.type === "circle" || sel.type === "arc") {
-        polRefX.value = sel.cx;
-        polRefZ.value = sel.cy;
+        setRef(sel.cx, sel.cy);
       } else if (sel.type === "rect") {
-        polRefX.value = sel.x1;
-        polRefZ.value = sel.y1;
+        setRef(sel.x1, sel.y1);
       }
       showToast("Ref. bod načten z vybraného objektu");
     });
@@ -311,10 +316,9 @@ export function showPolarDrawingDialog() {
       let [wx, wy] = screenToWorld(sx, sy);
       if (state.snapToPoints) [wx, wy] = snapPt(wx, wy);
       cleanup();
-      polRefX.value = parseFloat(wx.toFixed(3));
-      polRefZ.value = parseFloat(wy.toFixed(3));
+      setRef(wx, wy);
       overlay.style.display = "flex";
-      showToast(`Ref. bod nastaven: ${axisLabels()[0]}${polRefX.value} ${axisLabels()[1]}${polRefZ.value}`);
+      showToast(`Ref. bod nastaven: ${refLabels()[0]}${polRefX.value} ${refLabels()[1]}${polRefZ.value}`);
     }
 
     function onTouch(e) {
@@ -326,11 +330,10 @@ export function showPolarDrawingDialog() {
         let [wx, wy] = screenToWorld(sx, sy);
         if (state.snapToPoints) [wx, wy] = snapPt(wx, wy);
         cleanup();
-        polRefX.value = parseFloat(wx.toFixed(3));
-        polRefZ.value = parseFloat(wy.toFixed(3));
+        setRef(wx, wy);
         overlay.style.display = "flex";
         e.preventDefault();
-        showToast(`Ref. bod nastaven: ${axisLabels()[0]}${polRefX.value} ${axisLabels()[1]}${polRefZ.value}`);
+        showToast(`Ref. bod nastaven: ${refLabels()[0]}${polRefX.value} ${refLabels()[1]}${polRefZ.value}`);
       }
     }
 
@@ -340,8 +343,7 @@ export function showPolarDrawingDialog() {
   });
 
   overlay.querySelector("#polAdd").addEventListener("click", () => {
-    const rx = safeEvalMath(polRefX.value);
-    const rz = safeEvalMath(polRefZ.value);
+    const { x: rx, y: rz } = readRef();
     const len = safeEvalMath(polLen.value);
     const angDeg = safeEvalMath(polAng.value);
     if (
@@ -363,7 +365,8 @@ export function showPolarDrawingDialog() {
     const endZ = rz + len * Math.sin(rad);
     const typ = polType.value;
 
-    const historyLine = `#${segCount + 1}: ${axisLabels()[0]}${rx.toFixed(2)} ${axisLabels()[1]}${rz.toFixed(2)} → d=${len} ∠${angDeg}° → ${axisLabels()[0]}${endX.toFixed(2)} ${axisLabels()[1]}${endZ.toFixed(2)}`;
+    const [hl, vl] = refLabels();
+    const historyLine = `#${segCount + 1}: ${hl}${dH(rx).toFixed(2)} ${vl}${dV(rz).toFixed(2)} → d=${len} ∠${angDeg}° → ${hl}${dH(endX).toFixed(2)} ${vl}${dV(endZ).toFixed(2)}`;
 
     if (typ === "point") {
       addObject({
@@ -424,8 +427,7 @@ export function showPolarDrawingDialog() {
     polHistory.scrollTop = polHistory.scrollHeight;
 
     if (polChain.checked) {
-      polRefX.value = endX.toFixed(3);
-      polRefZ.value = endZ.toFixed(3);
+      setRef(endX, endZ);
     }
 
     focusInput(polLen, { select: true });

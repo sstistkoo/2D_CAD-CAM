@@ -5,7 +5,8 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { makeInputOverlay, focusInput } from '../dialogFactory.js';
-import { state, pushUndo, showToast, axisLabels, displayX, inputX, xPrefix } from '../state.js';
+import { state, pushUndo, showToast, axisLabels } from '../state.js';
+import { dV, iV, dH, iH, pfxV, pfxH } from './diamAxis.js';
 import { safeEvalMath } from '../utils.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { updateObjectList, resetHint } from '../ui.js';
@@ -13,16 +14,6 @@ import { renderAll } from '../render.js';
 import { addPolylineAsSegments } from '../objects.js';
 import { getLineStyle } from '../lineStyles.js';
 import { updateAssociativeDimensions } from './dimension.js';
-
-// Režim průměru patří ose X: na soustruhu je svislá (wy), na karuselu
-// vodorovná (wx) – stejně jako export/import G-kódu (gcodeParse.toCanvas).
-const xIsH = () => state.machineType === 'karusel';
-const dV = (v) => xIsH() ? v : displayX(v);
-const iV = (v) => xIsH() ? v : inputX(v);
-const dH = (v) => xIsH() ? displayX(v) : v;
-const iH = (v) => xIsH() ? inputX(v) : v;
-const pfxV = () => xIsH() ? '' : xPrefix();
-const pfxH = () => xIsH() ? xPrefix() : '';
 
 /**
  * Zobrazí post-draw dialog pro úsečku (line/constr).

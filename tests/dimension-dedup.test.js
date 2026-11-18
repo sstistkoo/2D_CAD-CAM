@@ -131,3 +131,30 @@ describe('duplicitní kóty', () => {
     expect(r).not.toBeNull();
   });
 });
+
+describe('kóty natočeného obdélníku', () => {
+  it('leží podél natočených hran a po dalším natočení si drží šířku/výšku', async () => {
+    const { updateAssociativeDimensions } = await import('../js/dialogs/dimension.js');
+    const { getRectCorners } = await import('../js/utils.js');
+    const rect = addObject({ type: 'rect', x1: 0, y1: 0, x2: 40, y2: 20, rotation: Math.PI / 6 });
+    addDimensionForObject(rect);
+    const check = () => {
+      const [, c1, c2, c3] = getRectCorners(rect);
+      const [w, h] = dims();
+      const near = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) < 1e-9;
+      // šířka = hrana c3–c2 (horní), výška = hrana c1–c2 (pravá)
+      expect(near({ x: w.dimSrcX1, y: w.dimSrcY1 }, c3) && near({ x: w.dimSrcX2, y: w.dimSrcY2 }, c2)).toBe(true);
+      expect(near({ x: h.dimSrcX1, y: h.dimSrcY1 }, c1) && near({ x: h.dimSrcX2, y: h.dimSrcY2 }, c2)).toBe(true);
+      expect(Math.hypot(w.x2 - w.x1, w.y2 - w.y1)).toBeCloseTo(40, 9);
+      expect(Math.hypot(h.x2 - h.x1, h.y2 - h.y1)).toBeCloseTo(20, 9);
+      expect(w.name).toBe('Kóta 40.00mm');
+      expect(h.name).toBe('Kóta 20.00mm');
+    };
+    check();
+    rect.rotation = 1.1; rect.x2 = 50;   // natočit a rozšířit
+    updateAssociativeDimensions();
+    expect(dims()[0].name).toBe('Kóta 50.00mm');
+    rect.x2 = 40; updateAssociativeDimensions();
+    check();
+  });
+});
