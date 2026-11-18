@@ -183,24 +183,28 @@ export function importDXFFile() {
           showToast(errors.length > 0 ? `Chyba: ${errors[0]}` : 'Žádné entity v DXF souboru');
           return;
         }
+        // Neplatné entity se vyřadí PŘED zápisem (žádný prázdný krok Zpět)
+        const numProps = ['x1','y1','x2','y2','cx','cy','r','startAngle','endAngle','x','y','fontSize'];
+        const okEntity = (en) => numProps.every(p => !(p in en) || isFinite(en[p]))
+          && (en.type !== 'polyline' || (Array.isArray(en.vertices) && en.vertices.every(v => v && isFinite(v.x) && isFinite(v.y))));
+        const good = entities.filter(en => {
+          if (okEntity(en)) return true;
+          errors.push(`Neplatné souřadnice v entitě ${en.type}`);
+          return false;
+        });
+        if (good.length === 0) { showToast(`Chyba: ${errors[0] || 'žádná platná entita'}`); return; }
         pushUndo();
         const typeNames = {
           point: 'Bod', line: 'Úsečka', circle: 'Kružnice',
           arc: 'Oblouk', polyline: 'Kontura', text: 'Text'
         };
-        for (const entity of entities) {
+        for (const entity of good) {
           entity.id = state.nextId++;
           entity.name = `${typeNames[entity.type] || entity.type} ${entity.id}`;
           if (entity.layer === undefined) entity.layer = state.activeLayer;
-          // Validate numeric coordinates before adding
-          const numProps = ['x1','y1','x2','y2','cx','cy','r','startAngle','endAngle','x','y','fontSize'];
-          let valid = true;
-          for (const p of numProps) {
-            if (p in entity && !isFinite(entity[p])) { valid = false; break; }
-          }
-          if (!valid) { errors.push(`Neplatné souřadnice v entitě ${entity.type}`); continue; }
           state.objects.push(entity);
         }
+        const added = good.length;
         state.selected = null;
         state.multiSelected.clear();
         state.selectedPoint = null;
@@ -208,7 +212,7 @@ export function importDXFFile() {
         updateProperties();
         calculateAllIntersections();
         autoCenterView();
-        let msg = `Importováno ${entities.length} objektů z DXF`;
+        let msg = `Importováno ${added} objektů z DXF`;
         if (errors.length > 0) msg += ` (${errors.length} varování)`;
         showToast(msg);
         if (errors.length > 0) console.warn('DXF import warnings:', errors);
@@ -356,7 +360,7 @@ export function importSVGFile() {
   input.click();
 }
 
-function parseSVGToObjects(svgText) {
+export function parseSVGToObjects(svgText) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgText, 'image/svg+xml');
   const objs = [];
@@ -369,29 +373,35 @@ function parseSVGToObjects(svgText) {
     objs.push(obj);
   }
 
+  /** Číselný atribut i s jednotkou („10mm", „5px"); chybějící/neplatný = 0. */
+  const svgNum = (el, name) => {
+    const v = parseFloat(el.getAttribute(name));
+    return Number.isFinite(v) ? v : 0;
+  };
+
   function processElement(el) {
     const tag = (el.tagName || '').toLowerCase().replace(/^svg:/, '');
     switch (tag) {
       case 'line': {
-        const x1 = +(el.getAttribute('x1') || 0);
-        const y1 = -(+(el.getAttribute('y1') || 0));
-        const x2 = +(el.getAttribute('x2') || 0);
-        const y2 = -(+(el.getAttribute('y2') || 0));
+        const x1 = svgNum(el, 'x1');
+        const y1 = -(svgNum(el, 'y1'));
+        const x2 = svgNum(el, 'x2');
+        const y2 = -(svgNum(el, 'y2'));
         if (Math.hypot(x2 - x1, y2 - y1) > 1e-6) addObj({ type: 'line', x1, y1, x2, y2 });
         break;
       }
       case 'circle': {
-        const cx = +(el.getAttribute('cx') || 0);
-        const cy = -(+(el.getAttribute('cy') || 0));
-        const r = +(el.getAttribute('r') || 0);
+        const cx = svgNum(el, 'cx');
+        const cy = -(svgNum(el, 'cy'));
+        const r = svgNum(el, 'r');
         if (r > 0) addObj({ type: 'circle', cx, cy, r });
         break;
       }
       case 'rect': {
-        const x = +(el.getAttribute('x') || 0);
-        const y = +(el.getAttribute('y') || 0);
-        const w = +(el.getAttribute('width') || 0);
-        const h = +(el.getAttribute('height') || 0);
+        const x = svgNum(el, 'x');
+        const y = svgNum(el, 'y');
+        const w = svgNum(el, 'width');
+        const h = svgNum(el, 'height');
         if (w > 0 && h > 0) addObj({ type: 'rect', x1: x, y1: -(y + h), x2: x + w, y2: -y });
         break;
       }
@@ -400,7 +410,8 @@ function parseSVGToObjects(svgText) {
         const pts = parseSVGPointsList(el.getAttribute('points') || '');
         if (pts.length >= 2) {
           const vertices = pts.map(p => ({ x: p.x, y: -p.y }));
-          addObj({ type: 'polyline', vertices, bulges: new Array(vertices.length).fill(0), closed: tag === 'polygon' });
+          const closed = tag === 'polygon';
+          addObj({ type: 'polyline', vertices, bulges: new Array(closed ? vertices.length : vertices.length - 1).fill(0), closed });
         }
         break;
       }

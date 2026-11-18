@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Vybarvit na karuselu uzavře profil k ose** (uživatel 18. 11. 2026). Otevřený profil s oběma konci na ose rotace se na soustruhu uzavíral podél osy, na karuselu vůbec. Výkres je na karuselu prohozený a osa rotace je svislá (x = 0) – profil i mezikruží kontura × polotovar se teď uzavřou k ní.
+- **Import SVG a DXF** (kontrola 18. 11. 2026). SVG s čísly s jednotkou (`cx="10mm"`, `width="5px"`) dřív dávalo NaN – objekt se přidal a zmizel z výkresu. Otevřená kontura z `<polyline>` měla o jeden bulge navíc. DXF: entity s neplatnými souřadnicemi se vyřadí před zápisem (soubor jen s neplatnými entitami už nevytvoří prázdný krok Zpět), kontrolují se i vrcholy kontury a hláška počítá jen skutečně přidané objekty.
 - **Otevření projektu vyčistí historii Zpět** (uživatel 18. 11. 2026). Zpět po otevření jiného projektu (i z knihovny) vrátilo výkres předchozího projektu, ale pod názvem nově otevřeného – autosave jím pak ten projekt za 3 s přepsal. Otevřený projekt se navíc hned zapíše jako rozkreslený výkres, takže ho obnovení stránky nevrátí na předchozí.
 - **Export / import projektu (.json)**: soubor se jmenuje podle projektu a data (dřív vždy skica_projekt.json), nese nulový bod (INC se po importu měří od stejného bodu) a import přijme jen platný typ stroje.
 - **Uložit jako se zeptá před přepsáním** (kontrola 18. 11. 2026). Zadání názvu jiného už uloženého projektu ho dřív tiše přepsalo aktuálním výkresem; teď se nejdřív zeptá.
