@@ -11,6 +11,7 @@ import { saveProjectToDB, loadProjectFromDB, deleteProjectFromDB, getAllProjects
 import { deepClone, expandPolylineObjects } from '../utils.js';
 import { saveSettings } from './settingsStore.js';
 import { escapeHtml as _esc } from '../htmlEscape.js';
+import { showConfirmDialog } from '../dialogFactory.js';
 
 // ── Pomocné funkce ──
 
@@ -22,9 +23,13 @@ async function _saveToProjects(name, data) {
   });
 }
 
-function _buildProjectData() {
+/** Data výkresu k uložení (projekt, autosave, zavření okna). */
+export function buildProjectData() {
   return {
     version: 4,
+    // Název se ukládá i do rozkresleného výkresu – po obnovení stránky se
+    // pak autosave a Ctrl+S dál zapisují do TOHO projektu, ne do „Bez názvu".
+    projectName: state.projectName,
     // Geometrie nástroje (destička + držák) pro knihovnu nožů — čte se z CAM
     // přes bridge (S.params je closure), null když CAM v této relaci nebylo.
     camTool: (bridge.getCamToolGeometry && bridge.getCamToolGeometry()) || null,
@@ -129,7 +134,7 @@ function _loadProjectData(data) {
  *   ruční uložení (Ctrl+S, tlačítko Uložit) zůstává viditelné.
  */
 export async function saveProject({ quiet = false } = {}) {
-  const data = _buildProjectData();
+  const data = buildProjectData();
   saveSettings();   // před zápisem do IDB — ten může selhat (plné úložiště)
   await setMeta('currentProjectData', data);
   await _saveToProjects(state.projectName, data);
@@ -273,8 +278,18 @@ export function showSaveAsDialog() {
   async function doSave() {
     const name = inp.value.trim();
     if (!name) return;
+    // Jiný už uložený projekt stejného jména se dřív tiše přepsal
+    if (name !== state.projectName && await loadProjectFromDB(name)) {
+      showConfirmDialog(`Projekt „${name}“ už existuje. Přepsat ho aktuálním výkresem?`,
+        () => { writeAs(name); }, { confirmLabel: 'Přepsat' });
+      return;
+    }
+    await writeAs(name);
+  }
+
+  async function writeAs(name) {
     state.projectName = name;
-    const data = _buildProjectData();
+    const data = buildProjectData();
     await setMeta('currentProjectData', data);
     await _saveToProjects(name, data);
     updateStatusProject();
@@ -497,7 +512,7 @@ export async function showLibraryDialog() {
   overlay.querySelector('#libSaveCurrent').addEventListener('click', async () => {
     const name = prompt('Název v knihovně:', state.projectName || 'Bez názvu');
     if (name && name.trim()) {
-      const data = _buildProjectData();
+      const data = buildProjectData();
       library.unshift({
         id: 'lib_' + Date.now(),
         name: name.trim(),

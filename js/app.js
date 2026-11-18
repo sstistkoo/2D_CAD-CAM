@@ -9,6 +9,7 @@ import { resizeCanvases, autoCenterView } from './canvas.js';
 import { calculateAllIntersections } from './geometry.js';
 import { updateObjectList, updateProperties, resetHint, updateDimsBtn, updateSnapPtsBtn, updateCoordModeBtn, updateMachineTypeBtn, updateXDisplayBtn, updateSnapGridBtn, togglePanel, updateLayerList, updateStatusProject, checkFirstRunHelp, updateAngleSnapBtn, updateNullPointUI } from './ui.js';
 import { initAutoSave } from './storage.js';
+import { buildProjectData } from './storage/projectManager.js';
 import { restoreSettings, saveSettings, initSettingsAutoSave } from './storage/settingsStore.js';
 import { getMeta, setMeta, migrateFromLocalStorage } from './idb.js';
 import { bridge } from './bridge.js';
@@ -71,6 +72,7 @@ async function tryAutoLoad() {
   // prázdnému výkresu a i když čtení výkresu z IDB selže — ukládá se zvlášť,
   // viz js/storage/settingsStore.js. Dřív jen z výkresu s objekty.
   restoreSettings(data);
+  if (data && typeof data.projectName === 'string' && data.projectName.trim()) state.projectName = data.projectName;
   try {
     if (data && data.objects && data.objects.length > 0) {
       const _exp = expandPolylineObjects(data.objects, data.nextId || 1);
@@ -100,35 +102,7 @@ async function tryAutoLoad() {
 setInterval(() => {
   saveSettings();
   if (state.objects.length > 0) {
-    const data = {
-      version: 1.6,
-      objects: state.objects,
-      intersections: state.intersections,
-      nextId: state.nextId,
-      gridSize: state.gridSize,
-      coordMode: state.coordMode,
-      incReference: state.incReference,
-      nullPointActive: state.nullPointActive,
-      nullPointAngle: state.nullPointAngle,
-      machineType: state.machineType,
-      xDisplayMode: state.xDisplayMode,
-      layers: state.layers,
-      activeLayer: state.activeLayer,
-      nextLayerId: state.nextLayerId,
-      anchors: state.anchors,
-      showObjectNumbers: state.showObjectNumbers,
-      showIntersectionNumbers: state.showIntersectionNumbers,
-      displayDecimals: state.displayDecimals,
-      theme: state.theme,
-      snapToGrid: state.snapToGrid,
-      angleSnap: state.angleSnap,
-      angleSnapStep: state.angleSnapStep,
-      showDimensions: state.showDimensions,
-      snapQuadrants: state.snapQuadrants,
-      snapMidpoints: state.snapMidpoints,
-      snapCenters: state.snapCenters,
-      undoStack: state.undoStack,
-    };
+    const data = buildProjectData();
     setMeta('currentProjectData', data).catch(err => {
       if (err && err.name === 'QuotaExceededError') {
         showToast('Úložiště je plné – auto-save selhal');
@@ -142,35 +116,7 @@ setInterval(() => {
 // ── Uložení při zavření okna ──
 window.addEventListener('beforeunload', () => {
   if (state.objects.length > 0) {
-    const data = {
-      version: 1.6,
-      objects: state.objects,
-      intersections: state.intersections,
-      nextId: state.nextId,
-      gridSize: state.gridSize,
-      coordMode: state.coordMode,
-      incReference: state.incReference,
-      nullPointActive: state.nullPointActive,
-      nullPointAngle: state.nullPointAngle,
-      machineType: state.machineType,
-      xDisplayMode: state.xDisplayMode,
-      layers: state.layers,
-      activeLayer: state.activeLayer,
-      nextLayerId: state.nextLayerId,
-      anchors: state.anchors,
-      showObjectNumbers: state.showObjectNumbers,
-      showIntersectionNumbers: state.showIntersectionNumbers,
-      displayDecimals: state.displayDecimals,
-      theme: state.theme,
-      snapToGrid: state.snapToGrid,
-      angleSnap: state.angleSnap,
-      angleSnapStep: state.angleSnapStep,
-      showDimensions: state.showDimensions,
-      snapQuadrants: state.snapQuadrants,
-      snapMidpoints: state.snapMidpoints,
-      snapCenters: state.snapCenters,
-      undoStack: state.undoStack,
-    };
+    const data = buildProjectData();
     // Synchronní pokus o uložení – navigator.sendBeacon není vhodný pro IDB,
     // ale setMeta spustí IDB transakci, která doběhne i po unload
     setMeta('currentProjectData', data).catch(() => {});
