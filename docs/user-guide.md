@@ -262,6 +262,12 @@ zvoleného typu (`Tlustá`, `Tenká`, `Čárk.`, `Čerch.`, `2čerch`, `Konstr`)
 3. Klikni na druhý objekt
 4. Tečna se vytvoří automaticky
 
+**Dvě kružnice** (výběr obou, nebo klik na kružnici a pak na druhou) otevřou okno
+**Tečna ke dvěma kružnicím**: zaškrtni tečné úsečky (vnější jsou předvybrané,
+vnitřní jen u kružnic, které se nepřekrývají) a ✓ Vytvořit – všechny jsou jeden
+krok Zpět. Druhá volba místo toho přesune kružnici 1 tečně ke kružnici 2;
+při klikání lze kružnici 2 vzít i jako vazbu a pokračovat dalším segmentem.
+
 ### Offset (vnější/vnitřní křivka)
 Dialog nabízí dva režimy:
 

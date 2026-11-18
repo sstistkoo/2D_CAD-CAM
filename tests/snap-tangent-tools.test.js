@@ -65,3 +65,72 @@ describe('Tečna', () => {
     expect(tangent.tangentCountText(5)).toBe('5 tečen');
   });
 });
+
+describe('Tečna ke dvěma kružnicím (uživatel 18. 11. 2026)', () => {
+  let t2;
+  beforeAll(async () => { t2 = await import('../js/tools/tangentTwoCircles.js'); });
+  const C = (cx, cy, r) => ({ cx, cy, r });
+  const touches = (t, c) => {
+    // úsečka je tečná: vzdálenost středu od přímky = r a konec leží na kružnici
+    const dx = t.x2 - t.x1, dy = t.y2 - t.y1, len = Math.hypot(dx, dy);
+    const dist = Math.abs(dx * (c.cy - t.y1) - dy * (c.cx - t.x1)) / len;
+    return Math.abs(dist - c.r) < 1e-9;
+  };
+
+  it('oddělené kružnice: 2 vnější + 2 vnitřní, všechny tečné k oběma', () => {
+    const a = C(0, 0, 10), b = C(50, 0, 5);
+    const ts = t2.twoCircleTangents(a, b);
+    expect(ts.map(t => t.label)).toEqual(['Vnější tečna 1', 'Vnější tečna 2', 'Vnitřní tečna 1', 'Vnitřní tečna 2']);
+    for (const t of ts) { expect(touches(t, a)).toBe(true); expect(touches(t, b)).toBe(true); }
+    // vnitřní tečna protíná spojnici středů (y = 0), vnější ne
+    for (const t of ts) expect(t.y1 * t.y2 < 0).toBe(t.kind === 'inner');
+  });
+
+  it('protínající se kružnice: jen 2 vnější', () => {
+    expect(t2.twoCircleTangents(C(0, 0, 10), C(15, 0, 10)).map(t => t.kind)).toEqual(['outer', 'outer']);
+  });
+
+  it('dotýkající se zvenku: nulová vnitřní tečna se nenabídne', () => {
+    expect(t2.twoCircleTangents(C(0, 0, 10), C(20, 0, 10)).map(t => t.kind)).toEqual(['outer', 'outer']);
+  });
+
+  it('kružnice uvnitř druhé: žádná tečná úsečka', () => {
+    expect(t2.twoCircleTangents(C(0, 0, 20), C(2, 0, 5))).toEqual([]);
+  });
+
+  it('výběr 2 kružnic → okno; vnější předvybrané, vytvoří se jako jeden krok Zpět', () => {
+    state.objects = [
+      { type: 'circle', id: 1, cx: 0, cy: 0, r: 10, layer: 0 },
+      { type: 'circle', id: 2, cx: 50, cy: 0, r: 5, layer: 0 },
+    ];
+    state.selected = 0;
+    state.multiSelected = new Set([1]);
+    state.multiSelectedSegments = new Map();
+    state.selectedPoint = null;
+    expect(tangent.tangentFromSelection()).toBe(true);
+    const boxes = [...document.querySelectorAll('.input-overlay input[type=checkbox]')];
+    expect(boxes.map(b => b.checked)).toEqual([true, true, false, false]);
+    const undo = state.undoStack.length;
+    document.querySelector('#t2c-lines').click();
+    expect(state.objects.filter(o => o.type === 'line')).toHaveLength(2);
+    expect(state.undoStack.length).toBe(undo + 1);
+    // kružnice se nepohnuly
+    expect(state.objects[0]).toMatchObject({ cx: 0, cy: 0 });
+  });
+
+  it('volba „přesunout" zachová dřívější chování (kružnice 1 tečně ke 2)', () => {
+    state.objects = [
+      { type: 'circle', id: 1, cx: 0, cy: 0, r: 10, layer: 0 },
+      { type: 'circle', id: 2, cx: 50, cy: 0, r: 5, layer: 0 },
+    ];
+    state.selected = 0;
+    state.multiSelected = new Set([1]);
+    tangent.tangentFromSelection();
+    document.querySelector('#t2c-move').click();
+    // 2 polohy → okno polohy; vezmi první nabízenou
+    const pick = document.querySelector('.input-overlay button.btn-ok');
+    pick?.click();
+    const c = state.objects[0];
+    expect(Math.hypot(c.cx - 50, c.cy)).toBeCloseTo(15, 6);
+  });
+});

@@ -10,7 +10,7 @@ import { addObject } from '../objects.js';
 import { setHint, resetHint } from '../ui.js';
 import {
   findObjectAt, findSegmentAt, calculateAllIntersections,
-  tangentsFromPointToCircle, tangentsTwoCircles,
+  tangentsFromPointToCircle,
   circlePositionsTangentToLine, circlePositionsTangentToTwoLines,
   circlePositionsTangentToLineAndPoint, circlePositionsTangentToCircleAndLine,
   circlePositionsTangentToCircleAndPoint,
@@ -20,6 +20,8 @@ import {
 } from '../geometry.js';
 import { showTangentChoiceDialog, showTangentPositionDialog } from '../dialogs.js';
 import { hasAnchoredPoint } from './anchorClick.js';
+import { twoCircleTangents } from './tangentTwoCircles.js';
+import { showTwoCircleTangentDialog } from '../dialogs/tangentTwoCirclesDialog.js';
 
 let _lastTangentNewCircleR = 0;
 
@@ -274,6 +276,24 @@ export function tangentFromSelection() {
 
   if (circles.length < 1) return false;
 
+  // ════════════════════════════════════════════════════════════════
+  // 2 kružnice bez dalších vazeb → tečné úsečky, nebo přesun 1. ke 2.
+  // ════════════════════════════════════════════════════════════════
+  if (circles.length === 2 && lines.length === 0 && arcSegs.length === 0 && points.length === 0) {
+    const c1 = circles[0], c2 = circles[1];
+    const c1Obj = state.objects[c1.idx];
+    const tangents = twoCircleTangents(c1, c2);
+    showTwoCircleTangentDialog(tangents, {
+      onLines: (indices) => addTangentLines(tangents, indices),
+      onMove: () => {
+        if (hasAnchoredPoint(c1Obj)) { showToast("Kružnice je zakotvena – nelze přesunout tečně"); return; }
+        const pos = singleSegTangentPositions(c1, { type: 'arc', cx: c2.cx, cy: c2.cy, r: c2.r });
+        showOrApply(pos, c1Obj, "Kružnice přesunuta tečně ke kružnici ✓");
+      },
+    });
+    return true;
+  }
+
   // Kontrola kotvení
   const circObj = state.objects[circles[0].idx];
   if (circObj && hasAnchoredPoint(circObj)) {
@@ -426,28 +446,6 @@ export function tangentFromSelection() {
     return true;
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // 2 kružnice bez dalších vazeb → tečné úsečky NEBO přesun
-  // ════════════════════════════════════════════════════════════════
-  if (circles.length === 2 && totalConstraints === 0) {
-    const c1 = circles[0], c2 = circles[1];
-    const tangents = tangentsTwoCircles(c1.cx, c1.cy, c1.r, c2.cx, c2.cy, c2.r);
-    const movePos = singleSegTangentPositions(c1, { type: 'arc', cx: c2.cx, cy: c2.cy, r: c2.r });
-    // Nabídni obě možnosti jen pokud obě existují; jinak auto
-    if (tangents.length > 0 && movePos.length > 0) {
-      showTangentChoiceDialog(
-        tangents.map((t, i) => ({ ...t, label: `Tečná úsečka ${i + 1}` })),
-        indices => addTangentLines(tangents, indices)
-      );
-      return true;
-    }
-    if (tangents.length > 0) {
-      showTangentChoiceDialog(tangents, indices => addTangentLines(tangents, indices));
-      return true;
-    }
-    return true;
-  }
-
   return false;
 }
 
@@ -470,8 +468,6 @@ export function handleTangentClick(wx, wy) {
     if (idx !== null) {
       const obj = state.objects[idx];
       if (obj.type === 'circle' || obj.type === 'arc') {
-        // Kružnice se v dalších krocích přesouvá → zakotvenou nelze (jako u výběru)
-        if (hasAnchoredPoint(obj)) { showToast("Kružnice je zakotvena – nelze přesunout tečně"); return; }
         state.drawing = true;
         state._tangentMode = 'circle-first';
         state._tangentFirstCircle = idx;
@@ -510,13 +506,33 @@ export function handleTangentClick(wx, wy) {
       if (idx !== null && (state.objects[idx].type === 'circle' || state.objects[idx].type === 'arc')) {
         // → Kružnice: tečné úsečky mezi dvěma kružnicemi
         if (idx === state._tangentFirstCircle) { showToast("Vyberte jinou kružnici nebo úsečku"); return; }
-        // Jiná kružnice → použít jako arc constraint (segment), pokračovat ke 2. vazbě
+        // Jiná kružnice → okno: tečné úsečky / přesun / použít jako vazbu
         const obj = state.objects[idx];
         const seg = { type: 'arc', cx: obj.cx, cy: obj.cy, r: obj.r };
-        state._tangentMode = 'circle-seg-2';
-        state._tangentSeg1 = seg;
-        setHint("Klepněte na 2. segment, bod, nebo Esc");
-        showToast("✓ Kružnice jako vazba – klepněte na 2. segment nebo Esc");
+        const tangents = twoCircleTangents(circ, obj);
+        showTwoCircleTangentDialog(tangents, {
+          onLines: (indices) => { resetTangentMode(); addTangentLines(tangents, indices); },
+          onMove: () => {
+            const positions = singleSegTangentPositions(circ, seg)
+              .sort((a, b) => Math.hypot(a.cx - circ.cx, a.cy - circ.cy) - Math.hypot(b.cx - circ.cx, b.cy - circ.cy));
+            resetTangentMode();
+            if (positions.length === 0) { showToast("Tečnou pozici nelze najít"); return; }
+            showTangentPositionDialog(positions, circ, (chosenIdx) => {
+              if (anchoredCircle(circ)) return;
+              pushUndo();
+              circ.cx = positions[chosenIdx].cx;
+              circ.cy = positions[chosenIdx].cy;
+              afterTangentMove();
+              showToast("Kružnice přesunuta tečně ke kružnici ✓");
+            });
+          },
+          onContinue: () => {
+            state._tangentMode = 'circle-seg-2';
+            state._tangentSeg1 = seg;
+            setHint("Klepněte na 2. segment, bod, nebo Esc");
+            showToast("✓ Kružnice jako vazba – klepněte na 2. segment nebo Esc");
+          },
+        });
         return;
       } else if (idx !== null) {
         // → Segment: uložit jako 1. segment, čekat na 2.
@@ -557,6 +573,7 @@ export function handleTangentClick(wx, wy) {
         const positions = circlePositionsTangentToLineAndPoint(circ.r, seg.x1, seg.y1, seg.x2, seg.y2, pt1.x, pt1.y);
         if (positions.length === 0) { showToast("Tečnou pozici k úsečce přes bod nelze najít"); return; }
         showTangentPositionDialog(positions, circ, (chosenIdx) => {
+          if (anchoredCircle(circ)) return;
           pushUndo();
           circ.cx = positions[chosenIdx].cx;
           circ.cy = positions[chosenIdx].cy;
@@ -577,6 +594,7 @@ export function handleTangentClick(wx, wy) {
           Math.hypot(a.cx - circ.cx, a.cy - circ.cy) - Math.hypot(b.cx - circ.cx, b.cy - circ.cy)
         );
         showTangentPositionDialog(positions, circ, (chosenIdx) => {
+          if (anchoredCircle(circ)) return;
           pushUndo();
           circ.cx = positions[chosenIdx].cx;
           circ.cy = positions[chosenIdx].cy;
@@ -599,6 +617,7 @@ export function handleTangentClick(wx, wy) {
         const positions = circlePositionsTangentToLineAndPoint(circ.r, seg1.x1, seg1.y1, seg1.x2, seg1.y2, pt.x, pt.y);
         if (positions.length === 0) { showToast("Tečnou pozici k úsečce přes bod nelze najít"); return; }
         showTangentPositionDialog(positions, circ, (chosenIdx) => {
+          if (anchoredCircle(circ)) return;
           pushUndo();
           circ.cx = positions[chosenIdx].cx;
           circ.cy = positions[chosenIdx].cy;
@@ -621,6 +640,7 @@ export function handleTangentClick(wx, wy) {
         Math.hypot(a.cx - wx, a.cy - wy) - Math.hypot(b.cx - wx, b.cy - wy)
       );
       showTangentPositionDialog(positions, circ, (chosenIdx) => {
+        if (anchoredCircle(circ)) return;
         pushUndo();
         circ.cx = positions[chosenIdx].cx;
         circ.cy = positions[chosenIdx].cy;
@@ -648,6 +668,7 @@ export function handleTangentClick(wx, wy) {
         const positions = circleTangentToTwoLinesAndPoint(seg1, seg2, pt.x, pt.y);
         if (positions.length === 0) { showToast("Tečnou kružnici ke dvěma segmentům přes bod nelze najít"); return; }
         showTangentPositionDialog(positions, circ, (chosenIdx) => {
+          if (anchoredCircle(circ)) return;
           pushUndo();
           circ.cx = positions[chosenIdx].cx;
           circ.cy = positions[chosenIdx].cy;
@@ -668,6 +689,7 @@ export function handleTangentClick(wx, wy) {
       const positions = circleTangentToThreeSegments(state._tangentSeg1, state._tangentSeg2, seg3, circ.cx, circ.cy, circ.r);
       if (positions.length === 0) { showToast("Tečnou kružnici ke třem segmentům nelze najít"); return; }
       showTangentPositionDialog(positions, circ, (chosenIdx) => {
+        if (anchoredCircle(circ)) return;
         pushUndo();
         circ.cx = positions[chosenIdx].cx;
         circ.cy = positions[chosenIdx].cy;
@@ -678,15 +700,26 @@ export function handleTangentClick(wx, wy) {
       return;
     }
 
-    // Reset stavu
-    state.drawing = false;
-    state.tempPoints = [];
-    state._tangentMode = null;
-    state._tangentFirstCircle = null;
-    state._tangentFirstLine = null;
-    state._tangentSeg1 = null;
-    state._tangentSeg2 = null;
-    state._tangentPoints = [];
-    resetHint();
+    resetTangentMode();
   }
+}
+
+/** Zakotvenou kružnici tečna nepřesune (tečné úsečky z ní vytvořit lze). */
+function anchoredCircle(circ) {
+  if (!hasAnchoredPoint(circ)) return false;
+  showToast("Kružnice je zakotvena – nelze přesunout tečně");
+  return true;
+}
+
+/** Ukončí rozdělaný klikací režim tečny. */
+function resetTangentMode() {
+  state.drawing = false;
+  state.tempPoints = [];
+  state._tangentMode = null;
+  state._tangentFirstCircle = null;
+  state._tangentFirstLine = null;
+  state._tangentSeg1 = null;
+  state._tangentSeg2 = null;
+  state._tangentPoints = [];
+  resetHint();
 }
