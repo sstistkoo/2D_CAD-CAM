@@ -3,6 +3,7 @@ import { makeOverlay } from '../dialogFactory.js';
 import { saveToolToLibrary } from '../toolLibrary.js';
 import { HOLDER_STYLES } from './holderIsoData.js';
 import { VBD_ISO, SHAPES, CLEARANCE_DEG, RADIUS_MM, parseVbdCode, describePosition, holdersFor } from './vbdIso.js';
+import { writeClipboard } from '../clipboard.js';
 
 // Pozice VBD dle ISO 1832 – data a dekódování ve vbdIso.js
 const vbdIsoData = VBD_ISO;
@@ -837,6 +838,6 @@ export function openInsertCalc(opts) {
     if (code2 && code2.indexOf('–') !== 0) parts.push('Držák: ' + code2);
     var descText = vbdDesc.textContent;
     if (descText && descText.indexOf('Klikněte') < 0) parts.push(descText);
-    if (parts.length) navigator.clipboard.writeText(parts.join(' | ')).then(function() { showToast('Zkopírováno'); });
+    if (parts.length) writeClipboard(parts.join(' | ')).then(function() { showToast('Zkopírováno'); }).catch(() => showToast('Kopírování se nepovedlo'));
   });
 }

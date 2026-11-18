@@ -11,6 +11,7 @@ import { headerTitle, headerSettingsHTML, readHeaderInputs as readHeaderForm, bu
 import { CNCParser, defaultParserConfig } from './gcodeEditorParser.js';
 import { mergePrograms, renumberLines } from './cam/gcodeMerge.js';
 import { G_CODES, M_CODES, TOKEN_RE, convertCornersToPaths, defaultHeaderConfig, esc, extractGCodeFromFile, getChamferPrefix, getControlSystem, getRoundPrefix, storageLoad, storageSave, spacedPrefix, numpadHTML, numpadResult, wireNumpadCalc, numpadOn, wireNumpadToggle, wireTapBelow, wireCommentTools, commentClass, wireCurrentLine, wireNoKeyboard, wireKeyboardMode, ensureCaretVisible } from './gcodeEditorShared.js';
+import { writeClipboard } from '../clipboard.js';
 
 // ── Konstanty ──────────────────────────────────────────────────
 const STORAGE_DATA  = 'skica-cam-editor-data';
@@ -802,7 +803,7 @@ export function openCamEditor(initialCode, jumpLine) {
 
   function copyToClipboard() {
     if (!editor.value) return;
-    navigator.clipboard.writeText(editor.value).catch(() => {});
+    writeClipboard(editor.value).catch(() => {});
   }
 
   // ── Hledání v kódu ─────────────────────────────────────────

@@ -3,6 +3,7 @@ import { safeEvalMath } from '../utils.js';
 import { makeOverlay, isTouchDevice, onOverlayRemoved } from '../dialogFactory.js';
 import { deviations, SHAFT_LETTERS, HOLE_LETTERS } from './iso286.js';
 import { gdtSectionHTML } from './toleranceGdt.js';
+import { writeClipboard } from '../clipboard.js';
 
 export function openToleranceCalc() {
   // ── ISO 2768-1 : volné míry ──
@@ -376,7 +377,7 @@ export function openToleranceCalc() {
 
   overlay.querySelector(".cnc-btn-copy").addEventListener("click", function() {
     if (copyText) {
-      navigator.clipboard.writeText(copyText).then(function() { showToast("Zkopírováno"); });
+      writeClipboard(copyText).then(function() { showToast("Zkopírováno"); }).catch(() => showToast('Kopírování se nepovedlo'));
     }
   });
 }

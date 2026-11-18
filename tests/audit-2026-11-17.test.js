@@ -89,3 +89,25 @@ describe('Nástroj Závit: dno Tr podle ISO 2904', () => {
     expect(threadToolDiameters('tr', 100, 16).d3).toBeCloseTo(82, 9);     // 100 − 2·(8 + 1)
   });
 });
+
+describe('Schránka: záloha a ohlášení selhání', () => {
+  const fakeDoc = (ok) => ({
+    body: { appendChild() {} }, activeElement: null,
+    createElement: () => ({ style: {}, setAttribute() {}, select() {}, remove() {} }),
+    execCommand: () => ok,
+  });
+  it('bez Clipboard API zkopíruje přes execCommand, jinak Promise odmítne', async () => {
+    const { vi } = await import('vitest');
+    const { writeClipboard } = await import('../js/clipboard.js');
+    vi.stubGlobal('navigator', {});
+    vi.stubGlobal('document', fakeDoc(true));
+    await expect(writeClipboard('G0 X0')).resolves.toBeUndefined();
+    vi.stubGlobal('document', fakeDoc(false));
+    await expect(writeClipboard('G0 X0')).rejects.toThrow();
+    // API existuje, ale zápis odmítne (oprávnění) → záloha
+    vi.stubGlobal('navigator', { clipboard: { writeText: () => Promise.reject(new Error('denied')) } });
+    vi.stubGlobal('document', fakeDoc(true));
+    await expect(writeClipboard('x')).resolves.toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+});

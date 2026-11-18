@@ -1,6 +1,7 @@
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { makeOverlay } from '../dialogFactory.js';
+import { writeClipboard } from '../clipboard.js';
 
 export function openWeightCalc() {
   const body =
@@ -134,7 +135,7 @@ export function openWeightCalc() {
 
   overlay.querySelector(".cnc-btn-copy").addEventListener("click", () => {
     if (resultEl.querySelector('strong')) {
-      navigator.clipboard.writeText(resultEl.textContent).then(() => showToast("Zkop\u00EDrov\u00E1no"));
+      writeClipboard(resultEl.textContent).then(() => showToast("Zkop\u00EDrov\u00E1no")).catch(() => showToast('Kopírování se nepovedlo'));
     }
   });
 }

@@ -2,6 +2,7 @@ import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { g96Html, wireG96 } from './cuttingG96.js';
+import { writeClipboard } from '../clipboard.js';
 
 const cuttingMaterials = [
   ["Ocel 11 523 (S355)",      180, 35, 0.3, 0.1, 1800],
@@ -149,7 +150,7 @@ export function openCuttingCalc() {
     fieldIds.forEach(id => { const v = val(inputs[id]); if (v !== null) parts.push(id + "=" + inputs[id].value); });
     if (extraEl.textContent) parts.push(extraEl.textContent);
     if (g96.summary()) parts.push(g96.summary());
-    if (parts.length) navigator.clipboard.writeText(parts.join("  ")).then(() => showToast("Zkopírováno"));
+    if (parts.length) writeClipboard(parts.join("  ")).then(() => showToast("Zkopírováno")).catch(() => showToast('Kopírování se nepovedlo'));
   });
 }
 

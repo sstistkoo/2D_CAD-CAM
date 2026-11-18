@@ -13,6 +13,7 @@ import { solveRightTriangle } from '../trigSolver.js';
 import { safeEvalMath } from '../utils.js';
 import { makeOverlay, onOverlayRemoved } from '../dialogFactory.js';
 import { getCalcClipboardValue, getCalcLastResult, openCalculator } from './calculator.js';
+import { writeClipboard } from '../clipboard.js';
 
 // ── Trigonometrie – popup ──
 /** Otevře Trigonometrii – pravý trojúhelník (2 zadané hodnoty → zbytek). */
@@ -210,7 +211,7 @@ export function openTrigCalc() {
       row.className = "calc-history-item";
       row.textContent = item;
       row.addEventListener("click", () => {
-        navigator.clipboard.writeText(item).then(() => showToast("Zkopírováno"), () => showToast("Kopírování se nepovedlo"));
+        writeClipboard(item).then(() => showToast("Zkopírováno"), () => showToast("Kopírování se nepovedlo"));
       });
       trigHistoryEl.appendChild(row);
     }
@@ -233,7 +234,7 @@ export function openTrigCalc() {
     if (val(inpBeta)) parts.push("β=" + inpBeta.value + "°");
     parts.push("γ=90°");
     const text = parts.join("  ");
-    navigator.clipboard.writeText(text).then(() => showToast("Zkopírováno"), () => showToast("Kopírování se nepovedlo"));
+    writeClipboard(text).then(() => showToast("Zkopírováno"), () => showToast("Kopírování se nepovedlo"));
     addTrigHistory();
   });
 }

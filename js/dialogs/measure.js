@@ -15,6 +15,7 @@ import { showEditObjectDialog, wireExprInputs } from './mobileEdit.js';
 import { projectPointToLine, distPointToInfiniteLine, angleBetweenLines, intersectInfiniteLines, calculateAllIntersections } from '../geometry.js';
 import { removeAnchorsForObject, cleanupOrphanAnchors, hasAnchoredPoint } from '../tools/index.js';
 import { escapeHtml } from '../htmlEscape.js';
+import { writeClipboard } from '../clipboard.js';
 
 /**
  * Střed objektu pro měření. Dřív dvě kopie s „default: {0,0}" – kontura,
@@ -119,7 +120,7 @@ export function showIntersectionInfo(pt) {
 
   overlay.querySelector("#intCopy").addEventListener("click", () => {
     const text = `${Hp}${H}${hv.toFixed(3)} ${Vp}${V}${vv.toFixed(3)}`;
-    navigator.clipboard.writeText(text).then(() => showToast(`Zkopírováno: ${text}`));
+    writeClipboard(text).then(() => showToast(`Zkopírováno: ${text}`)).catch(() => showToast('Kopírování se nepovedlo'));
   });
   overlay.querySelector("#intAddPoint").addEventListener("click", () => {
     addObject({ type: "point", x: pt.x, y: pt.y, name: `Bod ${state.nextId}` });
@@ -376,7 +377,7 @@ function _addCopyAndDimListeners(overlay, dimCallback) {
   if (copyBtn) {
     copyBtn.addEventListener("click", () => {
       const table = overlay.querySelector("table");
-      navigator.clipboard.writeText(table.innerText).then(() => showToast("Info zkopírováno"));
+      writeClipboard(table.innerText).then(() => showToast("Info zkopírováno")).catch(() => showToast('Kopírování se nepovedlo'));
     });
   }
   const dimBtn = overlay.querySelector("#msAddDim");

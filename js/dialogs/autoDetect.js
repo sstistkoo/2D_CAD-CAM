@@ -11,6 +11,7 @@ import { addDimensionForObject } from './dimension.js';
 import { intersectInfiniteLines } from '../geometry.js';
 import { bulgeToArc, getRectCorners } from '../utils.js';
 import { drawCanvas, vSign } from '../canvas.js';
+import { writeClipboard } from '../clipboard.js';
 
 const EPS = 1e-4;      // tolerance pro shodu bodů
 const TANGENT_TOL = 0.05; // tolerance tečnosti (rad, ~3°)
@@ -721,7 +722,7 @@ function showAutoDetectDialog(fillets, chamfers, grooves, corners) {
           text += `  ${i + 1}. ${angle}  pozice: [${co.point.x.toFixed(3)}, ${co.point.y.toFixed(3)}]\n`;
         });
       }
-      navigator.clipboard.writeText(text)
+      writeClipboard(text)
         .then(() => showToast('Výsledky zkopírovány'))
         .catch(() => showToast('Kopírování se nezdařilo'));
     });

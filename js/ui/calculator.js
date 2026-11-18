@@ -12,6 +12,7 @@ import { showToast } from '../state.js';
 import { _parseMathExpr } from '../utils.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { getMeta, setMeta } from '../idb.js';
+import { writeClipboard } from '../clipboard.js';
 
 // ── Kalkulačka – clipboard schránka ──
 let _calcClipboardValue = null;
@@ -265,7 +266,7 @@ export function openCalculator() {
       copyBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         const v = String(item.result);
-        navigator.clipboard.writeText(v).then(() => showToast("Zkopírováno: " + v));
+        writeClipboard(v).then(() => showToast("Zkopírováno: " + v)).catch(() => showToast('Kopírování se nepovedlo'));
         setCalcClipboardValue(v);
       });
       row.appendChild(copyBtn);
@@ -372,7 +373,7 @@ export function openCalculator() {
         case "=":    doEval(); break;
         case "copy": {
           const v = display.value;
-          navigator.clipboard.writeText(v).then(() => showToast("Zkopírováno: " + v));
+          writeClipboard(v).then(() => showToast("Zkopírováno: " + v)).catch(() => showToast('Kopírování se nepovedlo'));
           setCalcClipboardValue(v);
           break;
         }
@@ -395,7 +396,7 @@ export function openCalculator() {
             overlay.remove();
           } else {
             setCalcClipboardValue(v);
-            navigator.clipboard.writeText(v).then(() => showToast("Zkopírováno do schránky: " + v));
+            writeClipboard(v).then(() => showToast("Zkopírováno do schránky: " + v)).catch(() => showToast('Kopírování se nepovedlo'));
           }
           break;
         }
@@ -533,7 +534,7 @@ export function initCalcButtons() {
       target.focus();
       showToast("Vloženo: " + v);
     } else {
-      navigator.clipboard.writeText(String(v)).then(() => showToast("Zkopírováno do schránky: " + v));
+      writeClipboard(String(v)).then(() => showToast("Zkopírováno do schránky: " + v)).catch(() => showToast('Kopírování se nepovedlo'));
     }
   });
 }

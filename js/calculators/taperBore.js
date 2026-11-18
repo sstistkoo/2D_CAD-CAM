@@ -11,6 +11,7 @@ import { showToast } from '../state.js';
 import { computeTaperBore, solveTaper, taperC, taperForms, ratioToC, f3, fmtDev } from './taperBoreMath.js';
 import { drawBoreSketch } from './taperBoreSketch.js';
 import { openInlineEdit, wireSvgEditing, setField } from './svgInlineEdit.js';
+import { writeClipboard } from '../clipboard.js';
 
 const LS_KEY = 'skica.taperKuzel';
 const LS_OLD = 'skica.taperBore';
@@ -454,7 +455,7 @@ export function initTaperBore(overlay) {
   const copy = t => {
     if (!t) { showToast('Není co kopírovat'); return; }
     if (!navigator.clipboard?.writeText) { showToast('Schránka není v tomto prohlížeči dostupná'); return; }
-    navigator.clipboard.writeText(t).then(() => showToast('Zkopírováno'), () => showToast('Schránka nedostupná'));
+    writeClipboard(t).then(() => showToast('Zkopírováno'), () => showToast('Schránka nedostupná'));
   };
   root.querySelector('.tb-copy').addEventListener('click', () => copy(lastText));
   root.querySelector('.tb-copy-nc').addEventListener('click', () => copy(lastNc));

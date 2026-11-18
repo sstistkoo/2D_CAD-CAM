@@ -25,6 +25,7 @@ import {
   tangentCircleTouchPoints, tangentCircleBetweenRays, twoTangentArcsBetweenRays,
   tangentArcEndOnRay, twoTangentArcsFromDirection, solveAngleAndCoordinate,
 } from './vkSolver.js';
+import { writeClipboard } from '../clipboard.js';
 
 const DEFAULT_GCODE = '';
 const VK_STORAGE_KEY = 'skica-vk-contour';
@@ -2045,7 +2046,7 @@ export function initVkTab(container, { picker = null } = {}) {
 
   container.querySelector('[data-act="copy"]').addEventListener('click', () => {
     if (!gcodeEl.value.trim()) return;
-    navigator.clipboard.writeText(gcodeEl.value).then(() => showToast('Zkopírováno'));
+    writeClipboard(gcodeEl.value).then(() => showToast('Zkopírováno')).catch(() => showToast('Kopírování se nepovedlo'));
   });
 
   // Vložení do výkresu jde přes bridge (calculators/vkCommit.js) – tenhle

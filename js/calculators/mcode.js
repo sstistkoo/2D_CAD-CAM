@@ -1,5 +1,6 @@
 import { makeOverlay } from '../dialogFactory.js';
 import { escapeHtml as esc } from '../htmlEscape.js';
+import { writeClipboard } from '../clipboard.js';
 
 // ── M-kód data (Sinumerik 840D – soustruh) ─────────────────
 // Konsolidované kategorie – bez překryvů, bez mrtvých odkazů
@@ -82,7 +83,7 @@ const commandsList = [
     {title:'Bezpečné zastavení:',code:'G1 X100 F0.2       ; Dokončení řezu\nM5                 ; Vypnutí vřetene\nG0 X120 Z100      ; Odjezd do bezpečné pozice',description:'Standardní zastavení na konci operace'}
   ]},
   {name:'M6',syntax:'M6',description:'Výměna nástroje.',examples:[
-    {title:'Automatická výměna nástroje:',code:'T2 D1             ; Vyvolání nástroje číslo 2\nM6                ; Provedení výměny nástroje\nG43 H2            ; Aktivace délkové korekce',description:'Standardní sekvence výměny nástroje'}
+    {title:'Automatická výměna nástroje:',code:'T2 D1             ; Vyvolání nástroje číslo 2\nM6                ; Provedení výměny nástroje\nG0 X100 Z5        ; Korekce D1 platí od prvního pohybu (G43 je Fanuc)',description:'Standardní sekvence výměny nástroje'}
   ]},
   {name:'M7',syntax:'M7',description:'Mlhové chlazení ZAP.',examples:[
     {title:'Aktivace mlhového chlazení:',code:'M7                ; Zapnutí mlhového chlazení\nG1 X100 F0.2      ; Obrábění s mlhovým chlazením',description:'Použití mlhového chlazení pro jemné operace'}
@@ -450,8 +451,11 @@ export function openMcodeReference() {
       btn.addEventListener('click', e => {
         e.stopPropagation();
         const code = btn.dataset.code;
-        navigator.clipboard.writeText(code).then(() => {
+        writeClipboard(code).then(() => {
           btn.textContent = '✓';
+          setTimeout(() => { btn.textContent = '📋'; }, 1200);
+        }, () => {
+          btn.textContent = '✗'; btn.title = 'Kopírování se nepovedlo';
           setTimeout(() => { btn.textContent = '📋'; }, 1200);
         });
       });

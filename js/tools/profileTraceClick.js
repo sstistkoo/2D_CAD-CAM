@@ -18,6 +18,7 @@ import { calculateAllIntersections } from '../geometry.js';
 // souřadnicově agnostické (jen čtou .p1/.p2/.cx/.cz/.startAngle/.endAngle).
 import { resolveOuterProfile } from '../calculators/cam/contourBuild.js';
 import { segStartPoint, segEndPoint } from '../calculators/cam/camMath.js';
+import { writeClipboard } from '../clipboard.js';
 
 // ── Interní stav trasování ──
 let _tracePoints = [];
@@ -614,7 +615,7 @@ function _exportCSV() {
     }
   });
 
-  navigator.clipboard.writeText(csv).then(() => {
+  writeClipboard(csv).then(() => {
     showToast('CSV zkopírováno do schránky ✓');
   }).catch(() => {
     showToast('Nelze zapisovat do schránky');
@@ -643,7 +644,7 @@ function _copyTable() {
     }
   });
 
-  navigator.clipboard.writeText(text).then(() => {
+  writeClipboard(text).then(() => {
     showToast('Tabulka zkopírována do schránky ✓');
   }).catch(() => {
     showToast('Nelze zapisovat do schránky');
@@ -1015,7 +1016,7 @@ export function updateTracePanel() {
   if (copyBtn) {
     copyBtn.addEventListener('click', () => {
       const gcode = getTraceGcode();
-      navigator.clipboard.writeText(gcode).then(() => {
+      writeClipboard(gcode).then(() => {
         showToast('G-kód zkopírován ✓');
       }).catch(() => {
         showToast('Nelze zapisovat do schránky');

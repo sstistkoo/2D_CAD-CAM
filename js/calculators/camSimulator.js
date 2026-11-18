@@ -73,6 +73,7 @@ import { simStockArgs } from './cam/sim/grooveSim.js';
 import { radialFlip } from './cam/toolRadialFlip.js';
 import { nextBlockTarget } from './cam/sim/singleBlock.js'; import { sectionFinishBegin, sectionFinishEnd, baseFinishOnly } from './cam/sim/sectionFinishAtEnd.js';
 import { escapeHtml as escHTML } from '../htmlEscape.js';
+import { writeClipboard } from '../clipboard.js';
 // Verze logiky generování drah. ZVYŠ při každé změně, která mění vygenerovaný
 // G-kód (hrubování/dokončování/hlídání/…). Uložený manualGCode s jinou verzí se
 // při otevření CAM zahodí a dráhy se přegenerují automaticky — jinak by uživatel
@@ -2715,7 +2716,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   function handleCopyGCode() {
     const text = outputGCode();
     if (!confirmNcExport(text, S.params.controlSystem)) return;   // ncCheck.js
-    navigator.clipboard.writeText(text).then(() => {
+    writeClipboard(text).then(() => {
       const btn = tabBody.querySelector('[data-act="copy-code"]');
       if (btn) { const orig = btn.textContent; btn.textContent = '✅ Zkopírováno'; setTimeout(() => { btn.textContent = orig; }, 1500); }
     }).catch(() => alert('Nepodařilo se zkopírovat kód do schránky.'));

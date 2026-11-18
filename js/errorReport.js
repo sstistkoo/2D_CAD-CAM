@@ -10,6 +10,7 @@
 // Do hlášení se NEDÁVÁ nic z výkresu ani nastavení — jen chyba a prostředí.
 
 import { APP_VERSION } from './constants.js';
+import { writeClipboard } from './clipboard.js';
 
 const MAX_ENTRIES = 20;   // víc chyb za sebou je obvykle jedna a táž příčina
 const STACK_LINES = 8;
@@ -72,23 +73,7 @@ function envInfo() {
 }
 
 async function copyText(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch (_) {
-    // Záloha pro prohlížeče bez Clipboard API / bez oprávnění.
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    let ok = false;
-    try { ok = document.execCommand('copy'); } catch (_e) { ok = false; }
-    ta.remove();
-    return ok;
-  }
+  try { await writeClipboard(text); return true; } catch (_) { return false; }
 }
 
 const CSS = `

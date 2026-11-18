@@ -10,6 +10,7 @@
 import { showToast } from '../state.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { getMeta, setMeta } from '../idb.js';
+import { writeClipboard } from '../clipboard.js';
 
 // ── Poznámkový blok (profesionální verze) ──
 /**
@@ -342,7 +343,7 @@ export async function openNotesDialog() {
       }
     },
     copy: () => {
-      navigator.clipboard.writeText(ta.value).then(() => showToast('Zkopírováno do schránky ✓'));
+      writeClipboard(ta.value).then(() => showToast('Zkopírováno do schránky ✓')).catch(() => showToast('Kopírování se nepovedlo'));
     },
     download: () => {
       const note = getActive();

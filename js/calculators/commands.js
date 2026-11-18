@@ -1,5 +1,6 @@
 import { makeOverlay } from '../dialogFactory.js';
 import { escapeHtml as esc } from '../htmlEscape.js';
+import { writeClipboard } from '../clipboard.js';
 
 // ── Data: Příkazy a Syntax Sinumerik 840D ───────────────────
 const commandGroups = {
@@ -278,8 +279,11 @@ export function openCommandsReference() {
     listEl.querySelectorAll('.mc-copy-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
-        navigator.clipboard.writeText(btn.dataset.code).then(() => {
+        writeClipboard(btn.dataset.code).then(() => {
           btn.textContent = '✓'; setTimeout(() => { btn.textContent = '📋'; }, 1200);
+        }, () => {
+          btn.textContent = '✗'; btn.title = 'Kopírování se nepovedlo';
+          setTimeout(() => { btn.textContent = '📋'; }, 1200);
         });
       });
     });

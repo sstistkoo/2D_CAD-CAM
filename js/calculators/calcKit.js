@@ -7,6 +7,7 @@
 
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
+import { writeClipboard } from '../clipboard.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -76,8 +77,7 @@ export const outFormula = (txt) => '<div class="calc-out-formula">' + txt + '</d
 /** Zkopíruje text do schránky s hláškou (i když schránka není dostupná). */
 export function copyText(text) {
   if (!text) { showToast('Není co kopírovat'); return; }
-  if (!navigator.clipboard?.writeText) { showToast('Schránka není v tomto prohlížeči dostupná'); return; }
-  navigator.clipboard.writeText(text)
+  writeClipboard(text)
     .then(() => showToast('Zkopírováno'), () => showToast('Kopírování se nezdařilo'));
 }
 

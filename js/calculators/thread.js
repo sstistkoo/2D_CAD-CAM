@@ -4,6 +4,7 @@ import { makeOverlay } from '../dialogFactory.js';
 import { autoPassCount, flankInfeedAngle, threadPasses } from './threadPassesMath.js';
 import { iso965Limits, gradeTolerances, STD_DRILLS, tapDrill, threadPercent } from './iso965.js';
 import { trClearanceAc, mCoarse, mFine, gThreads, trThreads, uncThreads, unfThreads, bswThreads, nptThreads, acmeThreads, bsptThreads } from './threadData.js';
+import { writeClipboard } from '../clipboard.js';
 
 export function openThreadCalc() {
   // ── DATA ──────────────────────────────────────────────────
@@ -1324,7 +1325,7 @@ export function openThreadCalc() {
   overlay.querySelector("#thrCopy").addEventListener("click", function() {
     var txt = detail.dataset.copyText;
     if (txt) {
-      navigator.clipboard.writeText(txt).then(function() { showToast("Zkop\u00EDrov\u00E1no"); });
+      writeClipboard(txt).then(function() { showToast("Zkop\u00EDrov\u00E1no"); }).catch(() => showToast('Kopírování se nepovedlo'));
     }
   });
 }

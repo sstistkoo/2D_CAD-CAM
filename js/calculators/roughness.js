@@ -1,6 +1,7 @@
 import { showToast } from '../state.js';
 import { safeEvalMath } from '../utils.js';
 import { makeOverlay } from '../dialogFactory.js';
+import { writeClipboard } from '../clipboard.js';
 
 export function openRoughnessCalc() {
   // ── DATA ──────────────────────────────────────────────────
@@ -449,7 +450,7 @@ export function openRoughnessCalc() {
     parts.push('teoretick\u00E1 Ra ' + fmt(r.raTheo) + ' / Rz ' + fmt(r.rzTheo) + ' \u00B5m (' + r.clsTheo + ')');
     parts.push('praktick\u00E1 Ra ' + fmt(r.raPract) + ' / Rz ' + fmt(r.rzPract) + ' \u00B5m (' + r.clsPract + ')');
     if (!navigator.clipboard) { showToast("Schr\u00E1nka nen\u00ED dostupn\u00E1"); return; }
-    navigator.clipboard.writeText(parts.join(' | ')).then(function() { showToast("Zkop\u00EDrov\u00E1no"); });
+    writeClipboard(parts.join(' | ')).then(function() { showToast("Zkop\u00EDrov\u00E1no"); }).catch(() => showToast('Kopírování se nepovedlo'));
   });
 
   // Počáteční výpočet faktorů
