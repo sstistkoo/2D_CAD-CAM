@@ -11,7 +11,7 @@
 
 import { state, showToast } from '../state.js';
 import { addObject } from '../objects.js';
-import { bulgeToArc } from '../utils.js';
+import { bulgeToArc, getRectCorners } from '../utils.js';
 import { renderAll } from '../render.js';
 import { isHelperLayer } from '../helperLayer.js';
 
@@ -44,9 +44,10 @@ function objToPoints(obj) {
     case 'circle':
       return sampleArcPoints(obj.cx, obj.cy, obj.r, 0, Math.PI * 2, true);
     case 'rect': {
-      const x1 = Math.min(obj.x1, obj.x2), x2 = Math.max(obj.x1, obj.x2);
-      const y1 = Math.min(obj.y1, obj.y2), y2 = Math.max(obj.y1, obj.y2);
-      return [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }, { x: x1, y: y1 }];
+      // Rohy včetně natočení (rotation kolem středu) – jinak by se natočený
+      // obdélník vybarvil v nenatočené poloze
+      const c = getRectCorners(obj);
+      return [...c.map(p => ({ x: p.x, y: p.y })), { x: c[0].x, y: c[0].y }];
     }
     case 'polyline': {
       if (!obj.vertices || obj.vertices.length < 2) return null;

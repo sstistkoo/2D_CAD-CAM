@@ -3,12 +3,18 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS } from '../constants.js';
-import { state, pushUndo, withUndoBatch, showToast, axisLabels } from '../state.js';
+import { state, pushUndo, withUndoBatch, showToast, coordHelpers } from '../state.js';
 import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
 import { setHint, resetHint } from '../ui.js';
 import { findObjectAt, calculateAllIntersections } from '../geometry.js';
 import { addDimensionForObject, addAngleDimensionForLines, addLinearDimForLine, addAngleDimForPlacement, buildAxisRefLine, addArcAngleDim, addArcRadiusLeader } from '../dialogs.js';
+
+/** Hláška kóty souřadnic – osy podle stroje, X v režimu ⌀ jako průměr. */
+function coordToast(x, y) {
+  const { H, V, Hp, Vp, fH, fV } = coordHelpers();
+  return `Kóta ${Hp}${H}${fH(x).toFixed(2)} ${Vp}${V}${fV(y).toFixed(2)} přidána`;
+}
 
 // Tolerance pro shodu bodu s existující kótou souřadnic (snap body jsou přesné).
 const COORD_MATCH_TOL = 1e-3;
@@ -169,7 +175,7 @@ function placeCoordLabel(ax, ay, lx, ly) {
     dimLeadDX: lx - ax, dimLeadDY: ly - ay,
     color: COLORS.textSecondary,
   });
-  if (created) showToast(`Kóta ${axisLabels()[0]}${ax.toFixed(2)} ${axisLabels()[1]}${ay.toFixed(2)} přidána`);
+  if (created) showToast(coordToast(ax, ay));
   calculateAllIntersections();
   renderAll();
 }

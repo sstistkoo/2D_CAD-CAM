@@ -360,3 +360,13 @@ describe('handleFillAreaClick', () => {
     expect(obj).toBeNull();
   });
 });
+
+describe('Vybarvit: natočený obdélník', () => {
+  it('smyčka leží na natočených rozích', () => {
+    const { loops } = buildClosedLoops([{ type: 'rect', x1: -10, y1: -5, x2: 10, y2: 5, rotation: Math.PI / 2 }]);
+    expect(loops).toHaveLength(1);
+    const xs = loops[0].map(p => p.x), ys = loops[0].map(p => p.y);
+    expect(Math.max(...xs)).toBeCloseTo(5, 9);    // po otočení o 90° je šířka 10 vodorovně
+    expect(Math.max(...ys)).toBeCloseTo(10, 9);
+  });
+});

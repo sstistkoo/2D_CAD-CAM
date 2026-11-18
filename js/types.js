@@ -99,6 +99,7 @@ export {};
  * @property {number} y1
  * @property {number} x2
  * @property {number} y2
+ * @property {number} [rotation] natočení kolem středu (rad); x1…y2 je nenatočený rámeček
  */
 
 /**

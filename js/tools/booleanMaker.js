@@ -9,6 +9,7 @@
 
 import { getMaker, objToMakerModel } from '../dxf.js';
 import { chainToPolyline } from '../lib/makerjsBridge.js';
+import { getRectCornersCCW } from '../utils.js';
 
 /**
  * Provede booleovskou operaci nad dvěma uzavřenými SKICA tvary.
@@ -80,7 +81,7 @@ function geometrySignature(obj) {
     case 'rect': {
       const x1 = Math.min(obj.x1, obj.x2), x2 = Math.max(obj.x1, obj.x2);
       const y1 = Math.min(obj.y1, obj.y2), y2 = Math.max(obj.y1, obj.y2);
-      return `r|${r(x1)}|${r(y1)}|${r(x2)}|${r(y2)}`;
+      return `r|${r(x1)}|${r(y1)}|${r(x2)}|${r(y2)}|${r(obj.rotation || 0)}`;
     }
     case 'polyline': {
       const vs = obj.vertices.map(v => `${r(v.x)},${r(v.y)}`).join(';');
@@ -111,11 +112,9 @@ function cloneAsPolyline(obj) {
     };
   }
   if (obj.type === 'rect') {
-    const x1 = Math.min(obj.x1, obj.x2), x2 = Math.max(obj.x1, obj.x2);
-    const y1 = Math.min(obj.y1, obj.y2), y2 = Math.max(obj.y1, obj.y2);
     return {
       type: 'polyline',
-      vertices: [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }],
+      vertices: getRectCornersCCW(obj).map(c => ({ x: c.x, y: c.y })),   // i s natočením
       bulges: [0, 0, 0, 0],
       closed: true,
     };

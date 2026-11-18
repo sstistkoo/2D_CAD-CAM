@@ -1,7 +1,7 @@
 import { getArcParams } from './camMath.js';
 import { arcSignedR } from './arcSign.js';
 import { state } from '../../state.js';
-import { bulgeToArc } from '../../utils.js';
+import { bulgeToArc, getRectCornersCCW } from '../../utils.js';
 import { findLiveBlock } from './live/liveMarkers.js';
 
 const TWO_PI = 2 * Math.PI;
@@ -208,9 +208,14 @@ export function buildStockPointsFromCanvas(camParams) {
         }
       }
     } else if (obj.type === 'rect') {
-      const x1 = Math.min(obj.x1, obj.x2), x2 = Math.max(obj.x1, obj.x2);
-      const y1 = Math.min(obj.y1, obj.y2), y2 = Math.max(obj.y1, obj.y2);
-      const c = [{x:x1,y:y1},{x:x2,y:y1},{x:x2,y:y2},{x:x1,y:y2}];
+      // Natočený obdélník přes skutečné rohy; nenatočený beze změny (min/max box)
+      let c;
+      if (obj.rotation) c = getRectCornersCCW(obj);
+      else {
+        const x1 = Math.min(obj.x1, obj.x2), x2 = Math.max(obj.x1, obj.x2);
+        const y1 = Math.min(obj.y1, obj.y2), y2 = Math.max(obj.y1, obj.y2);
+        c = [{x:x1,y:y1},{x:x2,y:y1},{x:x2,y:y2},{x:x1,y:y2}];
+      }
       for (let i = 0; i < 4; i++) segs.push({ p1: c[i], p2: c[(i + 1) % 4], type: 'line' });
     } else if (obj.type === 'circle') {
       // Kružnice → dva půlkruhy (rozdělené vodorovně), aby vznikl uzavřený řetězec.

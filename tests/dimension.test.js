@@ -8,6 +8,8 @@ vi.mock('../js/state.js', () => ({
   state: { machineType: 'soustruh' },
   showToast: vi.fn(),
   axisLabels: () => ['Z', 'X'],
+  // soustruh v poloměru: H = Z vodorovně, V = X svisle, bez ⌀
+  coordHelpers: () => ({ xp: '', H: 'Z', V: 'X', Hp: '', Vp: '', fH: v => v, fV: v => v }),
 }));
 vi.mock('../js/bridge.js', () => ({
   bridge: {},

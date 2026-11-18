@@ -2,7 +2,7 @@
 // (vyčleněno z js/render.js 16. 10. 2026; veřejné API exportuje dál js/render.js)
 
 import { drawCanvas, screenToWorld } from '../canvas.js';
-import { bulgeToArc, getTextPathObject } from '../utils.js';
+import { bulgeToArc, getTextPathObject, getRectCorners } from '../utils.js';
 
 // ── Viewport Culling ──
 /** Vrátí AABB objektu ve world souřadnicích, nebo null. */
@@ -35,11 +35,11 @@ export function getObjectBounds(obj) {
         minX: obj.cx - obj.r, minY: obj.cy - obj.r,
         maxX: obj.cx + obj.r, maxY: obj.cy + obj.r,
       };
-    case 'rect':
-      return {
-        minX: Math.min(obj.x1, obj.x2), minY: Math.min(obj.y1, obj.y2),
-        maxX: Math.max(obj.x1, obj.x2), maxY: Math.max(obj.y1, obj.y2),
-      };
+    case 'rect': {
+      const c = getRectCorners(obj);   // natočený obdélník: obálka rohů
+      const xs = c.map(p => p.x), ys = c.map(p => p.y);
+      return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
+    }
     case 'polyline': {
       if (!obj.vertices || obj.vertices.length === 0) return null;
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;

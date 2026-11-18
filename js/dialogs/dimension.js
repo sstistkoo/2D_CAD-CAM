@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { COLORS } from '../constants.js';
-import { state, showToast, axisLabels } from '../state.js';
+import { state, showToast, axisLabels, coordHelpers } from '../state.js';
 import { addObject } from '../objects.js';
 import { bulgeToArc } from '../utils.js';
 
@@ -478,7 +478,10 @@ export function addDimensionForObject(obj) {
         sourceObjId: obj.id || null,
         color: COLORS.textSecondary,
       });
-      if (added) showToast(`Kóta ${axisLabels()[0]}${obj.x.toFixed(2)} ${axisLabels()[1]}${obj.y.toFixed(2)} přidána`);
+      if (added) {
+        const { H, V, Hp, Vp, fH, fV } = coordHelpers();
+        showToast(`Kóta ${Hp}${H}${fH(obj.x).toFixed(2)} ${Vp}${V}${fV(obj.y).toFixed(2)} přidána`);
+      }
       break;
     }
     case "line":

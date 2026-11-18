@@ -55,3 +55,23 @@ describe('vazby kontury: šíření nepohne pevným vrcholem', () => {
     expect(v[3].y).toBeCloseTo(v[2].y, 9); // segment 2 vodorovně
   });
 });
+
+describe('natočený obdélník: obálka a rohy', () => {
+  it('getObjectBounds bere natočené rohy', async () => {
+    vi.doMock('../js/canvas.js', () => ({ drawCanvas: {}, screenToWorld: () => [0, 0] }));
+    const { getObjectBounds } = await import('../js/render/bounds.js');
+    const b = getObjectBounds({ type: 'rect', x1: -10, y1: -5, x2: 10, y2: 5, rotation: Math.PI / 2 });
+    expect(b.maxX).toBeCloseTo(5, 9);
+    expect(b.maxY).toBeCloseTo(10, 9);
+  });
+
+  it('getRectCornersCCW vrací rohy proti směru hodin i pro prohozené x1/x2', async () => {
+    const { getRectCornersCCW } = await import('../js/utils.js');
+    for (const r of [{ x1: 0, y1: 0, x2: 20, y2: 10 }, { x1: 20, y1: 0, x2: 0, y2: 10, rotation: 0.3 }]) {
+      const c = getRectCornersCCW({ type: 'rect', ...r });
+      let a2 = 0;
+      for (let i = 0; i < 4; i++) a2 += c[i].x * c[(i + 1) % 4].y - c[(i + 1) % 4].x * c[i].y;
+      expect(a2).toBeGreaterThan(0);
+    }
+  });
+});

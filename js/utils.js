@@ -159,6 +159,14 @@ export function safeEvalMath(str) {
  * @param {object} obj - objekt s x1,y1,x2,y2 a volitelným rotation (rad)
  * @returns {{ x: number, y: number }[]}
  */
+/** Rohy obdélníku (s natočením) vždy proti směru hodin – jako dřív min/max box. */
+export function getRectCornersCCW(obj) {
+  const c = getRectCorners(obj);
+  let a2 = 0;
+  for (let i = 0; i < 4; i++) { const p = c[i], q = c[(i + 1) % 4]; a2 += p.x * q.y - q.x * p.y; }
+  return a2 < 0 ? c.reverse() : c;
+}
+
 export function getRectCorners(obj) {
   const corners = [
     { x: obj.x1, y: obj.y1 },
