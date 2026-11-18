@@ -168,6 +168,33 @@ describe('oříznutí segmentu kontury', () => {
   });
 });
 
+describe('oříznutí × kotva (kontrola 18. 11. 2026)', () => {
+  it('ořez, který by odstranil zakotvený konec úsečky, se vrátí i se Zpět', () => {
+    addObject({ type: 'line', x1: 0, y1: 0, x2: 10, y2: 0, name: 'A' });
+    addObject({ type: 'line', x1: 5, y1: -5, x2: 5, y2: 5, name: 'B' });
+    state.anchors = [{ x: 10, y: 0 }];
+    const undo = state.undoStack.length;
+    handleTrimClick(8, 0);
+    expect(state.objects[0]).toMatchObject({ x1: 0, y1: 0, x2: 10, y2: 0 });
+    expect(state.undoStack.length).toBe(undo);
+  });
+
+  it('ořez druhé (nezakotvené) strany projde', () => {
+    addObject({ type: 'line', x1: 0, y1: 0, x2: 10, y2: 0, name: 'A' });
+    addObject({ type: 'line', x1: 5, y1: -5, x2: 5, y2: 5, name: 'B' });
+    state.anchors = [{ x: 10, y: 0 }];
+    handleTrimClick(2, 0);
+    expect(state.objects[0]).toMatchObject({ x1: 5, y1: 0, x2: 10, y2: 0 });
+  });
+
+  it('kružnice → oblouk zdědí typ čáry', () => {
+    addObject({ type: 'circle', cx: 0, cy: 0, r: 5, name: 'K', dashed: true, lineStyle: 'dash' });
+    addObject({ type: 'line', x1: -10, y1: 0, x2: 10, y2: 0, name: 'L' });
+    handleTrimClick(0, 5);
+    expect(state.objects[0]).toMatchObject({ type: 'arc', dashed: true, lineStyle: 'dash' });
+  });
+});
+
 describe('rozdělení (Break)', () => {
   it('obloukový segment kontury se rozdělí NA oblouku na dva oblouky', () => {
     addObject({ type: 'polyline', closed: false, name: 'K',

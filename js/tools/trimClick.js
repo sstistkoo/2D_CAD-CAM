@@ -11,7 +11,7 @@ import { getLineSegment, analyzeSelection } from './helpers.js';
 import { showEndpointChoiceDialog } from '../dialogs.js';
 import { isAnchored } from './anchorClick.js';
 import { updateAssociativeDimensions } from '../dialogs/dimension.js';
-import { bulgeToArc } from '../utils.js';
+import { bulgeToArc, getObjectSnapPoints } from '../utils.js';
 import { inheritedProps } from '../objects.js';
 
 // ── Helpers ──
@@ -295,9 +295,7 @@ function trimCircularObject(idx, obj, wx, wy) {
       ccw: true,
       name: obj.name || `Oblouk ${obj.id}`,
       id: obj.id,
-      layer: obj.layer,
-      ...(obj.color ? { color: obj.color } : {}),
-      ...(obj.isStock ? { isStock: true } : {}),
+      ...inheritedProps(obj),
     };
   } else {
     // Oblouk – oříznutí
@@ -379,14 +377,13 @@ function trimCircularObject(idx, obj, wx, wy) {
 
       const newArcId = state.nextId++;
       const newArc = {
+        ...inheritedProps(obj),
         type: 'arc',
         cx, cy, r,
-        startAngle: rightBound.angle,
+        startAngle: snapArcAngle(rightBound.angle),
         endAngle: origEnd,
         name: `Oblouk ${newArcId}`,
         id: newArcId,
-        layer: obj.layer,
-        ...(obj.color ? { color: obj.color } : {}),
       };
       if (ccw === false) newArc.ccw = false;
       state.objects.push(newArc);
@@ -811,6 +808,36 @@ function snapProjToBoundary(idx, obj, proj) {
   return { ...proj, [key]: best[key], x: best.x, y: best.y };
 }
 
+/** Zakotvené body (ne středy úseček) ležící na objektu. */
+function anchoredPointsOf(obj) {
+  return getObjectSnapPoints(obj).filter(p => !p.mid && isAnchored(p.x, p.y));
+}
+
+/**
+ * Provede oříznutí a vrátí ho, pokud by odstranilo zakotvený bod objektu
+ * (zakotvený konec / vrchol nesmí zmizet – stejně jako u Rozdělit a u
+ * oříznutí z výběru). Výkres i zásobník Zpět se obnoví do stavu před ořezem.
+ */
+function withAnchorGuard(obj, fn) {
+  const pinned = anchoredPointsOf(obj);
+  if (pinned.length === 0) return fn();
+  const saved = JSON.stringify({ objects: state.objects, anchors: state.anchors });
+  const undoLen = state.undoStack.length, redo = state.redoStack.slice();
+  fn();
+  const still = state.objects.flatMap(o => (o.isDimension || o.isCoordLabel ? [] : getObjectSnapPoints(o)));
+  const lost = pinned.some(p => !still.some(q => !q.mid && Math.hypot(q.x - p.x, q.y - p.y) < 0.01));
+  if (!lost) return;
+  const data = JSON.parse(saved);
+  state.objects = data.objects;
+  state.anchors = data.anchors;
+  state.undoStack.length = undoLen;
+  state.redoStack = redo;
+  calculateAllIntersections();
+  updateAssociativeDimensions();
+  renderAll();
+  showToast("Oříznutí by odstranilo zakotvený bod – nelze oříznout");
+}
+
 export function handleTrimClick(wx, wy) {
   const idx = findObjectAt(wx, wy);
 
@@ -832,7 +859,9 @@ export function handleTrimClick(wx, wy) {
   if (_trimFirst === null) {
     if (!snappedToPoint) {
       // Auto-trim: klik do středu segmentu → najdi hranice a ořízni
-      if (attemptAutoTrim(idx, obj, proj, wx, wy)) return;
+      let done = false;
+      withAnchorGuard(obj, () => { done = attemptAutoTrim(idx, obj, proj, wx, wy); });
+      if (done) return;
       // Auto-trim selhal – vstupme do dvoubodového módu se snap na nejbližší hranici
     }
     // Dvoubodový mód: přichyť k nejbližšímu snap bodu na segmentu
@@ -859,7 +888,7 @@ export function handleTrimClick(wx, wy) {
     return;
   }
 
-  trimBetweenProjections(idx, obj, first.proj, snapped2);
+  withAnchorGuard(obj, () => trimBetweenProjections(idx, obj, first.proj, snapped2));
 }
 
 /** Oříznutí z předvybraného objektu. Vrací true pokud se operace provedla. */

@@ -86,10 +86,12 @@ const _eq = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < LOOP_EPS;
  * (|y|<AXIS_EPS), se proto považuje za uzavřený rovnou osou (closePath()
  * při vykreslení nakreslí tu chybějící úsečku po ose sám).
  * @param {object[]} objs
- * @param {{closeOnAxis?: boolean}} [opts]
+ * @param {{closeOnAxis?: boolean, axisVertical?: boolean}} [opts]
+ *   axisVertical – osa rotace je svislá (karusel: výkres prohozený, osa na x = 0)
  * @returns {{loops: {x:number,y:number}[][], openCount: number}}
  */
 export function buildClosedLoops(objs, opts = {}) {
+  const axisDist = (p) => Math.abs(opts.axisVertical ? p.x : p.y);
   const loops = [];
   const edges = [];
   // Volné konce řetězů, které se NEpodařilo uzavřít — mimo konce legitimně
@@ -135,13 +137,13 @@ export function buildClosedLoops(objs, opts = {}) {
     }
     const closed = chain.length >= 3 && _eq(chain[0], chain[chain.length - 1]);
     const closableOnAxis = !closed && opts.closeOnAxis && chain.length >= 2
-      && Math.abs(chain[0].y) < AXIS_EPS && Math.abs(chain[chain.length - 1].y) < AXIS_EPS;
+      && axisDist(chain[0]) < AXIS_EPS && axisDist(chain[chain.length - 1]) < AXIS_EPS;
     if (closed || closableOnAxis) {
       loops.push(chain);
     } else {
       openCount++;
       if (chain.length >= 2) {
-        const onAxis = (p) => opts.closeOnAxis && Math.abs(p.y) < AXIS_EPS;
+        const onAxis = (p) => opts.closeOnAxis && axisDist(p) < AXIS_EPS;
         if (!onAxis(chain[0])) gaps.push({ x: chain[0].x, y: chain[0].y });
         const last = chain[chain.length - 1];
         if (!onAxis(last)) gaps.push({ x: last.x, y: last.y });
@@ -168,12 +170,14 @@ function pointInPolygon(pt, poly) {
   return inside;
 }
 
-/** Bod smyčky nejdál od osy rotace (y=0) — bezpečný reprezentant pro test
- *  vnoření, mimo dosah ambiguity ray-castingu na hraně (viz volání výše). */
-function _awayFromAxisPoint(loop) {
-  let best = loop[0], bestD = Math.abs(loop[0].y);
+/** Bod smyčky nejdál od osy rotace (soustruh y = 0, karusel x = 0) — bezpečný
+ *  reprezentant pro test vnoření, mimo dosah ambiguity ray-castingu na hraně
+ *  (viz volání výše). */
+function _awayFromAxisPoint(loop, axisVertical = false) {
+  const dist = (p) => Math.abs(axisVertical ? p.x : p.y);
+  let best = loop[0], bestD = dist(loop[0]);
   for (const p of loop) {
-    const d = Math.abs(p.y);
+    const d = dist(p);
     if (d > bestD) { bestD = d; best = p; }
   }
   return best;
@@ -224,10 +228,11 @@ function _reportGaps(gaps) {
  * @returns {object|null} nově vytvořený fill objekt, nebo null (zobrazí toast)
  */
 export function handleFillAreaClick(wx, wy) {
-  // Soustruh: profily jsou často vztažené k ose rotace (y=0), takže se
-  // otevřené řetězce s oběma konci na ose berou jako uzavřené podél ní.
-  const closeOnAxis = state.machineType !== 'karusel';
-  const { loops, gaps } = buildClosedLoops(fillableObjects(), { closeOnAxis });
+  // Profily jsou často vztažené k ose rotace, takže se otevřené řetězce
+  // s oběma konci na ose berou jako uzavřené podél ní. Soustruh: osa
+  // vodorovně (y = 0); karusel: výkres je prohozený, osa svisle (x = 0).
+  const axisVertical = state.machineType === 'karusel';
+  const { loops, gaps } = buildClosedLoops(fillableObjects(), { closeOnAxis: true, axisVertical });
   if (loops.length === 0) {
     showToast('Ve výkresu nejsou žádné uzavřené obrysy k vybarvení.' + _reportGaps(gaps));
     return null;
@@ -254,9 +259,9 @@ export function handleFillAreaClick(wx, wy) {
   // "outer" polygonu podél téže osy → ray-casting test je tam číselně
   // nespolehlivý (bod na hraně). Použije se bod nejdál od osy (jistě
   // uvnitř/vně, ne na hraně).
-  const insideOuter = loops.filter((l) => l !== outer && pointInPolygon(_awayFromAxisPoint(l), outer));
+  const insideOuter = loops.filter((l) => l !== outer && pointInPolygon(_awayFromAxisPoint(l, axisVertical), outer));
   const holes = insideOuter.filter((l) =>
-    !insideOuter.some((other) => other !== l && pointInPolygon(_awayFromAxisPoint(l), other))
+    !insideOuter.some((other) => other !== l && pointInPolygon(_awayFromAxisPoint(l, axisVertical), other))
   );
 
   return addObject({

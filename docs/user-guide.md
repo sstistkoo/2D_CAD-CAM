@@ -105,7 +105,8 @@ ukazateli — velikost mřížky a krok úhlu se tam nastaví v ⚙️ Nastaven�
 # Mřížka a snap.
 
 ### Vybarvit a šrafy řezu
-Klik do uzavřené plochy (i mezikruží) ji vyplní. V okně barvy je volba **Výplň**:
+Klik do uzavřené plochy (i mezikruží) ji vyplní. Otevřený profil s oběma konci
+na ose rotace se uzavře podél osy (soustruh: vodorovná osa, karusel: svislá). V okně barvy je volba **Výplň**:
 *Barva* nebo **šrafy řezu** (45°, 135°, křížem) s roztečí v mm výkresu — výchozí
 podle velikosti plochy; při malém zoomu se čáry ředí, aby nesplynuly. Šrafy jdou
 i do exportu PNG; funguje v nárysu i v bokorysu.

@@ -268,11 +268,29 @@ describe('handleFillAreaClick', () => {
     expect(obj.loops).toHaveLength(1);
   });
 
-  it('u karuselu (osa nemá stejný význam) se otevřený profil NEuzavře', () => {
+  // Uživatel 18. 11. 2026: karusel uzavírá k ose stejně jako soustruh – výkres
+  // je na karuselu prohozený, osa rotace je svislá (x = 0).
+  const swap = (objs) => objs.map(o => ({ ...o, x1: o.y1, y1: o.x1, x2: o.y2, y2: o.x2 }));
+  it('karusel: otevřený profil s konci na svislé ose (x = 0) se uzavře', () => {
+    state.machineType = 'karusel';
+    state.objects = swap(latheProfile());
+    const obj = handleFillAreaClick(3, 3);
+    expect(obj).not.toBeNull();
+    expect(obj.loops).toHaveLength(1);
+  });
+
+  it('karusel: konce na vodorovné ose (y = 0) se neuzavřou – to není osa rotace', () => {
     state.machineType = 'karusel';
     state.objects = latheProfile();
-    const obj = handleFillAreaClick(3, 3);
-    expect(obj).toBeNull();
+    expect(handleFillAreaClick(3, 3)).toBeNull();
+  });
+
+  it('karusel: mezikruží kontura × polotovar (oba k ose x = 0) = prstenec', () => {
+    state.machineType = 'karusel';
+    state.objects = swap([...latheProfile(), ...stockProfile()]);
+    const obj = handleFillAreaClick(5, -2);
+    expect(obj).not.toBeNull();
+    expect(obj.loops).toHaveLength(2);
   });
 
   it('klik do mezikruží mezi otevřenou konturou a polotovarem (oba dotažené k ose) vybarví jen prstenec', () => {
