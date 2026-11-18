@@ -9,6 +9,7 @@ import { findObjectAt, calculateAllIntersections } from '../geometry.js';
 import { updateAssociativeDimensions } from '../dialogs/dimension.js';
 import { bulgeToArc, distPointToSegment } from '../utils.js';
 import { hasAnchoredPoint } from './anchorClick.js';
+import { remapSegConstraints, setSegConstraints, idxRange } from '../segConstraintsRemap.js';
 
 /** Normalizuje úhel do [0, 2π). */
 function normalizeAngle(a) {
@@ -203,6 +204,12 @@ function breakPolyline(idx, obj, wx, wy) {
   }
   if (!best) { showToast("Konturu se nepodařilo rozdělit"); return; }
   const splitPt = { x: best.x, y: best.y };
+  // Vazby (vodorovně/svisle…) jsou podle indexu segmentu – po rozdělení se
+  // číslování mění, vazba musí zůstat u svého segmentu (oba kusy děleného
+  // rovného segmentu mají stejný směr, takže vazbu dědí oba).
+  const oldSC = obj.segConstraints || null;
+  const remapSC = (oldIdxOf, segCnt) => remapSegConstraints(oldSC, idxRange(0, segCnt).map(oldIdxOf));
+  const setSC = setSegConstraints;
 
   withUndoBatch(() => {
     if (obj.closed) {
@@ -221,6 +228,8 @@ function breakPolyline(idx, obj, wx, wy) {
       obj.vertices = newVerts;
       obj.bulges = newBulges;
       obj.closed = false;
+      // nový segment j = starý (bestSeg + j) mod n; poslední (j = n) = druhý kus bestSeg
+      setSC(obj, remapSC(j => (bestSeg + j) % n, n + 1));
     } else {
       // Rozdělit otevřenou konturu na dvě
       const verts1 = verts.slice(0, bestSeg + 1).map(v => ({ x: v.x, y: v.y }));
@@ -234,10 +243,16 @@ function breakPolyline(idx, obj, wx, wy) {
       const bulges2 = [best.b2];
       for (let i = bestSeg + 1; i < n - 1; i++) bulges2.push(bul(i));
 
+      // 1. část: segmenty 0…bestSeg beze změny čísla; 2. část: j = bestSeg + j
+      const sc1 = remapSC(j => j, bulges1.length);
+      const sc2 = remapSC(j => bestSeg + j, bulges2.length);
+      const lineConstraint = (sc) => (sc && sc[0] ? { constraint: sc[0] } : {});
+
       // Výsledek se 2 body a rovným segmentem → úsečka
       if (verts1.length === 2 && !bulges1[0]) {
         state.objects[idx] = {
           ...inheritedProps(obj),
+          ...lineConstraint(sc1),
           type: 'line',
           x1: verts1[0].x, y1: verts1[0].y,
           x2: verts1[1].x, y2: verts1[1].y,
@@ -246,23 +261,27 @@ function breakPolyline(idx, obj, wx, wy) {
       } else {
         obj.vertices = verts1;
         obj.bulges = bulges1;
+        setSC(obj, sc1);
       }
 
       if (verts2.length === 2 && !bulges2[0]) {
         addObject({
           ...inheritedProps(obj),
+          ...lineConstraint(sc2),
           type: 'line',
           x1: verts2[0].x, y1: verts2[0].y,
           x2: verts2[1].x, y2: verts2[1].y,
         });
       } else {
-        addObject({
+        const p2 = {
           ...inheritedProps(obj),
           type: 'polyline',
           vertices: verts2,
           bulges: bulges2,
           closed: false,
-        });
+        };
+        if (sc2) p2.segConstraints = sc2;
+        addObject(p2);
       }
     }
   });

@@ -3,6 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { state, pushUndo, showToast, STOCK_LAYER_ID } from './state.js';
+import { remapSegConstraints, setSegConstraints, idxRange } from './segConstraintsRemap.js';
 import { updateObjectList } from './ui.js';
 import { calculateAllIntersections } from './geometry.js';
 import { autoCenterView } from './canvas.js';
@@ -130,24 +131,29 @@ export function deletePolylineSegment(idx, segIdx) {
     obj.vertices = verts;
     obj.bulges = bs;
     obj.closed = false;
+    setSegConstraints(obj, remapSegConstraints(obj.segConstraints, idxRange(0, n - 1).map(j => (start + j) % n)));
     return 'opened';
   }
   if (segIdx === 0) {
     obj.vertices.splice(0, 1);
     obj.bulges = bulges.slice(1);
+    setSegConstraints(obj, remapSegConstraints(obj.segConstraints, idxRange(1, segCount)));
     return 'trimmed';
   }
   if (segIdx === segCount - 1) {
     obj.vertices.splice(n - 1, 1);
     obj.bulges = bulges.slice(0, segIdx);
+    setSegConstraints(obj, remapSegConstraints(obj.segConstraints, idxRange(0, segIdx)));
     return 'trimmed';
   }
   const verts2 = obj.vertices.slice(segIdx + 1);
   const bulges2 = bulges.slice(segIdx + 1, n - 1);
+  const sc2 = remapSegConstraints(obj.segConstraints, idxRange(segIdx + 1, segCount));
   obj.vertices = obj.vertices.slice(0, segIdx + 1);
   obj.bulges = bulges.slice(0, segIdx);
+  setSegConstraints(obj, remapSegConstraints(obj.segConstraints, idxRange(0, segIdx)));
   const id = state.nextId++;
-  state.objects.splice(idx + 1, 0, {
+  const part2 = {
     ...inheritedProps(obj),
     type: 'polyline',
     vertices: verts2,
@@ -155,7 +161,9 @@ export function deletePolylineSegment(idx, segIdx) {
     closed: false,
     name: `Kontura ${id}`,
     id,
-  });
+  };
+  setSegConstraints(part2, sc2);
+  state.objects.splice(idx + 1, 0, part2);
   return 'split';
 }
 

@@ -15,6 +15,7 @@ import { autoDetectFeatures } from './dialogs/autoDetect.js';
 import { bulgeToCcwArc, deepClone } from './utils.js';
 import { bridge } from './bridge.js';
 import { updateAssociativeDimensions } from './dialogs/dimension.js';
+import { relinkCopiedDimensions } from './dimensionCopyLinks.js';
 import { handleTangentClick, tangentFromSelection, handleOffsetClick, offsetFromSelection, resetOffsetState, handleTrimClick, trimFromSelection, resetTrimState, handleExtendClick, extendFromSelection, handlePerpClick, perpFromSelection, handleHorizontalClick, horizontalFromSelection, handleParallelClick, parallelFromSelection, handleDimensionClick, dimensionFromSelection, finalizeDimPlacement, handleSnapPointClick, handleMoveClick, applyDragDelta, cancelDrag, handleLineClick, handleMeasureClick, handleCircleClick, handleArcClick, handleRectClick, handlePolylineClick, measureSelection, handleTextClick, handleGearClick, resetGearState, handleGearPairClick, resetGearPairState, handleSlotClick, resetSlotState, handlePolygonClick, resetPolygonState, handleStarClick, resetStarState, handleGrooveClick, resetGrooveState, handleThreadClick, resetThreadState, threadFromSelection, handleAnchorClick, removeAnchorsForObject, removeAnchorAt, hasAnchoredPoint, cleanupOrphanAnchors, handleBreakClick, handleJoinClick, handleCenterMarkClick, centerMarkFromSelection, handleScaleClick, scaleFromSelection, handleFilletChamferClick, filletChamferFromSelection, handleBooleanClick, resetBooleanState, handleCircularArrayClick, handleFaceHoleClick, handleCopyPlaceClick, copyPlaceFromSelection, resetCopyPlaceState, handleProfileTraceClick, finishProfileTrace, resetProfileTraceState, setTraceBulge, getTraceData, handleChainDimensionClick, finishChainDimension, resetChainDimensionState, handleFillAreaClick, startPencilStroke, addPencilPoint, finishPencilStroke, resetPencilState } from './tools/index.js';
 import { getLineSegment } from './tools/helpers.js';
 import { showPostDrawPointDialog } from './dialogs/postDrawDialog.js';
@@ -481,7 +482,7 @@ document.addEventListener("keydown", (e) => {
       // moveObject by kopii zakotveného objektu odmítl posunout (leží na
       // kotvě originálu) a vložila by se přesně na něj.
       const items = Array.isArray(state.clipboard) ? state.clipboard : [state.clipboard];
-      const added = [];
+      const added = [], pairs = [];
       withUndoBatch(() => {
         for (const orig of items) {
           const copy = deepClone(orig);
@@ -489,9 +490,10 @@ document.addEventListener("keydown", (e) => {
           copy.name = (copy.name || copy.type) + " (kopie)";
           translateObject(copy, PASTE_OFFSET, PASTE_OFFSET);
           const a = addObject(copy);   // duplicitní kótu addObject odmítne (null)
-          if (a) added.push(a);
+          if (a) { added.push(a); pairs.push({ origId: orig.id, copy: a }); }
         }
       });
+      relinkCopiedDimensions(pairs);
       const idx = added.map(a => state.objects.indexOf(a)).filter(i => i >= 0);
       state.multiSelected = new Set(idx.length > 1 ? idx : []);
       state.selected = idx.length ? idx[idx.length - 1] : null;

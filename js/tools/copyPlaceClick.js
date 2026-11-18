@@ -9,6 +9,7 @@ import { renderAll } from '../render.js';
 import { deepClone } from '../utils.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { updateAssociativeDimensions } from '../dialogs/dimension.js';
+import { relinkCopiedDimensions } from '../dimensionCopyLinks.js';
 
 /**
  * Aktivuje nástroj copyPlace a nastaví vybrané objekty pro kopírování.
@@ -64,6 +65,7 @@ export function handleCopyPlaceClick(wx, wy) {
   pushUndo();
 
   let count = 0;
+  const pairs = [];
   for (const idx of state._copyPlaceObjects) {
     const orig = state.objects[idx];
     if (!orig) continue;
@@ -79,8 +81,10 @@ export function handleCopyPlaceClick(wx, wy) {
       copy.layer = (copy.type === 'constr') ? 1 : state.activeLayer;
     }
     state.objects.push(copy);
+    pairs.push({ origId: orig.id, copy });
     count++;
   }
+  relinkCopiedDimensions(pairs);
 
   if (count > 0) {
     updateObjectList();

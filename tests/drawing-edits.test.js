@@ -158,3 +158,83 @@ describe('zaoblení / zkosení dvou úseček: jeden krok Zpět', () => {
     }
   });
 });
+
+describe('kopírovat & umístit: kóta jde s kopií', () => {
+  it('zkopírovaná kóta se naváže na kopii úsečky, ne na originál', async () => {
+    const { handleCopyPlaceClick, resetCopyPlaceState } = await import('../js/tools/copyPlaceClick.js');
+    const { addDimensionForObject } = await import('../js/dialogs/dimension.js');
+    state.objects = [];
+    const { addObject } = await import('../js/objects.js');
+    const line = addObject(L(0, 0, 40, 0));
+    addDimensionForObject(line);
+    const dim = state.objects.find(o => o.isDimension);
+    expect(dim.sourceObjId).toBe(line.id);
+    state.selected = null;
+    state.multiSelected = new Set([0, 1]);
+    resetCopyPlaceState();
+    handleCopyPlaceClick(0, 0);     // převezme výběr
+    handleCopyPlaceClick(0, 0);     // odkud
+    handleCopyPlaceClick(0, 100);   // kam
+    const lines = state.objects.filter(o => !o.isDimension);
+    const dims = state.objects.filter(o => o.isDimension);
+    expect(lines.length).toBe(2);
+    expect(dims.length).toBe(2);
+    const copyLine = lines[1], copyDim = dims[1];
+    expect(copyDim.sourceObjId).toBe(copyLine.id);
+    expect(copyDim.y1).toBeCloseTo(dim.y1 + 100, 6);   // kóta u kopie, ne vrácená na originál
+    resetCopyPlaceState();
+  });
+});
+
+describe('rozdělení kontury: vazby zůstanou u svých segmentů', () => {
+  const rect = (closed) => ({ type: 'polyline', layer: 0, id: 1, closed,
+    vertices: [{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 20 }, { x: 0, y: 20 }],
+    bulges: [0, 0, 0, 0].slice(0, closed ? 4 : 3),
+    segConstraints: closed ? { 0: 'horizontal', 1: 'vertical', 2: 'horizontal', 3: 'vertical' }
+      : { 0: 'horizontal', 1: 'vertical', 2: 'horizontal' } });
+
+  it('uzavřená kontura otevřená ve svislém segmentu', async () => {
+    const { handleBreakClick } = await import('../js/tools/breakClick.js');
+    state.objects = [rect(true)];
+    state.nextId = 2;
+    handleBreakClick(40, 10);
+    const p = state.objects[0];
+    expect(p.closed).toBe(false);
+    expect(p.vertices[0]).toEqual({ x: 40, y: 10 });
+    expect(p.segConstraints).toEqual({ 0: 'vertical', 1: 'horizontal', 2: 'vertical', 3: 'horizontal', 4: 'vertical' });
+  });
+
+  it('otevřená kontura rozdělená na dvě', async () => {
+    const { handleBreakClick } = await import('../js/tools/breakClick.js');
+    state.objects = [rect(false)];
+    state.nextId = 2;
+    handleBreakClick(40, 10);
+    const [a, b] = state.objects;
+    expect(a.segConstraints).toEqual({ 0: 'horizontal', 1: 'vertical' });
+    expect(b.segConstraints).toEqual({ 0: 'vertical', 1: 'horizontal' });
+  });
+});
+
+describe('smazání segmentu kontury: vazby se přečíslují', () => {
+  const poly = (closed) => ({ type: 'polyline', layer: 0, id: 1, closed,
+    vertices: [{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 20 }, { x: 0, y: 20 }, { x: 0, y: 40 }],
+    bulges: closed ? [0, 0, 0, 0, 0] : [0, 0, 0, 0],
+    segConstraints: { 0: 'horizontal', 1: 'vertical', 2: 'horizontal', 3: 'vertical' } });
+
+  it('první, prostřední i uzavřená', async () => {
+    const { deletePolylineSegment } = await import('../js/objects.js');
+    state.objects = [poly(false)];
+    expect(deletePolylineSegment(0, 0)).toBe('trimmed');
+    expect(state.objects[0].segConstraints).toEqual({ 0: 'vertical', 1: 'horizontal', 2: 'vertical' });
+
+    state.objects = [poly(false)];
+    expect(deletePolylineSegment(0, 1)).toBe('split');
+    expect(state.objects[0].segConstraints).toEqual({ 0: 'horizontal' });
+    expect(state.objects[1].segConstraints).toEqual({ 0: 'horizontal', 1: 'vertical' });
+
+    state.objects = [poly(true)];
+    expect(deletePolylineSegment(0, 1)).toBe('opened');
+    // nové pořadí: starý 2, 3, 4, 0
+    expect(state.objects[0].segConstraints).toEqual({ 0: 'horizontal', 1: 'vertical', 3: 'horizontal' });
+  });
+});

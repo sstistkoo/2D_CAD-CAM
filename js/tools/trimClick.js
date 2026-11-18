@@ -4,6 +4,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { state, pushUndo, showToast } from '../state.js';
+import { remapSegConstraints, setSegConstraints } from '../segConstraintsRemap.js';
 import { renderAll } from '../render.js';
 import { findObjectAt, calculateAllIntersections, getLines, getCircles, intersectLineLine, intersectLineCircle, intersectCircleCircle, findSegmentAt } from '../geometry.js';
 import { getLineSegment, analyzeSelection } from './helpers.js';
@@ -130,48 +131,59 @@ function removePolylineSpan(idx, obj, A, B) {
     return arc ? computeNewBulge(a, b, arc.cx, arc.cy, arc.ccw) : 0;
   };
 
+  // Vazby segmentů (segConstraints) jsou podle indexu – vedle bulge se
+  // proto vede i původní index segmentu (headS/tailS), aby vazba zůstala
+  // u svého segmentu i po přečíslování.
+  const oldSC = obj.segConstraints || null;
   // Začátek kontury po A
   const headV = V.slice(0, A.segIdx + 1).map(v => ({ ...v }));
-  const headB = [];
-  for (let i = 0; i < A.segIdx; i++) headB.push(bul(i));
+  const headB = [], headS = [];
+  for (let i = 0; i < A.segIdx; i++) { headB.push(bul(i)); headS.push(i); }
   if (!same(A, V[A.segIdx])) {
     headB.push(partial(A.segIdx, V[A.segIdx], A));
+    headS.push(A.segIdx);
     headV.push({ x: A.x, y: A.y });
   }
   // Od B po konec (u uzavřené včetně uzavíracího segmentu zpět na vrchol 0)
-  const tailV = [], tailB = [];
+  const tailV = [], tailB = [], tailS = [];
   const endV = V[(B.segIdx + 1) % n];
   if (!same(B, endV)) {
     tailV.push({ x: B.x, y: B.y });
     tailB.push(partial(B.segIdx, B, endV));
+    tailS.push(B.segIdx);
   }
   for (let i = B.segIdx + 1; i <= segCount; i++) {
     tailV.push({ ...V[i % n] });
-    if (i < segCount) tailB.push(bul(i));
+    if (i < segCount) { tailB.push(bul(i)); tailS.push(i); }
   }
 
-  const keep = (verts, bulges, target) => {
+  const scFor = (segs) => remapSegConstraints(oldSC, segs);
+  const keep = (verts, bulges, target, segs) => {
     target.vertices = verts;
     target.bulges = bulges;
     target.closed = false;
+    setSegConstraints(target, scFor(segs));
   };
   if (obj.closed) {
     const verts = tailV.concat(headV.slice(1));
     if (verts.length < 2) { state.objects.splice(idx, 1); return; }
-    keep(verts, tailB.concat(headB), obj);
+    keep(verts, tailB.concat(headB), obj, tailS.concat(headS));
     return;
   }
   const headOk = headV.length >= 2, tailOk = tailV.length >= 2;
-  if (headOk) keep(headV, headB, obj);
-  else if (tailOk) { keep(tailV, tailB, obj); return; }
+  if (headOk) keep(headV, headB, obj, headS);
+  else if (tailOk) { keep(tailV, tailB, obj, tailS); return; }
   else { state.objects.splice(idx, 1); return; }
   if (tailOk) {
     const newId = state.nextId++;
-    state.objects.push({
+    const tail = {
       ...inheritedProps(obj),
       type: 'polyline', vertices: tailV, bulges: tailB, closed: false,
       name: `Kontura ${newId}`, id: newId,
-    });
+    };
+    const sc = scFor(tailS);
+    if (sc) tail.segConstraints = sc;
+    state.objects.push(tail);
   }
 }
 

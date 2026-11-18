@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Kopie kót zůstanou u kopie** (kontrola 18. 11. 2026). Kopírovat & umístit i Ctrl+V zkopírovaly kótu i s odkazem na původní objekt – přepočet kót ji pak hned vrátil na originál (dvě stejné kóty na jednom místě, kopie bez kóty). Kóta se teď naváže na kopii; když se kótovaný objekt nekopíroval, zůstane jako volná kóta tam, kam se vložila.
+- **Vazby kontury po rozdělení, ořezu a smazání segmentu** (kontrola 18. 11. 2026). Vazby vodorovně/svisle jsou uložené podle čísla segmentu; Rozdělit, Oříznout a smazání segmentu konturu přečíslovaly, ale vazby nechaly na starých číslech – značky se ukázaly na jiných segmentech a další vyrovnání pak hýbalo nesprávnou částí kontury. Vazby se teď přečíslují s konturou (`js/segConstraintsRemap.js`).
 - **Zaoblení / zkosení dvou úseček = jeden krok Zpět** (kontrola 18. 11. 2026). Ořez úseček a nový oblouk (zkosení) se ukládaly jako dva kroky, takže první Zpět nechalo zkrácené úsečky bez oblouku. Neúspěšný výpočet (např. příliš velké R) navíc přidal prázdný krok. Stejně zdvojený krok měla nová rovnoběžka přes bod a kružnice přes 3 body.
 - **Vazby kontury: šíření nepohne pevným bodem** (kontrola 18. 11. 2026). U uzavřené kontury s vazbami na všech stranách (vodorovně/svisle) obešlo šíření vazby celou konturu a posunulo i pevný vrchol upravovaného segmentu – ten pak hned přestal být vodorovný/svislý.
 - **Oblouk – náhled směru při zrcadlené ose** (kontrola 18. 11. 2026). Okno ↻ Směr oblouku kreslilo náhledy vždy pro nezrcadlený pohled; s otočenou osou ukazovaly opačný oblouk, než pak vznikl na plátně.
