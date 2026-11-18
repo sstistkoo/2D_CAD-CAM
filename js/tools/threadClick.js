@@ -24,6 +24,7 @@ import { setHint, resetHint, updateObjectList, updateProperties } from '../ui.js
 import { buildGrooveProfile } from './grooveClick.js';
 import { lookupDin76 } from '../calculators/dinGrooves.js';
 import { showThreadToolDialog, threadToolDiameters } from '../dialogs/threadDialog.js';
+import { updateAssociativeDimensions } from '../dialogs/dimension.js';
 
 const TOL = 0.01;   // tolerance napojení koncových bodů [mm]
 
@@ -139,6 +140,14 @@ export function threadFromSelection() {
   return true;
 }
 
+/** Leží některý koncový bod oblouku / vrchol kontury v bodě p? */
+function hasEndAt(o, p) {
+  const pts = o.type === 'arc'
+    ? [o.startAngle, o.endAngle].map(t => ({ x: o.cx + o.r * Math.cos(t), y: o.cy + o.r * Math.sin(t) }))
+    : (o.vertices || []);
+  return pts.some(q => Math.abs(q.x - p.x) < TOL && Math.abs(q.y - p.y) < TOL);
+}
+
 /** Posune koncové body všech napojených čar z bodu (a, rOld) do (a, rNew). */
 function moveConnectedEnds(orient, a, rOld, rNew, skipObj) {
   const from = toW(orient, a, rOld), to = toW(orient, a, rNew);
@@ -148,8 +157,9 @@ function moveConnectedEnds(orient, a, rOld, rNew, skipObj) {
     if (o.type === 'line' || o.type === 'constr') {
       if (Math.abs(o.x1 - from.x) < TOL && Math.abs(o.y1 - from.y) < TOL) { o.x1 = to.x; o.y1 = to.y; }
       if (Math.abs(o.x2 - from.x) < TOL && Math.abs(o.y2 - from.y) < TOL) { o.x2 = to.x; o.y2 = to.y; }
-    } else if (o.type === 'arc' || o.type === 'polyline') {
-      // Oblouky/polyline nelze bezpečně "natáhnout" — jen upozornit.
+    } else if ((o.type === 'arc' || o.type === 'polyline') && hasEndAt(o, from)) {
+      // Napojené oblouky/polyline nelze bezpečně "natáhnout" — jen upozornit
+      // (nenapojené oblouky jinde ve výkresu varování nevyvolají).
       arcsSkipped++;
     }
   });
@@ -314,6 +324,7 @@ function applyThread(ctx, p) {
   state.selectedSegment = null;
   if (state.multiSelected) state.multiSelected.clear();
   updateProperties();
+  updateAssociativeDimensions(); // kóty srovnaného ⌀ a napojených čar jdou s nimi
   calculateAllIntersections();
   updateObjectList();
   renderAll();

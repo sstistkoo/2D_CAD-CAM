@@ -7,8 +7,17 @@ import { state, pushUndo, showToast } from '../state.js';
 import { renderAll } from '../render.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { setHint, resetHint, updateProperties } from '../ui.js';
-import { moveObject } from '../objects.js';
-import { isAnchored } from './anchorClick.js';
+import { translateObject } from '../objects.js';
+import { isAnchored, hasAnchoredPoint } from './anchorClick.js';
+import { getRectCorners } from '../utils.js';
+
+// Roh i obdélníku (pořadí getRectCorners) → které souřadnice ho tvoří.
+const RECT_CORNER_KEYS = [['x1', 'y1'], ['x2', 'y1'], ['x2', 'y2'], ['x1', 'y2']];
+
+/** Přichycení posune celý objekt (kontura; natočený obdélník – jeho roh není x1/y1). */
+function movesWholeObject(obj) {
+  return obj.type === 'polyline' || (obj.type === 'rect' && !!obj.rotation);
+}
 import { updateAssociativeDimensions } from '../dialogs/dimension.js';
 
 /**
@@ -38,8 +47,8 @@ function findNearestEndpoint(wx, wy) {
         candidates.push({ key: 'center', x: obj.cx, y: obj.cy });
         break;
       case 'rect':
-        candidates.push({ key: 'p1', x: obj.x1, y: obj.y1 });
-        candidates.push({ key: 'p2', x: obj.x2, y: obj.y2 });
+        // Všechny 4 skutečné rohy (i u natočeného obdélníku)
+        getRectCorners(obj).forEach((c, ci) => candidates.push({ key: 'r' + ci, x: c.x, y: c.y }));
         break;
       case 'polyline':
         obj.vertices.forEach((v, vi) => {
@@ -74,7 +83,10 @@ function moveEndpoint(objIdx, key, nx, ny) {
       obj.cx = nx; obj.cy = ny;
       break;
     default:
-      if (key.startsWith('v') && obj.type === 'polyline') {
+      if (key.startsWith('r') && obj.type === 'rect') {
+        const [kx, ky] = RECT_CORNER_KEYS[parseInt(key.substring(1), 10)] || [];
+        if (kx) { obj[kx] = nx; obj[ky] = ny; }
+      } else if (key.startsWith('v') && obj.type === 'polyline') {
         const vi = parseInt(key.substring(1), 10);
         if (obj.vertices[vi]) {
           obj.vertices[vi].x = nx;
@@ -107,20 +119,22 @@ export function handleSnapPointClick(wx, wy) {
     renderAll();
   } else {
     // Krok 2: přesuň na cílový bod
-    pushUndo();
     const src = state._snapPointState;
     const srcObj = state.objects[src.objIdx];
-    if (!srcObj) {
-      showToast("Zdrojový objekt byl smazán");
+    const cancel = (msg) => {
+      showToast(msg);
       state._snapPointState = null;
       resetHint();
-      return;
-    }
-    if (srcObj.type === 'polyline') {
-      // Polyline: posunout celý objekt tak, aby vybraný bod dopadl na cíl
-      const dx = wx - src.x;
-      const dy = wy - src.y;
-      moveObject(srcObj, dx, dy);
+      renderAll();
+    };
+    if (!srcObj) return cancel("Zdrojový objekt byl smazán");
+    const whole = movesWholeObject(srcObj);
+    // Posun celého objektu nesmí pohnout jiným jeho zakotveným bodem
+    if (whole && hasAnchoredPoint(srcObj)) return cancel("Objekt je zakotven – nelze přesunout");
+    pushUndo();
+    if (whole) {
+      // Posunout celý objekt tak, aby vybraný bod dopadl na cíl
+      translateObject(srcObj, wx - src.x, wy - src.y);
     } else {
       moveEndpoint(src.objIdx, src.key, wx, wy);
     }

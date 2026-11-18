@@ -2,7 +2,8 @@
 // ║  Tečna – click logika                                      ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, pushUndo, showToast } from '../state.js';
+import { state, pushUndo, showToast, withUndoBatch } from '../state.js';
+import { updateAssociativeDimensions } from '../dialogs/dimension.js';
 import { bulgeToArc, getNearestPointOnObject, isAngleBetween, getRectCorners } from '../utils.js';
 import { renderAll } from '../render.js';
 import { addObject } from '../objects.js';
@@ -21,6 +22,29 @@ import { showTangentChoiceDialog, showTangentPositionDialog } from '../dialogs.j
 import { hasAnchoredPoint } from './anchorClick.js';
 
 let _lastTangentNewCircleR = 0;
+
+/** „1 tečna / 2–4 tečny / 5+ tečen". */
+export function tangentCountText(n) {
+  return `${n} ${n === 1 ? 'tečna' : n >= 2 && n <= 4 ? 'tečny' : 'tečen'}`;
+}
+
+/** Vytvoří zvolené tečné úsečky jako JEDEN krok Zpět (addObject jinak ukládá krok za každou). */
+function addTangentLines(tangents, indices) {
+  withUndoBatch(() => {
+    for (const i of indices) {
+      const t = tangents[i];
+      addObject({ type: 'line', x1: t.x1, y1: t.y1, x2: t.x2, y2: t.y2, name: `Tečna ${state.nextId}` });
+    }
+  });
+  showToast(`Vytvořeno ${tangentCountText(indices.length)} ✓`);
+}
+
+/** Po přesunu kružnice/úsečky: kóty jdou s objektem, přepočet průsečíků. */
+function afterTangentMove() {
+  updateAssociativeDimensions();
+  calculateAllIntersections();
+  renderAll();
+}
 
 // ── Extrahuje segment jako constraint objekt {type:'line',...} nebo {type:'arc',...} ──
 function extractSegmentConstraint(obj, segIdx) {
@@ -205,7 +229,7 @@ export function tangentFromSelection() {
     const obj = state.objects[circles[0].idx];
     obj.cx = pos.cx; obj.cy = pos.cy;
     if (pos.r !== undefined) obj.r = pos.r;
-    calculateAllIntersections(); renderAll();
+    afterTangentMove();
     showToast(msg);
   };
 
@@ -373,11 +397,7 @@ export function tangentFromSelection() {
       const pt = points[0];
       const tangents = tangentsFromPointToCircle(pt.x, pt.y, circ.cx, circ.cy, circ.r);
       if (tangents.length === 0) { showToast("Tečna neexistuje (bod uvnitř kružnice)"); return true; }
-      showTangentChoiceDialog(tangents, indices => {
-        for (const i of indices)
-          addObject({ type: 'line', x1: tangents[i].x1, y1: tangents[i].y1, x2: tangents[i].x2, y2: tangents[i].y2, name: `Tečna ${state.nextId}` });
-        showToast(`Vytvořeno ${indices.length} tečn ✓`);
-      });
+      showTangentChoiceDialog(tangents, indices => addTangentLines(tangents, indices));
       return true;
     }
 
@@ -388,12 +408,13 @@ export function tangentFromSelection() {
       const lineObj = state.objects[lines[0].idx];
       const isLineObj = lineObj && (lineObj.type === 'line' || lineObj.type === 'constr');
       if (isLineObj && isPartOfDrawing(circles[0].idx) && !isPartOfDrawing(lines[0].idx)) {
+        if (hasAnchoredPoint(lineObj)) { showToast("Úsečka je zakotvena – nelze přesunout tečně"); return true; }
         const shift = lineTangentToCircleShift(lineObj, circObj);
         if (!shift) { showToast("Tečnou polohu úsečky nelze najít"); return true; }
         pushUndo();
         lineObj.x1 += shift.nx * shift.k; lineObj.y1 += shift.ny * shift.k;
         lineObj.x2 += shift.nx * shift.k; lineObj.y2 += shift.ny * shift.k;
-        calculateAllIntersections(); renderAll();
+        afterTangentMove();
         showToast("Úsečka přisunuta tečně ke kružnici/oblouku ✓");
         return true;
       }
@@ -416,20 +437,12 @@ export function tangentFromSelection() {
     if (tangents.length > 0 && movePos.length > 0) {
       showTangentChoiceDialog(
         tangents.map((t, i) => ({ ...t, label: `Tečná úsečka ${i + 1}` })),
-        indices => {
-          for (const i of indices)
-            addObject({ type: 'line', x1: tangents[i].x1, y1: tangents[i].y1, x2: tangents[i].x2, y2: tangents[i].y2, name: `Tečna ${state.nextId}` });
-          showToast(`Vytvořeno ${indices.length} tečen ✓`);
-        }
+        indices => addTangentLines(tangents, indices)
       );
       return true;
     }
     if (tangents.length > 0) {
-      showTangentChoiceDialog(tangents, indices => {
-        for (const i of indices)
-          addObject({ type: 'line', x1: tangents[i].x1, y1: tangents[i].y1, x2: tangents[i].x2, y2: tangents[i].y2, name: `Tečna ${state.nextId}` });
-        showToast(`Vytvořeno ${indices.length} tečen ✓`);
-      });
+      showTangentChoiceDialog(tangents, indices => addTangentLines(tangents, indices));
       return true;
     }
     return true;
@@ -457,6 +470,8 @@ export function handleTangentClick(wx, wy) {
     if (idx !== null) {
       const obj = state.objects[idx];
       if (obj.type === 'circle' || obj.type === 'arc') {
+        // Kružnice se v dalších krocích přesouvá → zakotvenou nelze (jako u výběru)
+        if (hasAnchoredPoint(obj)) { showToast("Kružnice je zakotvena – nelze přesunout tečně"); return; }
         state.drawing = true;
         state._tangentMode = 'circle-first';
         state._tangentFirstCircle = idx;
@@ -484,13 +499,7 @@ export function handleTangentClick(wx, wy) {
       if (tangents.length === 0) {
         showToast("Tečna neexistuje (bod uvnitř kružnice)");
       } else {
-        showTangentChoiceDialog(tangents, (indices) => {
-          for (const i of indices) {
-            const t = tangents[i];
-            addObject({ type: 'line', x1: t.x1, y1: t.y1, x2: t.x2, y2: t.y2, name: `Tečna ${state.nextId}` });
-          }
-          showToast(`Vytvořeno ${indices.length} tečn${indices.length === 1 ? 'a' : indices.length < 5 ? 'y' : ''}`);
-        });
+        showTangentChoiceDialog(tangents, indices => addTangentLines(tangents, indices));
       }
 
     // ── Kružnice → ? ──
@@ -551,8 +560,7 @@ export function handleTangentClick(wx, wy) {
           pushUndo();
           circ.cx = positions[chosenIdx].cx;
           circ.cy = positions[chosenIdx].cy;
-          calculateAllIntersections();
-          renderAll();
+          afterTangentMove();
           showToast("Kružnice přesunuta tečně k úsečce přes bod ✓");
         });
       } else {
@@ -572,8 +580,7 @@ export function handleTangentClick(wx, wy) {
           pushUndo();
           circ.cx = positions[chosenIdx].cx;
           circ.cy = positions[chosenIdx].cy;
-          calculateAllIntersections();
-          renderAll();
+          afterTangentMove();
           showToast("Kružnice přesunuta přes 2 body ✓");
         });
       }
@@ -595,8 +602,7 @@ export function handleTangentClick(wx, wy) {
           pushUndo();
           circ.cx = positions[chosenIdx].cx;
           circ.cy = positions[chosenIdx].cy;
-          calculateAllIntersections();
-          renderAll();
+          afterTangentMove();
           showToast("Kružnice přesunuta tečně k segmentu přes bod ✓");
         });
         return;
@@ -618,8 +624,7 @@ export function handleTangentClick(wx, wy) {
         pushUndo();
         circ.cx = positions[chosenIdx].cx;
         circ.cy = positions[chosenIdx].cy;
-        calculateAllIntersections();
-        renderAll();
+        afterTangentMove();
         showToast("Klepněte na 3. segment nebo bod pro 3. vazbu, nebo Esc");
         state.drawing = true;
         state._tangentMode = 'circle-seg-3';
@@ -647,8 +652,7 @@ export function handleTangentClick(wx, wy) {
           circ.cx = positions[chosenIdx].cx;
           circ.cy = positions[chosenIdx].cy;
           circ.r  = positions[chosenIdx].r;
-          calculateAllIntersections();
-          renderAll();
+          afterTangentMove();
           showToast(`Kružnice upravena tečně ke dvěma segmentům přes bod (r=${positions[chosenIdx].r.toFixed(3)}) ✓`);
         });
         return;
@@ -668,8 +672,7 @@ export function handleTangentClick(wx, wy) {
         circ.cx = positions[chosenIdx].cx;
         circ.cy = positions[chosenIdx].cy;
         circ.r  = positions[chosenIdx].r;
-        calculateAllIntersections();
-        renderAll();
+        afterTangentMove();
         showToast(`Kružnice upravena tečně ke třem segmentům (r=${positions[chosenIdx].r.toFixed(3)}) ✓`);
       });
       return;
