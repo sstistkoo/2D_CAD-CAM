@@ -21,3 +21,20 @@ describe('AI profil: oblouk přes 180° v G-kódu', () => {
     expect(gcodeToProfile('G0 X20 Z0\nG3 X20 Z10 CR=7.0710678').bulges[0]).toBeCloseTo(1 / b, 6);
   });
 });
+
+describe('Trasování profilu: import G-kódu', () => {
+  it('I/K i CR<0 dají dlouhý oblouk, komentář se nečte, I je poloměr', async () => {
+    const { _parseGcodeToTrace } = await import('../js/tools/profileTraceClick.js');
+    const { state } = await import('../js/state.js');
+    const b = Math.tan((270 * Math.PI / 180) / 4);
+    Object.assign(state, { machineType: 'soustruh', flipX: false, flipZ: false, xDisplayMode: 'radius' });
+    expect(_parseGcodeToTrace('G0 X10 Z0\nG3 X10 Z10 I-5 K5').bulges[0]).toBeCloseTo(b, 6);
+    expect(_parseGcodeToTrace('G0 X10 Z0\nG3 X10 Z10 CR=-7.0710678').bulges[0]).toBeCloseTo(b, 6);
+    const c = _parseGcodeToTrace('G18 G90\nG0 X10 Z0 ; max 2\nG1 Z5 ; index 3');
+    expect(c.points.map(p => [p.x, p.y])).toEqual([[0, 10], [5, 10]]);
+    // Režim průměru: X se půlí, I zůstává poloměr.
+    state.xDisplayMode = 'diameter';
+    expect(_parseGcodeToTrace('G0 X20 Z0\nG3 X20 Z10 I-5 K5').bulges[0]).toBeCloseTo(b, 6);
+    state.xDisplayMode = 'radius';
+  });
+});

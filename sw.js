@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v836';
+const CACHE_NAME = 'skica-v837';
 const ASSETS = [
   './',
   './index.html',
@@ -421,6 +421,7 @@ const ASSETS = [
   './js/faceView/shellHoleView.js',
   './js/faceView/shellSlots.js',
   './js/fullscreen.js',
+  './js/gcodeArcBulge.js',
   './js/gcodeNormalize.js',
   './js/geom/geomCore.js',
   './js/geometry.js',

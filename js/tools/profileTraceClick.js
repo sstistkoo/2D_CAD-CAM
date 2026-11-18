@@ -10,6 +10,7 @@ import { resetHint, setHint, updateObjectList } from '../ui.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { showBulgeDialog } from '../dialogs/bulge.js';
 import { bulgeToArc, bulgeToCcwArc, radiusToBulge, safeEvalMath, getNearestPointOnObject } from '../utils.js';
+import { bulgeAroundCenter, signedRadiusBulge } from '../gcodeArcBulge.js';
 import { calculateAllIntersections } from '../geometry.js';
 // Auto profil / krokování znovupoužívá VÝHRADNĚ existující resolveOuterProfile
 // z CAM pipeline (contourBuild.js) — stejná logika jako u CAM tlačítek ⊙ Auto/
@@ -769,7 +770,7 @@ export function importTraceFromGcode() {
  * Parsuje text G-kódu na body a bulge.
  * Podporuje G00/G01/G02/G03 s X, Z, R, I, K parametry.
  */
-function _parseGcodeToTrace(text) {
+export function _parseGcodeToTrace(text) {
   const lines = text.split(/\n/).map(l => l.trim()).filter(l => l && !l.startsWith('(') && !l.startsWith(';') && !l.startsWith('%'));
   const isKarusel = state.machineType === 'karusel';
   const points = [];
@@ -777,15 +778,20 @@ function _parseGcodeToTrace(text) {
   let curX = 0, curZ = 0;
   let curG = 'G00';
 
-  for (const line of lines) {
-    const gMatch = line.match(/G0*([0-3])/i);
+  for (const rawLine of lines) {
+    // Poznámka za ; a (text) se nečte – `G0 Z5 ; max 2` dalo X2 z komentáře.
+    const line = rawLine.replace(/\([^)]*\)/g, ' ').replace(/;.*$/, '');
+    // (?!\d): „G18 G90" v hlavičce není G1.
+    const gMatch = line.match(/G0*([0-3])(?!\d)/i);
     if (gMatch) curG = 'G0' + gMatch[1];
 
-    const xMatch = line.match(/X\s*(-?[\d.]+)/i);
-    const zMatch = line.match(/Z\s*(-?[\d.]+)/i);
-    const rMatch = line.match(/R\s*(-?[\d.]+)/i);
-    const iMatch = line.match(/I\s*(-?[\d.]+)/i);
-    const kMatch = line.match(/K\s*(-?[\d.]+)/i);
+    const addr = (a) => line.match(new RegExp(String.raw`(?<![A-Z])${a}\s*=?\s*(-?[\d.]+)`, 'i'));
+    const xMatch = addr('X');
+    const zMatch = addr('Z');
+    // Sinumerik CR= (R by ho nechytilo – před R stojí písmeno).
+    const rMatch = line.match(/CR\s*=\s*(-?[\d.]+)/i) || addr('R');
+    const iMatch = addr('I');
+    const kMatch = addr('K');
 
     if (!xMatch && !zMatch) continue;
 
@@ -804,25 +810,18 @@ function _parseGcodeToTrace(text) {
       // prohozené (jako výstup getTraceGcode / runCncExport) – zpět se otočí.
       const cw = (curG === 'G02') !== (state.flipX !== state.flipZ);
 
-      if (rMatch) {
+      if (iMatch || kMatch) {
+        // I je VŽDY poloměr (i v režimu průměru – tak ho píše i getTraceGcode/_calcIK),
+        // dřív se přes inputX půlilo. Rozvin ze středu: i oblouk přes 180°.
+        const iVal = iMatch ? parseFloat(iMatch[1]) : 0;
+        const kVal = kMatch ? parseFloat(kMatch[1]) : 0;
+        const cx = isKarusel ? prev.x + iVal : prev.x + kVal;
+        const cy = isKarusel ? prev.y + kVal : prev.y + iVal;
+        bulge = bulgeAroundCenter(prev, pt, cx, cy, cw);
+      } else if (rMatch) {
         const r = parseFloat(rMatch[1]);
-        bulge = radiusToBulge(prev, pt, Math.abs(r), cw);
-        if (bulge === null) bulge = 0;
-        if (r < 0) bulge = -bulge;
-      } else if (iMatch && kMatch) {
-        const iVal = parseFloat(iMatch[1]);
-        const kVal = parseFloat(kMatch[1]);
-        let cx, cy;
-        if (isKarusel) {
-          cx = prev.x + inputX(iVal);
-          cy = prev.y + kVal;
-        } else {
-          cx = prev.x + kVal;
-          cy = prev.y + inputX(iVal);
-        }
-        const r = Math.hypot(prev.x - cx, prev.y - cy);
-        bulge = radiusToBulge(prev, pt, r, cw);
-        if (bulge === null) bulge = 0;
+        // R < 0 = oblouk přes 180° stejným směrem (dřív jen otočené znaménko).
+        bulge = signedRadiusBulge(radiusToBulge(prev, pt, Math.abs(r), cw) || 0, r);
       }
 
       bulges.push(bulge);

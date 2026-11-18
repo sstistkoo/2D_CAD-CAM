@@ -186,7 +186,7 @@ export class CNCParser {
         this.firstMoveFound = true;
         if (this.cfg.coords.active && !this.coordModeDefined)
           this.errors.push({ file: currentFile, lineIndex: i, msg: 'Chybí G90/G91 před prvním pohybem.' });
-        if (this.cfg.feed.active && !clean.includes('G0') && !this.feedModeDefined)
+        if (this.cfg.feed.active && !/\bG0?0\b/.test(clean) && !this.feedModeDefined)   // G01 není rychloposuv
           this.errors.push({ file: currentFile, lineIndex: i, msg: 'Chybí G94/G95 před pracovním posuvem.' });
       }
 

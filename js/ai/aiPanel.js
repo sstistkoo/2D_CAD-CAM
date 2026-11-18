@@ -7,6 +7,7 @@ import { showToast, state, pushUndo } from '../state.js';
 import { makeOverlay, makeDraggable } from '../dialogFactory.js';
 import { addPolylineAsSegments } from '../objects.js';
 import { radiusToBulge, bulgeToArc } from '../utils.js';
+import { bulgeAroundCenter, signedRadiusBulge } from '../gcodeArcBulge.js';
 import { autoCenterView } from '../canvas.js';
 import { filletTwoLines, chamferTwoLines } from '../geometry.js';
 import { getActiveAIConfig, openAISettings, AI_PROVIDERS } from './aiSettings.js';
@@ -344,15 +345,6 @@ function _arcBulge(T1, T2, cx, cy) {
   return Math.tan(d / 4);
 }
 
-// Bulge oblouku p1→p2 kolem známého středu v daném smyslu (i přes 180°).
-function bulgeAroundCenter(p1, p2, cx, cy, cw) {
-  const TAU = 2 * Math.PI;
-  const a1 = Math.atan2(p1.y - cy, p1.x - cx), a2 = Math.atan2(p2.y - cy, p2.x - cx);
-  const s = (((cw ? a1 - a2 : a2 - a1) % TAU) + TAU) % TAU;
-  if (s < 1e-9) return 0;
-  return (cw ? -1 : 1) * Math.tan(s / 4);
-}
-
 // Skeleton = pole rohových bodů {z,d} (zleva doprava, Z0 vlevo u sklíčidla).
 // Roh může mít r (fillet), chamfer:[délka,úhel] nebo střed cz/cx (přednost).
 function isSkeletonFormat(items) {
@@ -507,7 +499,9 @@ export function gcodeToProfile(text) {
   const cornerMod = [];  // modifikátor rohu v pts[i]: {kind:'rnd'|'chf', v} | null
   let curX = 0, curZ = 0, curG = 'G0', modalRnd = 0, absMode = true;
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    // Poznámka za ; a (text) se nečte – `G0 Z5 ; max 2` dalo X2 z komentáře.
+    const line = rawLine.replace(/\([^)]*\)/g, ' ').replace(/;.*$/, '');
     // G90/G91 = modální přepnutí absolutní/inkrementální; platí od tohoto řádku včetně
     const absM = line.match(/G9([01])(?!\d)/i);
     if (absM) absMode = absM[1] === '0';
@@ -545,10 +539,7 @@ export function gcodeToProfile(text) {
             bulge = bulgeAroundCenter(prev, pt, cx, cy, cw);
           } else if (rm) {
             const rv = parseFloat(rm[1]);
-            bulge = radiusToBulge(prev, pt, Math.abs(rv), cw) || 0;
-            // R < 0 = oblouk přes 180° STEJNÝM směrem: tan((2π − θ)/4) = 1 / tan(θ/4).
-            // Dřív se jen otočilo znaménko – vyšel krátký oblouk opačným směrem.
-            if (rv < 0 && bulge) bulge = 1 / bulge;
+            bulge = signedRadiusBulge(radiusToBulge(prev, pt, Math.abs(rv), cw) || 0, rv);
           }
         }
         segBulge.push(bulge);
