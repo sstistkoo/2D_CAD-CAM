@@ -4,7 +4,7 @@
 
 import { ZOOM_FACTOR, ZOOM_MIN, ZOOM_MAX, PASTE_OFFSET } from './constants.js';
 import { drawCanvas, screenToWorld, snapPt, applyAngleSnap, autoCenterView } from './canvas.js';
-import { state, pushUndo, undo, redo, showToast, resetDrawingState, fmtStatusCoords, withUndoBatch } from './state.js';
+import { state, pushUndo, undo, redo, showToast, resetDrawingState, fmtStatusCoords, withUndoBatch, axisLabels } from './state.js';
 import { renderAll, getObjectBounds, boundsOverlap, getSelectionCounterLabel } from './render.js';
 import { translateObject, addObject, addPolylineAsSegments, inheritedProps, removeOrphanDimensions, deletePolylineSegment } from './objects.js';
 import { setTool, resetHint, setHint, updateProperties, updateObjectList, updateSnapPtsBtn, cycleDimsMode, toggleCoordMode, updateCoordModeBtn, toggleSnapGrid, toggleAngleSnap, toggleHelp, updateNullPointUI, activateFilletChamfer } from './ui.js';
@@ -1414,7 +1414,7 @@ function handleRotateClick(wx, wy) {
     calculateAllIntersections();
     updateAssociativeDimensions();
     renderAll();
-    showToast(`Překlopeno v ose ${axis} ✓`);
+    showToast(`Překlopeno v ose ${axisLabels()[axis === 'Z' ? 0 : 1]} ✓`);
     setTool('select');
   });
 }
@@ -1609,8 +1609,8 @@ function startMirrorAction() {
 
       function handleMirrorClick(e) {
         const rect = drawCanvas.getBoundingClientRect();
-        const sx = (e.clientX || e.changedTouches?.[0]?.clientX) - rect.left;
-        const sy = (e.clientY || e.changedTouches?.[0]?.clientY) - rect.top;
+        const sx = (e.changedTouches?.[0]?.clientX ?? e.clientX) - rect.left;
+        const sy = (e.changedTouches?.[0]?.clientY ?? e.clientY) - rect.top;
         let [mwx, mwy] = screenToWorld(sx, sy);
         if (state.snapToPoints) [mwx, mwy] = snapPt(mwx, mwy);
 
@@ -1657,7 +1657,7 @@ function startMirrorAction() {
           addObject(copy);
         }
       });
-      showToast(`${objs.length > 1 ? objs.length + ' objektů zrcadleno' : 'Objekt zrcadlen'} podle osy ${axis === 'x' ? 'X' : 'Z'} ✓`);
+      showToast(`${objs.length > 1 ? objs.length + ' objektů zrcadleno' : 'Objekt zrcadlen'} podle osy ${axisLabels()[axis === 'x' ? 0 : 1]} ✓`);
     }
   });
 }

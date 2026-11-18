@@ -6,6 +6,12 @@ import { COLORS } from '../constants.js';
 import { makeInputOverlay, focusInput } from '../dialogFactory.js';
 import { showToast, axisLabels } from '../state.js';
 import { safeEvalMath, radiusToBulge } from '../utils.js';
+import { signedRadiusBulge } from '../gcodeArcBulge.js';
+
+/** Bulge ze zadaného R se znaménkem: R < 0 = oblouk přes 180° (jako v G-kódu). */
+function bulgeFromSignedR(p1, p2, r, cw) {
+  return signedRadiusBulge(radiusToBulge(p1, p2, Math.abs(r), cw), r);
+}
 
 // ── Dialog pro nastavení bulge (oblouk segmentu kontury) ──
 /**
@@ -22,7 +28,9 @@ export function showBulgeDialog(p1, p2, currentBulge, onAccept) {
   let currentCW = false;
   if (currentBulge !== 0) {
     const theta = 4 * Math.atan(Math.abs(currentBulge));
-    currentRadius = (d / (2 * Math.sin(theta / 2))).toFixed(3);
+    // |bulge| > 1 = oblouk přes 180° → záporné R, jinak by OK oblouk zkrátil.
+    const rr = d / (2 * Math.sin(theta / 2));
+    currentRadius = (Math.abs(currentBulge) > 1 ? -rr : rr).toFixed(3);
     currentCW = currentBulge < 0;
   }
 
@@ -35,7 +43,7 @@ export function showBulgeDialog(p1, p2, currentBulge, onAccept) {
         <tr><td style="color:${COLORS.label}">Tětiva:</td><td style="color:${COLORS.selected}">${d.toFixed(3)} mm</td></tr>
         <tr><td style="color:${COLORS.label}">Min. R:</td><td style="color:${COLORS.preview}">${minRadius.toFixed(3)} mm</td></tr>
       </table>
-      <label>Poloměr oblouku (mm):</label>
+      <label title="Záporné R = oblouk přes 180°">Poloměr oblouku (mm, záporný = přes 180°):</label>
       <input type="text" id="dlgBulgeR" value="${currentRadius || (minRadius * 2).toFixed(3)}" inputmode="decimal" autofocus>
       <label style="margin-top:8px">Směr:</label>
       <select id="dlgBulgeDir">
@@ -56,12 +64,12 @@ export function showBulgeDialog(p1, p2, currentBulge, onAccept) {
 
   function updateInfo() {
     const r = safeEvalMath(rInput.value);
-    if (!isFinite(r) || r < minRadius - 0.001) {
+    if (!isFinite(r) || Math.abs(r) < minRadius - 0.001) {
       infoDiv.textContent = 'Poloměr příliš malý';
       return;
     }
     const cw = dirSelect.value === 'cw';
-    const b = radiusToBulge(p1, p2, r, cw);
+    const b = bulgeFromSignedR(p1, p2, r, cw);
     const theta = 4 * Math.atan(Math.abs(b));
     infoDiv.textContent = `Bulge: ${b.toFixed(4)} | Úhel: ${(theta * 180 / Math.PI).toFixed(1)}° | ${cw ? 'CW' : 'CCW'}`;
   }
@@ -73,12 +81,12 @@ export function showBulgeDialog(p1, p2, currentBulge, onAccept) {
 
   const accept = () => {
     const r = safeEvalMath(rInput.value);
-    if (!isFinite(r) || r < minRadius - 0.001) {
+    if (!isFinite(r) || Math.abs(r) < minRadius - 0.001) {
       showToast('Poloměr příliš malý (min: ' + minRadius.toFixed(3) + ')');
       return;
     }
     const cw = dirSelect.value === 'cw';
-    const b = radiusToBulge(p1, p2, r, cw);
+    const b = bulgeFromSignedR(p1, p2, r, cw);
     onAccept(b);
     overlay.remove();
   };

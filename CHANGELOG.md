@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Zrcadlit / Překlopit: popisky os podle stroje** (kontrola 18. 11. 2026). Zrcadlení nabízelo „Osa X (horizontální)“ a „Osa Z (vertikální)“ a překlopení „⇔ Z / ⇕ X“ bez ohledu na stroj – na soustruhu je ale vodorovně osa Z (zrcadlení přes osu rotace bylo označené jako osa X), na karuselu zase vodorovně X. Popisky i hláška teď berou osy podle typu stroje. Výběr osy zrcadlení kliknutím na x = 0 obrazovky už nedá NaN.
+- **Oblouk segmentu kontury přes 180° se po OK nezkrátí** (kontrola 18. 11. 2026). Okno ⌒ Oblouk segmentu ukázalo poloměr dlouhého oblouku, ale po potvrzení z něj udělalo krátký oblouk. Teď platí jako v G-kódu: záporné R = oblouk přes 180°, a stávající dlouhý oblouk se předvyplní záporně.
+- **Kružnice – zadání poloměru**: neplatný poloměr okno už tiše nezavře, ukáže hlášku.
 - **Kóty natočeného obdélníku** (kontrola 18. 11. 2026). Kóta šířky a výšky obdélníku s natočením ležela v nenatočené poloze (mimo hrany) a po natočení obdélníku se při přepočtu mohla šířka zaměnit s výškou. Kóty teď leží podél natočených hran a nesou, kterou stranu kótují.
 - **Režim průměru (⌀) i v číselném zadání a polárním kreslení** (uživatel 18. 11. 2026). Pole souřadnice X v okně Číselné zadání (bod, úsečka, kružnice, oblouk, výběr 🎯) a v referenčním bodu okna Polární / Úhel byla vždy v poloměru, i když byl zapnutý ⌀. Teď se X v režimu průměru zadává i ukazuje jako průměr (soustruh svisle, karusel vodorovně) – stejně jako v dialogu vlastností. Společný převod je v `js/dialogs/diamAxis.js`.
 - **Vlastnosti po nakreslení na karuselu v režimu průměru** (kontrola 18. 11. 2026). Dialog po nakreslení (bod, úsečka, kružnice, obdélník, kontura) zdvojoval vždy svislou souřadnici – na karuselu je to ale axiální Z, kdežto radiální X je vodorovně. Průměr (⌀) se teď ukazuje a čte na ose X podle typu stroje, stejně jako export a import G-kódu.

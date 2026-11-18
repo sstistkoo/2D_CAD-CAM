@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { makeInputOverlay, focusInput } from '../dialogFactory.js';
-import { state, axisLabels } from '../state.js';
+import { state, axisLabels, showToast } from '../state.js';
 import { addObject } from '../objects.js';
 import { safeEvalMath } from '../utils.js';
 import { resetHint } from '../ui.js';
@@ -27,7 +27,9 @@ export function showCircleRadiusDialog() {
   focusInput(inp, { select: true });
   const accept = () => {
     const r = safeEvalMath(inp.value);
-    if (r > 0) {
+    // Neplatný poloměr: nechat okno otevřené (dřív se tiše zavřelo bez kružnice).
+    if (!(isFinite(r) && r > 0)) { showToast("Zadejte kladný poloměr"); return; }
+    {
       addObject({
         type: "circle",
         cx: cp.x,

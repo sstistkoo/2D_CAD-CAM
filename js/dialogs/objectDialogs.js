@@ -92,7 +92,9 @@ export function showOffsetDialog(label, callback) {
  */
 export function showMirrorDialog(obj, callback) {
   const hasAngle = state.nullPointActive && state.nullPointAngle;
-  const angleNote = hasAngle ? ` (${state.nullPointAngle}°)` : '';
+  const angleNote = hasAngle ? `, ${state.nullPointAngle}°` : '';
+  // Popisky podle stroje: soustruh vodorovně Z / svisle X, karusel obráceně.
+  const [H, V] = axisLabels();
   const overlay = makeInputOverlay(`
     <div class="input-dialog">
       <h3>🪞 Zrcadlit objekt</h3>
@@ -100,8 +102,8 @@ export function showMirrorDialog(obj, callback) {
       <div style="margin:10px 0">
         <label style="display:block;margin-bottom:6px;font-weight:bold;color:${COLORS.label}">Zrcadlit podle:</label>
         <div class="btn-row" style="flex-direction:column;gap:6px">
-          <button class="btn-ok mirror-opt" data-axis="x" style="width:100%">↔ Osa X (horizontální${angleNote})</button>
-          <button class="btn-ok mirror-opt" data-axis="z" style="width:100%">↕ Osa Z (vertikální${angleNote})</button>
+          <button class="btn-ok mirror-opt" data-axis="x" style="width:100%">↔ Osa ${H} (vodorovná${angleNote})</button>
+          <button class="btn-ok mirror-opt" data-axis="z" style="width:100%">↕ Osa ${V} (svislá${angleNote})</button>
           <button class="btn-ok mirror-opt" data-axis="custom" style="width:100%">📐 Vlastní osa (2 body)</button>
         </div>
       </div>
@@ -248,6 +250,9 @@ export function showLinearArrayDialog(obj, callback) {
  * @param {function(number): void} callback  volané s úhlem ve stupních
  */
 export function showRotateDialog(obj, callback, flipCallback) {
+  // 'Z' = překlopit vodorovnou souřadnici (wx), 'X' = svislou (wy); popisek
+  // podle stroje – na karuselu je vodorovně X.
+  const [H, V] = axisLabels();
   const overlay = makeInputOverlay(`
     <div class="input-dialog">
       <h3>Otočit objekt</h3>
@@ -259,8 +264,8 @@ export function showRotateDialog(obj, callback, flipCallback) {
         <button class="btn-ok" id="dlgRotateOk">Otočit</button>
       </div>
       <div class="btn-row" style="margin-top:6px;gap:6px">
-        <button class="btn-cancel" id="dlgFlipZ" style="flex:1">⇔ Překlopit Z</button>
-        <button class="btn-cancel" id="dlgFlipX" style="flex:1">⇕ Překlopit X</button>
+        <button class="btn-cancel" id="dlgFlipZ" style="flex:1">⇔ Překlopit ${H}</button>
+        <button class="btn-cancel" id="dlgFlipX" style="flex:1">⇕ Překlopit ${V}</button>
       </div>
     </div>`);
   const inp = overlay.querySelector("#dlgRotateAngle");

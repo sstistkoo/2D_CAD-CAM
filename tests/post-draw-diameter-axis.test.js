@@ -75,3 +75,35 @@ describe('Číselné zadání a polární kreslení: ⌀ na ose X', () => {
     state.selected = null;
   });
 });
+
+describe('Zrcadlit / Překlopit: popisky os podle stroje', () => {
+  it('soustruh vodorovně Z, karusel vodorovně X', async () => {
+    const { showMirrorDialog, showRotateDialog } = await import('../js/dialogs/objectDialogs.js');
+    for (const [machine, h, v] of [['soustruh', 'Z', 'X'], ['karusel', 'X', 'Z']]) {
+      state.machineType = machine;
+      showMirrorDialog({ type: 'line', name: 'L' }, () => {});
+      const [bx, bz] = document.querySelectorAll('.mirror-opt');
+      expect(bx.dataset.axis).toBe('x');          // přes vodorovnou přímku
+      expect(bx.textContent).toContain(`Osa ${h} (vodorovná`);
+      expect(bz.textContent).toContain(`Osa ${v} (svislá`);
+      showRotateDialog({ type: 'line', name: 'L' }, () => {}, () => {});
+      expect(document.querySelector('#dlgFlipZ').textContent).toBe(`⇔ Překlopit ${h}`);
+      expect(document.querySelector('#dlgFlipX').textContent).toBe(`⇕ Překlopit ${v}`);
+      document.querySelectorAll('.input-overlay').forEach(o => o.remove());
+    }
+  });
+});
+
+describe('Oblouk segmentu (bulge): oblouk přes 180° se po OK nezkrátí', () => {
+  it('|bulge| > 1 → záporné R, OK vrátí stejný bulge; kladné R krátký oblouk', async () => {
+    const { showBulgeDialog } = await import('../js/dialogs/bulge.js');
+    for (const b0 of [2, -2, 0.5, -0.5]) {
+      let got = null;
+      showBulgeDialog({ x: 0, y: 0 }, { x: 10, y: 0 }, b0, (b) => { got = b; });
+      const r = +document.querySelector('#dlgBulgeR').value;
+      expect(Math.sign(r)).toBe(Math.abs(b0) > 1 ? -1 : 1);
+      document.querySelector('#dlgBulgeOk').click();
+      expect(got).toBeCloseTo(b0, 3);
+    }
+  });
+});
