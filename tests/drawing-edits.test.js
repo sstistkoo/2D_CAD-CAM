@@ -141,3 +141,20 @@ describe('barva Typu čáry podle režimu', () => {
     expect(state.lineStyle.stockColor).toBe('#e53935');
   });
 });
+
+describe('zaoblení / zkosení dvou úseček: jeden krok Zpět', () => {
+  it('ořez úseček a nový oblouk vrátí jedno Zpět', async () => {
+    const { filletChamferAtCorner } = await import('../js/tools/filletChamferClick.js');
+    const { undo } = await import('../js/state.js');
+    for (const mode of ['fillet', 'chamfer']) {
+      state.objects = [L(0, 0, 20, 0, { id: 1 }), L(20, 0, 20, 20, { id: 2 })];
+      const orig = JSON.stringify(state.objects);
+      const before = state.undoStack.length;
+      expect(filletChamferAtCorner(mode, 3, 3, 20, 0)).toBeTruthy();
+      expect(state.objects.length).toBe(3);
+      expect(state.undoStack.length).toBe(before + 1);
+      undo();
+      expect(JSON.stringify(state.objects)).toBe(orig);
+    }
+  });
+});

@@ -4,6 +4,7 @@ import { renderAll } from '../render.js';
 import { setHint } from '../ui.js';
 import { startDrawing, finishDrawing } from './helpers.js';
 import { makeInputOverlay } from '../dialogFactory.js';
+import { screenAngle, screenCCW } from '../canvas.js';
 
 /**
  * @param {number} wx
@@ -90,21 +91,23 @@ function drawArcPreview(canvas, startAngle, endAngle, ccw) {
   ctx.strokeStyle = ccw ? "#4fc3f7" : "#ff9800";
   ctx.lineWidth = 3;
   ctx.beginPath();
-  // In screen coords (y-down), negate angles; math CCW → canvas anticlockwise=true
-  ctx.arc(cx, cy, r, -startAngle, -endAngle, !!ccw);
+  // Stejný převod jako vykreslení na plátně – i při zrcadlené ose
+  // vypadá náhled tak, jak oblouk po volbě skutečně vznikne.
+  const sa = screenAngle(startAngle), ea = screenAngle(endAngle);
+  ctx.arc(cx, cy, r, sa, ea, screenCCW(!!ccw));
   ctx.stroke();
 
   // Draw start point (green)
-  const sx = cx + r * Math.cos(-startAngle);
-  const sy = cy + r * Math.sin(-startAngle);
+  const sx = cx + r * Math.cos(sa);
+  const sy = cy + r * Math.sin(sa);
   ctx.fillStyle = "#4caf50";
   ctx.beginPath();
   ctx.arc(sx, sy, 5, 0, Math.PI * 2);
   ctx.fill();
 
   // Draw end point (red)
-  const ex = cx + r * Math.cos(-endAngle);
-  const ey = cy + r * Math.sin(-endAngle);
+  const ex = cx + r * Math.cos(ea);
+  const ey = cy + r * Math.sin(ea);
   ctx.fillStyle = "#f44336";
   ctx.beginPath();
   ctx.arc(ex, ey, 5, 0, Math.PI * 2);

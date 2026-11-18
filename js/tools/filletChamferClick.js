@@ -2,7 +2,7 @@
 // ║  Zaoblení / Zkosení (Fillet / Chamfer) – sdružený nástroj  ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, pushUndo, showToast, STOCK_LAYER_ID } from '../state.js';
+import { state, pushUndo, withUndoBatch, showToast, STOCK_LAYER_ID } from '../state.js';
 import { bridge } from '../bridge.js';
 import { renderAll, resolveObjectColor } from '../render.js';
 import { addObject } from '../objects.js';
@@ -291,31 +291,36 @@ function _applyTwoLines(mode, p1, p2, s1, s2) {
   const proxy1 = { x1: s1.seg.x1, y1: s1.seg.y1, x2: s1.seg.x2, y2: s1.seg.y2 };
   const proxy2 = { x1: s2.seg.x1, y1: s2.seg.y1, x2: s2.seg.x2, y2: s2.seg.y2 };
 
-  pushUndo();
   let out = null;
 
   if (mode === 'fillet') {
     const result = filletTwoLines(proxy1, proxy2, p1);
     if (!result.ok) { showToast(result.msg); return null; }
-    if (!isAnchored(s1.seg.x1, s1.seg.y1)) s1.setP1(proxy1.x1, proxy1.y1);
-    if (!isAnchored(s1.seg.x2, s1.seg.y2)) s1.setP2(proxy1.x2, proxy1.y2);
-    if (!isAnchored(s2.seg.x1, s2.seg.y1)) s2.setP1(proxy2.x1, proxy2.y1);
-    if (!isAnchored(s2.seg.x2, s2.seg.y2)) s2.setP2(proxy2.x2, proxy2.y2);
-    result.arc.name = `Zaoblení R${p1}`;
-    Object.assign(result.arc, adaptedProps(s1, s2));
-    addObject(result.arc);
+    // Ořez i nový prvek = jeden krok Zpět (addObject jinak uloží mezistav)
+    withUndoBatch(() => {
+      if (!isAnchored(s1.seg.x1, s1.seg.y1)) s1.setP1(proxy1.x1, proxy1.y1);
+      if (!isAnchored(s1.seg.x2, s1.seg.y2)) s1.setP2(proxy1.x2, proxy1.y2);
+      if (!isAnchored(s2.seg.x1, s2.seg.y1)) s2.setP1(proxy2.x1, proxy2.y1);
+      if (!isAnchored(s2.seg.x2, s2.seg.y2)) s2.setP2(proxy2.x2, proxy2.y2);
+      result.arc.name = `Zaoblení R${p1}`;
+      Object.assign(result.arc, adaptedProps(s1, s2));
+      addObject(result.arc);
+    });
     showToast(`Zaoblení R${p1} vytvořeno ✓`);
     out = { arc: result.arc };
   } else {
     const result = chamferTwoLines(proxy1, proxy2, p1, p2);
     if (!result.ok) { showToast(result.msg); return null; }
-    if (!isAnchored(s1.seg.x1, s1.seg.y1)) s1.setP1(proxy1.x1, proxy1.y1);
-    if (!isAnchored(s1.seg.x2, s1.seg.y2)) s1.setP2(proxy1.x2, proxy1.y2);
-    if (!isAnchored(s2.seg.x1, s2.seg.y1)) s2.setP1(proxy2.x1, proxy2.y1);
-    if (!isAnchored(s2.seg.x2, s2.seg.y2)) s2.setP2(proxy2.x2, proxy2.y2);
-    result.line.name = `Zkosení ${p1}×${p2}`;
-    Object.assign(result.line, adaptedProps(s1, s2));
-    addObject(result.line);
+    // Ořez i nový prvek = jeden krok Zpět (addObject jinak uloží mezistav)
+    withUndoBatch(() => {
+      if (!isAnchored(s1.seg.x1, s1.seg.y1)) s1.setP1(proxy1.x1, proxy1.y1);
+      if (!isAnchored(s1.seg.x2, s1.seg.y2)) s1.setP2(proxy1.x2, proxy1.y2);
+      if (!isAnchored(s2.seg.x1, s2.seg.y1)) s2.setP1(proxy2.x1, proxy2.y1);
+      if (!isAnchored(s2.seg.x2, s2.seg.y2)) s2.setP2(proxy2.x2, proxy2.y2);
+      result.line.name = `Zkosení ${p1}×${p2}`;
+      Object.assign(result.line, adaptedProps(s1, s2));
+      addObject(result.line);
+    });
     showToast(`Zkosení ${p1}×${p2} vytvořeno ✓`);
     out = { line: result.line };
   }
@@ -340,38 +345,43 @@ function _applyLineAndArc(mode, distLine, distArc, sLine, sArc) {
     x: arcProxy.cx + arcProxy.r * Math.cos(arcProxy.endAngle),
     y: arcProxy.cy + arcProxy.r * Math.sin(arcProxy.endAngle),
   };
-  pushUndo();
   let out = null;
 
   if (mode === 'fillet') {
     const result = filletLineAndArc(lineProxy, arcProxy, distLine); // distLine = radius
     if (!result.ok) { showToast(result.msg); return null; }
+    // Ořez i nový prvek = jeden krok Zpět (addObject jinak uloží mezistav)
+    withUndoBatch(() => {
 
-    // Zapsat ořez úsečky
-    if (!isAnchored(sLine.seg.x1, sLine.seg.y1)) sLine.setP1(lineProxy.x1, lineProxy.y1);
-    if (!isAnchored(sLine.seg.x2, sLine.seg.y2)) sLine.setP2(lineProxy.x2, lineProxy.y2);
+      // Zapsat ořez úsečky
+      if (!isAnchored(sLine.seg.x1, sLine.seg.y1)) sLine.setP1(lineProxy.x1, lineProxy.y1);
+      if (!isAnchored(sLine.seg.x2, sLine.seg.y2)) sLine.setP2(lineProxy.x2, lineProxy.y2);
 
-    // Zapsat ořez oblouku (jen pokud se úhel změnil a bod není ukotvený)
-    if (!isAnchored(origStartPt.x, origStartPt.y)) sArc.setStartAngle(arcProxy.startAngle);
-    if (!isAnchored(origEndPt.x,   origEndPt.y))   sArc.setEndAngle(arcProxy.endAngle);
+      // Zapsat ořez oblouku (jen pokud se úhel změnil a bod není ukotvený)
+      if (!isAnchored(origStartPt.x, origStartPt.y)) sArc.setStartAngle(arcProxy.startAngle);
+      if (!isAnchored(origEndPt.x,   origEndPt.y))   sArc.setEndAngle(arcProxy.endAngle);
 
-    result.arc.name = `Zaoblení R${distLine}`;
-    Object.assign(result.arc, adaptedProps(sLine, sArc));
-    addObject(result.arc);
+      result.arc.name = `Zaoblení R${distLine}`;
+      Object.assign(result.arc, adaptedProps(sLine, sArc));
+      addObject(result.arc);
+    });
     showToast(`Zaoblení R${distLine} vytvořeno ✓`);
     out = { arc: result.arc };
   } else {
     const result = chamferLineAndArc(lineProxy, arcProxy, distLine, distArc);
     if (!result.ok) { showToast(result.msg); return null; }
+    // Ořez i nový prvek = jeden krok Zpět (addObject jinak uloží mezistav)
+    withUndoBatch(() => {
 
-    if (!isAnchored(sLine.seg.x1, sLine.seg.y1)) sLine.setP1(lineProxy.x1, lineProxy.y1);
-    if (!isAnchored(sLine.seg.x2, sLine.seg.y2)) sLine.setP2(lineProxy.x2, lineProxy.y2);
-    if (!isAnchored(origStartPt.x, origStartPt.y)) sArc.setStartAngle(arcProxy.startAngle);
-    if (!isAnchored(origEndPt.x,   origEndPt.y))   sArc.setEndAngle(arcProxy.endAngle);
+      if (!isAnchored(sLine.seg.x1, sLine.seg.y1)) sLine.setP1(lineProxy.x1, lineProxy.y1);
+      if (!isAnchored(sLine.seg.x2, sLine.seg.y2)) sLine.setP2(lineProxy.x2, lineProxy.y2);
+      if (!isAnchored(origStartPt.x, origStartPt.y)) sArc.setStartAngle(arcProxy.startAngle);
+      if (!isAnchored(origEndPt.x,   origEndPt.y))   sArc.setEndAngle(arcProxy.endAngle);
 
-    result.line.name  = `Zkosení ${distLine}×${distArc}`;
-    Object.assign(result.line, adaptedProps(sLine, sArc));
-    addObject(result.line);
+      result.line.name  = `Zkosení ${distLine}×${distArc}`;
+      Object.assign(result.line, adaptedProps(sLine, sArc));
+      addObject(result.line);
+    });
     showToast(`Zkosení ${distLine}×${distArc} vytvořeno ✓`);
     out = { line: result.line };
   }

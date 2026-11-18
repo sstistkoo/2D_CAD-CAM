@@ -144,6 +144,9 @@ export function propagateConstraints(obj, segIdx, movedEnd) {
     for (let i = segIdx + 1; i < segCount; i++) {
       const type = obj.segConstraints[i];
       if (!type || type === 'parallel') break;
+      // Uzavřená kontura: poslední segment končí ve vrcholu 0 – je-li to pevný
+      // P1 upraveného segmentu, nesmí se pohnout (jinak by vazbu hned porušil).
+      if ((i + 1) % n === segIdx) break;
       const p1 = obj.vertices[i];
       const p2 = obj.vertices[(i + 1) % n];
       _enforceConstraint(p1, p2, type);

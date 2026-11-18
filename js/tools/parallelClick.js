@@ -9,6 +9,7 @@ import { setHint, resetHint } from '../ui.js';
 import { findObjectAt, calculateAllIntersections } from '../geometry.js';
 import { getLineSegment, withLinkedEnds, setConstraint, propagateConstraints, analyzeSelection } from './helpers.js';
 import { isAnchored } from './anchorClick.js';
+import { updateAssociativeDimensions } from '../dialogs/dimension.js';
 
 export function handleParallelClick(wx, wy) {
   if (!state.drawing) {
@@ -91,6 +92,7 @@ export function handleParallelClick(wx, wy) {
         state.selectedSegment = null;
         state.multiSelectedSegments.clear();
         calculateAllIntersections();
+        updateAssociativeDimensions();
         renderAll();
         resetHint();
         return;
@@ -100,8 +102,7 @@ export function handleParallelClick(wx, wy) {
     // Režim: nová rovnoběžka procházející bodem (původní chování)
     const dx = refSeg.seg.x2 - refSeg.seg.x1;
     const dy = refSeg.seg.y2 - refSeg.seg.y1;
-    pushUndo();
-    addObject({
+    addObject({  // addObject si krok Zpět uloží sám
       type: 'line',
       x1: wx - dx / 2, y1: wy - dy / 2,
       x2: wx + dx / 2, y2: wy + dy / 2,
@@ -171,6 +172,7 @@ export function parallelFromSelection() {
     setConstraint(obj1, ls1.segIdx, 'parallel');
     propagateConstraints(obj1, ls1.segIdx, movedEnd);
     calculateAllIntersections();
+    updateAssociativeDimensions();
     renderAll();
     showToast("Otočeno do rovnoběžnosti ✓");
     return true;
@@ -181,8 +183,7 @@ export function parallelFromSelection() {
     const info = lines[0];
     const dx = info.x2 - info.x1, dy = info.y2 - info.y1;
     const pt = points[0];
-    pushUndo();
-    addObject({
+    addObject({  // addObject si krok Zpět uloží sám
       type: 'line',
       x1: pt.x - dx / 2, y1: pt.y - dy / 2,
       x2: pt.x + dx / 2, y2: pt.y + dy / 2,

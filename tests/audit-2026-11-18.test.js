@@ -39,3 +39,19 @@ describe('auto-detekce: oblouk z polyline drží směr', () => {
     expect(extractSegments([pl2]).arcs[0].obj.ccw).toBe(true);
   });
 });
+
+describe('vazby kontury: šíření nepohne pevným vrcholem', () => {
+  it('uzavřený obdélník H/V/H/V: vyrovnání segmentu 0 nechá vrchol 0 na místě', async () => {
+    vi.doMock('../js/ui.js', () => ({ setHint: () => {}, resetHint: () => {} }));
+    const { propagateConstraints } = await import('../js/tools/helpers.js');
+    // Vrchol 1 právě posunut (P1 = vrchol 0 pevný), zbytek drží původní tvar
+    const v = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10.5, y: 5 }, { x: 1, y: 5 }];
+    const pl = { type: 'polyline', vertices: v, bulges: [0, 0, 0, 0], closed: true,
+      segConstraints: { 0: 'horizontal', 1: 'vertical', 2: 'horizontal', 3: 'vertical' } };
+    propagateConstraints(pl, 0, 'p2');
+    expect(v[0]).toEqual({ x: 0, y: 0 });
+    expect(v[1]).toEqual({ x: 10, y: 0 });
+    expect(v[2].x).toBeCloseTo(10, 9);   // segment 1 svisle
+    expect(v[3].y).toBeCloseTo(v[2].y, 9); // segment 2 vodorovně
+  });
+});

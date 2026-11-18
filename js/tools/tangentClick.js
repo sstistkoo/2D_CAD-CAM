@@ -242,7 +242,6 @@ export function tangentFromSelection() {
       points[0].x, points[0].y, points[1].x, points[1].y, points[2].x, points[2].y
     );
     if (pos.length === 0) { showToast("Body jsou kolineární, kružnice neexistuje"); return true; }
-    pushUndo();
     addObject({ type: 'circle', cx: pos[0].cx, cy: pos[0].cy, r: pos[0].r, name: `Kružnice ${state.nextId}` });
     calculateAllIntersections(); renderAll();
     showToast("Vytvořena opsaná kružnice přes 3 body ✓");
