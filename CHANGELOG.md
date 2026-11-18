@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Řetězové kolo: obrys se v každé mezeře křížil** — sedlo válečku se procházelo opačným směrem než zuby (z = 10: 10 křížení). Teď po směru hodin kolem válečku, obrys bez křížení.
 - **Fanuc prodleva v bloku poháněných nástrojů** `G4 X…` → `G04 P…` (ms) jako u vrtání v ose; převod Fanuc → Sinumerik/Heidenhain teď přepíše i ruční `G04 X/U`.
 - **Import kontury z G-kódu: oblouk I/K přes 180°** (17. 11. 2026) dostal kladné R, tedy kratší oblouk na opačné straně. Střed se teď spočítá (I v poloměru — Fanuc i Sinumerik 840D pod DIAMON; X podle režimu průměr/poloměr z CAM nebo řádku DIAMON/DIAMOF) a oblouk přes 180° dostane záporné R.
+- **Číselné zadání oblouku** (kontrola 17. 11. 2026): do ručního G-kódu se oblouk přes 180° zapisoval s kladným R, takže se po 🔄 vykreslil krátký oblouk. Teď záporné R (`js/dialogs/numArcSign.js`). Režim „Start + konec“ přijímá záporné R (oblouk přes 180°) a nenabízí už „📏 R“, které bez středu měřilo od počátku.
 - **Ozubený hřeben byl vzhůru nohama** (17. 11. 2026): zuby mířily dolů, protože znaménka počítala s osou Y obrazovky. Teď zuby nahoru, tělo pod roztečnou čárou.
 - Testy: `tests/audit-2026-11-16.test.js`.
 

@@ -15,6 +15,7 @@ import { bridge } from '../bridge.js';
 import { worldToScreen, screenAngle, screenCCW, fitViewToWorldBounds, autoCenterView } from '../canvas.js';
 import { attachNumPad } from './numPadBar.js';
 import { screenToWorldAngle } from './compassAngle.js';
+import { signedArcRadius } from './numArcSign.js';
 
 // ── Numerický vstup – dialog pro přesné zadání souřadnic ──
 // Drátování spouštěcích tlačítek žije v js/ui.js (btnNumInput,
@@ -440,7 +441,7 @@ export function initNumericalTab(container, { picker = null } = {}) {
         // flipArc() v runCncExport() (storage/fileIO.js).
         const base = g.ccw ? 'G03' : 'G02';
         const code = (state.flipX !== state.flipZ) ? (base === 'G02' ? 'G03' : 'G02') : base;
-        lines.push(`${code} ${fmt(ex, ey)} R${g.r.toFixed(3)}`);
+        lines.push(`${code} ${fmt(ex, ey)} R${signedArcRadius(g).toFixed(3)}`);
         newEnd = { x: ex, y: ey };
         break;
       }
@@ -765,7 +766,8 @@ export function initNumericalTab(container, { picker = null } = {}) {
           const p1 = toAbs(val("#nx1"), val("#ny1"));
           const p2 = toAbs(val("#nx2"), val("#ny2"));
           if (!finite2(p1.x, p1.y) || !finite2(p2.x, p2.y)) return { type: "arc", valid: false };
-          const arc = arcFromEndpointsRadius(p1, p2, r, ccw);
+          // Záporné R = oblouk přes 180°, stejně jako v G-kódu.
+          const arc = arcFromEndpointsRadius(p1, p2, Math.abs(r), ccw, { longArc: r < 0 });
           if (!arc) return { type: "arc", valid: false, minRadius: Math.hypot(p2.x - p1.x, p2.y - p1.y) / 2 };
           return {
             type: "arc", valid: true,
@@ -880,12 +882,12 @@ export function initNumericalTab(container, { picker = null } = {}) {
         html = `${modeRow}
                 ${shapeRows}
                 <div class="input-row">
-                <div class="num-coord-field"><label>Poloměr:</label><input type="text" id="nr" value="10"></div>
+                <div class="num-coord-field"><label>Poloměr:</label><input type="text" id="nr" value="10"${arcMode === 'endpoints' ? ' title="Záporné R = oblouk delší než 180° (jako v G-kódu)"' : ''}></div>
                 <div class="num-coord-field"><label>Směr:</label><select id="narcDir">
                   <option value="cw">↻ CW (po směru)</option>
                   <option value="ccw">↺ CCW (proti směru)</option>
                 </select></div>
-                <div class="pick-col">${pickBtn("📏 R", "radius")}${okBtn()}</div></div>
+                <div class="pick-col">${arcMode === 'center' ? pickBtn("📏 R", "radius") : ''}${okBtn()}</div></div>
                 <div id="numArcInfo" style="font-size:11px;color:${COLORS.textSecondary};margin-top:4px"></div>`;
         break;
       }
@@ -1190,7 +1192,12 @@ export function initNumericalTab(container, { picker = null } = {}) {
         }
         case "arc": {
           const g = readFormGeometry();
-          if (!g.valid) { showToast("Zadejte střed, kladný poloměr a úhly"); return false; }
+          if (!g.valid) {
+            showToast(arcMode === 'endpoints'
+              ? "Zadejte začátek, konec a poloměr (aspoň půlka vzdálenosti bodů)"
+              : "Zadejte střed, kladný poloměr a úhly");
+            return false;
+          }
           addObject({
             type: "arc", cx: g.cx, cy: g.cy, r: g.r,
             startAngle: g.sa, endAngle: g.ea, ccw: g.ccw,
