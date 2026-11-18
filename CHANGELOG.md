@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Kalkulačka Kužel: Morse kužely** měly v tabulce kratší délky L, takže kuželovitost vycházela o 1–2 % jinak (MT2 1:19,71 místo 1:20,02, úhel o 0,02° větší). Délky jsou teď hloubka zasunutí podle normy (MT0 50,8 … MT5 131,763 mm).
 - **Nový projekt nechával kotvy** z předchozího výkresu – zakotvené body dál omezovaly přesuny v prázdném výkresu.
 - **AI profil: oblouk přes 180°** – převod profilu na G-kód psal `CR=` vždy kladně a zpětné čtení `CR<0` jen otočilo směr (krátký oblouk opačně); I/K oblouk se bral vždy jako kratší. Teď záporné CR, dlouhý oblouk stejným směrem a I/K ze středu. Test `tests/ai-profile-arcs.test.js`.
+- **Editory G-kódu: přepočet G90 ↔ G91 sahal do komentářů** (kontrola 18. 11. 2026). Číslo v poznámce za středníkem se bralo jako souřadnice: `G1 X2 ; index 2` posunulo polohu o 2 mm a všechny další řádky vyšly špatně; slova v komentáři se přepsala (`; max 5` → `maX-15`). Přepočítává se jen kód bloku a jen samostatná adresa X/Z (`js/calculators/gcodeCoordConvert.js`).
+- **Kontrola programu v editoru: falešné chyby u Fanucu / Sinumeriku** – konec `M2` (Sinumerik) a `M99` (podprogram Fanuc) hlásily „Program nekončí M30 nebo M17“; vřeteno `M03`/`M04` se nepoznalo a hlásilo se „Pracovní posuv bez aktivního vřetene při G95“.
+- **Stahování souborů na mobilu / ve Firefoxu** (export PNG/SVG/DXF, projekt, poznámky, program z CAM, nůž): adresa souboru se uvolnila hned po `click()`, což stahování mohlo zrušit. Uvolňuje se až po sekundě (jako už v CNC Editoru).
 - **Ozubený hřeben byl vzhůru nohama** (17. 11. 2026): zuby mířily dolů, protože znaménka počítala s osou Y obrazovky. Teď zuby nahoru, tělo pod roztečnou čárou.
 - Testy: `tests/audit-2026-11-16.test.js`.
 

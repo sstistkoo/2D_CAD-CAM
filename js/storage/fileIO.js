@@ -56,7 +56,7 @@ export function exportProjectFile() {
   a.href = URL.createObjectURL(blob);
   a.download = "skica_projekt.json";
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
   showToast("Projekt exportován jako soubor");
 }
 
@@ -245,7 +245,7 @@ export async function exportDXFFile() {
   a.href = URL.createObjectURL(blob);
   a.download = exportFileName('dxf');
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
   const note = hasText && isVectorTextAvailable() ? ' (text → vektor)' : '';
   showToast(`Exportováno ${objects.length} objektů do DXF${note}`);
 }

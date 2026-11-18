@@ -32,6 +32,18 @@ function assignParams(clean, params) {
   }
 }
 
+/**
+ * Adresa X/Z jen v KÓDU bloku: ne v poznámce za středníkem a ne uvnitř slova.
+ * Dřív se přepočítávalo i v komentáři – `; index 2` posunulo X o 2 a
+ * `; max 5` se přepsalo na `maX-15` (kontrola kódu 18. 11. 2026).
+ */
+const AXIS_RE = /(?<![A-Za-z_])([XZ])\s*(=?)\s*([^\s;]+)/gi;
+function replaceAxes(line, fn) {
+  const ci = line.indexOf(';');
+  const body = ci !== -1 ? line.substring(0, ci) : line;
+  return body.replace(AXIS_RE, fn) + (ci !== -1 ? line.substring(ci) : '');
+}
+
 /** Kód bloku bez poznámky za středníkem, velkými písmeny. */
 function cleanOf(line) {
   const ci = line.indexOf(';');
@@ -59,8 +71,8 @@ export function codeToAbsolute(code, params = new Map(), { compact = false } = {
     // souřadnice interpolace, takže je nepřepočítáváme ani jimi neposouváme polohu.
     if (/\bG7[45]\b/.test(clean)) { out.push(line); continue; }
     let mod = line;
-    if (/[XZ]/.test(clean)) {
-      mod = mod.replace(/([XZ])\s*(=?)\s*([^\s;]+)/gi, (m, ax, eq, vs) => {
+    if (/(?<![A-Z_])[XZ]/.test(clean)) {
+      mod = replaceAxes(mod, (m, ax, eq, vs) => {
         ax = ax.toUpperCase();
         const v = evalParam(vs, prm); if (isNaN(v)) return m;
         const abs = mode === 91 ? ((ax === 'X' ? x : z) + v) : v;
@@ -70,7 +82,7 @@ export function codeToAbsolute(code, params = new Map(), { compact = false } = {
     }
     if (mode === 91) {
       if (!compact) mod = mod.replace(/\bG91\b/gi, 'G90');
-      else if (absWritten && /[XZ]/.test(clean)) mod = mod.replace(/\bG91\b\s*/gi, '');
+      else if (absWritten && /(?<![A-Z_])[XZ]/.test(clean)) mod = mod.replace(/\bG91\b\s*/gi, '');
       else { mod = mod.replace(/\bG91\b/gi, 'G90'); absWritten = true; }
     }
     out.push(mod);
@@ -96,14 +108,14 @@ export function codeToIncremental(code, params = new Map(), { compact = false } 
     if (clean.includes('G90')) curMode = 90;
     if (clean.includes('G91')) curMode = 91;
     if (/\bG7[45]\b/.test(clean)) { out.push(line); continue; }
-    const hasX = /X/i.test(clean), hasZ = /Z/i.test(clean);
+    const hasX = /(?<![A-Z_])X/.test(clean), hasZ = /(?<![A-Z_])Z/.test(clean);
     if (!hasX && !hasZ) {
       if (compact && /\bG9[01]\b/.test(clean)) emittedG = curMode;
       out.push(line);
       continue;
     }
     const tgt = (hasX && !initX) || (hasZ && !initZ) ? 90 : 91;
-    let mod = line.replace(/([XZ])\s*(=?)\s*([^\s;]+)/gi, (m, ax, eq, vs) => {
+    let mod = replaceAxes(line, (m, ax, eq, vs) => {
       ax = ax.toUpperCase();
       const v = evalParam(vs, prm); if (isNaN(v)) return m;
       const abs = curMode === 91 ? ((ax === 'X' ? x : z) + v) : v;

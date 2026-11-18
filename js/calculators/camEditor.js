@@ -783,7 +783,7 @@ export function openCamEditor(initialCode, jumpLine) {
     const blob = new Blob([out], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'cnc_balicek.txt'; a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
   }
 
   function downloadFile() {
@@ -791,7 +791,7 @@ export function openCamEditor(initialCode, jumpLine) {
     const blob = new Blob([programs[currentFile]], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = currentFile; a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
   }
 
   // ── Clipboard ──────────────────────────────────────────────

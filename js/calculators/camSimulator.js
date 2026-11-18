@@ -2732,7 +2732,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     else if (S.params.controlSystem === 'fanuc') ext = 'nc';
     a.download = `program_${new Date().toISOString().slice(0, 10)}.${ext}`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
   }
   // ── Uložit / načíst celý projekt (.camprog) ──
   // Stejná sada polí jako saveState() — umožní 1:1 přenést stav simulátoru
@@ -2772,7 +2772,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     a.href = url;
     a.download = `projekt_${new Date().toISOString().slice(0, 10)}.camprog`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
     showToast('Projekt uložen do souboru .camprog');
   }
   function handleLoadProject() {

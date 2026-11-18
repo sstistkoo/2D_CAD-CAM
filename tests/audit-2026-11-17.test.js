@@ -48,3 +48,34 @@ describe('kalkulačka Kužel: Morse podle normy', () => {
     for (const [, n, D, d, L] of rows) expect(Math.abs(+L / (+D - +d) - norm[n])).toBeLessThan(0.03);
   });
 });
+
+describe('G90 ↔ G91: komentáře se nepřepočítávají', () => {
+  it('číslo v poznámce neposune polohu a slovo se nepřepíše', async () => {
+    const { codeToAbsolute, codeToIncremental } = await import('../js/calculators/gcodeCoordConvert.js');
+    expect(codeToAbsolute('G91\nG1 X10 Z5 ; index 2\nG1 X2 ; přejezd na X50\nG1 Z-1'))
+      .toBe('G90\nG1 X10 Z5 ; index 2\nG1 X12 ; přejezd na X50\nG1 Z4');
+    expect(codeToIncremental('G90 G0 X10 Z5\nG1 X20 ; max 5\nG1 Z-10'))
+      .toBe('G90 G0 X10 Z5\nG91 G1 X10 ; max 5\nG91 G1 Z-15');
+  });
+});
+
+describe('Kontrola programu v editoru: konec M2 / M99', () => {
+  it('M2 a M99 jsou platný konec programu', async () => {
+    const { CNCParser, defaultParserConfig } = await import('../js/calculators/gcodeEditorParser.js');
+    const p = new CNCParser({});
+    for (const end of ['M30', 'M2', 'M02', 'M17', 'M99']) {
+      expect(p.parseProgram(`G90 G95\nG0 X10 Z5\n${end}`, 'A', defaultParserConfig()).errors).toEqual([]);
+    }
+    expect(p.parseProgram('G90 G95\nG0 X10 Z5', 'A', defaultParserConfig()).errors.length).toBe(1);
+  });
+});
+
+describe('Kontrola programu v editoru: vřeteno M03', () => {
+  it('M03 (Fanuc) zapne vřeteno stejně jako M3', async () => {
+    const { CNCParser, defaultParserConfig } = await import('../js/calculators/gcodeEditorParser.js');
+    const p = new CNCParser({});
+    const code = (m) => `G90 G95 G97\n${m} S500\nG0 X10 Z5\nG1 Z-10 F0.2\nM30`;
+    expect(p.parseProgram(code('M03'), 'A', defaultParserConfig()).errors).toEqual([]);
+    expect(p.parseProgram(code('M04'), 'A', defaultParserConfig()).errors).toEqual([]);
+  });
+});

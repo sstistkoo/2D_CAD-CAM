@@ -273,7 +273,7 @@ async function exportSVG(background) {
   a.href = URL.createObjectURL(blob);
   a.download = exportFileName('svg');
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
   const note = hasText && isVectorTextAvailable() ? ' (text → vektor)' : '';
   showToast(`SVG exportováno${note}`);
 }
@@ -455,7 +455,7 @@ function exportSVGLegacy(background) {
   a.href = URL.createObjectURL(blob);
   a.download = exportFileName('svg');
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
   showToast('SVG exportováno');
 }
 
@@ -648,7 +648,7 @@ function exportPNG(scale, background) {
     a.href = URL.createObjectURL(blob);
     a.download = `${state.projectName || 'skica'}.png`;
     a.click();
-    URL.revokeObjectURL(a.href);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
     showToast('PNG exportováno');
   }, 'image/png');
 }

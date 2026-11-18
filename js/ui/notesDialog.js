@@ -351,7 +351,7 @@ export async function openNotesDialog() {
       a.href = URL.createObjectURL(blob);
       a.download = (note.title || 'poznamky') + '.txt';
       a.click();
-      URL.revokeObjectURL(a.href);
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
       showToast('Soubor stažen ✓');
     },
   };

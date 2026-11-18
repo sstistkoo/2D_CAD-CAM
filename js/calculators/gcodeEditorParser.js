@@ -200,18 +200,21 @@ export class CNCParser {
       }
       if (clean.match(/LIMS\s*=/) || /\bG50\b/.test(clean)) this.hasLims = true;
 
-      const isSS = /\bM3\b/.test(clean) || /\bM4\b/.test(clean);
+      // M03/M04/M05 (Fanuc) stejně jako M3/M4/M5 – dřív hlásilo „posuv bez vřetene".
+      const isSS = /\bM0?[34]\b/.test(clean);
       if (isSS && !this.spindleModeDefined && this.cfg.spindle.active)
         this.errors.push({ file: currentFile, lineIndex: i, msg: 'Chybí G96/G97 před M3/M4.' });
       if (isSS) this.spindleActive = true;
-      if (/\bM5\b/.test(clean)) this.spindleActive = false;
+      if (/\bM0?5\b/.test(clean)) this.spindleActive = false;
 
       if (/\bG[0]*[123]\b/.test(clean) && this.activeFeedMode === 'G95' &&
           !this.spindleActive && !clean.includes('S') && this.cfg.startstop.active)
         this.errors.push({ file: currentFile, lineIndex: i, msg: 'Pracovní posuv bez aktivního vřetene při G95.' });
       if (/\bF[\d.]+/.test(clean)) this.lastFeedDefined = true;
 
-      if (/\bM30\b/.test(clean) || /\bM17\b/.test(clean) || /\bM02\b/.test(clean)) hasEnd = true;
+      // M2 (Sinumerik píše bez nuly) i M02, M99 = konec podprogramu Fanuc –
+      // dřív se u nich hlásilo „Program nekončí M30 nebo M17".
+      if (/\bM(?:30|17|0?2|99)\b/.test(clean)) hasEnd = true;
 
       const gotoM = clean.match(/\b(GOTOF|GOTOB|IF.*GOTO)\s+([a-zA-Z0-9_]+)/);
       if (gotoM && !labels.has(gotoM[2]) && this.cfg.calls.active)

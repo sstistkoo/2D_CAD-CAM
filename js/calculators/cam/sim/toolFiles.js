@@ -27,7 +27,7 @@ export function createToolFiles({ S, toolUi, pushHistory, saveState, fullUpdate,
     const safeName = (S.params.toolName || 'nastroj').replace(/[^a-z0-9_-]+/gi, '_');
     a.download = `nuz_${safeName}.json`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
     showToast('Nůž (destička + držák) uložen do souboru');
   }
 
