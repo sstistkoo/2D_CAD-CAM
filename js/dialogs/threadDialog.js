@@ -12,7 +12,7 @@
 
 import { makeOverlay } from '../dialogFactory.js';
 import { lookupDin76 } from '../calculators/dinGrooves.js';
-import { mCoarse, mFine, trThreads, gThreads, uncThreads, unfThreads, bswThreads, acmeThreads } from '../calculators/threadData.js';
+import { mCoarse, mFine, trThreads, gThreads, uncThreads, unfThreads, bswThreads, acmeThreads, trClearanceAc } from '../calculators/threadData.js';
 
 /** Typy závitů pro CAD nástroj (bez kuželových). */
 export const THREAD_TOOL_TYPES = [
@@ -33,8 +33,13 @@ export function threadToolPitch(t) {
 
 /** Průměry profilu d₂ (střední) a d₃ (dno šroubu) podle typu závitu. */
 export function threadToolDiameters(typeKey, D, P) {
-  if (typeKey === 'tr' || typeKey === 'acme') {
-    return { d2: D - 0.5 * P, d3: D - 2 * (0.5 * P + 0.25) };          // ISO 2904 / ASME B1.5
+  if (typeKey === 'tr') {
+    // ISO 2904: h3 = 0,5·P + ac, ac podle stoupání (0,15 … 1 mm). Dřív pevně 0,25 –
+    // u Tr 40×7 bylo dno o 0,5 mm na průměru mělčí, u P 14+ o 1,5 mm.
+    return { d2: D - 0.5 * P, d3: D - 2 * (0.5 * P + trClearanceAc(P)) };
+  }
+  if (typeKey === 'acme') {
+    return { d2: D - 0.5 * P, d3: D - 2 * (0.5 * P + 0.25) };          // ASME B1.5 (vůle ≈ 0,010")
   }
   if (typeKey === 'g' || typeKey === 'bsw') {
     return { d2: D - 0.6403 * P, d3: D - 2 * 0.6403 * P };             // Whitworth 55°

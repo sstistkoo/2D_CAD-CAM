@@ -79,3 +79,13 @@ describe('Kontrola programu v editoru: vřeteno M03', () => {
     expect(p.parseProgram(code('M04'), 'A', defaultParserConfig()).errors).toEqual([]);
   });
 });
+
+describe('Nástroj Závit: dno Tr podle ISO 2904', () => {
+  it('vůle ac podle stoupání', async () => {
+    const { threadToolDiameters } = await import('../js/dialogs/threadDialog.js');
+    expect(threadToolDiameters('tr', 40, 7).d3).toBeCloseTo(32, 9);       // 40 − 2·(3,5 + 0,5)
+    expect(threadToolDiameters('tr', 20, 4).d3).toBeCloseTo(15.5, 9);     // 20 − 2·(2 + 0,25)
+    expect(threadToolDiameters('tr', 8, 1.5).d3).toBeCloseTo(6.2, 9);     // 8 − 2·(0,75 + 0,15)
+    expect(threadToolDiameters('tr', 100, 16).d3).toBeCloseTo(82, 9);     // 100 − 2·(8 + 1)
+  });
+});
