@@ -2,7 +2,7 @@
 // ║  SKICA – Správa projektů (multi-project)                    ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, showToast, pushUndo, ensureStockLayer } from '../state.js';
+import { state, showToast, pushUndo, ensureStockLayer, updateUndoButtons } from '../state.js';
 import { COLORS } from '../constants.js';
 import { contourDefaultColor, stockDefaultColor } from '../drawColorPrefs.js';
 import { updateObjectList, updateProperties, updateLayerList, updateStatusProject, updateMachineTypeBtn, updateXDisplayBtn, updateNullPointUI, updateDimsBtn } from '../ui.js';
@@ -67,7 +67,12 @@ export function buildProjectData() {
 }
 
 function _loadProjectData(data) {
-  pushUndo();
+  // Otevření projektu historii Zpět VYČISTÍ (uživatel 18. 11. 2026): Zpět by
+  // jinak vrátilo výkres předchozího projektu pod názvem nově otevřeného
+  // a autosave by jím ten projekt za 3 s přepsal.
+  state.undoStack = [];
+  state.redoStack = [];
+  updateUndoButtons();
   const _exp = expandPolylineObjects(data.objects || [], data.nextId || 1);
   state.objects = _exp.objects;
   state.nextId = _exp.nextId;
@@ -125,6 +130,12 @@ function _loadProjectData(data) {
   saveSettings();   // nastavení z projektu platí i po obnovení stránky
 }
 
+/** Otevřený výkres hned jako rozkreslený (bez pushUndo se autosave nespustí
+ *  a po obnovení stránky by se vrátil výkres předchozího projektu). */
+function _persistOpened() {
+  setMeta('currentProjectData', buildProjectData()).catch(() => {});
+}
+
 // ── Save / Load ──
 
 /**
@@ -164,6 +175,7 @@ export async function openProject(name) {
   _loadProjectData(data);
   state.projectName = name;
   updateStatusProject();
+  _persistOpened();
   showToast(`Otevřen projekt: ${name}`);
 }
 
@@ -464,6 +476,7 @@ export async function showLibraryDialog() {
               state.projectName = entry.name;
               updateStatusProject();
             }
+            _persistOpened();
             overlay.remove();
             showToast(`Načteno z knihovny: "${entry.name}"`);
           } else if (act === 'rename') {
@@ -501,6 +514,7 @@ export async function showLibraryDialog() {
           state.projectName = entry.name;
           updateStatusProject();
         }
+        _persistOpened();
         overlay.remove();
         showToast(`Načteno z knihovny: "${entry.name}"`);
       });

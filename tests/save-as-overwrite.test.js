@@ -52,3 +52,19 @@ describe('rozkreslený výkres nese název projektu', () => {
     expect(pm.buildProjectData().projectName).toBe('Příruba');
   });
 });
+
+describe('Otevřít projekt vyčistí historii Zpět (uživatel 18. 11. 2026)', () => {
+  it('po otevření je Zpět prázdné a rozkreslený výkres = otevřený projekt', async () => {
+    await idb.saveProjectToDB('Čep', { objects: [{ type: 'line', id: 1, x1: 0, y1: 0, x2: 3, y2: 0 }], nextId: 2 });
+    state.objects = [{ type: 'circle', id: 9, cx: 0, cy: 0, r: 1 }];
+    state.undoStack = ['{"objects":[],"anchors":[]}'];
+    state.redoStack = ['x'];
+    await pm.openProject('Čep');
+    expect(state.undoStack).toEqual([]);
+    expect(state.redoStack).toEqual([]);
+    await tick();
+    const cur = await idb.getMeta('currentProjectData');
+    expect(cur.projectName).toBe('Čep');
+    expect(cur.objects).toHaveLength(1);
+  });
+});

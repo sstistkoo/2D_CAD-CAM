@@ -5,7 +5,7 @@
 import { state, showToast, pushUndo, displayX, ensureStockLayer, STOCK_LAYER_ID } from '../state.js';
 import { normalizeDrawnObjects } from '../drawColorPrefs.js';
 import { COLORS } from '../constants.js';
-import { updateObjectList, updateProperties, updateLayerList, updateMachineTypeBtn, updateXDisplayBtn } from '../ui.js';
+import { updateObjectList, updateProperties, updateLayerList, updateMachineTypeBtn, updateXDisplayBtn, updateNullPointUI } from '../ui.js';
 import { calculateAllIntersections } from '../geometry.js';
 import { bulgeToArc, exportFileName, expandPolylineObjects } from '../utils.js';
 import { parseDXF, exportDXF, exportDXFMaker } from '../dxf.js';
@@ -36,6 +36,9 @@ export function exportProjectFile() {
     gridSize: state.gridSize,
     coordMode: state.coordMode,
     incReference: state.incReference,
+    // INC se měří od nulového bodu – bez něj by import INC vztáhl k jinému bodu
+    nullPointActive: state.nullPointActive,
+    nullPointAngle: state.nullPointAngle,
     machineType: state.machineType,
     xDisplayMode: state.xDisplayMode,
     layers: state.layers,
@@ -54,7 +57,7 @@ export function exportProjectFile() {
   });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "skica_projekt.json";
+  a.download = exportFileName('json');   // název projektu + datum (dřív vždy skica_projekt.json)
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);   // hned po click() by stahování na mobilu / Firefoxu zrušilo
   showToast("Projekt exportován jako soubor");
@@ -121,7 +124,9 @@ export function importProjectFile() {
           state.gridSize = data.gridSize;
         if (data.coordMode) state.coordMode = data.coordMode;
         if (data.incReference) state.incReference = data.incReference;
-        if (data.machineType) state.machineType = data.machineType;
+        if (data.machineType === 'soustruh' || data.machineType === 'karusel') state.machineType = data.machineType;
+        if (data.nullPointActive !== undefined) state.nullPointActive = !!data.nullPointActive;
+        if (Number.isFinite(data.nullPointAngle)) state.nullPointAngle = data.nullPointAngle;
         state.xDisplayMode = data.xDisplayMode || 'radius';
         state.flipX = !!data.flipX;
         state.flipZ = !!data.flipZ;
@@ -147,6 +152,7 @@ export function importProjectFile() {
         calculateAllIntersections();
         updateMachineTypeBtn();
         updateXDisplayBtn();
+        updateNullPointUI();
         autoCenterView();
         showToast(`Importováno ${state.objects.length} objektů`);
       } catch (err) {
