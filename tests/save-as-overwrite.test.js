@@ -5,7 +5,16 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { installUiDom } from './helpers/uiDom.mjs';
 
 let state, pm, idb;
-const tick = () => new Promise(r => setTimeout(r, 30));
+// Čeká na podmínku (zápis do IndexedDB je pod zátěží plné sady pomalý – pevná
+// prodleva 30 ms v ní nestačila).
+async function waitFor(cond, ms = 5000) {
+  const t0 = Date.now();
+  while (!(await cond())) {
+    if (Date.now() - t0 > ms) throw new Error('waitFor: podmínka nesplněna');
+    await new Promise(r => setTimeout(r, 10));
+  }
+}
+const dialogClosed = () => !document.getElementById('saveAsName');
 
 beforeAll(async () => {
   installUiDom();
@@ -23,14 +32,14 @@ describe('Uložit jako', () => {
     pm.showSaveAsDialog();
     document.getElementById('saveAsName').value = 'Hřídel';
     document.getElementById('saveAsOk').click();
-    await tick();
+    await waitFor(() => document.getElementById('confirmDialogOk'));
     // Zatím nepřepsáno, ptá se
     expect((await idb.loadProjectFromDB('Hřídel')).objects).toHaveLength(1);
     expect(state.projectName).toBe('Bez názvu');
     const ok = document.getElementById('confirmDialogOk');
     expect(ok).not.toBeNull();
     ok.click();
-    await tick();
+    await waitFor(dialogClosed);
     expect((await idb.loadProjectFromDB('Hřídel')).objects).toHaveLength(0);
     expect(state.projectName).toBe('Hřídel');
   });
@@ -40,7 +49,7 @@ describe('Uložit jako', () => {
     state.objects = [{ type: 'line', id: 5, x1: 0, y1: 0, x2: 2, y2: 2 }];
     pm.showSaveAsDialog();
     document.getElementById('saveAsOk').click();
-    await tick();
+    await waitFor(dialogClosed);
     expect(document.getElementById('confirmDialogOk')).toBeNull();
     expect((await idb.loadProjectFromDB('Hřídel')).objects).toHaveLength(1);
   });
@@ -62,7 +71,7 @@ describe('Otevřít projekt vyčistí historii Zpět (uživatel 18. 11. 2026)', 
     await pm.openProject('Čep');
     expect(state.undoStack).toEqual([]);
     expect(state.redoStack).toEqual([]);
-    await tick();
+    await waitFor(async () => (await idb.getMeta('currentProjectData'))?.projectName === 'Čep');
     const cur = await idb.getMeta('currentProjectData');
     expect(cur.projectName).toBe('Čep');
     expect(cur.objects).toHaveLength(1);
