@@ -3,7 +3,7 @@
 // ║  Prompt (kopírovat) · foto→AI (auto) · JSON→vykreslit       ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { showToast, state, pushUndo } from '../state.js';
+import { showToast, state, withUndoBatch } from '../state.js';
 import { makeOverlay, makeDraggable } from '../dialogFactory.js';
 import { addPolylineAsSegments } from '../objects.js';
 import { radiusToBulge, bulgeToArc } from '../utils.js';
@@ -462,16 +462,35 @@ export function skeletonToProfile(rawPts) {
 
 /** Sestaví profil – detekuje formát (skeleton / nové elementy / staré segmenty). */
 export function buildProfile(items) {
-  if (isSkeletonFormat(items)) return skeletonToProfile(items);
-  return isElementFormat(items) ? elementsToProfile(items) : segmentsToProfile(items);
+  const p = isSkeletonFormat(items) ? skeletonToProfile(items)
+    : isElementFormat(items) ? elementsToProfile(items) : segmentsToProfile(items);
+  return toMachineAxes(p);
+}
+
+/**
+ * Profil z JSON vzniká v osách soustruhu (x = Z, y = poloměr). Karusel má
+ * výkres prohozený (osa rotace svisle, poloměr vodorovně) – stejně jako
+ * gcodeToProfile a přepnutí stroje (machineSwap.js): prohodit x↔y a obrátit
+ * bulge (zrcadlení obrací smysl oblouků).
+ */
+function toMachineAxes(p) {
+  if (state.machineType !== 'karusel') return p;
+  return {
+    vertices: p.vertices.map(v => ({ x: v.y, y: v.x })),
+    bulges: p.bulges.map(b => -b || 0),
+  };
 }
 
 /** Přidá profil jako samostatné úsečky a oblouky (bez polyline objektu). */
-function addProfileObject(vertices, bulges) {
+function checkProfile(vertices) {
   if (!vertices || vertices.length < 2) throw new Error('Profil nemá dost bodů');
   for (const v of vertices) {
     if (!isFinite(v.x) || !isFinite(v.y)) throw new Error('Profil obsahuje neplatné souřadnice');
   }
+}
+
+function addProfileObject(vertices, bulges) {
+  checkProfile(vertices);
   const segments = addPolylineAsSegments(vertices, bulges, false);
   autoCenterView();
   return segments.length > 0 ? segments[0] : null;
@@ -911,19 +930,25 @@ export function openAIPanel() {
   }
 
   // Vykreslí profil; když už něco je na ploše, zeptá se na přepsání.
+  // Neplatný profil se odmítne DŘÍV, než se výkres smaže; smazání + nový
+  // profil jsou jeden krok Zpět (dřív dva – první Zpět nechalo prázdnou plochu).
   async function drawProfile(vertices, bulges) {
+    checkProfile(vertices);
+    let replace = false;
     if (state.objects.length > 0) {
       const choice = await askOverwrite();
       if (choice === 'cancel') return null;
-      if (choice === 'replace') {
-        pushUndo();
+      replace = choice === 'replace';
+    }
+    return withUndoBatch(() => {
+      if (replace) {
         state.objects.length = 0;
         state.selected = null;
         state.selectedPoint = null;
         state.intersections = [];
       }
-    }
-    return addProfileObject(vertices, bulges);
+      return addProfileObject(vertices, bulges);
+    });
   }
 
   // 1) Knihovna promptů: výběr / kopírovat / uložit / smazat

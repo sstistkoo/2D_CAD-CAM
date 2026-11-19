@@ -38,3 +38,19 @@ describe('Trasování profilu: import G-kódu', () => {
     state.xDisplayMode = 'radius';
   });
 });
+
+describe('AI profil z JSON na karuselu (kontrola 19. 11. 2026)', () => {
+  it('karusel = transpozice soustruhového profilu, bulge s opačným znaménkem', async () => {
+    const { buildProfile } = await import('../js/ai/aiPanel.js');
+    const { state } = await import('../js/state.js');
+    const els = [{ type: 'line', d1: 20, d2: 20, l: 10 }, { type: 'arc', d1: 20, d2: 30, l: 5, r: 5 }];
+    state.machineType = 'soustruh';
+    const lathe = buildProfile(els);
+    state.machineType = 'karusel';
+    const kar = buildProfile(els);
+    state.machineType = 'soustruh';
+    expect(kar.vertices).toEqual(lathe.vertices.map(v => ({ x: v.y, y: v.x })));
+    expect(kar.bulges).toEqual(lathe.bulges.map(b => -b || 0));
+    expect(lathe.bulges.some(b => b !== 0)).toBe(true);
+  });
+});
