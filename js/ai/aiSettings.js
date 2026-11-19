@@ -170,8 +170,8 @@ export async function fetchFreeModels(providerId, apiKey, includePaid = false) {
   // ── Gemini: ListModels, klíč povinný, jen generateContent ──
   if (providerId === 'gemini') {
     if (!apiKey) throw new Error('Gemini vyžaduje API klíč pro načtení modelů');
-    const url = p.modelsUrl + '?pageSize=200&key=' + encodeURIComponent(apiKey);
-    const res = await fetch(url);
+    // Klíč v hlavičce, ne v adrese (adresa se ukládá do historie / logů proxy)
+    const res = await fetch(p.modelsUrl + '?pageSize=200', { headers: { 'x-goog-api-key': apiKey } });
     if (!res.ok) {
       const bad = res.status === 400 || res.status === 403;
       throw new Error('Gemini: HTTP ' + res.status + (bad ? ' (neplatný klíč)' : ''));

@@ -694,16 +694,15 @@ export async function analyzeImage(dataUrl, promptText = AI_PROMPT) {
   if (cfg.provider === 'gemini') {
     const m = dataUrl.match(/^data:(.*?);base64,(.*)$/);
     if (!m) throw new Error('Neplatný obrázek');
-    const url =
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent?key=` +
-      encodeURIComponent(cfg.apiKey);
+    // Klíč v hlavičce x-goog-api-key, ne v adrese (?key= se dostane do historie / logů)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent`;
     const body = {
       contents: [{ parts: [{ text: PROMPT }, { inline_data: { mime_type: m[1], data: m[2] } }] }],
       generationConfig: { temperature: temp },
     };
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.apiKey },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
