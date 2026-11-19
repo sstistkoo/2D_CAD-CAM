@@ -3,7 +3,7 @@
 // ║  Podporuje: úsečky, kružnice, oblouky, obdélníky, kontury  ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { state, pushUndo, showToast } from '../state.js';
+import { state, pushUndo, showToast, updateUndoButtons } from '../state.js';
 import { remapSegConstraints, setSegConstraints } from '../segConstraintsRemap.js';
 import { renderAll } from '../render.js';
 import { findObjectAt, calculateAllIntersections, getLines, getCircles, intersectLineLine, intersectLineCircle, intersectCircleCircle, findSegmentAt } from '../geometry.js';
@@ -822,7 +822,9 @@ function withAnchorGuard(obj, fn) {
   const pinned = anchoredPointsOf(obj);
   if (pinned.length === 0) return fn();
   const saved = JSON.stringify({ objects: state.objects, anchors: state.anchors });
-  const undoLen = state.undoStack.length, redo = state.redoStack.slice();
+  // Kopie celého zásobníku, ne jen délka: při plné historii pushUndo() nejstarší
+  // krok zahodí (shift) a délka se nezmění – obnovení délkou by ho ztratilo.
+  const undo = state.undoStack.slice(), redo = state.redoStack.slice();
   fn();
   const still = state.objects.flatMap(o => (o.isDimension || o.isCoordLabel ? [] : getObjectSnapPoints(o)));
   const lost = pinned.some(p => !still.some(q => !q.mid && Math.hypot(q.x - p.x, q.y - p.y) < 0.01));
@@ -830,8 +832,9 @@ function withAnchorGuard(obj, fn) {
   const data = JSON.parse(saved);
   state.objects = data.objects;
   state.anchors = data.anchors;
-  state.undoStack.length = undoLen;
+  state.undoStack = undo;
   state.redoStack = redo;
+  updateUndoButtons();
   calculateAllIntersections();
   updateAssociativeDimensions();
   renderAll();

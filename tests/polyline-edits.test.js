@@ -179,6 +179,17 @@ describe('oříznutí × kotva (kontrola 18. 11. 2026)', () => {
     expect(state.undoStack.length).toBe(undo);
   });
 
+  it('vrácený ořez při PLNÉ historii Zpět nezahodí nejstarší krok', () => {
+    addObject({ type: 'line', x1: 0, y1: 0, x2: 10, y2: 0, name: 'A' });
+    addObject({ type: 'line', x1: 5, y1: -5, x2: 5, y2: 5, name: 'B' });
+    state.anchors = [{ x: 10, y: 0 }];
+    state.undoStack = Array.from({ length: state.maxUndo }, (_, i) => 'krok' + i);
+    handleTrimClick(8, 0);
+    expect(state.undoStack).toHaveLength(state.maxUndo);
+    expect(state.undoStack[0]).toBe('krok0');
+    expect(state.undoStack.at(-1)).toBe('krok' + (state.maxUndo - 1));
+  });
+
   it('ořez druhé (nezakotvené) strany projde', () => {
     addObject({ type: 'line', x1: 0, y1: 0, x2: 10, y2: 0, name: 'A' });
     addObject({ type: 'line', x1: 5, y1: -5, x2: 5, y2: 5, name: 'B' });

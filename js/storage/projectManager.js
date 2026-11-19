@@ -287,13 +287,16 @@ export function showSaveAsDialog() {
     if (e.key === 'Escape') overlay.remove();
   });
 
+  let asking = false;   // otevřený dotaz na přepsání – další Enter ho nezdvojí
   async function doSave() {
     const name = inp.value.trim();
-    if (!name) return;
+    if (!name || asking) return;
     // Jiný už uložený projekt stejného jména se dřív tiše přepsal
     if (name !== state.projectName && await loadProjectFromDB(name)) {
+      asking = true;
       showConfirmDialog(`Projekt „${name}“ už existuje. Přepsat ho aktuálním výkresem?`,
-        () => { writeAs(name); }, { confirmLabel: 'Přepsat' });
+        () => { asking = false; writeAs(name); },
+        { confirmLabel: 'Přepsat', onCancel: () => { asking = false; } });
       return;
     }
     await writeAs(name);
