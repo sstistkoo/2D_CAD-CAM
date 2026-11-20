@@ -1,11 +1,12 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  SKICA – Číselné zadání: vlastní číselník (dotykové displeje) ║
-// ║  1 2 3 4 5 6 7 8 / 9 0 . − ⌫ ⌨ Další OK                      ║
+// ║  1 2 3 4 5 6 7 8 / 9 0 . − + × ÷ ( / ) ⌫ ⌨ Další OK          ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
 // Píše do posledního pole, do kterého uživatel klepl (X1, Z1, Délka…, nebo do
 // zápisu G-kódu). Systémová klávesnice se pak nevysouvá (inputmode="none") a
-// nezakrývá plátno; ⌨ ji pro pole vrátí (třeba na výraz 50/2). Volba se pamatuje.
+// nezakrývá plátno; ⌨ ji pro pole vrátí. Výraz (50/2, 120-2*3) jde napsat
+// přímo – číselník má + × ÷ ( ). Volba se pamatuje.
 
 const KEY_SYS = 'skica-numpad-syskb';
 const isTouch = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
@@ -44,9 +45,9 @@ export function attachNumPad(container) {
 
   const pad = document.createElement('div');
   pad.className = 'num-pad';
-  const keys = [..."12345678", '9', '0', '.', '-', 'bs', 'kb', 'next', 'ok'];   // číslice postupně 1…0
-  const label = { '-': '−', bs: '⌫', kb: '⌨', next: 'Další', ok: 'OK' };
-  const title = { '-': 'Mínus', '.': 'Desetinná tečka', bs: 'Smazat znak', kb: 'Systémová klávesnice zap / vyp', next: 'Další pole', ok: 'OK – vloží objekt (jako tlačítko OK nahoře)' };
+  const keys = [..."12345678", '9', '0', '.', '-', '+', '*', '/', '(', ')', 'bs', 'kb', 'next', 'ok'];   // číslice postupně 1…0
+  const label = { '-': '−', '*': '×', '/': '÷', bs: '⌫', kb: '⌨', next: 'Další', ok: 'OK' };
+  const title = { '-': 'Mínus', '+': 'Plus', '*': 'Krát', '/': 'Děleno', '(': 'Závorka', ')': 'Závorka', '.': 'Desetinná tečka', bs: 'Smazat znak', kb: 'Systémová klávesnice zap / vyp', next: 'Další pole', ok: 'OK – vloží objekt (jako tlačítko OK nahoře)' };
   pad.innerHTML = keys.map(k =>
     `<button type="button" class="num-pad-key${k === 'next' ? ' num-pad-next' : ''}${k === 'ok' ? ' num-pad-ok' : ''}${k === 'bs' ? ' num-pad-bs' : ''}" data-pad="${k}" title="${title[k] || 'Číslice ' + k}">${label[k] || k}</button>`).join('');
   fields.after(pad);

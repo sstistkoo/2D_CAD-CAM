@@ -7,12 +7,14 @@
 // proměnných --vv-top / --vv-h (css/cnc-compact.css je použije).
 
 const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+/** Místo dole zabrané vlastní lištou nad klávesnicí (dialogs/mathKeyBar.js), px. */
+let bottomReserve = 0;
 
 function syncViewportVars() {
   if (!vv) return;
   const root = document.documentElement.style;
   root.setProperty('--vv-top', `${Math.max(0, vv.offsetTop)}px`);
-  root.setProperty('--vv-h', `${vv.height}px`);
+  root.setProperty('--vv-h', `${Math.max(0, vv.height - bottomReserve)}px`);
 }
 
 /**
@@ -59,4 +61,16 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   document.addEventListener('focusin', (e) => { if (e.target?.closest?.(MODALS)) scheduleReveal(); });
 }
 
-export { syncViewportVars, revealFocused };
+/**
+ * Rezervuje spodní pruh viditelné plochy (lišta + − × ÷ nad klávesnicí), aby
+ * okna nekončila pod ní.
+ * @param {number} px
+ */
+function setViewportBottomReserve(px) {
+  if (px === bottomReserve) return;
+  bottomReserve = px;
+  syncViewportVars();
+  scheduleReveal();
+}
+
+export { syncViewportVars, revealFocused, setViewportBottomReserve };
