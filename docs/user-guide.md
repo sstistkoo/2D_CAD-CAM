@@ -46,6 +46,7 @@ Aplikace běží offline jako PWA – žádný server, žádná instalace. Stač
 ### Toolbar (horní lišta)
 Herní nástroje seskupené do sekcí:
 - **Výběr/úpravy** – Vyber, Přesun, Kopírovat, Měřit, Zrcadlit, Otáčet, Měřítko
+  - *Měřit → ⊹ Krajní body*: v info o objektu (nebo při výběru více objektů) ukáže nejvzdálenější body vodorovně/svisle, ★ = nejdál od osy; ➕ přes bod přidá vodorovnou a svislou pomocnou úsečku s kótou.
 - **Kreslení** – Úsečka, Typ čáry (ČSN EN ISO 128), Kružnice, Oblouk, Obdélník, Polyline, Tužka, Text
 - **Úpravy** – Zaoblení, Zkosení, Ořez, Prodloužit, Zlomit, Tečna, Rovnoběžka, Kolmice, Offset, Rozdělit
 - **Kóty** – Lineární kóta, Řetězová kóta, Souřadnice

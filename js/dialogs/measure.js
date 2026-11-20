@@ -16,6 +16,7 @@ import { projectPointToLine, distPointToInfiniteLine, angleBetweenLines, interse
 import { removeAnchorsForObject, cleanupOrphanAnchors, hasAnchoredPoint } from '../tools/index.js';
 import { escapeHtml } from '../htmlEscape.js';
 import { writeClipboard } from '../clipboard.js';
+import { showExtremePointsDialog, supportsExtremes } from './extremePoints.js';
 
 /**
  * Střed objektu pro měření. Dřív dvě kopie s „default: {0,0}" – kontura,
@@ -277,6 +278,7 @@ function buildObjectInfoDialog(obj, objIdx) {
       </table>
       <div class="btn-row">
         ${addDimBtn}
+        ${supportsExtremes(obj) ? `<button class="btn-cancel" id="objExtremes">⊹ Krajní body</button>` : ''}
         ${angularIntersectBtn}
         ${deleteDimBtn}
         <button class="btn-cancel" id="objCopy">📋 Kopírovat</button>
@@ -313,6 +315,14 @@ function buildObjectInfoDialog(obj, objIdx) {
       dimBtn.addEventListener("click", () => {
         addDimensionForObject(obj);
         overlay.remove();
+      });
+    }
+
+    const extBtn = overlay.querySelector("#objExtremes");
+    if (extBtn) {
+      extBtn.addEventListener("click", () => {
+        overlay.remove();
+        showExtremePointsDialog(obj);
       });
     }
 
@@ -973,11 +983,16 @@ export function showMeasureMultiObjectResult(objs, indices) {
       <table style="width:100%;font-family:Consolas;font-size:13px;">${rows}</table>
       <div class="btn-row">
         <button class="btn-cancel" id="msAddAllDims">📐 Přidat kóty ke všem</button>
+        <button class="btn-cancel" id="msExtremes">⊹ Krajní body</button>
         <button class="btn-cancel" id="msCopy">📋 Kopírovat</button>
         <button class="btn-ok btn-cancel-overlay">OK</button>
       </div>
     </div>`);
   _addCopyAndDimListeners(overlay);
+  overlay.querySelector("#msExtremes")?.addEventListener("click", () => {
+    overlay.remove();
+    showExtremePointsDialog(objs);
+  });
   const addAllBtn = overlay.querySelector("#msAddAllDims");
   if (addAllBtn) {
     addAllBtn.addEventListener("click", () => {
