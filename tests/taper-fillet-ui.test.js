@@ -61,12 +61,18 @@ describe('kalkulačka Kužel – tvarový přechod R (UI)', () => {
     const click = key => svg.querySelector('[data-edit="' + key + '"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(svg.textContent).toContain('R12');
     expect(svg.textContent).toContain('průsečík');
-    click('side:A');
+    const tab = s => ov.querySelector('.tf-tab[data-tfside="' + s + '"]');
+    tab('A').click();
     expect(svg.textContent).toContain('R ?');            // spodek zatím bez R
+    expect(svg.textContent).toContain('Spodek');
+    expect(ov.querySelector('.tf-edge[data-side="A"]').hidden).toBe(false);
+    expect(ov.querySelector('.tf-edge[data-side="B"]').hidden).toBe(true);   // jen jedna sada polí
     const before = f('faceA').value;
-    click('face');
+    click('face');                                       // ⇄ otočit R v detailu
     expect(f('faceA').value).not.toBe(before);
-    click('side:B');
+    ov.querySelector('.tf-flip[data-side="A"]').click(); // ⇄ Otočit R pod poli
+    expect(f('faceA').value).toBe(before);
+    tab('B').click();
     expect(svg.textContent).toContain('R12');
   });
 });

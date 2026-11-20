@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Kužel – přechod R: jedna sada polí + „⇄ Otočit R"** (uživatel 20. 11. 2026). Pole vrchu i spodku byla pod sebou (dvakrát „Úhel čela" s dlouhým popisem) – teď záložky **▲ Vrch / ▼ Spodek** nad detailem a ukáže se jen sada polí vybrané hrany; popisky zkrácené, vysvětlivka znaménka úhlu je pod poli. Tlačítko **⇄ Otočit R** (pod poli i v detailu) obrátí rádius na druhou stranu čela (čelo k ose ↔ k většímu Ø).
+
 - **Kontrola dnešních změn** (uživatel 20. 11. 2026). (1) Převzetí průsečíku z přechodu R do kužele uvolnilo nejstarší zadání – mohla zmizet délka nebo úhel; teď se uvolní druhý průměr (délka a kuželovitost zůstanou). (2) Číselné pole (`type="number"`) s desetinnou čárkou („1,5") po opuštění hodnotu ztratilo – čárka se převede na tečku. (3) Pole `type="number"`, přes které se jen posunulo prstem (bez fokusu), zůstávalo textové – po chvíli se vrátí. (4) Klepnutí na průsečík v detailu přechodu R předvyplní současný Ø hrany.
 
 - **Směrová mřížka ✛ u úhlu se neschovává pod klávesnici** (uživatel 20. 11. 2026). Mřížka šipek (Úsečka úhlem, sražení…) se otevírala pod tlačítkem ✛ – s vysunutou klávesnicí a lištou + − × ÷ skončila pod nimi a nešlo na ni klepnout. Teď se otevře nad tlačítkem (pod něj jen když se nahoru do viditelné plochy nevejde) a klepnutí na ✛ ani na šipku nebere poli fokus, takže klávesnice nezajede a okno neposkočí. Po volbě šipky je kurzor za číslem (ne celé pole označené) a znaménko z lišty + − × ÷ označené číslo nepřepíše, ale připíše se za něj (90 → 90+30).

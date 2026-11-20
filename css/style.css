@@ -8412,6 +8412,11 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 .calc-svg .tb-sk-corner { fill: none; stroke: var(--ctp-overlay2); stroke-width: 1.2; }
 .calc-svg .tb-sk-center { fill: var(--ctp-overlay2); }
 .calc-svg .tb-sk-star { fill: var(--ctp-blue); }
+.tf-tabs { display: flex; gap: 6px; margin: 2px 0 6px; }
+.tf-tab { flex: 1; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--ctp-surface1); background: var(--ctp-surface0); color: var(--ctp-subtext0); font-weight: 600; font-size: 14px; cursor: pointer; }
+.tf-tab.on { background: var(--ctp-blue); border-color: var(--ctp-blue); color: var(--ctp-base); }
+.tf-flip-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; }
+.tf-edge[hidden] { display: none; }
 .calc-svg .tb-pt-t { fill: var(--ctp-peach); font: 11px "Consolas", monospace; }
 .calc-svg .tb-ref-lead { stroke: var(--ctp-blue); stroke-width: 1; }
 .calc-svg .tb-pt-t, .calc-svg .tb-ref-t { paint-order: stroke; stroke: var(--ctp-mantle); stroke-width: 4px; stroke-linejoin: round; }

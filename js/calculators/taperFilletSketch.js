@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 // Detail jedné hrany (vrch / spodek) ve skutečných úhlech: površka kužele,
 // rádius, čelo pod zadaným úhlem, teoretický průsečík. Klikací (data-edit):
-// side:A / side:B (přepnutí hrany), R, face (směr čela), ang (úhel čela),
+// R, face (otočit R = směr čela), ang (úhel čela),
 // corner (Ø průsečíku), start (Ø začátku R na čele), zTop (Z čela vrchu).
 // Neznámé hodnoty jako „?" – detail jde vyplnit jen klikáním.
 
@@ -15,7 +15,7 @@ const t3 = x => f3(x).replace(/\.?0+$/, '') || '0';
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
 const TIPS = {
-  R: 'Rádius přechodu', face: 'Kam čelo od hrany pokračuje – k většímu Ø, nebo k ose',
+  R: 'Rádius přechodu', face: 'Otočit rádius na druhou stranu čela (čelo k ose ↔ k většímu Ø)',
   ang: 'Úhel čela od roviny kolmé k ose (0 = kolmo, + k vrchu, − ke spodku)',
   corner: 'Průsečík – ostrá hrana kužele s čelem (= Ø kužele na hraně)',
   start: 'Začátek rádiusu na čele – Ø, kde R z čela odbočí', zTop: 'Z čela vrchu – výsledky pak v souřadnicích Z',
@@ -80,8 +80,8 @@ export function drawFilletSketch(svg, m) {
 
   let s = '';
   // Záložky hran + Z vrchu
-  const tab = (side, x) => lbl(x, 18, (m.side === side ? '● ' : '○ ') + (side === 'B' ? 'Vrch' : 'Spodek'), 'side:' + side, m.side === side ? 'sk-val' : 'sk-btn');
-  s += tab('B', 46) + tab('A', 130);
+  // Hrana se přepíná záložkami nad detailem; tady jen název
+  s += lbl(8, 18, m.side === 'B' ? '▲ Vrch' : '▼ Spodek', '', 'sk-val', 'start');
   s += lbl(W - 8, 18, 'Z vrchu ' + (Number.isFinite(m.zTop) ? t3(m.zTop) : '?'), 'zTop', Number.isFinite(m.zTop) ? 'sk-val' : 'sk-empty', 'end');
 
   if (!f) {
@@ -152,7 +152,7 @@ export function drawFilletSketch(svg, m) {
   }
 
   // Čelo: směr a úhel – pevně ve 2. řádku
-  s += lbl(8, 46, '⇄ čelo ' + (inp.face === 'in' ? 'k ose' : 'k většímu Ø'), 'face', 'sk-btn', 'start');
+  s += lbl(8, 46, '⇄ otočit R', 'face', 'sk-btn', 'start');
   s += lbl(W - 8, 46, '∠ čela ' + (m.raw.ang.trim() ? t3(inp.beta) : '0') + '°', 'ang', m.raw.ang.trim() ? 'sk-val' : 'sk-calc', 'end');
   // Kužel: sklon (jen pro orientaci)
   const nCone = unit(tP, tCE);

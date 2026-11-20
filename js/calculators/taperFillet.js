@@ -24,19 +24,26 @@ const sel = (id, label, opts) =>
   opts.map(o => '<option value="' + o[0] + '">' + o[1] + '</option>').join('') + '</select></label>';
 
 function edgeHTML(side) {
-  return '<div class="tp-hint" style="margin:6px 0 2px"><strong>' + SIDE_NAME[side] + '</strong></div><div class="cnc-fields">' +
+  // Pole jen pro hranu vybranou záložkou (Vrch / Spodek) – dvě sady polí najednou
+  // byly matoucí (dvakrát „Úhel čela").
+  return '<div class="tf-edge" data-side="' + side + '"' + (side === 'B' ? '' : ' hidden') + '><div class="cnc-fields">' +
     fld('R' + side, 'R', 'mm', side === 'B' ? 'např. 12' : 'např. 5') +
-    sel('face' + side, 'Čelo pokračuje', [['out', 'k většímu Ø'], ['in', 'k ose (menší Ø)']]) +
-    fld('ang' + side, 'Úhel čela', '° (0 = kolmo k ose, + k vrchu, − ke spodku)', '0, např. -15') +
-    sel('given' + side, 'Zadávám', [['corner', 'průsečík = hrana kužele'], ['start', 'začátek R na čele']]) +
+    sel('face' + side, 'Čelo od hrany', [['out', 'k většímu Ø'], ['in', 'k ose (menší Ø)']]) +
+    fld('ang' + side, 'Úhel čela', '°', '0 = kolmo k ose') +
+    sel('given' + side, 'Zadávám', [['corner', 'průsečík (hrana)'], ['start', 'začátek R na čele']]) +
     fld('dia' + side, 'Ø začátku R', 'na čele, mm', 'např. 306') +
-    '</div>';
+    '</div>' +
+    '<div class="tf-flip-row"><button type="button" class="cnc-btn tf-flip" data-side="' + side + '">⇄ Otočit R</button>' +
+    '<span class="tp-hint">Úhel čela: + stoupá k vrchu, − klesá ke spodku.</span></div></div>';
 }
 
 /** HTML skupiny. */
 export function taperFilletHTML() {
   return '<fieldset class="tb-group" id="tfSection"><legend>Tvarový přechod R <small>(nepovinné – rádius kužel ↔ čelo)</small></legend>' +
-    '<div class="tp-hint">Klepni v detailu na hodnotu a zadej ji – R, průsečík nebo začátek R na čele, směr a úhel čela. Nahoře přepínáš vrch / spodek.</div>' +
+    '<div class="tf-tabs" role="tablist">' +
+    '<button type="button" class="tf-tab on" data-tfside="B" role="tab">▲ Vrch</button>' +
+    '<button type="button" class="tf-tab" data-tfside="A" role="tab">▼ Spodek</button></div>' +
+    '<div class="tp-hint">Klepni v detailu na hodnotu a zadej ji – R, průsečík nebo začátek R na čele, úhel čela. „⇄ Otočit R" obrátí rádius na druhou stranu čela.</div>' +
     '<svg class="calc-svg tf-svg" viewBox="0 0 340 300" role="img" aria-label="Detail přechodu R – klikací kóty"></svg>' +
     edgeHTML('B') + edgeHTML('A') +
     '<div class="cnc-fields">' + fld('zTop', 'Z čela vrchu', 'nepovinné', 'pro souřadnice Z') + '</div>' +
@@ -85,6 +92,21 @@ export function initTaperFillet(root, cb) {
     }
     syncVisibility();
   }
+  /** Přepnutí hrany: záložky, pole i detail ukazují totéž. */
+  function setSide(side) {
+    curSide = side;
+    box.querySelectorAll('.tf-tab').forEach(b => b.classList.toggle('on', b.dataset.tfside === side));
+    box.querySelectorAll('.tf-edge').forEach(el => { el.hidden = el.dataset.side !== side; });
+    if (lastArgs) drawDetail(...lastArgs);
+  }
+  /** Otočí rádius na druhou stranu čela (čelo k ose ↔ k většímu Ø). */
+  function flip(side) {
+    $('face' + side).value = $('face' + side).value === 'in' ? 'out' : 'in';
+    save(); cb.onChange();
+  }
+  box.querySelectorAll('.tf-tab').forEach(b => b.addEventListener('click', () => setSide(/** @type {'A'|'B'} */ (b.dataset.tfside))));
+  box.querySelectorAll('.tf-flip').forEach(b => b.addEventListener('click', () => flip(/** @type {'A'|'B'} */ (b.dataset.side))));
+
   IDS.forEach(id => $(id).addEventListener('input', () => { syncVisibility(); save(); cb.onChange(); }));
   IDS.filter(id => $(id).tagName === 'SELECT').forEach(id => $(id).addEventListener('change', () => { syncVisibility(); save(); cb.onChange(); }));
 
@@ -204,6 +226,7 @@ export function initTaperFillet(root, cb) {
 
   /** Klepnutí na R v náčrtu. */
   function editR(ev, side) {
+    if (side !== curSide) setSide(side);
     openInlineEdit(ev, {
       label: 'Rádius – ' + SIDE_NAME[side].toLowerCase(), unit: 'mm', value: $('R' + side).value,
       hint: 'Prázdné = bez rádiusu',
@@ -213,16 +236,12 @@ export function initTaperFillet(root, cb) {
   }
 
   // ── Klikání do detailu
-  const redraw = () => { if (lastArgs) drawDetail(...lastArgs); };
   const commitField = (id, raw) => setField($(id), raw);       // input → přepočet celé kalkulačky
   if (svg) wireSvgEditing(svg, (key, ev) => {
     const side = curSide, nm = SIDE_NAME[side].toLowerCase();
-    if (key.startsWith('side:')) { curSide = /** @type {'A'|'B'} */ (key.slice(5)); redraw(); return; }
+    if (key.startsWith('side:')) { setSide(/** @type {'A'|'B'} */ (key.slice(5))); return; }
     if (key === 'R') { editR(ev, side); return; }
-    if (key === 'face') {
-      $('face' + side).value = $('face' + side).value === 'in' ? 'out' : 'in';
-      save(); cb.onChange(); return;
-    }
+    if (key === 'face') { flip(side); return; }
     if (key === 'ang') {
       openInlineEdit(ev, {
         label: 'Úhel čela – ' + nm, unit: '°', value: $('ang' + side).value,
