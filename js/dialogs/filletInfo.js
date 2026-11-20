@@ -9,7 +9,7 @@
 import { state, coordHelpers, showToast } from '../state.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { arcTransitionPoints, objectExtremes } from '../geometry/extremePoints.js';
-import { markPoint } from './extremePoints.js';
+import { markPoint, diaNote } from './extremePoints.js';
 import { writeClipboard } from '../clipboard.js';
 
 const LS_KEY = 'skica.filletInfo.auto';
@@ -37,7 +37,7 @@ export function showFilletInfo(arc, opt = {}) {
   const body = `
     <div class="fi-panel">
       <table class="fi-tbl">${rows.map(([n, p, c], i) =>
-        `<tr class="${c}"><td>${n}</td><td>${fmt(p)}</td><td>${c === 'fi-star' ? `<button class="calc-btn fi-mark" data-i="${i}" title="Přidat přes bod vodorovnou a svislou čáru s kótou">📐</button>` : ''}</td></tr>`).join('')}
+        `<tr class="${c}"><td>${n}</td><td>${fmt(p)}${c === 'fi-star' ? ` <small>${diaNote(Math.abs(isK ? p.x : p.y))}</small>` : ''}</td><td>${c === 'fi-star' ? `<button class="calc-btn fi-mark" data-i="${i}" title="Přidat přes bod vodorovnou a svislou čáru s kótou">📐</button>` : ''}</td></tr>`).join('')}
       </table>
       ${t.extremes.length ? '' : '<div class="fi-note">Krajní Ø leží na tečném bodě (oblouk se v průměru neotáčí).</div>'}
       <div class="fi-note">Pořadí od Z+ (${isK ? 'shora dolů' : 'zprava doleva'}).</div>
@@ -55,7 +55,7 @@ export function showFilletInfo(arc, opt = {}) {
     if (ext) markPoint(p, ext, n.replace(/^★ /, ''));
   }));
   ov.querySelector('#fiCopy').addEventListener('click', () => {
-    const text = `R${+arc.r.toFixed(3)}\n` + rows.map(([n, p]) => `${n.replace(/^★ /, '')}: ${fmt(p)}`).join('\n');
+    const text = `R${+arc.r.toFixed(3)}\n` + rows.map(([n, p, c]) => `${n.replace(/^★ /, '')}: ${fmt(p)}${c === 'fi-star' ? ' ' + diaNote(Math.abs(isK ? p.x : p.y)) : ''}`).join('\n');
     writeClipboard(text).then(() => showToast('Zkopírováno')).catch(() => showToast('Kopírování se nepovedlo'));
   });
   ov.querySelector('#fiAuto').addEventListener('change', e => {

@@ -47,6 +47,14 @@ export function markPoint(p, ext, label) {
 }
 
 /**
+ * Poloměr od osy → text v závorce: v režimu poloměr „(Ø…)", v režimu průměr „(R…)".
+ * @param {number} r  vzdálenost od osy (poloměr)
+ */
+export function diaNote(r) {
+  return state.xDisplayMode === 'diameter' ? `(R${r.toFixed(3)})` : `(Ø${(2 * r).toFixed(3)})`;
+}
+
+/**
  * Dialog krajních bodů objektu. Zvýrazní bod nejdál od osy rotace
  * (soustruh: osa vodorovná → rozhoduje |svislá|; karusel: osa svislá →
  * rozhoduje |vodorovná|).
@@ -70,11 +78,13 @@ export function showExtremePointsDialog(obj) {
   for (const r of rows) if (radial(r.p) > radial(far.p) + EPS) far = r;
 
   const fmt = (p) => `${Hp}${H}${fH(p.x).toFixed(3)} ${Vp}${V}${fV(p.y).toFixed(3)}`;
+  // U nejvzdálenějšího bodu i druhý tvar: v režimu poloměr (Ø…), v režimu průměr (R…)
+  const other = (p) => diaNote(Math.abs(isK ? p.x : p.y));
   const tr = rows.map(r => {
     const hi = r === far;
     return `<tr>
       <td style="color:${COLORS.label}">${r.label}${hi ? ' ★' : ''}</td>
-      <td style="color:${hi ? COLORS.selected : COLORS.primary}">${fmt(r.p)}</td>
+      <td style="color:${hi ? COLORS.selected : COLORS.primary}">${fmt(r.p)}${hi ? ` <small>${other(r.p)}</small>` : ''}</td>
       <td><button class="btn-cancel" data-ext="${r.key}" title="Přidat vodorovnou a svislou úsečku přes bod" style="padding:2px 8px;min-width:0">➕</button></td>
     </tr>`;
   }).join('');
@@ -85,7 +95,7 @@ export function showExtremePointsDialog(obj) {
       <h3>⊹ Krajní body</h3>
       <table style="width:100%;font-family:Consolas;font-size:13px;">
         ${tr}
-        <tr><td colspan="3" style="color:${COLORS.border};font-size:11px;padding-top:6px">★ nejdál od osy: ${isK ? Hp + H : Vp + V}${Math.abs(radVal).toFixed(3)}</td></tr>
+        <tr><td colspan="3" style="color:${COLORS.border};font-size:11px;padding-top:6px">★ nejdál od osy: ${isK ? Hp + H : Vp + V}${Math.abs(radVal).toFixed(3)} ${other(far.p)}</td></tr>
       </table>
       <div class="btn-row">
         <button class="btn-cancel" id="extMarkFar">📐 Označit ★</button>
