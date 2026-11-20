@@ -2,7 +2,7 @@
 // ║  SKICA – Service Worker (PWA offline cache)                 ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const CACHE_NAME = 'skica-v877';
+const CACHE_NAME = 'skica-v879';
 const ASSETS = [
   './',
   './index.html',
@@ -565,6 +565,8 @@ const ASSETS = [
   './js/ui/statusButtons.js',
   './js/ui/toolbar.js',
   './js/ui/trigCalc.js',
+  './js/underlay/underlayDraw.js',
+  './js/underlay/underlayPanel.js',
   './js/utils.js',
   './dxf-json.html',
   './eslint.config.js',

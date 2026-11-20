@@ -8501,3 +8501,15 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 .proj-thumb .pt-line { fill: none; stroke: var(--ctp-blue); stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .proj-thumb .pt-stock { fill: none; stroke: var(--ctp-overlay1); stroke-width: 1; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
 .proj-thumb-empty { fill: var(--ctp-overlay0); font-size: 11px; }
+
+/* 🖼️ Fotka výkresu jako podklad – plovoucí panel (underlay/underlayPanel.js) */
+.ul-window { width: min(330px, calc(100vw - 16px)); }
+.ul-panel { display: flex; flex-direction: column; gap: 6px; }
+.ul-row { display: flex; gap: 6px; }
+.ul-btn { flex: 1; padding: 7px 6px; font-size: 13px; border-radius: 6px; cursor: pointer; background: var(--ctp-surface0); color: var(--ctp-text); border: 1px solid var(--ctp-surface1); text-align: center; }
+.ul-btn:disabled { opacity: .45; cursor: default; }
+.ul-load { background: var(--ctp-blue); color: var(--ctp-base); border-color: var(--ctp-blue); font-weight: 700; }
+.ul-del { flex: 0 0 auto; padding: 7px 12px; }
+.ul-op { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ctp-subtext0); }
+.ul-op input { flex: 1; }
+.ul-info { font-size: 12px; color: var(--ctp-subtext1); line-height: 1.35; min-height: 2.6em; }

@@ -41,6 +41,16 @@ Aplikace běží offline jako PWA – žádný server, žádná instalace. Stač
 
 ---
 
+## Fotka výkresu jako podklad
+
+Nastavení → **🖼️ Fotka výkresu jako podklad**:
+1. **📷 Načíst fotku** – vyfoť výkres nebo vyber z galerie; leží poloprůhledně pod plátnem.
+2. **📏 Měřítko** – klepni na 2 body známé kóty (např. konce Ø480) a zadej skutečnou vzdálenost; fotka se zvětší a srovná do osy (i nakřivo vyfocená).
+3. **✛ Umístit** – klepni na bod, jehož souřadnice znáš (třeba osa × čelo) a zadej je (např. 0, 0).
+4. Kresli přes fotku běžnými nástroji. Průhlednost posuvníkem, ⟲/⟳ doladí natočení o 0,5°, 👁 skryje, 🗑 odstraní.
+
+Fotka se ukládá k výkresu (po otevření jiného výkresu se ukáže jeho fotka).
+
 ## Ukládání výkresů
 
 - **Nastavení → 💾 Uložit výkres**: uloží výkres do 📁 Výkresů (bez názvu se zeptá na název). Rozkreslený výkres se navíc průběžně ukládá sám pod svým názvem.

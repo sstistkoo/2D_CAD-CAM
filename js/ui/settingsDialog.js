@@ -13,6 +13,7 @@ import { bridge } from '../bridge.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { setMachineType } from './statusButtons.js';
 import { showHistoryDialog } from './drawingHistory.js';
+import { showUnderlayPanel } from '../underlay/underlayPanel.js';
 import { contourDefaultColor, stockDefaultColor, setDrawColorPrefs } from '../drawColorPrefs.js';
 import { fullscreenButtonHTML, wireFullscreenButton } from '../fullscreen.js';
 import { applyTheme, persistSettings, toggleAngleSnap, toggleSnapGrid, updateCoordModeBtn, updateDimsBtn, updateXDisplayBtn } from '../ui.js';
@@ -46,6 +47,7 @@ export function showSettingsDialog() {
             <button class="calc-btn" id="settSaveNamed" style="${btnS}background:var(--ctp-blue);color:var(--ctp-base);border-color:var(--ctp-blue)" title="Uloží výkres do 📁 Uložených výkresů (bez názvu se zeptá na název)">💾 Uložit výkres</button>
             <button class="calc-btn" id="settNewDrawing" style="${btnS}background:var(--ctp-teal);color:var(--ctp-base);border-color:var(--ctp-teal)" title="Uloží rozkreslený výkres a otevře prázdný">📄 Nový výkres</button>
           </div>
+          <button class="calc-btn" id="settUnderlay" style="width:100%;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;background:var(--ctp-surface0);color:var(--ctp-text);border:1px solid var(--ctp-surface1)" title="Fotka výkresu poloprůhledně pod plátnem – měřítko podle známé kóty a obkreslení">🖼️ Fotka výkresu jako podklad</button>
           ${fullscreenButtonHTML('width:100%;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;background:var(--ctp-surface0);color:var(--ctp-text);border:1px solid var(--ctp-surface1)')}
           <button class="calc-btn" id="settDxfJson" style="width:100%;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;background:#a6e3a1;color:#1e1e2e;border:1px solid #a6e3a1">🔄 DXF - JSON konvertor</button>
         </div>
@@ -462,6 +464,10 @@ export function showSettingsDialog() {
   overlay.querySelector('#settNewDrawing').addEventListener('click', () => {
     overlay.remove();
     if (bridge.newDrawing) bridge.newDrawing();
+  });
+  overlay.querySelector('#settUnderlay').addEventListener('click', () => {
+    overlay.remove();
+    showUnderlayPanel();
   });
   overlay.querySelector('#settHistory').addEventListener('click', () => {
     overlay.remove();

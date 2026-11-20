@@ -24,6 +24,7 @@ import { drawShellHoles, drawViewCut } from '../faceView/shellHoleView.js';
 import { faceViewMode } from '../faceView/faceLayer.js';
 import { shownIntersections } from '../geometry/shownIntersections.js';
 import { isHelperLayer, HELPER_ALPHA } from '../helperLayer.js';
+import { drawPhotoUnderlay } from '../underlay/underlayDraw.js';
 
 // ── Vykreslení objektů ──
 export function renderObjects() {
@@ -38,6 +39,8 @@ export function renderObjects() {
   // Viewport culling – spočítat viditelnou oblast
   const vp = getViewportBounds();
 
+  // Fotka výkresu jako podklad (underlay/) – úplně dospod, kreslí se přes ni.
+  drawPhotoUnderlay(ctx, worldToScreen);
   // Bokorys (faceView/): podklad polotovar / profil / sklíčidlo úplně dospod.
   drawFaceReference(ctx, worldToScreen);
   // Nárys dokreslený pod osu + díry čel skrytou čarou (jen podklad).
