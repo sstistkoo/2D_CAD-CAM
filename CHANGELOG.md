@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Mobil: horní lišta KAR · ABS · R · # · ∠ · 📐 · 🔔 leží přímo na výkresu** (uživatel 20. 11. 2026). Lišta měla tmavý poloprůhledný pruh přes celou šířku, který zakrýval vršek výkresu. Teď je průhledná (jen tlačítka se stínem) a prázdná místa lišty propouštějí klepnutí, posun i zoom na plátno.
+
 - **Přechod R: ★ krajní Ø velkým modrým štítkem** (uživatel 20. 11. 2026). V profilu záložky Přechod R byl ★ Ø malým modrým písmem mezi ostatními popisky. Teď je to velký modrý štítek (15 px tučně) v pevném místě – u spodku nad dolní lištou, u vrchu pod horní – s vodicí čarou k většímu bodu na oblouku; ostatní popisky se mu vyhnou.
 
 - **Kontrola kuželu s přechodem R** (uživatel 20. 11. 2026). (1) Zadání obou Ø v záložce Přechod R (Ø nahoře 330, Ø dole 300) při „větší Ø dole" dalo D < d a záporný úhel – teď se strana většího Ø přepne sama. (2) Chyba kužele byla vidět jen v (skryté) záložce Kužel – teď i v záložce Přechod R. (3) Kopírovat / Do programu v záložce R začíná řádkem kužele s α, Ø nahoře, Ø dole a L (dřív jen „Kuželový čep 1:x"). Přidán náhodný test geometrie (400 kuželů × obě hrany: střed R ve vzdálenosti R od površky i čela, tečné body na oblouku, krajní Ø).

@@ -8528,3 +8528,25 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 .fi-note { font-size: 11px; color: var(--ctp-overlay1); margin-top: 4px; }
 .fi-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
 .fi-auto { font-size: 12px; color: var(--ctp-subtext0); display: flex; gap: 4px; align-items: center; }
+
+/* Mobil: horní lišta SOU/KAR · ABS · R · # · ∠ · 📐 · 🔔 leží PŘÍMO na výkresu
+   (uživatel 20. 11. 2026) – bez tmavého pruhu, prázdná místa lišty propouštějí
+   klepnutí / posun / zoom na plátno; klikají jen samotná tlačítka. */
+@media (max-width: 900px) {
+  #mobileCoordBar {
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-bottom: none;
+    pointer-events: none;
+  }
+  #mobileCoordBar .coord-ind,
+  #mobileCoordBar button,
+  #mobileCoordBar .mobile-notify-badge,
+  #mobileCoordBar .mobile-notify-panel,
+  #mobileCoordBar .mobile-notify-panel * {
+    pointer-events: auto;
+  }
+  /* tlačítka čitelná i nad čárami výkresu */
+  #mobileCoordBar .coord-ind { box-shadow: 0 1px 4px #0008; }
+}
