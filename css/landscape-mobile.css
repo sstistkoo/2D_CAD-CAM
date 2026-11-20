@@ -149,6 +149,8 @@ html.fs-cam-right { --safe-r: max(env(safe-area-inset-right, 0px), 48px); }
   .tb-sec .tb-col-b .tb-group { order: 1; }
   .tb-sec .tb-err, .tb-sec .tb-forms, .tb-sec .tb-res, .tb-sec .tb-slide,
   .tb-sec > .tb-col > .cnc-actions { order: 2; }
+  .tb-sec > .tb-mode-tabs { grid-column: 1 / -1; }
+  .tb-sec.tb-r #tfSection, .tb-sec.tb-r > .tb-col > .cnc-actions { grid-column: 1 / -1; }
 
   /* ── VK „Zadání objektu": vpravo ukotvený panel, plátno zůstane vlevo ──
      Dole by okno zabralo skoro celou výšku displeje. Plátno se kvůli panelu

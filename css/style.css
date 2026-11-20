@@ -8463,3 +8463,9 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 @media (max-width: 420px) { .taper-window .calc-title-tool { padding: 4px 7px; font-size: 12px; } }
 .tb-res .tb-refrow td { color: var(--ctp-blue); }
 #tbSection .tb-forms:empty { display: none; }
+
+/* Kužel: záložky △ Kužel / ◜ Přechod R (taperBore.js) */
+.tb-sec.tb-r .tb-cone-only { display: none !important; }
+.tb-sec:not(.tb-r) .tb-r-only { display: none !important; }
+.tb-mode-tabs { margin: 0 0 8px; }
+.tf-cone { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 8px; color: var(--ctp-subtext1); font-size: 13px; }

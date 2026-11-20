@@ -22,7 +22,18 @@ describe('kalkulačka Kužel – tvarový přechod R (UI)', () => {
     expect(res).toContain('Začátek R na čele');
     expect(res).toContain('309.862');                   // 330 − 2·12/tan 50°
     expect(res).toContain('-9.916');                    // Z konce R na kuželu
-    expect(ov.querySelector('.tb-svg [data-edit="fil:B"]')).not.toBe(null);
+    // záložky: náčrt kužele je bez rádiusů, přechod R má vlastní záložku
+    expect(ov.querySelector('.tb-svg').innerHTML).not.toContain('tb-fil');
+    const sec = ov.querySelector('#tbSection');
+    expect(sec.classList.contains('tb-r')).toBe(false);
+    expect(ov.querySelector('#tfSection').classList.contains('tb-r-only')).toBe(true);
+    expect(ov.querySelector('.tb-svg').classList.contains('tb-cone-only')).toBe(true);
+    expect(ov.querySelector('#tfSection').classList.contains('tb-cone-only')).toBe(false);
+    ov.querySelector('[data-tbmode="r"]').click();
+    expect(sec.classList.contains('tb-r')).toBe(true);
+    expect(ov.querySelector('.tf-cone-txt').textContent).toContain('D ');
+    ov.querySelector('.tf-cone-edit').click();
+    expect(sec.classList.contains('tb-r')).toBe(false);
     // začátek R zadán na čele → nabídne převzetí průsečíku do kužele
     f('givenB').value = 'start'; f('givenB').dispatchEvent(new Event('change', { bubbles: true }));
     type(f('diaB'), '300');

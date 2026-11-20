@@ -12,7 +12,7 @@ import { computeTaperBore, solveTaper, taperC, taperForms, ratioToC, f3, fmtDev 
 import { drawBoreSketch } from './taperBoreSketch.js';
 import { openInlineEdit, wireSvgEditing, setField } from './svgInlineEdit.js';
 import { writeClipboard } from '../clipboard.js';
-import { taperFilletHTML, taperFilletResHTML, initTaperFillet } from './taperFillet.js';
+import { taperFilletHTML, initTaperFillet } from './taperFillet.js';
 
 const LS_KEY = 'skica.taperKuzel';
 const LS_OLD = 'skica.taperBore';
@@ -32,7 +32,12 @@ const group = (title, inner) => '<fieldset class="tb-group"><legend>' + title + 
 
 /** HTML záložky Kužel. */
 export function taperBoreHTML() {
-  return '<div class="tb-sec" id="tbSection"><div class="tb-col tb-col-a">' +
+  return '<div class="tb-sec" id="tbSection">' +
+    // Dvě záložky: samotný kužel / tvarový přechod R (ať se to neplete)
+    '<div class="tf-tabs tb-mode-tabs" role="tablist">' +
+      '<button type="button" class="tf-tab on" data-tbmode="cone" role="tab">△ Kužel</button>' +
+      '<button type="button" class="tf-tab" data-tbmode="r" role="tab">◜ Přechod R</button></div>' +
+    '<div class="tb-col tb-col-a">' +
     group('Zobrazení',
       sel('kind', 'Typ', [['hole', 'Díra'], ['shaft', 'Čep / hřídel']]) +
       '<label class="cnc-field"><span>Větší Ø je</span><div class="tb-row">' +
@@ -43,7 +48,7 @@ export function taperBoreHTML() {
     '<div class="tb-err"></div>' +
     '<div class="cnc-info tb-forms"></div>' +
     '<div class="cnc-table-wrap cnc-table-tall tb-res"></div>' +
-    taperFilletResHTML() +
+    taperFilletHTML() +
     '<div class="cnc-result tb-slide"></div>' +
     '<div class="cnc-actions">' +
       '<button type="button" class="cnc-btn cnc-btn-copy tb-copy" title="Čitelný přehled">📋 Kopírovat</button>' +
@@ -63,7 +68,6 @@ export function taperBoreHTML() {
     group('Tolerance <small>(platí pro všechny průměry)</small>',
       fld('es', 'Horní úchylka', 'max mm', 'např. +0.046') +
       fld('ei', 'Dolní úchylka', 'min mm', 'např. 0')) +
-    taperFilletHTML() +
     '<fieldset class="tb-group"><legend>Měřicí místa <small>(hloubka od strany)</small></legend>' +
       '<div class="tb-points"></div>' +
       '<div class="cnc-actions tb-pt-actions">' +
@@ -98,6 +102,7 @@ export function initTaperBore(overlay) {
   }
   let order = [];                                       // ručně zadané z SOLVE (nejnovější na konci)
   let lastText = '', lastNc = '', geo = null;
+  let filText = '', filNc = '';                         // texty záložky Přechod R
   /** @type {ReturnType<typeof initTaperFillet>} */
   let fil = null;                                       // tvarový přechod R (nastaví se níže)
 
@@ -287,10 +292,9 @@ export function initTaperBore(overlay) {
       coneDia: { A: okNum(sol[keyAt('A')]) ? sol[keyAt('A')] : null, B: okNum(sol[keyAt('B')]) ? sol[keyAt('B')] : null },
       coneSt: { A: stOfE(keyAt('A')), B: stOfE(keyAt('B')) },
     }) : null;
-    if (fr && fr.text.length) {
-      lastText = (lastText ? lastText + '\n' : '') + fr.text.join('\n');
-      lastNc = (lastNc ? lastNc + '\n' : '') + ncText(fr.nc.join('\n'));
-    }
+    // Záložka Přechod R kopíruje řádek kužele + body R
+    filText = fr && fr.text.length ? (lastText ? lastText.split('\n')[0] + '\n' : '') + fr.text.join('\n') : '';
+    filNc = fr && fr.nc.length ? (lastNc ? lastNc.split('\n')[0] + '\n' : '') + ncText(fr.nc.join('\n')) : '';
 
     // Náčrt (i neúplný – neznámé jako „?")
     const Ld = okNum(sol.L) && sol.L > 0 ? sol.L : 200;
@@ -320,7 +324,7 @@ export function initTaperBore(overlay) {
       taperTxt: taperLabel(sol.C, stOf('C')),
       aTxt: '\u03B1 = ' + (okNum(sol.C) ? fmtN(taperForms(sol.C).half, 4) + '\u00B0' : '?'),
       stForm: f => stOf('C') === 'val' ? (f === cform ? 'val' : 'calc') : stOf('C'),
-      ref: refM, rows, fillets: fr ? fr.sketch : null,
+      ref: refM, rows,
     });
   }
 
@@ -347,7 +351,6 @@ export function initTaperBore(overlay) {
   wireSvgEditing(svg, (key, e) => {
     const n = names();
     if (SOLVE.includes(key) || key === 'Ca') editSolve(e, key);
-    else if (key.startsWith('fil:')) fil?.editR(e, key.slice(4));
     else if (key === 'refD' || key === 'refAdd') {
       openInlineEdit(e, {
         label: 'Ø z výkresu v hloubce', unit: 'mm', value: $('refD').value, hint: 'Prázdné = bez zadaného Ø. Hloubku pak nastavíš klepnutím na „hloubka Ø".',
@@ -492,8 +495,22 @@ export function initTaperBore(overlay) {
     if (!navigator.clipboard?.writeText) { showToast('Schránka není v tomto prohlížeči dostupná'); return; }
     writeClipboard(t).then(() => showToast('Zkopírováno'), () => showToast('Schránka nedostupná'));
   };
-  root.querySelector('.tb-copy').addEventListener('click', () => copy(lastText));
-  root.querySelector('.tb-copy-nc').addEventListener('click', () => copy(lastNc));
+  const isR = () => root.classList.contains('tb-r');
+  root.querySelector('.tb-copy').addEventListener('click', () => copy(isR() ? filText : lastText));
+  root.querySelector('.tb-copy-nc').addEventListener('click', () => copy(isR() ? filNc : lastNc));
+
+  // ── Záložky Kužel / Přechod R
+  const MODE_KEY = 'skica.taperBore.mode';
+  const CONE_ONLY = '.tb-col-a > .tb-group:not(#tfSection), .tb-col-a > .tp-hint, .tb-svg, .tb-col-a > .tb-err, .tb-forms, .tb-res, .tb-slide, .tb-col-b';
+  root.querySelectorAll(CONE_ONLY).forEach(el => el.classList.add('tb-cone-only'));
+  function setMode(mode) {
+    root.classList.toggle('tb-r', mode === 'r');
+    root.querySelectorAll('[data-tbmode]').forEach(b => b.classList.toggle('on', b.dataset.tbmode === mode));
+    try { localStorage.setItem(MODE_KEY, mode); } catch { /* bez úložiště */ }
+  }
+  root.querySelectorAll('[data-tbmode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.tbmode)));
+  root.querySelector('.tf-cone-edit')?.addEventListener('click', () => setMode('cone'));
+  setMode((() => { try { return localStorage.getItem(MODE_KEY) === 'r' ? 'r' : 'cone'; } catch { return 'cone'; } })());
   update();
 
   return {

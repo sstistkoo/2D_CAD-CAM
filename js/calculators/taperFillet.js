@@ -39,7 +39,8 @@ function edgeHTML(side) {
 
 /** HTML skupiny. */
 export function taperFilletHTML() {
-  return '<fieldset class="tb-group" id="tfSection"><legend>Tvarový přechod R <small>(nepovinné – rádius kužel ↔ čelo)</small></legend>' +
+  return '<fieldset class="tb-group tb-r-only" id="tfSection"><legend>Tvarový přechod R <small>(rádius kužel ↔ čelo)</small></legend>' +
+    '<div class="tf-cone"><span class="tf-cone-txt">Kužel: zadej v záložce Kužel</span> <button type="button" class="cnc-btn tf-cone-edit">△ upravit kužel</button></div>' +
     '<div class="tf-tabs" role="tablist">' +
     '<button type="button" class="tf-tab on" data-tfside="B" role="tab">▲ Vrch</button>' +
     '<button type="button" class="tf-tab" data-tfside="A" role="tab">▼ Spodek</button></div>' +
@@ -47,12 +48,8 @@ export function taperFilletHTML() {
     '<svg class="calc-svg tf-svg" viewBox="0 0 340 300" role="img" aria-label="Detail přechodu R – klikací kóty"></svg>' +
     edgeHTML('B') + edgeHTML('A') +
     '<div class="cnc-fields">' + fld('zTop', 'Z čela vrchu', 'nepovinné', 'pro souřadnice Z') + '</div>' +
+    '<div class="tb-err tf-err"></div><div class="cnc-table-wrap tf-res"></div>' +
     '</fieldset>';
-}
-
-/** HTML místa pro výsledky (pod tabulkou kužele). */
-export function taperFilletResHTML() {
-  return '<div class="tb-err tf-err"></div><div class="cnc-table-wrap tf-res"></div>';
 }
 
 /**
@@ -129,6 +126,14 @@ export function initTaperFillet(root, cb) {
    */
   function update(sol, bigSide, cone = {}) {
     lastArgs = [sol, bigSide, cone];
+    const ct = box.querySelector('.tf-cone-txt');
+    if (ct) {
+      const t = x => Number.isFinite(x) ? f3(x).replace(/\.?0+$/, '') : '?';
+      const a = Number.isFinite(cone.C) ? Math.atan(cone.C / 2) * 180 / Math.PI : NaN;
+      ct.textContent = sol
+        ? 'Kužel: D ' + t(sol.D) + ', d ' + t(sol.d) + ', L ' + t(sol.L) + ', α ' + t(a) + '° (větší Ø ' + (bigSide === 'A' ? 'dole' : 'nahoře') + ')'
+        : 'Kužel není úplný – doplň ho v záložce Kužel (stačí 3 údaje).';
+    }
     const out = compute(sol, bigSide);
     drawDetail(sol, bigSide, cone);
     return out;

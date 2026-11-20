@@ -2496,8 +2496,9 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     vrch − spodek, náklon suportu a přísuv na stranu. *Kopírovat* = čitelný
     přehled, *Do programu* = text velkými písmeny bez diakritiky jako komentář
     do NC programu. Pole pod výsledky: Kužel, Ø z výkresu v hloubce,
-    Tolerance, Tvarový přechod R, Měřicí místa.
-    **Tvarový přechod R** (nepovinné): na vrchu i na spodku rádius tečně
+    Tolerance, Měřicí místa.
+    **Tvarový přechod R** je ve vlastní záložce **◜ Přechod R** (vedle △ Kužel;
+    nahoře shrnutí kužele, který se zadává v záložce Kužel): na vrchu i na spodku rádius tečně
     napojený na čelo. Zadáš R, kam čelo pokračuje (k většímu Ø / k ose), úhel
     čela (0 = kolmo k ose, + stoupá k vrchu, − klesá ke spodku, např. −15) a buď
     *průsečík* (ostrá hrana = Ø kužele na hraně), nebo *začátek R na čele*
@@ -2505,7 +2506,7 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     do kužele). Tabulka ukáže shora dolů průsečík, začátek a konec R (na čele / na
     kuželu), střed R a ★ největší / nejmenší Ø na oblouku – místo, kde jde Ø změřit
     posuvkou, když je hrana kužele jen teoretická. Hloubky jsou od vrchu; se
-    zadaným „Z čela vrchu" rovnou souřadnice Z pro program. R v náčrtu je klikací.
+    zadaným „Z čela vrchu" rovnou souřadnice Z pro program.
     Záložky **▲ Vrch / ▼ Spodek** přepínají hranu (pole i detail), **⇄ Otočit R**
     obrátí rádius na druhou stranu čela. Nad poli je **klikací detail** přechodu ve
     skutečných úhlech: klepni na R, průsečík, začátek R, „⇄ čelo", „∠ čela" nebo
