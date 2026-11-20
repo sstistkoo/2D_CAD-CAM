@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Přechod R: ★ krajní Ø velkým modrým štítkem** (uživatel 20. 11. 2026). V profilu záložky Přechod R byl ★ Ø malým modrým písmem mezi ostatními popisky. Teď je to velký modrý štítek (15 px tučně) v pevném místě – u spodku nad dolní lištou, u vrchu pod horní – s vodicí čarou k většímu bodu na oblouku; ostatní popisky se mu vyhnou.
+
 - **Kontrola kuželu s přechodem R** (uživatel 20. 11. 2026). (1) Zadání obou Ø v záložce Přechod R (Ø nahoře 330, Ø dole 300) při „větší Ø dole" dalo D < d a záporný úhel – teď se strana většího Ø přepne sama. (2) Chyba kužele byla vidět jen v (skryté) záložce Kužel – teď i v záložce Přechod R. (3) Kopírovat / Do programu v záložce R začíná řádkem kužele s α, Ø nahoře, Ø dole a L (dřív jen „Kuželový čep 1:x"). Přidán náhodný test geometrie (400 kuželů × obě hrany: střed R ve vzdálenosti R od površky i čela, tečné body na oblouku, krajní Ø).
 
 - **Hlavní obrazovka: dvěma prsty se zvětšuje jen výkres** (uživatel 20. 11. 2026). Gesto začaté na spodních tlačítkách (VK, tužka, pravítko…), horní liště nebo souřadnicové liště přiblížilo celou stránku – tlačítka se zvětšila a přetékala. Lišty a tlačítka hlavní obrazovky teď mají `touch-action: pan-x pan-y` (posun ano, zvětšení stránky ne); výkres si zoom řeší sám, okna a kalkulačky jdou přiblížit dál. Totéž pro klávesy lišty + − × ÷ a číselníku.

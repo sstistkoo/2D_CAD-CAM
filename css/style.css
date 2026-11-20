@@ -8412,6 +8412,9 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 .calc-svg .tb-sk-corner { fill: none; stroke: var(--ctp-overlay2); stroke-width: 1.2; }
 .calc-svg .tb-sk-center { fill: var(--ctp-overlay2); }
 .calc-svg .tb-sk-star { fill: var(--ctp-blue); }
+.calc-svg .tb-star-bg { fill: var(--ctp-blue); stroke: var(--ctp-base); stroke-width: 1.5; }
+.calc-svg .tb-star-t { fill: var(--ctp-base); font: bold 15px Consolas, "Courier New", monospace; }
+.calc-svg .tb-star-lead { stroke: var(--ctp-blue); stroke-width: 1.5; }
 .tf-tabs { display: flex; gap: 6px; margin: 2px 0 6px; }
 .tf-tab { flex: 1; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--ctp-surface1); background: var(--ctp-surface0); color: var(--ctp-subtext0); font-weight: 600; font-size: 14px; cursor: pointer; }
 .tf-tab.on { background: var(--ctp-blue); border-color: var(--ctp-blue); color: var(--ctp-base); }

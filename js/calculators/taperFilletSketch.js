@@ -45,8 +45,14 @@ const unit = (a, b) => { const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx
 let placed = [];
 const TOP = 62, BOT = H - 58;
 const overlaps = (a) => placed.some(b => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h);
-function near(p, dir, dist, s, key, cls) {
-  const w = lw(s);
+/** Velký modrý štítek ★ krajního Ø (ať je na první pohled vidět). */
+function badge(x, y, w, s) {
+  return '<g class="tb-star-badge"><rect class="tb-star-bg" x="' + x.toFixed(1) + '" y="' + (y - 18).toFixed(1) + '" width="' + w.toFixed(1) +
+    '" height="26" rx="6"/><text class="tb-star-t" x="' + (x + w / 2).toFixed(1) + '" y="' + (y + 1).toFixed(1) + '" text-anchor="middle">' + esc(s) + '</text></g>';
+}
+
+function near(p, dir, dist, s, key, cls, big = false) {
+  const w = big ? s.length * 9.4 + 18 : lw(s), h = big ? 28 : 20, top = big ? 20 : 14;
   const cl = v => Math.max(TOP + 4, Math.min(BOT, v));
   // nejdřív zadanou stranou, když tam není místo, zrcadlově na druhou stranu bodu
   for (const d of [dir, { x: -dir.x, y: dir.y }]) {
@@ -56,11 +62,12 @@ function near(p, dir, dist, s, key, cls) {
       const yy = cl(y0 + dy);
       let rx = anchor === 'start' ? x - 4 : anchor === 'end' ? x - w + 4 : x - w / 2;
       rx = Math.max(4, Math.min(W - 4 - w, rx));
-      const r = { x: rx, y: yy - 14, w, h: 20 };
-      if (!overlaps(r)) { placed.push(r); return lbl(x, yy, s, key, cls, anchor); }
+      const r = { x: rx, y: yy - top, w, h };
+      if (!overlaps(r)) { placed.push(r); return big ? badge(rx, yy, w, s) : lbl(x, yy, s, key, cls, anchor); }
     }
   }
   const anchor = dir.x > 0.35 ? 'start' : dir.x < -0.35 ? 'end' : 'middle';
+  if (big) { const x = p.x + dir.x * dist, rx = Math.max(4, Math.min(W - 4 - w, anchor === 'start' ? x - 4 : anchor === 'end' ? x - w + 4 : x - w / 2)); return badge(rx, cl(p.y + dir.y * dist + 4), w, s); }
   return lbl(p.x + dir.x * dist, cl(p.y + dir.y * dist + 4), s, key, cls, anchor);
 }
 
@@ -176,6 +183,26 @@ export function drawFilletProfile(svg, m) {
     s += lbl(tR.x, tR.y + 4, rTxt, 'R:' + side, 'sk-val');
   }
 
+  // ★ krajní Ø napřed (velký štítek, ať dostane místo u svého bodu)
+  for (const side of ['B', 'A']) {
+    const g = geo[side], e = m.inp[side], res = m.res[side] && m.res[side].corner ? m.res[side] : null;
+    if (!g.t.tM || !res) continue;
+    for (const [k, sign] of [['maxDia', 1], ['minDia', -1]]) {
+      const x = res && res[k];
+      if (!x) continue;
+      const q = T({ r: g.f.center.r + sign * e.R, z: g.f.center.z });
+      // Velký modrý štítek v pevném místě (u vrchu nahoře, u spodku dole)
+      // s vodicí čarou k bodu – ve změti popisků u kužele by zanikl.
+      const txt = '★ Ø' + t3(x.dia), bw = txt.length * 9.4 + 18;
+      const by = side === 'B' ? TOP + 24 : BOT + 2;
+      const bx = Math.max(4, Math.min(W - 4 - bw, q.x - bw / 2));
+      s += ln(q, { x: Math.max(bx + 8, Math.min(bx + bw - 8, q.x)), y: side === 'B' ? by + 8 : by - 18 }, 'tb-star-lead');
+      s += dot(q, 'tb-sk-star', 5.5);
+      placed.push({ x: bx, y: by - 20, w: bw, h: 28 });
+      s += badge(bx, by, bw, txt);
+    }
+  }
+
   // Kužel: α a L u středu površky, na straně odvrácené od rádiusů
   {
     const a = T(P.B), b = T(P.A), d = unit(a, b);
@@ -206,13 +233,6 @@ export function drawFilletProfile(svg, m) {
     s += near(tF, unit(tM, tF), 18, 'začátek Ø' + startTxt, 'start:' + side,
       e.given === 'start' ? (e.dia > 0 ? 'sk-val' : 'sk-empty') : res ? 'sk-calc' : 'sk-empty');
     if (res) s += near(tC, unit(tM, tC), 18, 'konec Ø' + t3(res.onCone.dia), '', 'sk-calc');
-    for (const [k, sign] of [['maxDia', 1], ['minDia', -1]]) {
-      const x = res && res[k];
-      if (!x) continue;
-      const q = T({ r: g.f.center.r + sign * e.R, z: g.f.center.z });
-      s += dot(q, 'tb-sk-star', 3.5);
-      s += near(q, { x: sign, y: 0.6 }, 14, '★ Ø' + t3(x.dia), '', 'tb-ref-t');
-    }
   }
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
   svg.innerHTML = s;
