@@ -292,10 +292,15 @@ export function initTaperBore(overlay) {
       coneDia: { A: okNum(sol[keyAt('A')]) ? sol[keyAt('A')] : null, B: okNum(sol[keyAt('B')]) ? sol[keyAt('B')] : null },
       coneSt: { A: stOfE(keyAt('A')), B: stOfE(keyAt('B')) },
       L: okNum(sol.L) ? sol.L : null, LSt: stOfE('L'), aSt: stOfE('C'),
+      err: errEl.textContent,                           // chyba kužele i v záložce Přechod R
     }) : null;
     // Záložka Přechod R kopíruje řádek kužele + body R
-    filText = fr && fr.text.length ? (lastText ? lastText.split('\n')[0] + '\n' : '') + fr.text.join('\n') : '';
-    filNc = fr && fr.nc.length ? (lastNc ? lastNc.split('\n')[0] + '\n' : '') + ncText(fr.nc.join('\n')) : '';
+    const filHead = done
+      ? 'Kužel α ' + trim0(Math.atan(sol.C / 2) * 180 / Math.PI) + '°, Ø nahoře ' + f3(bigSide === 'B' ? sol.D : sol.d) +
+        ', Ø dole ' + f3(bigSide === 'A' ? sol.D : sol.d) + ', L ' + trim0(sol.L)
+      : '';
+    filText = fr && fr.text.length ? (filHead ? filHead + '\n' : '') + fr.text.join('\n') : '';
+    filNc = fr && fr.nc.length ? ncText((filHead ? filHead + '\n' : '') + fr.nc.join('\n')) : '';
 
     // Náčrt (i neúplný – neznámé jako „?")
     const Ld = okNum(sol.L) && sol.L > 0 ? sol.L : 200;

@@ -86,8 +86,29 @@ export function initTaperFillet(root, cb) {
       el.classList.toggle('computed', src.classList.contains('computed'));
     });
   }
+  const mini = id => box.querySelector('[data-tfc="' + id + '"]');
   minis.forEach(el => el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
-    const src = coneEl(el.dataset.tfc);
+    const id = el.dataset.tfc;
+    // Zadané oba Ø (nahoře i dole): kde je větší, se pozná samo – jinak by
+    // D vyšlo menší než d a úhel záporný.
+    if (id === 'cB' || id === 'cA') {
+      const o = mini(id === 'cB' ? 'cA' : 'cB');
+      const v = num(el), ov = o.classList.contains('computed') ? null : num(o);
+      if (v > 0 && ov > 0 && Math.abs(v - ov) > 1e-9) {
+        const top = id === 'cB' ? v : ov, bot = id === 'cB' ? ov : v;
+        const want = top > bot ? 'B' : 'A';
+        const bigEl = cb.coneField('big');
+        if (bigEl.value !== want) {
+          bigEl.value = want;
+          bigEl.dispatchEvent(new Event('input', { bubbles: true }));
+          const D = cb.coneField('D'), d = cb.coneField('d');
+          D.value = String(Math.max(v, ov)); D.dispatchEvent(new Event('input', { bubbles: true }));
+          d.value = String(Math.min(v, ov)); d.dispatchEvent(new Event('input', { bubbles: true }));
+          return;
+        }
+      }
+    }
+    const src = coneEl(id);
     if (!src) return;
     src.value = el.value;
     src.dispatchEvent(new Event('input', { bubbles: true }));
@@ -137,13 +158,15 @@ export function initTaperFillet(root, cb) {
    * Přepočet po změně kužele.
    * @param {{D:number,d:number,L:number,C:number}|null} sol  vyřešený kužel (null = neúplný)
    * @param {'A'|'B'} bigSide
-   * @param {{C?:number|null, L?:number|null, coneDia?:Record<string, number|null>, coneSt?:Record<string, string>, aSt?:string, LSt?:string}} [cone] i neúplný kužel (pro profil)
+   * @param {{C?:number|null, L?:number|null, coneDia?:Record<string, number|null>, coneSt?:Record<string, string>, aSt?:string, LSt?:string, err?:string}} [cone] i neúplný kužel (pro profil)
    * @returns {{ sketch: Record<string, any>, text: string[], nc: string[] }}
    */
   function update(sol, bigSide, cone = {}) {
     lastArgs = [sol, bigSide, cone];
     mirrorCone();
     const out = compute(sol, bigSide);
+    // Chyba kužele (záložka Kužel je skrytá) – ukázat i tady
+    if (cone.err) errEl.textContent = 'Kužel: ' + cone.err + (errEl.textContent ? ' ' + errEl.textContent : '');
     drawProfile(sol, bigSide, cone);
     return out;
   }

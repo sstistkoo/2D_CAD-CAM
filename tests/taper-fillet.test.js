@@ -75,3 +75,34 @@ describe('kužel – tvarový přechod R', () => {
     expect(arcExtremes(c, 1, { r: 0, z: 1 }, { r: -1, z: 0 }).max).toBe(null);
   });
 });
+
+describe('kužel – přechod R, náhodná kontrola geometrie', () => {
+  it('střed R je ve vzdálenosti R od površky i od čela, tečné body leží na nich', () => {
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 400; i++) {
+      const aDeg = 1 + rnd() * 40, C = 2 * Math.tan(aDeg * DEG), L = 5 + rnd() * 100;
+      const d = 20 + rnd() * 300, D = d + C * L, bigSide = rnd() < 0.5 ? 'A' : 'B';
+      for (const side of ['A', 'B']) {
+        const e = { R: 0.5 + rnd() * 10, face: rnd() < 0.5 ? 'in' : 'out', beta: (rnd() - 0.5) * 120, given: 'corner' };
+        const r = taperFillets({ D, d, L, C, bigSide, edges: { [side]: e } }).edges[side];
+        if (!r || !r.corner) continue;
+        const P = { r: r.corner.dia / 2, z: r.corner.z };
+        const c = { r: r.center.dia / 2, z: r.center.z };
+        // površka: přes průsečík a druhou hranu
+        const zo = side === 'B' ? 0 : L, other = (bigSide === (side === 'B' ? 'A' : 'B') ? D : d) / 2;
+        const u = { r: other - P.r, z: zo - P.z }, ul = Math.hypot(u.r, u.z);
+        const distCone = Math.abs((c.r - P.r) * u.z - (c.z - P.z) * u.r) / ul;
+        const b = e.beta * DEG, f = { r: (e.face === 'in' ? -1 : 1) * Math.cos(b), z: Math.sin(b) };
+        const distFace = Math.abs((c.r - P.r) * f.z - (c.z - P.z) * f.r);
+        expect(distCone).toBeCloseTo(e.R, 7);
+        expect(distFace).toBeCloseTo(e.R, 7);
+        expect(Math.hypot(r.onCone.dia / 2 - c.r, r.onCone.z - c.z)).toBeCloseTo(e.R, 7);
+        expect(Math.hypot(r.onFace.dia / 2 - c.r, r.onFace.z - c.z)).toBeCloseTo(e.R, 7);
+        expect(r.t).toBeGreaterThan(0);
+        if (r.maxDia) expect(r.maxDia.dia).toBeGreaterThanOrEqual(Math.max(r.onCone.dia, r.onFace.dia) - 1e-9);
+        if (r.minDia) expect(r.minDia.dia).toBeLessThanOrEqual(Math.min(r.onCone.dia, r.onFace.dia) + 1e-9);
+      }
+    }
+  });
+});

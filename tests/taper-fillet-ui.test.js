@@ -64,6 +64,23 @@ describe('kalkulačka Kužel – záložka Přechod R (UI)', () => {
     ov.remove();
   });
 
+  it('oba Ø zadané v záložce R: kde je větší, se pozná samo; chyba kužele je vidět i tady', () => {
+    const { ov, $, c } = mount();
+    expect($('big').value).toBe('A');
+    type(c('cB'), '330'); type(c('cA'), '300'); type(c('cL'), '50');
+    expect($('big').value).toBe('B');                    // větší Ø je nahoře
+    expect($('D').value).toBe('330');
+    expect($('d').value).toBe('300');
+    expect(Number($('a').value)).toBeGreaterThan(0);
+    ov.remove();
+    // chyba kužele (D < d zadané v záložce Kužel) je vidět i v záložce R
+    const m2 = mount();
+    type(m2.$('D'), '300'); type(m2.$('d'), '330'); type(m2.$('L'), '50');
+    type(m2.f('RB'), '5');
+    expect(m2.ov.querySelector('.tf-err').textContent).toContain('Kužel:');
+    m2.ov.remove();
+  });
+
   it('otočit R, záložky Kužel / Přechod R', () => {
     const { ov, f, click } = mount();
     const sec = ov.querySelector('#tbSection');
