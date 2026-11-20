@@ -81,7 +81,7 @@ export function polarHint(view) {
 
 /**
  * Napojí tlačítko ✛ na pole úhlu. Vyskakovací mřížka se vloží do `host`
- * (podklad dialogu, `position: absolute`) a umístí pod tlačítko.
+ * (podklad dialogu, `position: absolute`) a umístí nad tlačítko.
  * @param {HTMLElement|null} trigger tlačítko ✛
  * @param {HTMLInputElement|null} input pole úhlu
  * @param {HTMLElement|null} host podklad dialogu
@@ -91,6 +91,14 @@ export function wireAngleCompass(trigger, input, host, getView) {
   if (!trigger || !input || !host) return;
   let popup = null;
   const close = () => { if (popup) { popup.remove(); popup = null; } };
+
+  // Tlačítko ✛ ani šipky nesmí vzít poli fokus – klávesnice by zajela, okno
+  // poskočilo a mřížka by byla jinde, než kam se klepe.
+  const keepFocus = (e) => {
+    if (e.target === trigger || trigger.contains(e.target) || popup?.contains(e.target)) e.preventDefault();
+  };
+  host.addEventListener('pointerdown', keepFocus);
+  host.addEventListener('mousedown', keepFocus);
 
   trigger.addEventListener('click', (e) => {
     e.preventDefault();
@@ -104,14 +112,18 @@ export function wireAngleCompass(trigger, input, host, getView) {
       return `<button type="button" class="compass-arrow" data-ang="${a}" style="grid-area:${area}" title="${a}°">${ch}</button>`;
     }).join('')}<button type="button" class="compass-close" style="grid-area:mc" title="Zavřít">✕</button></div>`;
     host.appendChild(popup);
-    // Pod tlačítko, zarovnat k jeho pravé hraně; když se dolů nevejde, nad něj.
+    // NAD tlačítko (pod ním bývá klávesnice, lišta + − × ÷ a spodní tlačítka
+    // okna – mřížka se tam schovávala); zarovnat k jeho pravé hraně. Když se
+    // nahoru do viditelné plochy nevejde, pod tlačítko.
     const hr = host.getBoundingClientRect();
     const tr = trigger.getBoundingClientRect();
     const pw = popup.offsetWidth, ph = popup.offsetHeight;
-    let top = tr.bottom - hr.top + 4;
-    if (top + ph > hr.height - 4) top = tr.top - hr.top - ph - 4;
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    const visTop = Math.max(0, (vv ? vv.offsetTop : 0) - hr.top) + 4;
+    let top = tr.top - hr.top - ph - 4;
+    if (top < visTop) top = Math.min(tr.bottom - hr.top + 4, hr.height - ph - 4);
     popup.style.left = `${Math.max(4, Math.min(tr.right - hr.left - pw, hr.width - pw - 4))}px`;
-    popup.style.top = `${Math.max(4, top)}px`;
+    popup.style.top = `${Math.max(visTop, top)}px`;
   });
 
   // Volba šipky, ✕, nebo jakýkoli jiný klik v dialogu (OK, Zrušit, přepínače) mřížku zavře.

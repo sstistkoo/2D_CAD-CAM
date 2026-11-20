@@ -43,7 +43,7 @@ Aplikace běží offline jako PWA – žádný server, žádná instalace. Stač
 
 ## Orientace v UI
 
-> **Výrazy v číselných polích (mobil):** nad číselnou klávesnicí je lišta **+ × ÷ ( ) =** – do každého číselného pole jde napsat třeba `50/2` nebo `120-2*3`; po potvrzení (nebo **=**) se spočítá.
+> **Výrazy v číselných polích (mobil):** nad číselnou klávesnicí je lišta **+ − × ÷ ( ) =** – do každého číselného pole jde napsat třeba `50/2` nebo `120-2*3`; po potvrzení (nebo **=**) se spočítá.
 
 ### Toolbar (horní lišta)
 Herní nástroje seskupené do sekcí:

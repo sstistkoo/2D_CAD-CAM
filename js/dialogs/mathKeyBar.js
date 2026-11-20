@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  SKICA – Lišta + − × ÷ ( ) nad číselnou klávesnicí (dotyk)      ║
+// ║  SKICA – Lišta + − × ÷ ( ) = nad číselnou klávesnicí (dotyk)    ║
 // ╚══════════════════════════════════════════════════════════════╝
 //
 // Číselná pole mají na mobilu inputmode="decimal" (nebo type="number"), takže
@@ -7,7 +7,7 @@
 // 120-2*3 do pole nešlo napsat, i když ho aplikace umí spočítat (safeEvalMath).
 //
 // Tady se jednou pro celou aplikaci:
-//  • nad klávesnicí ukáže lišta + × ÷ ( ) = pro pole s inputmode="decimal"
+//  • nad klávesnicí ukáže lišta + − × ÷ ( ) = pro pole s inputmode="decimal"
 //    a type="number" (dotykové displeje),
 //  • pole type="number" se na dobu psaní přepne na text (číselné pole by znak
 //    + nebo / smazalo) a po opuštění se vrátí,
@@ -70,7 +70,7 @@ function textToNumber(el) {
 
 // ── Lišta ──
 const KEYS = [
-  { k: '+', t: 'Plus' }, { k: '*', l: '×', t: 'Krát' }, { k: '/', l: '÷', t: 'Děleno' },
+  { k: '+', t: 'Plus' }, { k: '-', l: '−', t: 'Mínus' }, { k: '*', l: '×', t: 'Krát' }, { k: '/', l: '÷', t: 'Děleno' },
   { k: '(', t: 'Závorka' }, { k: ')', t: 'Závorka' }, { k: '=', t: 'Spočítat výraz' },
 ];
 let bar = null, target = null;

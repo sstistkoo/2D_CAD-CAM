@@ -214,12 +214,12 @@
 .cne-hint .err, .cne-info-text .err { color: var(--ctp-red); font-weight: 600; }
 .cne-info-toggle.err { color: var(--ctp-red); }
 
-/* ── Lišta + × ÷ ( ) = nad číselnou klávesnicí (js/dialogs/mathKeyBar.js) ──
+/* ── Lišta + − × ÷ ( ) = nad číselnou klávesnicí (js/dialogs/mathKeyBar.js) ──
    Drží se spodku VIDITELNÉ plochy (nad softwarovou klávesnicí); --vv-h je o ni
    zmenšené, takže okna nekončí pod lištou. */
 .math-key-bar {
   position: fixed; left: 0; right: 0; top: 0; z-index: 100001;
-  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px;
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px;
   padding: 4px 6px; box-sizing: border-box;
   background: var(--ctp-mantle); border-top: 1px solid var(--ctp-surface1);
 }
