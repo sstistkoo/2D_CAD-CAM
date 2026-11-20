@@ -17,6 +17,7 @@ import { removeAnchorsForObject, cleanupOrphanAnchors, hasAnchoredPoint } from '
 import { escapeHtml } from '../htmlEscape.js';
 import { writeClipboard } from '../clipboard.js';
 import { showExtremePointsDialog, supportsExtremes } from './extremePoints.js';
+import { showFilletInfo } from './filletInfo.js';
 
 /**
  * Střed objektu pro měření. Dřív dvě kopie s „default: {0,0}" – kontura,
@@ -279,6 +280,7 @@ function buildObjectInfoDialog(obj, objIdx) {
       <div class="btn-row">
         ${addDimBtn}
         ${supportsExtremes(obj) ? `<button class="btn-cancel" id="objExtremes">⊹ Krajní body</button>` : ''}
+        ${obj.type === 'arc' ? `<button class="btn-cancel" id="objArcR" title="Začátek a konec R, střed, ★ krajní Ø na oblouku">◜ Body R</button>` : ''}
         ${angularIntersectBtn}
         ${deleteDimBtn}
         <button class="btn-cancel" id="objCopy">📋 Kopírovat</button>
@@ -318,6 +320,10 @@ function buildObjectInfoDialog(obj, objIdx) {
       });
     }
 
+    overlay.querySelector("#objArcR")?.addEventListener("click", () => {
+      overlay.remove();
+      showFilletInfo(obj);
+    });
     const extBtn = overlay.querySelector("#objExtremes");
     if (extBtn) {
       extBtn.addEventListener("click", () => {

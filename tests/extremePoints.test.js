@@ -43,3 +43,26 @@ describe('krajní body objektů', () => {
     expect(objectExtremes({ type: 'text' })).toBe(null);
   });
 });
+
+describe('body přechodu R po zaoblení (jako kalkulačka Kužel)', () => {
+  it('karusel: R5 přes kvadrant → ★ největší Ø, tečné body od Z+ (shora)', async () => {
+    const { arcTransitionPoints } = await import('../js/geometry/extremePoints.js');
+    // R5 z 10° dolů do -90° (po směru hodin) jako první fotka: tečně na šikmou úsečku a dno
+    const arc = { cx: 100, cy: 20, r: 5, startAngle: -90 * D, endAngle: 10 * D, ccw: true };
+    const t = arcTransitionPoints(arc, true);
+    expect(t.start.y).toBeGreaterThan(t.end.y);         // shora dolů
+    expect(t.extremes).toHaveLength(1);
+    expect(t.extremes[0].kind).toBe('max');
+    expect(t.extremes[0].x).toBeCloseTo(105, 9);
+    expect(t.extremes[0].y).toBeCloseTo(20, 9);
+  });
+  it('soustruh: osa vodorovná, průměr = y; konvexní roh bez kvadrantu nemá ★', async () => {
+    const { arcTransitionPoints } = await import('../js/geometry/extremePoints.js');
+    const t1 = arcTransitionPoints({ cx: 0, cy: 50, r: 10, startAngle: 30 * D, endAngle: 150 * D }, false);
+    expect(t1.extremes.map(e => e.kind)).toEqual(['max']);
+    expect(t1.extremes[0].y).toBeCloseTo(60, 9);
+    expect(t1.start.x).toBeGreaterThan(t1.end.x);       // zprava doleva
+    const t2 = arcTransitionPoints({ cx: 0, cy: 50, r: 10, startAngle: 0, endAngle: 80 * D }, false);
+    expect(t2.extremes).toHaveLength(0);
+  });
+});

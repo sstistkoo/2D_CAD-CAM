@@ -25,7 +25,7 @@ export { supportsExtremes };
  * Přidá přes bod vodorovnou a svislou pomocnou úsečku (přes celý objekt
  * s přesahem) a kótu souřadnic bodu. Jeden krok Zpět.
  */
-function markPoint(p, ext, label) {
+export function markPoint(p, ext, label) {
   const w = ext.maxX.x - ext.minX.x;
   const h = ext.maxY.y - ext.minY.y;
   const m = Math.max(5, 0.25 * Math.max(w, h));

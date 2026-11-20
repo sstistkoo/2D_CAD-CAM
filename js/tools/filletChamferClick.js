@@ -6,6 +6,7 @@ import { state, pushUndo, withUndoBatch, showToast, STOCK_LAYER_ID } from '../st
 import { bridge } from '../bridge.js';
 import { renderAll, resolveObjectColor } from '../render.js';
 import { addObject } from '../objects.js';
+import { showFilletInfo } from '../dialogs/filletInfo.js';
 import { setHint } from '../ui.js';
 import { drawCanvas, screenToWorld, snapPt } from '../canvas.js';
 import {
@@ -432,7 +433,8 @@ export function handleFilletChamferClick(wx, wy) {
   const p2   = state._fcP2   ?? 2;
 
   // 1. Pokus: rohový klik (sdílený endpoint)
-  if (filletChamferAtCorner(mode, p1, p2, wx, wy)) return;
+  const atCorner = filletChamferAtCorner(mode, p1, p2, wx, wy);
+  if (atCorner) { if (atCorner.arc) showFilletInfo(atCorner.arc, { auto: true }); return; }
 
   // 2. Záloha: klik na první segment (úsečka nebo oblouk)
   const idx = findObjectAt(wx, wy);
@@ -476,7 +478,8 @@ export function handleFilletChamferClick(wx, wy) {
     }
 
     cleanup();
-    applyFilletChamfer(mode, p1, p2, s1, s2);
+    const done = applyFilletChamfer(mode, p1, p2, s1, s2);
+    if (done && done.arc) showFilletInfo(done.arc, { auto: true });   // body R + ★ krajní Ø
 
     // Hint pro další operaci (nástroj zůstává aktivní)
     setHint(mode === 'fillet'
@@ -530,7 +533,8 @@ export function filletChamferFromSelection() {
   if (!ls1 || !ls2) return false;
 
   showFilletChamferDialog((mode, p1, p2) => {
-    _applyTwoLines(mode, p1, p2, ls1, ls2);
+    const done = _applyTwoLines(mode, p1, p2, ls1, ls2);
+    if (done && done.arc) showFilletInfo(done.arc, { auto: true });
   });
   return true;
 }

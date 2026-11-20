@@ -104,3 +104,34 @@ export function supportsExtremes(obj) {
     ['line', 'constr', 'circle', 'arc', 'rect', 'polyline'].includes(obj.type);
 }
 
+
+/**
+ * Body přechodu R (oblouku) pro program, jako v kalkulačce Kužel – Přechod R:
+ * tečné body seřazené od Z+ (karusel: shora, soustruh: zprava), střed a
+ * ★ krajní Ø – kvadrant ve směru průměru UVNITŘ oblouku (místo pro posuvku,
+ * když jsou hrany jen teoretické).
+ * @param {{cx:number, cy:number, r:number, startAngle:number, endAngle:number, ccw?:boolean}} arc
+ * @param {boolean} isK  karusel (průměr = vodorovná osa x), jinak soustruh (průměr = y)
+ * @returns {{ start:{x:number,y:number}, end:{x:number,y:number}, center:{x:number,y:number},
+ *   extremes: {x:number, y:number, kind:'max'|'min'}[] }}
+ */
+export function arcTransitionPoints(arc, isK) {
+  const ccw = arc.ccw !== false;
+  const P = a => ({ x: arc.cx + arc.r * Math.cos(a), y: arc.cy + arc.r * Math.sin(a) });
+  let a = P(arc.startAngle), b = P(arc.endAngle);
+  const z = p => (isK ? p.y : p.x);                    // osa Z
+  const rad = p => Math.abs(isK ? p.x : p.y);          // vzdálenost od osy (poloměr)
+  if (z(b) > z(a) + EPS) [a, b] = [b, a];
+  const qs = isK ? [0, Math.PI] : [Math.PI / 2, 1.5 * Math.PI];
+  const hi = Math.max(rad(a), rad(b)), lo = Math.min(rad(a), rad(b));
+  /** @type {{x:number, y:number, kind:'max'|'min'}[]} */
+  const extremes = [];
+  for (const q of qs) {
+    if (!angleOnArc(q, arc.startAngle, arc.endAngle, ccw)) continue;
+    const p = P(q);
+    if (Math.hypot(p.x - a.x, p.y - a.y) < 1e-7 || Math.hypot(p.x - b.x, p.y - b.y) < 1e-7) continue;
+    if (rad(p) > hi + EPS) extremes.push({ ...p, kind: 'max' });
+    else if (rad(p) < lo - EPS) extremes.push({ ...p, kind: 'min' });
+  }
+  return { start: a, end: b, center: { x: arc.cx, y: arc.cy }, extremes };
+}
