@@ -30,6 +30,18 @@ describe('výrazy v číselných polích (lišta + × ÷)', () => {
     el.value = '50/'; expect(mod.evalMathField(el)).toBe(false); expect(el.value).toBe('50/');
   });
 
+  it('znaménko z lišty nepřepíše označené číslo, připíše se za něj', () => {
+    const el = field('<input type="text" inputmode="decimal">');
+    el.value = '90';
+    el.focus();
+    el.setSelectionRange(0, 2);
+    document.querySelector('.math-key-bar [data-mk="+"]').click();
+    expect(el.value).toBe('90+');
+    el.setSelectionRange(0, 3);
+    document.querySelector('.math-key-bar [data-mk="-"]').click();
+    expect(el.value).toBe('90+-');
+  });
+
   it('change přepočítá výraz dřív, než ho přečte obsluha pole', () => {
     const el = field('<input type="text" inputmode="decimal">');
     let seen = null;

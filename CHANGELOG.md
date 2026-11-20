@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Směrová mřížka ✛ u úhlu se neschovává pod klávesnici** (uživatel 20. 11. 2026). Mřížka šipek (Úsečka úhlem, sražení…) se otevírala pod tlačítkem ✛ – s vysunutou klávesnicí a lištou + − × ÷ skončila pod nimi a nešlo na ni klepnout. Teď se otevře nad tlačítkem (pod něj jen když se nahoru do viditelné plochy nevejde) a klepnutí na ✛ ani na šipku nebere poli fokus, takže klávesnice nezajede a okno neposkočí.
+- **Směrová mřížka ✛ u úhlu se neschovává pod klávesnici** (uživatel 20. 11. 2026). Mřížka šipek (Úsečka úhlem, sražení…) se otevírala pod tlačítkem ✛ – s vysunutou klávesnicí a lištou + − × ÷ skončila pod nimi a nešlo na ni klepnout. Teď se otevře nad tlačítkem (pod něj jen když se nahoru do viditelné plochy nevejde) a klepnutí na ✛ ani na šipku nebere poli fokus, takže klávesnice nezajede a okno neposkočí. Po volbě šipky je kurzor za číslem (ne celé pole označené) a znaménko z lišty + − × ÷ označené číslo nepřepíše, ale připíše se za něj (90 → 90+30).
 
 - **Vybarvit na karuselu uzavře profil k ose** (uživatel 18. 11. 2026). Otevřený profil s oběma konci na ose rotace se na soustruhu uzavíral podél osy, na karuselu vůbec. Výkres je na karuselu prohozený a osa rotace je svislá (x = 0) – profil i mezikruží kontura × polotovar se teď uzavřou k ní.
 - **Gemini: API klíč v hlavičce místo v adrese** (19. 11. 2026). Klíč se posílal jako `?key=` v adrese požadavku (dostane se do historie a logů); teď v hlavičce `x-goog-api-key` – při analýze obrázku i načítání seznamu modelů.

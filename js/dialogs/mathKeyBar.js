@@ -91,8 +91,14 @@ function ensureBar() {
     if (!b || !target || !target.isConnected) return;
     if (document.activeElement !== target) target.focus();
     numberToText(target);   // po Enter (change) už mohlo být zase číselné
-    if (b.dataset.mk === '=') evalMathField(target);
-    else typeInto(target, b.dataset.mk);
+    if (b.dataset.mk === '=') { evalMathField(target); return; }
+    // Celé pole označené (po fokusu / volbě ✛) – znaménko číslo nepřepíše,
+    // připíše se za něj (90 → 90+). Jen „(" výběr nahradí (začátek nového výrazu).
+    const t = target, len = t.value.length;
+    if (len && t.selectionStart === 0 && t.selectionEnd === len && b.dataset.mk !== '(') {
+      t.setSelectionRange(len, len);
+    }
+    typeInto(t, b.dataset.mk);
   });
   document.body.appendChild(bar);
   return bar;

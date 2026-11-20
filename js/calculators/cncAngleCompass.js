@@ -133,6 +133,9 @@ export function wireAngleCompass(trigger, input, host, getView) {
     if (b && popup.contains(b)) {
       input.value = b.dataset.ang;
       input.dispatchEvent(new Event('input', { bubbles: true }));
+      // Kurzor za číslo, ne výběr celého pole – další znak (+30) ho nesmí přepsat.
+      const end = input.value.length;
+      try { input.setSelectionRange(end, end); } catch { /* pole bez výběru */ }
     }
     close();
   });
