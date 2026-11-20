@@ -6,6 +6,7 @@
 // Neznámé hodnoty se kreslí jako „?" – i prázdný náčrt jde vyplnit klikáním.
 
 import { f3 } from './taperBoreMath.js';
+import { filletAt } from './taperFilletMath.js';
 
 const TOP = 84, BOT = 322, CX = 170, OUTER = 126, BASE = 58;
 
@@ -27,7 +28,7 @@ function lbl(x, y, s, key, cls, { anchor = 'middle', rot = 0 } = {}) {
   const w = width(s), h = 19;
   const rx = anchor === 'start' ? x - 4 : anchor === 'end' ? x - w + 4 : x - w / 2;
   const tr = rot ? ' transform="rotate(' + rot + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')"' : '';
-  const tip = TIPS[key] || (key.startsWith('pt:') ? 'Měřicí místo – upravit hloubku / stranu nebo smazat' : '');
+  const tip = TIPS[key] || (key.startsWith('pt:') ? 'Měřicí místo – upravit hloubku / stranu nebo smazat' : key.startsWith('fil:') ? 'Rádius přechodu kužel ↔ čelo' : '');
   return '<g class="sk-edit" data-edit="' + key + '"' + tr + '>' + (tip ? '<title>' + tip + '</title>' : '') +
     '<rect class="sk-hit" x="' + rx.toFixed(1) + '" y="' + (y - 13.5).toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h + '" rx="5"/>' +
     txt(x, y, s, cls, anchor) + '</g>';
@@ -41,6 +42,41 @@ function arrowV(x, ya, yb) {
 }
 
 const CLS = { val: 'sk-val', calc: 'sk-calc', empty: 'sk-empty' };
+
+/**
+ * Tvarový přechod R na hranách (schematicky – stálý poloměr v px, kuželovitost
+ * je v náčrtu zveličená). Vpravo i zrcadlově vlevo, popisek R je klikací.
+ * @param {Record<string, {R:number, face:'in'|'out'}>} fil
+ */
+function drawFillets(fil, L, y, hw) {
+  let s = '';
+  for (const side of ['B', 'A']) {
+    const e = fil[side];
+    if (!e) continue;
+    const z = side === 'B' ? L : 0, zo = side === 'B' ? 0 : L;
+    const P = { r: CX + hw(z), z: y(z) }, Q = { r: CX + hw(zo), z: y(zo) };
+    const ql = Math.hypot(Q.r - P.r, Q.z - P.z);
+    const u1 = { r: (Q.r - P.r) / ql, z: (Q.z - P.z) / ql };
+    const u2 = { r: e.face === 'in' ? -1 : 1, z: 0 };
+    const f = filletAt(P, u1, u2, 16);
+    if (!f) continue;
+    const cross = (f.onFace.r - f.center.r) * (f.onCone.z - f.center.z) - (f.onFace.z - f.center.z) * (f.onCone.r - f.center.r);
+    const sweep = cross > 0 ? 1 : 0;
+    for (const mir of [false, true]) {
+      const X = x => mir ? 2 * CX - x : x;
+      const sw = mir ? 1 - sweep : sweep;
+      const faceEnd = P.r + u2.r * 44;
+      s += ln(X(P.r), P.z, X(faceEnd), P.z, 'tb-fil-face');
+      s += '<path class="tb-fil" d="M' + X(f.onFace.r).toFixed(1) + ' ' + f.onFace.z.toFixed(1) + ' A16 16 0 0 ' + sw + ' ' +
+        X(f.onCone.r).toFixed(1) + ' ' + f.onCone.z.toFixed(1) + '"/>';
+      s += '<circle class="tb-fil-pt" cx="' + X(f.onFace.r).toFixed(1) + '" cy="' + f.onFace.z.toFixed(1) + '" r="2.5"/>';
+      s += '<circle class="tb-fil-pt" cx="' + X(f.onCone.r).toFixed(1) + '" cy="' + f.onCone.z.toFixed(1) + '" r="2.5"/>';
+    }
+    const ly = side === 'B' ? P.z + 34 : P.z - 26;
+    s += lbl(P.r + 30, ly, 'R' + String(+e.R.toFixed(3)), 'fil:' + side, 'tb-pt-t', { anchor: 'start' });
+  }
+  return s;
+}
 
 /**
  * @param {SVGElement} svg
@@ -70,6 +106,7 @@ export function drawBoreSketch(svg, m) {
     s += '<path class="tb-mat" d="M' + (CX + OUTER) + ' ' + yA + ' L' + (CX + hw(0)) + ' ' + yA + ' L' + (CX + hw(L)) + ' ' + yB + ' L' + (CX + OUTER) + ' ' + yB + 'Z"/>';
   }
   s += ln(CX, yB - 8, CX, yA + 8, 'cs-axis');
+  if (m.fillets) s += drawFillets(m.fillets, L, y, hw);
 
   // Horní řádky: kuželovitost, prohození, tolerance, „+ Ø v hloubce"
   s += lbl(92, 16, m.taperTxt, 'C', CLS[m.stForm('ratio')]);

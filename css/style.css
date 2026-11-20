@@ -8404,6 +8404,9 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 .calc-svg .tb-ref { stroke: var(--ctp-blue); stroke-width: 2; }
 .calc-svg .tb-ref-t { fill: var(--ctp-blue); font: bold 11px "Consolas", monospace; }
 .calc-svg .tb-pt-l { stroke: var(--ctp-peach); stroke-width: 1; stroke-dasharray: 4 2; }
+.calc-svg .tb-fil { fill: none; stroke: var(--ctp-peach); stroke-width: 2.2; }
+.calc-svg .tb-fil-face { stroke: var(--ctp-overlay1); stroke-width: 1.2; stroke-dasharray: 5 3; }
+.calc-svg .tb-fil-pt { fill: var(--ctp-peach); }
 .calc-svg .tb-pt-t { fill: var(--ctp-peach); font: 11px "Consolas", monospace; }
 .calc-svg .tb-ref-lead { stroke: var(--ctp-blue); stroke-width: 1; }
 .calc-svg .tb-pt-t, .calc-svg .tb-ref-t { paint-order: stroke; stroke: var(--ctp-mantle); stroke-width: 4px; stroke-linejoin: round; }

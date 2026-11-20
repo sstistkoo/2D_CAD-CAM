@@ -12,6 +12,7 @@ import { computeTaperBore, solveTaper, taperC, taperForms, ratioToC, f3, fmtDev 
 import { drawBoreSketch } from './taperBoreSketch.js';
 import { openInlineEdit, wireSvgEditing, setField } from './svgInlineEdit.js';
 import { writeClipboard } from '../clipboard.js';
+import { taperFilletHTML, taperFilletResHTML, initTaperFillet } from './taperFillet.js';
 
 const LS_KEY = 'skica.taperKuzel';
 const LS_OLD = 'skica.taperBore';
@@ -42,6 +43,7 @@ export function taperBoreHTML() {
     '<div class="tb-err"></div>' +
     '<div class="cnc-info tb-forms"></div>' +
     '<div class="cnc-table-wrap cnc-table-tall tb-res"></div>' +
+    taperFilletResHTML() +
     '<div class="cnc-result tb-slide"></div>' +
     '<div class="cnc-actions">' +
       '<button type="button" class="cnc-btn cnc-btn-copy tb-copy" title="Čitelný přehled">📋 Kopírovat</button>' +
@@ -61,6 +63,7 @@ export function taperBoreHTML() {
     group('Tolerance <small>(platí pro všechny průměry)</small>',
       fld('es', 'Horní úchylka', 'max mm', 'např. +0.046') +
       fld('ei', 'Dolní úchylka', 'min mm', 'např. 0')) +
+    taperFilletHTML() +
     '<fieldset class="tb-group"><legend>Měřicí místa <small>(hloubka od strany)</small></legend>' +
       '<div class="tb-points"></div>' +
       '<div class="cnc-actions tb-pt-actions">' +
@@ -95,6 +98,8 @@ export function initTaperBore(overlay) {
   }
   let order = [];                                       // ručně zadané z SOLVE (nejnovější na konci)
   let lastText = '', lastNc = '', geo = null;
+  /** @type {ReturnType<typeof initTaperFillet>} */
+  let fil = null;                                       // tvarový přechod R (nastaví se níže)
 
   const num = el => { const s = el.value.trim(); if (!s) return null; const v = safeEvalMath(s); return isFinite(v) ? v : NaN; };
   const names = () => NAMES.vs;                         // strany vždy Spodek / Vrch
@@ -274,6 +279,13 @@ export function initTaperBore(overlay) {
       lastNc = ncText(nc.join('\n'));
     }
 
+    // Tvarový přechod R na hranách (taperFillet.js)
+    const fr = fil ? fil.update(done ? { D: sol.D, d: sol.d, L: sol.L, C: sol.C } : null, bigSide) : null;
+    if (fr && fr.text.length) {
+      lastText = (lastText ? lastText + '\n' : '') + fr.text.join('\n');
+      lastNc = (lastNc ? lastNc + '\n' : '') + ncText(fr.nc.join('\n'));
+    }
+
     // Náčrt (i neúplný – neznámé jako „?")
     const Ld = okNum(sol.L) && sol.L > 0 ? sol.L : 200;
     const stOf = key => isEdited(key) && okNum(k[key]) ? 'val' : okNum(sol[key]) ? 'calc' : 'empty';
@@ -302,7 +314,7 @@ export function initTaperBore(overlay) {
       taperTxt: taperLabel(sol.C, stOf('C')),
       aTxt: '\u03B1 = ' + (okNum(sol.C) ? fmtN(taperForms(sol.C).half, 4) + '\u00B0' : '?'),
       stForm: f => stOf('C') === 'val' ? (f === cform ? 'val' : 'calc') : stOf('C'),
-      ref: refM, rows,
+      ref: refM, rows, fillets: fr ? fr.sketch : null,
     });
   }
 
@@ -329,6 +341,7 @@ export function initTaperBore(overlay) {
   wireSvgEditing(svg, (key, e) => {
     const n = names();
     if (SOLVE.includes(key) || key === 'Ca') editSolve(e, key);
+    else if (key.startsWith('fil:')) fil?.editR(e, key.slice(4));
     else if (key === 'refD' || key === 'refAdd') {
       openInlineEdit(e, {
         label: 'Ø z výkresu v hloubce', unit: 'mm', value: $('refD').value, hint: 'Prázdné = bez zadaného Ø. Hloubku pak nastavíš klepnutím na „hloubka Ø".',
@@ -401,6 +414,12 @@ export function initTaperBore(overlay) {
   }
   restore();
   if (!ptsEl.children.length) addPoint();
+  // Tvarový přechod R: Ø průsečíku ze začátku R → do pole D / d kužele
+  fil = initTaperFillet(root, {
+    onChange: () => update(),
+    setConeDia: (side, dia) => setField(fieldOf(side === $('big').value ? 'D' : 'd'), String(dia)),
+  });
+  fil?.restore($('big').value);
 
   const onSolveInput = (key, el, form) => {
     order = order.filter(x => x !== key);
@@ -450,7 +469,7 @@ export function initTaperBore(overlay) {
   function clearAll() {
     order = [];
     root.querySelectorAll('input[data-tb]').forEach(el => { el.value = ''; el.classList.remove('computed', 'tb-bad'); });
-    ptsEl.innerHTML = ''; addPoint(); update();
+    ptsEl.innerHTML = ''; addPoint(); fil?.clear(); update();
   }
   const copy = t => {
     if (!t) { showToast('Není co kopírovat'); return; }

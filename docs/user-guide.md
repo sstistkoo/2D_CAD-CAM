@@ -2496,7 +2496,15 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     vrch − spodek, náklon suportu a přísuv na stranu. *Kopírovat* = čitelný
     přehled, *Do programu* = text velkými písmeny bez diakritiky jako komentář
     do NC programu. Pole pod výsledky: Kužel, Ø z výkresu v hloubce,
-    Tolerance, Měřicí místa.
+    Tolerance, Tvarový přechod R, Měřicí místa.
+    **Tvarový přechod R** (nepovinné): na vrchu i na spodku rádius tečně
+    napojený na čelo. Zadáš R, kam čelo pokračuje (k většímu Ø / k ose) a buď
+    *průsečík* (ostrá hrana = Ø kužele na hraně), nebo *začátek R na čele*
+    (Ø, kde rádius z čela odbočí – průsečík se dopočítá a tlačítkem ↦ se převezme
+    do kužele). Tabulka ukáže shora dolů průsečík, začátek a konec R (na čele / na
+    kuželu), střed R a ★ největší / nejmenší Ø na oblouku – místo, kde jde Ø změřit
+    posuvkou, když je hrana kužele jen teoretická. Hloubky jsou od vrchu; se
+    zadaným „Z čela vrchu" rovnou souřadnice Z pro program. R v náčrtu je klikací.
   - *Morse / ISO* (dole, rozbalovací) – klepnutím na řádek se kužel vyplní.
 - **Závity** – převodné tabulky. U vybraného závitu **rozpis průchodů**:
   hloubky řezů stejné jako v CAM (ubývající přísuv a_k = h·√(k/n), počet řezů
