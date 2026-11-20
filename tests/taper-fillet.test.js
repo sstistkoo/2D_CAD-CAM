@@ -106,3 +106,27 @@ describe('kužel – přechod R, náhodná kontrola geometrie', () => {
     }
   });
 });
+
+describe('kužel – přechod R, konec čela', () => {
+  const base = { D: 330 + 100 * Math.tan(10 * DEG), d: 330, L: 50, C: C10, bigSide: 'A' };
+  const t = 12 / Math.tan(50 * DEG);
+  it('Ø konce čela → délka čela a bod konce; délka → Ø konce', () => {
+    const a = taperFillets({ ...base, edges: { B: { R: 12, face: 'in', given: 'corner', faceEndDia: 218 } } }).edges.B;
+    expect(a.faceLen).toBeCloseTo((330 - 218) / 2, 9);
+    expect(a.faceEnd.dia).toBeCloseTo(218, 9);
+    expect(a.error).toBe('');
+    const b = taperFillets({ ...base, edges: { B: { R: 12, face: 'in', given: 'corner', faceLen: 56 } } }).edges.B;
+    expect(b.faceEnd.dia).toBeCloseTo(218, 9);
+  });
+  it('šikmé čelo: délka po čele, ne v Ø', () => {
+    const e = taperFillets({ ...base, edges: { B: { R: 12, face: 'in', beta: 30, given: 'corner', faceLen: 20 } } }).edges.B;
+    expect(e.faceEnd.dia).toBeCloseTo(330 - 2 * 20 * Math.cos(30 * DEG), 9);
+    expect(e.faceEnd.z).toBeCloseTo(50 + 20 * Math.sin(30 * DEG), 9);
+  });
+  it('R se na čelo nevejde / konec čela na druhé straně → chyba', () => {
+    const short = taperFillets({ ...base, edges: { B: { R: 12, face: 'in', given: 'corner', faceLen: t - 1 } } }).edges.B;
+    expect(short.error).toContain('nevejde');
+    const wrong = taperFillets({ ...base, edges: { B: { R: 12, face: 'in', given: 'corner', faceEndDia: 400 } } }).edges.B;
+    expect(wrong.error).toContain('druhé straně');
+  });
+});

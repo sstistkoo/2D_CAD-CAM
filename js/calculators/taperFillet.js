@@ -38,12 +38,14 @@ export function taperFilletHTML() {
       '<tr><th>R <small>mm</small></th>' + cell('RB', 'např. 12') + cell('RA', 'např. 5') + '</tr>' +
       '<tr><th>Čelo od hrany</th>' + cellSel('faceB', FACE) + cellSel('faceA', FACE) + '</tr>' +
       '<tr><th>Úhel čela <small>°</small></th>' + cell('angB', '0 = kolmo') + cell('angA', '0 = kolmo') + '</tr>' +
+      '<tr><th>Čelo do Ø <small>konec čela</small></th>' + cell('fendB', 'nepovinné') + cell('fendA', 'nepovinné') + '</tr>' +
+      '<tr><th>Délka čela <small>od průsečíku</small></th>' + cell('flenB', 'nebo délka') + cell('flenA', 'nebo délka') + '</tr>' +
       '<tr><th>Zadávám</th>' + cellSel('givenB', GIVEN) + cellSel('givenA', GIVEN) + '</tr>' +
       '<tr><th>Ø začátku R <small>na čele</small></th>' + cell('diaB', '—') + cell('diaA', '—') + '</tr>' +
       '<tr><th></th><td><button type="button" class="cnc-btn tf-flip" data-side="B">⇄ Otočit R</button></td>' +
         '<td><button type="button" class="cnc-btn tf-flip" data-side="A">⇄ Otočit R</button></td></tr>' +
     '</tbody></table>' +
-    '<div class="tp-hint">Úhel čela: 0 = kolmo k ose, + stoupá k vrchu, − klesá ke spodku. „Zadávám začátek R" = Ø, kde R z čela odbočí – průsečík se dopočítá.</div>' +
+    '<div class="tp-hint">Úhel čela: 0 = kolmo k ose, + stoupá k vrchu, − klesá ke spodku. Čelo: zadej Ø jeho konce, nebo délku – druhé se dopočítá a ohlídá se, že se R na čelo vejde. „Zadávám začátek R" = Ø, kde R z čela odbočí – průsečík se dopočítá.</div>' +
     '<div class="cnc-fields">' + cfld('zTop', 'Z čela vrchu', 'nepovinné', 'pro souřadnice Z').replace('data-tfc="zTop"', 'data-tf="zTop"') + '</div>' +
     '<div class="tb-err tf-err"></div><div class="cnc-table-wrap tf-res"></div>' +
     '</fieldset>';
@@ -62,7 +64,9 @@ export function initTaperFillet(root, cb) {
   const errEl = box.querySelector('.tf-err');
   const svg = box.querySelector('.tf-svg');
   const num = el => { const s = el.value.trim(); if (!s) return null; const v = safeEvalMath(s); return Number.isFinite(v) ? v : NaN; };
-  const IDS = ['RB', 'faceB', 'angB', 'givenB', 'diaB', 'RA', 'faceA', 'angA', 'givenA', 'diaA', 'zTop'];
+  const IDS = ['RB', 'faceB', 'angB', 'givenB', 'diaB', 'fendB', 'flenB', 'RA', 'faceA', 'angA', 'givenA', 'diaA', 'fendA', 'flenA', 'zTop'];
+  /** Co je u čela zadané: 'dia' (Ø konce), 'len' (délka) nebo '' – druhé se dopočítá. */
+  const fmode = { A: '', B: '' };
   let last = null;
   let lastArgs = null;                                  // poslední vstup update() pro překreslení
 
@@ -122,12 +126,19 @@ export function initTaperFillet(root, cb) {
     });
   }
   function save() {
-    try { const o = {}; IDS.forEach(id => { o[id] = $(id).value; }); localStorage.setItem(LS_KEY, JSON.stringify(o)); } catch { /* bez úložiště */ }
+    try {
+      const o = { fmodeA: fmode.A, fmodeB: fmode.B };
+      IDS.forEach(id => { o[id] = $(id).classList.contains('computed') ? '' : $(id).value; });
+      localStorage.setItem(LS_KEY, JSON.stringify(o));
+    } catch { /* bez úložiště */ }
   }
   function restore(bigSide) {
     let st = null;
     try { st = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch { /* ignorovat */ }
-    if (st) IDS.forEach(id => { if (st[id] != null) $(id).value = st[id]; });
+    if (st) {
+      IDS.forEach(id => { if (st[id] != null) $(id).value = st[id]; });
+      SIDES.forEach(side => { fmode[side] = st['fmode' + side] || ''; });
+    }
     else {
       // výchozí: na větším Ø čelo ven (osazení), na menším k ose (čelo konce)
       $('face' + bigSide).value = 'out';
@@ -141,6 +152,16 @@ export function initTaperFillet(root, cb) {
     save(); cb.onChange();
   }
   box.querySelectorAll('.tf-flip').forEach(b => b.addEventListener('click', () => flip(b.dataset.side)));
+  SIDES.forEach(side => {
+    [['fend', 'dia'], ['flen', 'len']].forEach(([k, mode]) => {
+      $(k + side).addEventListener('input', () => {
+        const el = $(k + side);
+        el.classList.remove('computed');
+        if (el.value.trim()) fmode[side] = mode;
+        else if (fmode[side] === mode) fmode[side] = '';
+      }, true);
+    });
+  });
   IDS.forEach(id => $(id).addEventListener('input', () => { syncVisibility(); save(); cb.onChange(); }));
   IDS.filter(id => $(id).tagName === 'SELECT').forEach(id => $(id).addEventListener('change', () => { syncVisibility(); save(); cb.onChange(); }));
 
@@ -149,7 +170,11 @@ export function initTaperFillet(root, cb) {
     const e = {};
     SIDES.forEach(side => {
       const R = num($('R' + side));
-      e[side] = R > 0 ? { R, face: $('face' + side).value, beta: num($('ang' + side)) || 0, given: $('given' + side).value, dia: num($('dia' + side)) } : null;
+      e[side] = R > 0 ? {
+        R, face: $('face' + side).value, beta: num($('ang' + side)) || 0, given: $('given' + side).value, dia: num($('dia' + side)),
+        faceEndDia: fmode[side] === 'dia' ? num($('fend' + side)) : null,
+        faceLen: fmode[side] === 'len' ? num($('flen' + side)) : null,
+      } : null;
     });
     return e;
   }
@@ -165,10 +190,29 @@ export function initTaperFillet(root, cb) {
     lastArgs = [sol, bigSide, cone];
     mirrorCone();
     const out = compute(sol, bigSide);
+    fillFaceComputed();
     // Chyba kužele (záložka Kužel je skrytá) – ukázat i tady
     if (cone.err) errEl.textContent = 'Kužel: ' + cone.err + (errEl.textContent ? ' ' + errEl.textContent : '');
     drawProfile(sol, bigSide, cone);
     return out;
+  }
+
+  /** Dopočtený údaj čela (Ø konce ↔ délka) do druhého pole, žlutě. */
+  function fillFaceComputed() {
+    SIDES.forEach(side => {
+      const res = last && last.edges[side] && last.edges[side].corner ? last.edges[side] : null;
+      const put = (id, v) => {
+        const el = $(id);
+        if (el === document.activeElement) return;
+        if (v === null) { if (el.classList.contains('computed')) { el.value = ''; el.classList.remove('computed'); } return; }
+        el.value = f3(v).replace(/\.?0+$/, '');
+        el.classList.add('computed');
+      };
+      const m = fmode[side];
+      put('flen' + side, m === 'dia' && res && res.faceLen > 0 ? res.faceLen : null);
+      put('fend' + side, m === 'len' && res && res.faceEnd ? res.faceEnd.dia : null);
+      if (m === '') { put('flen' + side, null); put('fend' + side, null); }
+    });
   }
 
   function drawProfile(sol, bigSide, cone) {
@@ -177,6 +221,7 @@ export function initTaperFillet(root, cb) {
     const inpOf = side => ({
       R: num($('R' + side)) || 0, face: $('face' + side).value, beta: num($('ang' + side)) || 0,
       given: $('given' + side).value, dia: num($('dia' + side)), angRaw: $('ang' + side).value,
+      faceLen: (() => { const r = resOf(side); return r && r.faceLen > 0 ? r.faceLen : null; })(), faceMode: fmode[side],
     });
     const edges = readEdges();
     const resOf = side => (last && edges[side] && last.edges[side]) || null;
@@ -242,8 +287,10 @@ export function initTaperFillet(root, cb) {
       const seq = side === 'B'
         ? [['Začátek R na čele', e.onFace], ['Konec R na kuželu', e.onCone]]
         : [['Konec kužele / začátek R', e.onCone], ['Konec R na čele', e.onFace]];
+      if (side === 'B' && e.faceEnd) { row('Konec čela', e.faceEnd); line('Konec čela', e.faceEnd); }
       row('Průsečík (ostrá hrana)', e.corner, 'tb-end');
       seq.forEach(([n, p]) => { row(n, p); line(n, p); });
+      if (side === 'A' && e.faceEnd) { row('Konec čela', e.faceEnd); line('Konec čela', e.faceEnd); }
       row('Střed R', e.center, 'tb-end');
       line('Střed R', e.center);
       if (e.maxDia) { row('★ Největší Ø na R (posuvka)', e.maxDia, 'tb-refrow'); line('Největší \u00D8 na R', e.maxDia); }
@@ -317,6 +364,21 @@ export function initTaperFillet(root, cb) {
       });
       return;
     }
+    if (kind === 'fend') {
+      const m = fmode[side];
+      openInlineEdit(ev, {
+        label: 'Konec čela (' + nm + ')', unit: 'mm', value: m === 'len' ? $('flen' + side).value : m === 'dia' ? $('fend' + side).value : '',
+        hint: 'Ø konce čela, nebo délka čela od průsečíku – druhé se dopočítá. Prázdné = neznámé',
+        choices: [{ value: 'dia', text: 'Ø konce čela' }, { value: 'len', text: 'délka čela' }], choice: m || 'dia',
+        onCommit: (v, ch, raw) => {
+          const other = ch === 'dia' ? 'flen' : 'fend';
+          if (!raw) { $('fend' + side).value = ''; $('flen' + side).value = ''; fmode[side] = ''; save(); cb.onChange(); return; }
+          $(other + side).value = ''; $(other + side).classList.remove('computed');
+          commitField((ch === 'dia' ? 'fend' : 'flen') + side, raw);
+        },
+      });
+      return;
+    }
     if (kind === 'alpha') {
       openInlineEdit(ev, {
         label: 'Úhel α kužele', unit: '° sklon k ose', value: coneEl('ca')?.value || '',
@@ -342,7 +404,10 @@ export function initTaperFillet(root, cb) {
   });
 
   function clear() {
-    SIDES.forEach(side => { $('R' + side).value = ''; $('dia' + side).value = ''; $('ang' + side).value = ''; $('given' + side).value = 'corner'; });
+    SIDES.forEach(side => {
+      ['R', 'dia', 'ang', 'fend', 'flen'].forEach(k => { $(k + side).value = ''; $(k + side).classList.remove('computed'); });
+      $('given' + side).value = 'corner'; fmode[side] = '';
+    });
     $('zTop').value = '';
     syncVisibility(); save();
   }

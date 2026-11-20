@@ -5,7 +5,7 @@
 // → R → čelo dole, teoretické ostré hrany čárkovaně. Dlouhý kužel se v kresbě
 // zkrátí (≈ přerušení), aby rádiusy byly vidět. Klikací (data-edit):
 // R:A|B, face:A|B (otočit R), ang:A|B (úhel čela), corner:A|B (Ø průsečíku),
-// start:A|B (Ø začátku R na čele), alpha (α kužele), L (délka), zTop.
+// start:A|B (Ø začátku R na čele), fend:A|B (konec čela), alpha (α kužele), L (délka), zTop.
 // Neznámé hodnoty jako „?" – profil jde vyplnit jen klikáním.
 
 import { filletAt, coneDir, faceDir } from './taperFilletMath.js';
@@ -21,6 +21,7 @@ const TIPS = {
   ang: 'Úhel čela od roviny kolmé k ose (0 = kolmo, + k vrchu, − ke spodku)',
   corner: 'Průsečík – ostrá hrana kužele s čelem (= Ø kužele na hraně)',
   start: 'Začátek rádiusu na čele – Ø, kde R z čela odbočí', zTop: 'Z čela vrchu – výsledky pak v souřadnicích Z',
+  fend: 'Konec čela – Ø konce nebo délka čela (druhé se dopočítá, ohlídá se, že se R vejde)',
   alpha: 'Úhel α – sklon površky kužele k ose', L: 'Délka kužele L (mezi průsečíky, podél osy)',
 };
 const tipOf = key => TIPS[key.split(':')[0]] || '';
@@ -71,7 +72,7 @@ const stCls = st => st === 'val' ? 'sk-val' : st === 'calc' ? 'sk-calc' : 'sk-em
  * @param {number|null} m.C   kuželovitost (null = neznámá → schéma 10°)
  * @param {number|null} m.L   délka kužele
  * @param {'A'|'B'} m.bigSide
- * @param {Record<string, {R:number, face:'in'|'out', beta:number, given:string, dia:number|null, angRaw:string}>} m.inp
+ * @param {Record<string, {R:number, face:'in'|'out', beta:number, given:string, dia:number|null, angRaw:string, faceLen?:number|null, faceMode?:string}>} m.inp
  * @param {Record<string, any>} m.res   výsledky hran (taperFillets) nebo null
  * @param {Record<string, number|null>} m.coneDia
  * @param {Record<string, string>} m.coneSt
@@ -100,8 +101,10 @@ export function drawFilletProfile(svg, m) {
     const e = m.inp[side];
     const u2 = faceDir(e.face, e.beta);
     const f = e.R > 0 ? filletAt(P[side], U1[side], u2, e.R) : null;
-    const ext = (f ? f.t : 0) + 1.8 * Rm;
-    geo[side] = { u2, f, faceEnd: { r: P[side].r + u2.r * ext, z: P[side].z + u2.z * ext } };
+    // Čelo: skutečná délka, je-li známá (dlouhé zkrátit jako kužel), jinak kousek za R
+    let ext = (f ? f.t : 0) + 1.8 * Rm, faceBroken = false;
+    if (e.faceLen > 0) { ext = Math.min(e.faceLen, maxDraw); faceBroken = e.faceLen > maxDraw + 1e-9; }
+    geo[side] = { u2, f, faceKnown: e.faceLen > 0, faceBroken, faceEnd: { r: P[side].r + u2.r * ext, z: P[side].z + u2.z * ext } };
   }
   const pts = [P.A, P.B, geo.A.faceEnd, geo.B.faceEnd];
   for (const side of ['A', 'B']) {
@@ -193,6 +196,11 @@ export function drawFilletProfile(svg, m) {
     const cornerSt = e.given === 'start' ? (res ? 'sk-calc' : 'sk-empty') : stCls(m.coneSt[side]);
     const cornerDia = res ? res.corner.dia : e.given === 'corner' ? m.coneDia[side] : null;
     s += near(tP, away, 16, 'průsečík Ø' + (Number.isFinite(cornerDia) ? t3(cornerDia) : '?'), 'corner:' + side, cornerSt);
+    // Konec čela
+    const tFE = T(g.faceEnd), dFE = unit(tP, tFE);
+    if (g.faceKnown) s += dot(tFE, 'tb-sk-corner', 3);
+    const feTxt = res && res.faceEnd ? 'čelo Ø' + t3(res.faceEnd.dia) + (g.faceBroken ? ' ≈' : '') : 'čelo Ø?';
+    s += near(tFE, { x: dFE.x * 0.3, y: side === 'B' ? -1 : 1 }, 14, feTxt, 'fend:' + side, res && res.faceEnd ? (e.faceMode === 'dia' ? 'sk-val' : 'sk-calc') : 'sk-empty');
     if (!tM) continue;
     const startTxt = e.given === 'start' ? (e.dia > 0 ? t3(e.dia) : '?') : res ? t3(res.onFace.dia) : '?';
     s += near(tF, unit(tM, tF), 18, 'začátek Ø' + startTxt, 'start:' + side,

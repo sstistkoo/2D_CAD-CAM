@@ -81,6 +81,22 @@ describe('kalkulačka Kužel – záložka Přechod R (UI)', () => {
     m2.ov.remove();
   });
 
+  it('čelo: Ø konce → délka dopočítaná (žlutě), délka → Ø; klik v profilu', () => {
+    const { ov, f, c, svg } = mount();
+    c('cbig').value = 'A'; c('cbig').dispatchEvent(new Event('change', { bubbles: true }));
+    type(c('cB'), '330'); type(c('cL'), '50'); type(c('ca'), '10');
+    f('faceB').value = 'in'; type(f('RB'), '12');
+    type(f('fendB'), '218');
+    expect(f('flenB').value).toBe('56');
+    expect(f('flenB').classList.contains('computed')).toBe(true);
+    expect(ov.querySelector('.tf-res').textContent).toContain('Konec čela');
+    expect(svg.querySelector('[data-edit="fend:B"]').textContent).toContain('218');
+    type(f('flenB'), '5');                               // kratší než tečná délka R
+    expect(f('fendB').classList.contains('computed')).toBe(true);
+    expect(ov.querySelector('.tf-err').textContent).toContain('nevejde');
+    ov.remove();
+  });
+
   it('otočit R, záložky Kužel / Přechod R', () => {
     const { ov, f, click } = mount();
     const sec = ov.querySelector('#tbSection');

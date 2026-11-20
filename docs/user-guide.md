@@ -2510,7 +2510,8 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     Náčrt ukazuje **celý profil** (vrch i spodek naráz) a je klikací – i α a L kužele.
     Kužel jde zadat přímo v záložce (Ø nahoře, Ø dole, L, α), pole rádiusů jsou v
     tabulce ▲ Vrch / ▼ Spodek vedle sebe, **⇄ Otočit R** obrátí rádius na druhou
-    stranu čela. Klikací profil je ve
+    stranu čela. Čelo: zadej Ø jeho konce nebo délku (druhé se dopočítá) – ohlídá se,
+    že se R na čelo vejde. Klikací profil je ve
     skutečných úhlech: klepni na R, průsečík, začátek R, „⇄ čelo", „∠ čela" nebo
     „Z vrchu" a zadej hodnotu – vše jde vyplnit jen přes detail.
   - *Morse / ISO* (dole, rozbalovací) – klepnutím na řádek se kužel vyplní.

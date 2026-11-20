@@ -95,7 +95,7 @@ export function cornerFromStart(startDia, R, side, C, bigSide, face, beta = 0) {
  * @param {object} p
  * @param {number} p.D @param {number} p.d @param {number} p.L @param {number} p.C
  * @param {'A'|'B'} p.bigSide
- * @param {Record<'A'|'B', null | {R:number, face:'in'|'out', beta?:number, given:'corner'|'start', dia?:number}>} p.edges
+ * @param {Record<'A'|'B', null | {R:number, face:'in'|'out', beta?:number, given:'corner'|'start', dia?:number, faceEndDia?:number|null, faceLen?:number|null}>} p.edges
  * @returns {{ edges: Record<string, any>, error: string }}
  */
 export function taperFillets(p) {
@@ -133,8 +133,21 @@ export function taperFillets(p) {
       mismatch: e.given === 'start' && Number.isFinite(coneDia[side]) ? cornerDia - coneDia[side] : 0,
       error: '',
     };
+    // Konec čela (nepovinné): Ø konce čela, nebo délka čela od průsečíku –
+    // druhé se dopočítá; R se musí na čelo vejít (tečná délka ≤ délka čela).
+    res.faceEnd = null; res.faceLen = null;
+    if (e.faceEndDia > 0 || e.faceLen > 0) {
+      let len = e.faceLen > 0 ? e.faceLen : (e.faceEndDia / 2 - cornerDia / 2) / u2.r;
+      res.faceLen = len;
+      if (len > EPS) res.faceEnd = { dia: cornerDia + 2 * len * u2.r, z: z + len * u2.z };
+    }
     if (res.onFace.dia < -EPS) res.error = 'Rádius přesahuje přes osu – je moc velký';
     else if (f.t > slant + EPS) res.error = 'Rádius je delší než kužel';
+    else if (res.faceLen !== null && !(res.faceLen > EPS)) {
+      res.error = 'Konec čela je na druhé straně průsečíku – zkontroluj Ø konce čela nebo „Čelo od hrany"';
+    } else if (res.faceLen !== null && f.t > res.faceLen + EPS) {
+      res.error = 'R se na čelo nevejde (tečná délka ' + f.t.toFixed(3) + ' > délka čela ' + res.faceLen.toFixed(3) + ')';
+    }
     out.edges[side] = res;
   }
   if (!out.error && tSum > slant + EPS && out.edges.A?.t && out.edges.B?.t) {
