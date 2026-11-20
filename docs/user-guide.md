@@ -2507,8 +2507,10 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     kuželu), střed R a ★ největší / nejmenší Ø na oblouku – místo, kde jde Ø změřit
     posuvkou, když je hrana kužele jen teoretická. Hloubky jsou od vrchu; se
     zadaným „Z čela vrchu" rovnou souřadnice Z pro program.
-    Záložky **▲ Vrch / ▼ Spodek** přepínají hranu (pole i detail), **⇄ Otočit R**
-    obrátí rádius na druhou stranu čela. Nad poli je **klikací detail** přechodu ve
+    Náčrt ukazuje **celý profil** (vrch i spodek naráz) a je klikací – i α a L kužele.
+    Kužel jde zadat přímo v záložce (Ø nahoře, Ø dole, L, α), pole rádiusů jsou v
+    tabulce ▲ Vrch / ▼ Spodek vedle sebe, **⇄ Otočit R** obrátí rádius na druhou
+    stranu čela. Klikací profil je ve
     skutečných úhlech: klepni na R, průsečík, začátek R, „⇄ čelo", „∠ čela" nebo
     „Z vrchu" a zadej hodnotu – vše jde vyplnit jen přes detail.
   - *Morse / ISO* (dole, rozbalovací) – klepnutím na řádek se kužel vyplní.

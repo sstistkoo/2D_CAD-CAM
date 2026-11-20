@@ -8415,8 +8415,6 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 .tf-tabs { display: flex; gap: 6px; margin: 2px 0 6px; }
 .tf-tab { flex: 1; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--ctp-surface1); background: var(--ctp-surface0); color: var(--ctp-subtext0); font-weight: 600; font-size: 14px; cursor: pointer; }
 .tf-tab.on { background: var(--ctp-blue); border-color: var(--ctp-blue); color: var(--ctp-base); }
-.tf-flip-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; }
-.tf-edge[hidden] { display: none; }
 .calc-svg .tb-pt-t { fill: var(--ctp-peach); font: 11px "Consolas", monospace; }
 .calc-svg .tb-ref-lead { stroke: var(--ctp-blue); stroke-width: 1; }
 .calc-svg .tb-pt-t, .calc-svg .tb-ref-t { paint-order: stroke; stroke: var(--ctp-mantle); stroke-width: 4px; stroke-linejoin: round; }
@@ -8469,3 +8467,13 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 .tb-sec:not(.tb-r) .tb-r-only { display: none !important; }
 .tb-mode-tabs { margin: 0 0 8px; }
 .tf-cone { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 8px; color: var(--ctp-subtext1); font-size: 13px; }
+/* Přechod R: pole vrchu a spodku vedle sebe (taperFillet.js) */
+.tf-grid { width: 100%; border-collapse: separate; border-spacing: 4px 4px; margin: 6px 0; table-layout: fixed; }
+.tf-grid th { color: var(--ctp-subtext0); font-weight: 600; font-size: 13px; text-align: left; vertical-align: middle; }
+.tf-grid thead th { text-align: center; color: var(--ctp-text); }
+.tf-grid tbody th { width: 32%; }
+.tf-grid input, .tf-grid select { width: 100%; box-sizing: border-box; min-width: 0; padding: 7px 8px; border-radius: 7px;
+  border: 1px solid var(--ctp-surface1); background: var(--ctp-base); color: var(--ctp-text); font-size: 15px; }
+.tf-grid input:disabled { opacity: .45; }
+.tf-grid .tf-flip { width: 100%; }
+.tf-conef input.computed { color: var(--ctp-yellow); }

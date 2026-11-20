@@ -3,87 +3,81 @@ import { describe, it, expect } from 'vitest';
 import { taperBoreHTML, initTaperBore } from '../js/calculators/taperBore.js';
 
 const type = (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+function mount() {
+  localStorage.clear();
+  const ov = document.createElement('div');
+  ov.innerHTML = taperBoreHTML();
+  document.body.appendChild(ov);
+  initTaperBore(ov);
+  return {
+    ov,
+    $: id => ov.querySelector('[data-tb="' + id + '"]'),
+    f: id => ov.querySelector('[data-tf="' + id + '"]'),
+    c: id => ov.querySelector('[data-tfc="' + id + '"]'),
+    svg: ov.querySelector('.tf-svg'),
+    click: key => ov.querySelector('.tf-svg [data-edit="' + key + '"]').dispatchEvent(new MouseEvent('click', { bubbles: true })),
+  };
+}
 
-describe('kalkulačka Kužel – tvarový přechod R (UI)', () => {
-  it('kužel + R12 na vrchu → tabulka bodů, náčrt s R, text do programu', () => {
-    localStorage.clear();
-    const ov = document.createElement('div');
-    ov.innerHTML = taperBoreHTML();
-    document.body.appendChild(ov);
-    initTaperBore(ov);
-    const $ = id => ov.querySelector('[data-tb="' + id + '"]');
-    const f = id => ov.querySelector('[data-tf="' + id + '"]');
-    type($('d'), '330'); type($('L'), '50'); type($('a'), '10');
-    $('big').value = 'A'; $('big').dispatchEvent(new Event('input', { bubbles: true }));
+describe('kalkulačka Kužel – záložka Přechod R (UI)', () => {
+  it('kužel zadaný přímo v záložce R + R12 nahoře → body, kopie, náčrt kužele bez R', () => {
+    const { ov, $, f, c, svg } = mount();
+    c('cbig').value = 'A'; c('cbig').dispatchEvent(new Event('change', { bubbles: true }));
+    type(c('cB'), '330'); type(c('cL'), '50'); type(c('ca'), '10');
+    expect($('d').value).toBe('330');                   // zrcadlo do záložky Kužel
+    expect($('L').value).toBe('50');
+    expect(c('cA').classList.contains('computed')).toBe(true);
+    expect(Number(c('cA').value)).toBeCloseTo(330 + 100 * Math.tan(10 * Math.PI / 180), 2);
     f('faceB').value = 'in';
     type(f('RB'), '12');
     type(f('zTop'), '0');
     const res = ov.querySelector('.tf-res').textContent;
     expect(res).toContain('Začátek R na čele');
-    expect(res).toContain('309.862');                   // 330 − 2·12/tan 50°
-    expect(res).toContain('-9.916');                    // Z konce R na kuželu
-    // záložky: náčrt kužele je bez rádiusů, přechod R má vlastní záložku
+    expect(res).toContain('309.862');
+    expect(res).toContain('-9.916');
     expect(ov.querySelector('.tb-svg').innerHTML).not.toContain('tb-fil');
-    const sec = ov.querySelector('#tbSection');
-    expect(sec.classList.contains('tb-r')).toBe(false);
-    expect(ov.querySelector('#tfSection').classList.contains('tb-r-only')).toBe(true);
-    expect(ov.querySelector('.tb-svg').classList.contains('tb-cone-only')).toBe(true);
-    expect(ov.querySelector('#tfSection').classList.contains('tb-cone-only')).toBe(false);
-    ov.querySelector('[data-tbmode="r"]').click();
-    expect(sec.classList.contains('tb-r')).toBe(true);
-    expect(ov.querySelector('.tf-cone-txt').textContent).toContain('D ');
-    ov.querySelector('.tf-cone-edit').click();
-    expect(sec.classList.contains('tb-r')).toBe(false);
-    // začátek R zadán na čele → nabídne převzetí průsečíku do kužele
-    f('givenB').value = 'start'; f('givenB').dispatchEvent(new Event('change', { bubbles: true }));
-    type(f('diaB'), '300');
-    const take = ov.querySelector('.tf-take');
-    expect(take).not.toBe(null);
-    take.click();
-    expect(Number($('d').value)).toBeCloseTo(300 + 2 * 12 / Math.tan(50 * Math.PI / 180), 3);
-    expect(ov.querySelector('.tf-take')).toBe(null);
-  });
-
-  it('převzetí průsečíku nahradí druhý průměr, délka a úhel zůstanou', () => {
-    localStorage.clear();
-    const ov = document.createElement('div');
-    ov.innerHTML = taperBoreHTML();
-    document.body.appendChild(ov);
-    initTaperBore(ov);
-    const $ = id => ov.querySelector('[data-tb="' + id + '"]');
-    const f = id => ov.querySelector('[data-tf="' + id + '"]');
-    $('big').value = 'A'; $('big').dispatchEvent(new Event('input', { bubbles: true }));
-    type($('D'), '360'); type($('L'), '50'); type($('a'), '10');   // vrch d se dopočítá
-    f('faceB').value = 'in';
-    f('givenB').value = 'start'; f('givenB').dispatchEvent(new Event('change', { bubbles: true }));
-    type(f('RB'), '12'); type(f('diaB'), '300');
-    ov.querySelector('.tf-take').click();
-    expect($('L').value).toBe('50');
-    expect($('a').value).toBe('10');
-    expect($('D').classList.contains('computed')).toBe(true);    // D se teď dopočítá
-    expect(ov.querySelector('.tf-take')).toBe(null);
+    // profil: oba konce, α a L klikací
+    expect(svg.querySelector('[data-edit="R:B"]')).not.toBe(null);
+    expect(svg.querySelector('[data-edit="R:A"]')).not.toBe(null);   // spodek bez R → „R ?"
+    expect(svg.querySelector('[data-edit="alpha"]').textContent).toContain('10');
+    expect(svg.querySelector('[data-edit="L"]').textContent).toContain('50');
     ov.remove();
   });
 
-  it('klikací detail: přepnutí hrany, směr čela, popisky bodů', () => {
-    const ov = document.body.lastElementChild;
-    const svg = ov.querySelector('.tf-svg');
-    const f = id => ov.querySelector('[data-tf="' + id + '"]');
-    const click = key => svg.querySelector('[data-edit="' + key + '"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(svg.textContent).toContain('R12');
-    expect(svg.textContent).toContain('průsečík');
-    const tab = s => ov.querySelector('.tf-tab[data-tfside="' + s + '"]');
-    tab('A').click();
-    expect(svg.textContent).toContain('R ?');            // spodek zatím bez R
-    expect(svg.textContent).toContain('Spodek');
-    expect(ov.querySelector('.tf-edge[data-side="A"]').hidden).toBe(false);
-    expect(ov.querySelector('.tf-edge[data-side="B"]').hidden).toBe(true);   // jen jedna sada polí
+  it('vrch i spodek naráz (Ø se zápichem s R), převzetí průsečíku ze začátku R', () => {
+    const { ov, $, f, c } = mount();
+    c('cbig').value = 'A'; c('cbig').dispatchEvent(new Event('change', { bubbles: true }));
+    type(c('cA'), '360'); type(c('cL'), '50'); type(c('ca'), '10');
+    f('faceB').value = 'in'; type(f('RB'), '12');
+    f('faceA').value = 'out'; type(f('angA'), '-15'); type(f('RA'), '5');
+    const res = ov.querySelector('.tf-res').textContent;
+    expect(res).toContain('Vrch R12');
+    expect(res).toContain('Spodek R5');
+    expect(res).toContain('pod -15°');
+    f('givenB').value = 'start'; f('givenB').dispatchEvent(new Event('change', { bubbles: true }));
+    expect(f('diaB').disabled).toBe(false);
+    type(f('diaB'), '300');
+    ov.querySelector('.tf-take').click();
+    expect($('L').value).toBe('50');
+    expect($('a').value).toBe('10');
+    expect(Number(c('cB').value)).toBeCloseTo(300 + 2 * 12 / Math.tan(50 * Math.PI / 180), 3);
+    ov.remove();
+  });
+
+  it('otočit R, záložky Kužel / Přechod R', () => {
+    const { ov, f, click } = mount();
+    const sec = ov.querySelector('#tbSection');
     const before = f('faceA').value;
-    click('face');                                       // ⇄ otočit R v detailu
+    click('face:A');
     expect(f('faceA').value).not.toBe(before);
-    ov.querySelector('.tf-flip[data-side="A"]').click(); // ⇄ Otočit R pod poli
+    ov.querySelector('.tf-flip[data-side="A"]').click();
     expect(f('faceA').value).toBe(before);
-    tab('B').click();
-    expect(svg.textContent).toContain('R12');
+    expect(ov.querySelector('#tfSection').classList.contains('tb-r-only')).toBe(true);
+    expect(ov.querySelector('.tb-svg').classList.contains('tb-cone-only')).toBe(true);
+    ov.querySelector('[data-tbmode="r"]').click();
+    expect(sec.classList.contains('tb-r')).toBe(true);
+    ov.querySelector('[data-tbmode="cone"]').click();
+    expect(sec.classList.contains('tb-r')).toBe(false);
+    ov.remove();
   });
 });

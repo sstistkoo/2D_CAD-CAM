@@ -285,12 +285,13 @@ export function initTaperBore(overlay) {
     }
 
     // Tvarový přechod R na hranách (taperFillet.js)
-    const stOfE = key => isEdited(key) && okNum(k[key]) ? 'val' : okNum(sol[key]) ? 'calc' : 'empty';
+    const stOfE = key => isEdited(key) && (key === 'C' || okNum(k[key])) ? 'val' : okNum(sol[key]) ? 'calc' : 'empty';
     const keyAt = side => side === bigSide ? 'D' : 'd';
     const fr = fil ? fil.update(done ? { D: sol.D, d: sol.d, L: sol.L, C: sol.C } : null, bigSide, {
       C: okNum(sol.C) ? sol.C : null,
       coneDia: { A: okNum(sol[keyAt('A')]) ? sol[keyAt('A')] : null, B: okNum(sol[keyAt('B')]) ? sol[keyAt('B')] : null },
       coneSt: { A: stOfE(keyAt('A')), B: stOfE(keyAt('B')) },
+      L: okNum(sol.L) ? sol.L : null, LSt: stOfE('L'), aSt: stOfE('C'),
     }) : null;
     // Záložka Přechod R kopíruje řádek kužele + body R
     filText = fr && fr.text.length ? (lastText ? lastText.split('\n')[0] + '\n' : '') + fr.text.join('\n') : '';
@@ -426,6 +427,7 @@ export function initTaperBore(overlay) {
   // Tvarový přechod R: Ø průsečíku ze začátku R → do pole D / d kužele
   fil = initTaperFillet(root, {
     onChange: () => update(),
+    coneField: key => $(key),
     // Ø hrany z přechodu R: má přednost před druhým průměrem (ne před nejstarším
     // zadáním) – délka a kuželovitost zůstanou, jak je uživatel zadal.
     setConeDia: (side, dia) => {
@@ -509,7 +511,6 @@ export function initTaperBore(overlay) {
     try { localStorage.setItem(MODE_KEY, mode); } catch { /* bez úložiště */ }
   }
   root.querySelectorAll('[data-tbmode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.tbmode)));
-  root.querySelector('.tf-cone-edit')?.addEventListener('click', () => setMode('cone'));
   setMode((() => { try { return localStorage.getItem(MODE_KEY) === 'r' ? 'r' : 'cone'; } catch { return 'cone'; } })());
   update();
 
