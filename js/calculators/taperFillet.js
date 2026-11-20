@@ -26,6 +26,7 @@ function edgeHTML(side) {
   return '<div class="tp-hint" style="margin:6px 0 2px"><strong>' + SIDE_NAME[side] + '</strong></div><div class="cnc-fields">' +
     fld('R' + side, 'R', 'mm', side === 'B' ? 'např. 12' : 'např. 5') +
     sel('face' + side, 'Čelo pokračuje', [['out', 'k většímu Ø'], ['in', 'k ose (menší Ø)']]) +
+    fld('ang' + side, 'Úhel čela', '° (0 = kolmo k ose, + k vrchu, − ke spodku)', '0, např. -15') +
     sel('given' + side, 'Zadávám', [['corner', 'průsečík = hrana kužele'], ['start', 'začátek R na čele']]) +
     fld('dia' + side, 'Ø začátku R', 'na čele, mm', 'např. 306') +
     '</div>';
@@ -55,7 +56,7 @@ export function initTaperFillet(root, cb) {
   const resEl = root.querySelector('.tf-res');
   const errEl = root.querySelector('.tf-err');
   const num = el => { const s = el.value.trim(); if (!s) return null; const v = safeEvalMath(s); return Number.isFinite(v) ? v : NaN; };
-  const IDS = ['RB', 'faceB', 'givenB', 'diaB', 'RA', 'faceA', 'givenA', 'diaA', 'zTop'];
+  const IDS = ['RB', 'faceB', 'angB', 'givenB', 'diaB', 'RA', 'faceA', 'angA', 'givenA', 'diaA', 'zTop'];
   let last = null;
 
   function syncVisibility() {
@@ -86,7 +87,7 @@ export function initTaperFillet(root, cb) {
     const e = {};
     SIDES.forEach(side => {
       const R = num($('R' + side));
-      e[side] = R > 0 ? { R, face: $('face' + side).value, given: $('given' + side).value, dia: num($('dia' + side)) } : null;
+      e[side] = R > 0 ? { R, face: $('face' + side).value, beta: num($('ang' + side)) || 0, given: $('given' + side).value, dia: num($('dia' + side)) } : null;
     });
     return e;
   }
@@ -102,11 +103,13 @@ export function initTaperFillet(root, cb) {
     const bad = [];
     SIDES.forEach(side => {
       ['R', 'dia'].forEach(k => { const el = $(k + side); if (el.value.trim() && !(num(el) >= 0)) bad.push(k === 'R' ? 'R ' + SIDE_NAME[side].toLowerCase() : 'Ø začátku R'); });
+      const a = $('ang' + side);
+      if (a.value.trim() && !(Math.abs(num(a)) < 90)) bad.push('úhel čela ' + SIDE_NAME[side].toLowerCase() + ' (−90 … 90°)');
     });
     const zTop = num($('zTop'));
     if ($('zTop').value.trim() && !Number.isFinite(zTop)) bad.push('Z čela vrchu');
     const sketch = {};
-    SIDES.forEach(side => { if (edges[side]) sketch[side] = { R: edges[side].R, face: edges[side].face }; });
+    SIDES.forEach(side => { if (edges[side]) sketch[side] = { R: edges[side].R, face: edges[side].face, beta: edges[side].beta }; });
     const out = { sketch, text: [], nc: [] };
     resEl.innerHTML = '';
     errEl.textContent = bad.length ? 'Neplatný zápis: ' + bad.join(', ') + '.' : '';
@@ -182,7 +185,7 @@ export function initTaperFillet(root, cb) {
   }
 
   function clear() {
-    SIDES.forEach(side => { $('R' + side).value = ''; $('dia' + side).value = ''; $('given' + side).value = 'corner'; });
+    SIDES.forEach(side => { $('R' + side).value = ''; $('dia' + side).value = ''; $('ang' + side).value = ''; $('given' + side).value = 'corner'; });
     $('zTop').value = '';
     syncVisibility(); save();
   }

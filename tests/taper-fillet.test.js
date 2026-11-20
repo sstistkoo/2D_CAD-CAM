@@ -43,6 +43,26 @@ describe('kužel – tvarový přechod R', () => {
     expect(e.maxDia.z).toBeCloseTo(e.center.z, 9);
   });
 
+  it('šikmé čelo: −15° (klesá ke spodku), střed R ve vzdálenosti R od obou ploch', () => {
+    const R = 5, b = -15 * DEG;
+    const r = taperFillets({ D: 200, d: 200 - 2 * 40 * Math.tan(10 * DEG), L: 40, C: C10, bigSide: 'A',
+      edges: { A: { R, face: 'out', beta: -15, given: 'corner' } } });
+    const e = r.edges.A;
+    const a = 10 * DEG;
+    // kužel jde od hrany nahoru k ose (100° od +r), čelo ven 15° dolů (−15°) → 115°
+    const t = R / Math.tan((115 * DEG) / 2);
+    expect(e.t).toBeCloseTo(t, 9);
+    expect(e.onFace.dia).toBeCloseTo(200 + 2 * t * Math.cos(b), 9);
+    expect(e.onFace.z).toBeCloseTo(t * Math.sin(b), 9);
+    // vzdálenost středu od přímky čela a od površky kužele = R
+    const c = { r: e.center.dia / 2, z: e.center.z };
+    const distLine = (p, u) => Math.abs((c.r - p.r) * u.z - (c.z - p.z) * u.r);
+    expect(distLine({ r: 100, z: 0 }, { r: Math.cos(b), z: Math.sin(b) })).toBeCloseTo(R, 9);
+    expect(distLine({ r: 100, z: 0 }, { r: -Math.sin(a), z: Math.cos(a) })).toBeCloseTo(R, 9);
+    // zpětně ze začátku R na šikmém čele
+    expect(cornerFromStart(e.onFace.dia, R, 'A', C10, 'A', 'out', -15)).toBeCloseTo(200, 9);
+  });
+
   it('rádiusy delší než kužel → chyba', () => {
     const r = taperFillets({ D: 102, d: 100, L: 5, C: 0.4, bigSide: 'A',
       edges: { B: { R: 20, face: 'out', given: 'corner' }, A: { R: 20, face: 'in', given: 'corner' } } });

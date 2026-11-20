@@ -6,7 +6,7 @@
 // Neznámé hodnoty se kreslí jako „?" – i prázdný náčrt jde vyplnit klikáním.
 
 import { f3 } from './taperBoreMath.js';
-import { filletAt } from './taperFilletMath.js';
+import { filletAt, faceDir } from './taperFilletMath.js';
 
 const TOP = 84, BOT = 322, CX = 170, OUTER = 126, BASE = 58;
 
@@ -46,7 +46,7 @@ const CLS = { val: 'sk-val', calc: 'sk-calc', empty: 'sk-empty' };
 /**
  * Tvarový přechod R na hranách (schematicky – stálý poloměr v px, kuželovitost
  * je v náčrtu zveličená). Vpravo i zrcadlově vlevo, popisek R je klikací.
- * @param {Record<string, {R:number, face:'in'|'out'}>} fil
+ * @param {Record<string, {R:number, face:'in'|'out', beta?:number}>} fil
  */
 function drawFillets(fil, L, y, hw) {
   let s = '';
@@ -57,7 +57,8 @@ function drawFillets(fil, L, y, hw) {
     const P = { r: CX + hw(z), z: y(z) }, Q = { r: CX + hw(zo), z: y(zo) };
     const ql = Math.hypot(Q.r - P.r, Q.z - P.z);
     const u1 = { r: (Q.r - P.r) / ql, z: (Q.z - P.z) / ql };
-    const u2 = { r: e.face === 'in' ? -1 : 1, z: 0 };
+    const fd = faceDir(e.face, e.beta);
+    const u2 = { r: fd.r, z: -fd.z };                   // v náčrtu jde y dolů
     const f = filletAt(P, u1, u2, 16);
     if (!f) continue;
     const cross = (f.onFace.r - f.center.r) * (f.onCone.z - f.center.z) - (f.onFace.z - f.center.z) * (f.onCone.r - f.center.r);
@@ -65,8 +66,7 @@ function drawFillets(fil, L, y, hw) {
     for (const mir of [false, true]) {
       const X = x => mir ? 2 * CX - x : x;
       const sw = mir ? 1 - sweep : sweep;
-      const faceEnd = P.r + u2.r * 44;
-      s += ln(X(P.r), P.z, X(faceEnd), P.z, 'tb-fil-face');
+      s += ln(X(P.r), P.z, X(P.r + u2.r * 44), P.z + u2.z * 44, 'tb-fil-face');
       s += '<path class="tb-fil" d="M' + X(f.onFace.r).toFixed(1) + ' ' + f.onFace.z.toFixed(1) + ' A16 16 0 0 ' + sw + ' ' +
         X(f.onCone.r).toFixed(1) + ' ' + f.onCone.z.toFixed(1) + '"/>';
       s += '<circle class="tb-fil-pt" cx="' + X(f.onFace.r).toFixed(1) + '" cy="' + f.onFace.z.toFixed(1) + '" r="2.5"/>';

@@ -2498,7 +2498,8 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     do NC programu. Pole pod výsledky: Kužel, Ø z výkresu v hloubce,
     Tolerance, Tvarový přechod R, Měřicí místa.
     **Tvarový přechod R** (nepovinné): na vrchu i na spodku rádius tečně
-    napojený na čelo. Zadáš R, kam čelo pokračuje (k většímu Ø / k ose) a buď
+    napojený na čelo. Zadáš R, kam čelo pokračuje (k většímu Ø / k ose), úhel
+    čela (0 = kolmo k ose, + stoupá k vrchu, − klesá ke spodku, např. −15) a buď
     *průsečík* (ostrá hrana = Ø kužele na hraně), nebo *začátek R na čele*
     (Ø, kde rádius z čela odbočí – průsečík se dopočítá a tlačítkem ↦ se převezme
     do kužele). Tabulka ukáže shora dolů průsečík, začátek a konec R (na čele / na

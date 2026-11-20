@@ -2,8 +2,9 @@
 // ║  SKICA – Kužel: tvarový přechod (rádius kužel ↔ čelo)          ║
 // ╚══════════════════════════════════════════════════════════════╝
 // Čistá matematika bez DOM. Polořez: r = poloměr od osy, z = poloha podél osy
-// od spodní hrany kužele (0 … L). Čelo je kolmé k ose (z = konst.) a od hrany
-// kužele pokračuje buď k většímu Ø ('out'), nebo k ose ('in').
+// od spodní hrany kužele (0 … L). Čelo od hrany kužele pokračuje buď k většímu
+// Ø ('out'), nebo k ose ('in'); úhel čela β = sklon od roviny kolmé k ose
+// (0 = kolmé čelo, + stoupá směrem k vrchu, − klesá ke spodku).
 //
 // Rádius R je tečný k povrchu kužele i k čelu. Zadat jde buď průsečík (ostrá
 // hrana kužele s čelem = Ø kužele na hraně), nebo začátek rádiusu na čele
@@ -69,11 +70,21 @@ export function coneDir(side, C, bigSide) {
 }
 
 /**
+ * Směr po čele od hrany (jednotkový).
+ * @param {'in'|'out'} face
+ * @param {number} beta  úhel čela ° od roviny kolmé k ose (+ k vrchu)
+ */
+export function faceDir(face, beta = 0) {
+  const b = (beta || 0) * Math.PI / 180;
+  return { r: (face === 'in' ? -1 : 1) * Math.cos(b), z: Math.sin(b) };
+}
+
+/**
  * Ø průsečíku z Ø začátku rádiusu na čele.
  * @returns {number} Ø průsečíku (NaN když nejde)
  */
-export function cornerFromStart(startDia, R, side, C, bigSide, face) {
-  const u1 = coneDir(side, C, bigSide), u2 = { r: face === 'in' ? -1 : 1, z: 0 };
+export function cornerFromStart(startDia, R, side, C, bigSide, face, beta = 0) {
+  const u1 = coneDir(side, C, bigSide), u2 = faceDir(face, beta);
   const f = filletAt({ r: 0, z: 0 }, u1, u2, R);
   if (!f) return NaN;
   return startDia - 2 * f.t * u2.r;
@@ -84,7 +95,7 @@ export function cornerFromStart(startDia, R, side, C, bigSide, face) {
  * @param {object} p
  * @param {number} p.D @param {number} p.d @param {number} p.L @param {number} p.C
  * @param {'A'|'B'} p.bigSide
- * @param {Record<'A'|'B', null | {R:number, face:'in'|'out', given:'corner'|'start', dia?:number}>} p.edges
+ * @param {Record<'A'|'B', null | {R:number, face:'in'|'out', beta?:number, given:'corner'|'start', dia?:number}>} p.edges
  * @returns {{ edges: Record<string, any>, error: string }}
  */
 export function taperFillets(p) {
@@ -100,9 +111,10 @@ export function taperFillets(p) {
     let cornerDia = coneDia[side];
     if (e.given === 'start') {
       if (!(e.dia > 0)) { out.edges[side] = { error: 'Zadej Ø začátku rádiusu na čele' }; continue; }
-      cornerDia = cornerFromStart(e.dia, e.R, side, C, bigSide, e.face);
+      cornerDia = cornerFromStart(e.dia, e.R, side, C, bigSide, e.face, e.beta);
     }
-    const u1 = coneDir(side, C, bigSide), u2 = { r: e.face === 'in' ? -1 : 1, z: 0 };
+    if (Math.abs(e.beta || 0) >= 90) { out.edges[side] = { error: 'Úhel čela musí být mezi −90° a 90°' }; continue; }
+    const u1 = coneDir(side, C, bigSide), u2 = faceDir(e.face, e.beta);
     const f = filletAt({ r: cornerDia / 2, z }, u1, u2, e.R);
     if (!f || !Number.isFinite(cornerDia)) { out.edges[side] = { error: 'Rádius nejde spočítat' }; continue; }
     tSum += f.t;
@@ -110,7 +122,7 @@ export function taperFillets(p) {
     // místo, kde jde Ø změřit posuvkou (bez dopočítávání od středu R).
     const ext = arcExtremes(f.center, e.R, f.onFace, f.onCone);
     const res = {
-      side, R: e.R, face: e.face, given: e.given, t: f.t,
+      side, R: e.R, face: e.face, beta: e.beta || 0, given: e.given, t: f.t,
       corner: { dia: cornerDia, z },
       onFace: { dia: 2 * f.onFace.r, z: f.onFace.z },
       onCone: { dia: 2 * f.onCone.r, z: f.onCone.z },
