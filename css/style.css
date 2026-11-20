@@ -8477,3 +8477,13 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 .tf-grid input:disabled { opacity: .45; }
 .tf-grid .tf-flip { width: 100%; }
 .tf-conef input.computed { color: var(--ctp-yellow); }
+
+/* Hlavní obrazovka: dvěma prsty se zvětšuje JEN výkres (canvas má vlastní
+   zoom, touch-action: none). Gesto začaté na tlačítkách a lištách nesmí
+   přiblížit celou stránku – tlačítka by se zvětšila a přetékala (20. 11. 2026).
+   Okna a kalkulačky (overlay v <body>) přiblížit jdou dál. */
+#mobileBottomBar, #mobileBottomBar *, body > button, body > button *,
+#traceButtonBar, #traceButtonBar *, #mobileCoordBar, #mobileCoordBar *,
+#mobileCanvasCoords, #topbar, #topbar *, #canvasWrap, #canvasWrap > :not(canvas) {
+  touch-action: pan-x pan-y;
+}

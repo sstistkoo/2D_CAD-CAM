@@ -133,7 +133,7 @@
   min-height: 38px; border-radius: 7px;
   background: var(--ctp-surface0); border: 1px solid var(--ctp-surface1);
   color: var(--ctp-text); font: 700 18px/1 "Consolas","Courier New",monospace;
-  touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  touch-action: pan-x pan-y; -webkit-user-select: none; user-select: none;
 }
 .num-pad-key:active { background: var(--ctp-surface1); transform: translateY(1px); }
 .num-pad-next { font: 700 14px/1 system-ui, sans-serif; color: var(--ctp-blue); }
@@ -229,7 +229,7 @@
   min-height: 40px; border-radius: 7px;
   background: var(--ctp-surface0); border: 1px solid var(--ctp-surface1);
   color: var(--ctp-text); font: 700 20px/1 "Consolas","Courier New",monospace;
-  touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  touch-action: pan-x pan-y; -webkit-user-select: none; user-select: none;
 }
 .math-key:active { background: var(--ctp-surface1); transform: translateY(1px); }
 .math-key-eq { color: var(--ctp-base); background: var(--ctp-blue); border-color: var(--ctp-blue); }

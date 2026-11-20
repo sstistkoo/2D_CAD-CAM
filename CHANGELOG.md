@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hlavní obrazovka: dvěma prsty se zvětšuje jen výkres** (uživatel 20. 11. 2026). Gesto začaté na spodních tlačítkách (VK, tužka, pravítko…), horní liště nebo souřadnicové liště přiblížilo celou stránku – tlačítka se zvětšila a přetékala. Lišty a tlačítka hlavní obrazovky teď mají `touch-action: pan-x pan-y` (posun ano, zvětšení stránky ne); výkres si zoom řeší sám, okna a kalkulačky jdou přiblížit dál. Totéž pro klávesy lišty + − × ÷ a číselníku.
+
 - **Přiblížení prsty: lišta + − × ÷ a okénko zadávání nepřetékají, zadávání se nezavírá** (uživatel 20. 11. 2026). Při přiblíženém náčrtu (pinch zoom) se lišta nad klávesnicí i okénko zadání hodnoty v náčrtu zvětšily s ním a přetekly přes okraj. Teď se zmenší zpět na běžnou velikost a drží se viditelné plochy. Okénko se už nezavře klepnutím na lištu + − × ÷ ani posunem / přiblížením prsty – jen klepnutím mimo něj.
 
 - **Kužel – Přechod R: vrch i spodek naráz, kužel přímo v záložce** (uživatel 20. 11. 2026). Klikací náčrt ukazuje celý profil (čelo → R → kužel → R → čelo) ve skutečných úhlech, dlouhý kužel se zkrátí (≈); klikací jsou R, průsečík, začátek R, otočení a úhel čela u obou hran, **α a L kužele** i Z vrchu. Pod náčrtem pole kužele (Ø nahoře, Ø dole, L, α, větší Ø – zrcadlo záložky Kužel) a tabulka ▲ Vrch / ▼ Spodek vedle sebe (každý údaj jednou, dva sloupce). Popisky v náčrtu se nepřekrývají s R.
