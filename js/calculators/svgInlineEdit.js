@@ -14,6 +14,27 @@ export function closeInlineEdit() {
 }
 
 /**
+ * Umístí okénko u bodu kliknutí do viditelné plochy; při přiblížení prsty
+ * (visualViewport.scale > 1) ho zmenší zpět na běžnou velikost.
+ * @param {HTMLElement} pop
+ * @param {{clientX:number, clientY:number}} at
+ */
+function placePop(pop, at) {
+  const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+  const sc = vv && vv.scale > 1.01 ? vv.scale : 1;
+  const vx = vv ? vv.offsetLeft : 0, vy = vv ? vv.offsetTop : 0;
+  const vw = vv ? vv.width : window.innerWidth, vh = vv ? vv.height : window.innerHeight;
+  pop.style.transformOrigin = '0 0';
+  pop.style.transform = sc > 1 ? 'scale(' + (1 / sc) + ')' : '';
+  const r = pop.getBoundingClientRect();             // už se zmenšením
+  const m = 8 / sc;
+  let x = at.clientX - r.width / 2, y = at.clientY + 14 / sc;
+  if (y + r.height > vy + vh - m) y = at.clientY - r.height - 14 / sc;
+  pop.style.left = Math.max(vx + m, Math.min(x, vx + vw - r.width - m)) + 'px';
+  pop.style.top = Math.max(vy + m, Math.min(y, vy + vh - r.height - m)) + 'px';
+}
+
+/**
  * @param {{clientX:number, clientY:number}} at  kde se okénko otevře
  * @param {object} o
  * @param {string} o.label
@@ -51,13 +72,9 @@ export function openInlineEdit(at, o) {
     inp.focus();
   }));
 
-  // Umístit u kliknutí, ale celé na obrazovce
-  const r = pop.getBoundingClientRect();
-  const vw = window.innerWidth, vh = window.innerHeight;
-  let x = at.clientX - r.width / 2, y = at.clientY + 14;
-  if (y + r.height > vh - 8) y = at.clientY - r.height - 14;
-  pop.style.left = Math.max(8, Math.min(x, vw - r.width - 8)) + 'px';
-  pop.style.top = Math.max(8, y) + 'px';
+  // Umístit u kliknutí, ale celé ve VIDITELNÉ ploše. Při přiblížení prsty
+  // (pinch zoom) se okénko zmenší zpět na běžnou velikost, jinak přeteče.
+  placePop(pop, at);
 
   const commit = () => {
     const raw = inp.value.trim();
@@ -83,12 +100,14 @@ export function openInlineEdit(at, o) {
   // Klik mimo okénko ho zavře (až po aktuálním kliku)
   setTimeout(() => {
     const away = e => {
-      if (!current || current !== pop) { document.removeEventListener('pointerdown', away, true); return; }
-      if (!pop.contains(e.target) && !e.target.closest?.('[data-edit]')) {
-        closeInlineEdit(); document.removeEventListener('pointerdown', away, true);
+      if (!current || current !== pop) { document.removeEventListener('click', away, true); return; }
+      if (!pop.contains(e.target) && !e.target.closest?.('[data-edit], .math-key-bar')) {
+        closeInlineEdit(); document.removeEventListener('click', away, true);
       }
     };
-    document.addEventListener('pointerdown', away, true);
+    // „click", ne pointerdown: posun / přiblížení prsty okénko nezavře, a klávesy
+    // lišty + − × ÷ (mathKeyBar) patří k zadávání
+    document.addEventListener('click', away, true);
   }, 0);
   inp.focus();
   inp.select();

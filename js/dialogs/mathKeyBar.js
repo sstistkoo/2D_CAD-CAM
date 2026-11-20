@@ -79,6 +79,7 @@ const KEYS = [
   { k: '(', t: 'Závorka' }, { k: ')', t: 'Závorka' }, { k: '=', t: 'Spočítat výraz' },
 ];
 let bar = null, target = null;
+let reserved = 0;                                      // výška lišty na obrazovce (CSS px)
 
 function ensureBar() {
   if (bar) { if (!bar.isConnected) document.body.appendChild(bar); return bar; }
@@ -112,15 +113,26 @@ function ensureBar() {
 function place() {
   if (!bar || bar.hidden) return;
   const vv = window.visualViewport;
-  const top = vv ? vv.offsetTop + vv.height - bar.offsetHeight : window.innerHeight - bar.offsetHeight;
+  // Přiblížení prsty (pinch zoom): lištu zmenšit zpět na běžnou velikost a
+  // roztáhnout přes viditelnou šířku – jinak klávesy přetečou přes okraj.
+  const sc = vv && vv.scale > 1.01 ? vv.scale : 1;
+  const w = vv ? vv.width : window.innerWidth;
+  bar.style.transformOrigin = '0 0';
+  bar.style.transform = sc > 1 ? 'scale(' + (1 / sc) + ')' : '';
+  bar.style.width = (w * sc) + 'px';
+  bar.style.right = 'auto';
+  bar.style.left = (vv ? vv.offsetLeft : 0) + 'px';
+  const h = bar.offsetHeight / sc;                       // výška na obrazovce v CSS px
+  const top = vv ? vv.offsetTop + vv.height - h : window.innerHeight - h;
   bar.style.top = `${Math.max(0, top)}px`;
+  reserved = h;
 }
 
 function show(el) {
   target = el;
   ensureBar().hidden = false;
   place();
-  setViewportBottomReserve(bar.offsetHeight);
+  setViewportBottomReserve(reserved);
 }
 
 function hide() {
@@ -170,5 +182,6 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   }, true);
 
   const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-  if (vv) { vv.addEventListener('resize', place); vv.addEventListener('scroll', place); }
+  const replace = () => { place(); if (bar && !bar.hidden) setViewportBottomReserve(reserved); };
+  if (vv) { vv.addEventListener('resize', replace); vv.addEventListener('scroll', place); }
 }

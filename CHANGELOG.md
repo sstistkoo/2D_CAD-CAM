@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Přiblížení prsty: lišta + − × ÷ a okénko zadávání nepřetékají, zadávání se nezavírá** (uživatel 20. 11. 2026). Při přiblíženém náčrtu (pinch zoom) se lišta nad klávesnicí i okénko zadání hodnoty v náčrtu zvětšily s ním a přetekly přes okraj. Teď se zmenší zpět na běžnou velikost a drží se viditelné plochy. Okénko se už nezavře klepnutím na lištu + − × ÷ ani posunem / přiblížením prsty – jen klepnutím mimo něj.
+
 - **Kužel – Přechod R: vrch i spodek naráz, kužel přímo v záložce** (uživatel 20. 11. 2026). Klikací náčrt ukazuje celý profil (čelo → R → kužel → R → čelo) ve skutečných úhlech, dlouhý kužel se zkrátí (≈); klikací jsou R, průsečík, začátek R, otočení a úhel čela u obou hran, **α a L kužele** i Z vrchu. Pod náčrtem pole kužele (Ø nahoře, Ø dole, L, α, větší Ø – zrcadlo záložky Kužel) a tabulka ▲ Vrch / ▼ Spodek vedle sebe (každý údaj jednou, dva sloupce). Popisky v náčrtu se nepřekrývají s R.
 
 - **Kužel: dvě záložky △ Kužel / ◜ Přechod R** (uživatel 20. 11. 2026). Rádiusy se už nemíchají s kuželem: záložka Kužel je jako dřív (náčrt kužele bez rádiusů, měřicí místa, tolerance), záložka Přechod R má nahoře shrnutí kužele (D, d, L, α – „△ upravit kužel" přepne zpět), detail s rádiusy, pole a tabulku bodů R. Kopírovat / Do programu kopíruje obsah otevřené záložky. Záložka se pamatuje.
