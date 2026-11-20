@@ -86,4 +86,7 @@ export const bridge = {
   showFileDialog: null,
   showLibraryDialog: null,
   showProjectsDialog: null,
+  // Nastavení → 💾 Uložit / 📄 Nový výkres (storage/projectManager.js)
+  saveNamed: null,
+  newDrawing: null,
 };

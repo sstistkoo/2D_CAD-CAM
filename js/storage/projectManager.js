@@ -11,7 +11,8 @@ import { saveProjectToDB, loadProjectFromDB, deleteProjectFromDB, getAllProjects
 import { deepClone, expandPolylineObjects } from '../utils.js';
 import { saveSettings } from './settingsStore.js';
 import { escapeHtml as _esc } from '../htmlEscape.js';
-import { showConfirmDialog } from '../dialogFactory.js';
+import { showConfirmDialog, makeInputOverlay } from '../dialogFactory.js';
+import { thumbSVG } from './projectThumb.js';
 
 // ── Pomocné funkce ──
 
@@ -262,8 +263,51 @@ export function newProject() {
   showToast('Nový projekt');
 }
 
-/** Otevře dialog pro uložení projektu pod novým názvem. */
-export function showSaveAsDialog() {
+const UNNAMED = 'Bez názvu';
+
+/**
+ * 💾 Uložit z Nastavení: výkres bez názvu se zeptá na název (jinak by ho
+ * přepsal další nový výkres – autosave zapisuje pod aktuální název).
+ */
+export function saveNamed() {
+  if (!state.projectName || state.projectName === UNNAMED) { showSaveAsDialog(); return; }
+  saveProject();
+}
+
+/**
+ * 📄 Nový výkres: pojmenovaný výkres se uloží a otevře se prázdný; výkres bez
+ * názvu (a s obsahem) nabídne uložení pod názvem, nebo zahození.
+ */
+export function newDrawing() {
+  const named = state.projectName && state.projectName !== UNNAMED;
+  if (!state.objects.length) { newProject(); return; }
+  if (named) {
+    saveProject({ quiet: true }).catch(() => {}).finally(() => {
+      const was = state.projectName;
+      newProject();
+      showToast(`„${was}" uložen · nový výkres`);
+    });
+    return;
+  }
+  // Tři volby – zavření okna (pozadí, Esc) nesmí výkres zahodit
+  const ov = makeInputOverlay(`
+    <div class="input-dialog confirm-dialog">
+      <p class="confirm-dialog-message">Výkres nemá název – uložit ho, než otevřeš nový? Jinak ho nový výkres přepíše (vrátit jde jen přes Zpět).</p>
+      <div class="btn-row" style="flex-wrap:wrap">
+        <button type="button" class="btn-cancel btn-cancel-overlay">Zrušit</button>
+        <button type="button" class="btn-cancel" id="ndDiscard">Zahodit a nový</button>
+        <button type="button" class="btn-ok" id="ndSave">💾 Uložit pod názvem</button>
+      </div>
+    </div>`);
+  ov.querySelector('#ndDiscard').addEventListener('click', () => { ov.remove(); newProject(); });
+  ov.querySelector('#ndSave').addEventListener('click', () => { ov.remove(); showSaveAsDialog(() => newProject()); });
+}
+
+/**
+ * Otevře dialog pro uložení projektu pod novým názvem.
+ * @param {(name: string) => void} [onSaved]  po uložení (např. „Nový výkres")
+ */
+export function showSaveAsDialog(onSaved) {
   const overlay = document.createElement('div');
   overlay.className = 'input-overlay';
   overlay.innerHTML = `
@@ -310,6 +354,7 @@ export function showSaveAsDialog() {
     updateStatusProject();
     overlay.remove();
     showToast(`Uloženo jako "${name}"`);
+    if (typeof onSaved === 'function') onSaved(name);
   }
 
   overlay.querySelector('#saveAsOk').addEventListener('click', doSave);
@@ -329,7 +374,7 @@ export async function showProjectsDialog() {
       return (projs[b].savedAt || '').localeCompare(projs[a].savedAt || '');
     });
     if (sortedNames.length === 0) {
-      html = '<li style="color:' + COLORS.textMuted + ';padding:12px;text-align:center">Žádné uložené projekty</li>';
+      html = '<li style="color:' + COLORS.textMuted + ';padding:12px;text-align:center;grid-column:1/-1">Žádné uložené výkresy</li>';
     } else {
       for (const name of sortedNames) {
         const p = projs[name];
@@ -337,9 +382,10 @@ export async function showProjectsDialog() {
         const count = p.objectCount || (p.objects || []).length;
         const isActive = name === state.projectName;
         html += `
-          <li class="project-item${isActive ? ' active' : ''}" data-name="${_esc(name)}">
+          <li class="project-item proj-card${isActive ? ' active' : ''}" data-name="${_esc(name)}">
+            <button type="button" class="proj-thumb-btn" data-act="open" title="Otevřít">${thumbSVG(p)}</button>
             <div class="project-info">
-              <div class="project-name">${_esc(name)}</div>
+              <div class="project-name">${_esc(name)}${isActive ? ' <small>(otevřený)</small>' : ''}</div>
               <div class="project-meta">${date} · ${count} objektů</div>
             </div>
             <div class="project-actions">
@@ -355,11 +401,14 @@ export async function showProjectsDialog() {
   }
 
   overlay.innerHTML = `
-    <div class="input-dialog" style="min-width:400px;max-width:520px">
-      <h3>📁 Správa projektů</h3>
-      <ul class="project-list">${buildList(projects)}</ul>
+    <div class="input-dialog proj-dialog">
+      <h3>📁 Uložené výkresy</h3>
+      <ul class="project-list proj-gallery">${buildList(projects)}</ul>
       <div class="btn-row" style="flex-direction:column;gap:8px;align-items:stretch">
-        <button class="btn-ok" id="projNew" style="width:100%">➕ Nový projekt</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn-ok" id="projSaveAs" style="flex:1">💾 Uložit aktuální jako…</button>
+          <button class="btn-ok" id="projNew" style="flex:1">📄 Nový výkres</button>
+        </div>
         <button class="btn-cancel" id="projClose" style="width:100%">Zavřít</button>
       </div>
     </div>`;
@@ -408,8 +457,12 @@ export async function showProjectsDialog() {
 
   attachListeners();
   overlay.querySelector('#projNew').addEventListener('click', () => {
-    newProject();
     overlay.remove();
+    newDrawing();
+  });
+  overlay.querySelector('#projSaveAs').addEventListener('click', () => {
+    overlay.remove();
+    showSaveAsDialog(() => showProjectsDialog());
   });
   overlay.querySelector('#projClose').addEventListener('click', () => overlay.remove());
 }
@@ -424,12 +477,13 @@ export async function showLibraryDialog() {
 
   function buildList(lib) {
     if (lib.length === 0) {
-      return `<li style="color:var(--ctp-overlay0);padding:20px;text-align:center">
+      return `<li style="color:var(--ctp-overlay0);padding:20px;text-align:center;grid-column:1/-1">
         Knihovna je prázdná.<br><span style="font-size:12px">Uložte výkres tlačítkem ➕ níže.</span>
       </li>`;
     }
     return lib.map((item, i) => `
-      <li class="project-item" data-lidx="${i}">
+      <li class="project-item proj-card" data-lidx="${i}">
+        <button type="button" class="proj-thumb-btn" data-act="open" title="Načíst do výkresu">${thumbSVG(item.data)}</button>
         <div class="project-info">
           <div class="project-name">${_esc(item.name)}</div>
           <div class="project-meta">${_esc(item.date)} · ${item.objectCount || (item.data?.objects || []).length} objektů</div>
@@ -447,9 +501,9 @@ export async function showLibraryDialog() {
   const overlay = document.createElement('div');
   overlay.className = 'input-overlay';
   overlay.innerHTML = `
-    <div class="input-dialog" style="min-width:400px;max-width:520px">
+    <div class="input-dialog proj-dialog">
       <h3>📚 Knihovna výkresů</h3>
-      <ul class="project-list" id="libraryList">${buildList(library)}</ul>
+      <ul class="project-list proj-gallery" id="libraryList">${buildList(library)}</ul>
       <div class="btn-row" style="flex-direction:column;gap:8px;align-items:stretch">
         <button class="btn-ok" id="libSaveCurrent" style="width:100%">➕ Uložit aktuální výkres do knihovny</button>
         <button class="btn-cancel" id="libClose" style="width:100%">Zavřít</button>
@@ -555,3 +609,5 @@ import { bridge } from '../bridge.js';
 bridge.showProjectsDialog = showProjectsDialog;
 bridge.saveProject = saveProject;
 bridge.showLibraryDialog = showLibraryDialog;
+bridge.saveNamed = saveNamed;
+bridge.newDrawing = newDrawing;

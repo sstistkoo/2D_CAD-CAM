@@ -8487,3 +8487,17 @@ select.cne-hdr-inp { padding: 3px 4px; text-align: left; }
 #mobileCanvasCoords, #topbar, #topbar *, #canvasWrap, #canvasWrap > :not(canvas) {
   touch-action: pan-x pan-y;
 }
+
+/* 📁 Uložené výkresy / 📚 Knihovna: karty s náhledem (jako ve Fusion 360) */
+.proj-dialog { width: min(640px, calc(100vw - 16px)); max-width: 640px; box-sizing: border-box; }
+.project-list.proj-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: min(60vh, 520px); }
+.project-item.proj-card { flex-direction: column; align-items: stretch; gap: 4px; padding: 6px; border: 1px solid var(--ctp-surface1); border-radius: 8px; }
+.proj-card .project-actions { justify-content: space-between; }
+.proj-card .project-action-btn { flex: 1; padding: 5px 0; }
+.proj-card .project-name small { font-weight: 400; color: var(--ctp-blue); }
+.proj-thumb-btn { all: unset; cursor: pointer; display: block; border-radius: 6px; background: var(--ctp-mantle); border: 1px solid var(--ctp-surface0); }
+.proj-thumb-btn:hover, .proj-thumb-btn:focus-visible { border-color: var(--ctp-blue); }
+.proj-thumb { display: block; width: 100%; height: auto; aspect-ratio: 120 / 84; }
+.proj-thumb .pt-line { fill: none; stroke: var(--ctp-blue); stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.proj-thumb .pt-stock { fill: none; stroke: var(--ctp-overlay1); stroke-width: 1; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
+.proj-thumb-empty { fill: var(--ctp-overlay0); font-size: 11px; }

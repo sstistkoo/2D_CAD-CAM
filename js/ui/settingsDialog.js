@@ -38,10 +38,14 @@ export function showSettingsDialog() {
             <button class="calc-btn" id="settLibrary" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)" title="Knihovna výkresů">📚 Knihovna</button>
           </div>
           <div style="display:flex;gap:6px">
-            <button class="calc-btn" id="settProjects" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)">📁 Projekty</button>
+            <button class="calc-btn" id="settProjects" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)" title="Uložené výkresy s náhledy – otevřít, přejmenovat, duplikovat, smazat">📁 Výkresy</button>
             <button class="calc-btn" id="settCNC" style="${btnS}background:var(--ctp-surface0);color:var(--ctp-text);border-color:var(--ctp-surface1)">📋 CNC Export</button>
           </div>
           <button class="calc-btn" id="settClearDrawing" style="width:100%;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;background:var(--ctp-red);color:var(--ctp-base);border:1px solid var(--ctp-red)" title="Smaže všechny objekty aktuálního výkresu (zeptá se; jde vrátit přes Zpět nebo 🕓 Historie)">🗑️ Smazat aktuální výkres</button>
+          <div style="display:flex;gap:6px">
+            <button class="calc-btn" id="settSaveNamed" style="${btnS}background:var(--ctp-blue);color:var(--ctp-base);border-color:var(--ctp-blue)" title="Uloží výkres do 📁 Uložených výkresů (bez názvu se zeptá na název)">💾 Uložit výkres</button>
+            <button class="calc-btn" id="settNewDrawing" style="${btnS}background:var(--ctp-teal);color:var(--ctp-base);border-color:var(--ctp-teal)" title="Uloží rozkreslený výkres a otevře prázdný">📄 Nový výkres</button>
+          </div>
           ${fullscreenButtonHTML('width:100%;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;background:var(--ctp-surface0);color:var(--ctp-text);border:1px solid var(--ctp-surface1)')}
           <button class="calc-btn" id="settDxfJson" style="width:100%;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;background:#a6e3a1;color:#1e1e2e;border:1px solid #a6e3a1">🔄 DXF - JSON konvertor</button>
         </div>
@@ -450,6 +454,14 @@ export function showSettingsDialog() {
   overlay.querySelector('#settClearDrawing').addEventListener('click', () => {
     overlay.remove();
     document.getElementById('btnClearAll').click();
+  });
+  overlay.querySelector('#settSaveNamed').addEventListener('click', () => {
+    overlay.remove();
+    if (bridge.saveNamed) bridge.saveNamed();
+  });
+  overlay.querySelector('#settNewDrawing').addEventListener('click', () => {
+    overlay.remove();
+    if (bridge.newDrawing) bridge.newDrawing();
   });
   overlay.querySelector('#settHistory').addEventListener('click', () => {
     overlay.remove();

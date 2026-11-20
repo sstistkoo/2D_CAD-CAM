@@ -41,6 +41,12 @@ Aplikace běží offline jako PWA – žádný server, žádná instalace. Stač
 
 ---
 
+## Ukládání výkresů
+
+- **Nastavení → 💾 Uložit výkres**: uloží výkres do 📁 Výkresů (bez názvu se zeptá na název). Rozkreslený výkres se navíc průběžně ukládá sám pod svým názvem.
+- **📄 Nový výkres**: pojmenovaný výkres uloží a otevře prázdný; výkres bez názvu nabídne uložení pod názvem nebo zahození.
+- **📁 Výkresy**: uložené výkresy jako karty s náhledem – klepnutím na obrázek otevřeš, ✏️ přejmenuješ, 📋 zduplikuješ, 🗑 smažeš (smazané jsou v 🕓 Historii). **📚 Knihovna** je zvlášť (šablony, náhledy taky).
+
 ## Orientace v UI
 
 > **Výrazy v číselných polích (mobil):** nad číselnou klávesnicí je lišta **+ − × ÷ ( ) =** – do každého číselného pole jde napsat třeba `50/2` nebo `120-2*3`; po potvrzení (nebo **=**) se spočítá.
