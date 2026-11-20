@@ -9,7 +9,7 @@
 // jen z js/ui.js (openCalculator, get/setCalcClipboardValue), nikdy odsud.
 
 import { showToast } from '../state.js';
-import { _parseMathExpr } from '../utils.js';
+import { evalCalcExpr } from '../calcPrep.js';
 import { makeOverlay } from '../dialogFactory.js';
 import { getMeta, setMeta } from '../idb.js';
 import { writeClipboard } from '../clipboard.js';
@@ -49,7 +49,7 @@ export function openCalculator() {
           <div class="calc-fn-row">
             <button class="calc-btn calc-fn" data-val="sqrt">√</button>
             <button class="calc-btn calc-fn" data-val="pi">π</button>
-            <button class="calc-btn calc-fn" data-val="pow">x²</button>
+            <button class="calc-btn calc-fn" data-val="^" title="Mocnina, např. 2^10">xʸ</button>
             <button class="calc-btn calc-fn" data-val="%">%</button>
           </div>
           <div class="calc-fn-row">
@@ -65,6 +65,7 @@ export function openCalculator() {
                 <button class="calc-btn calc-fn" data-val="asin">asin</button>
                 <button class="calc-btn calc-fn" data-val="acos">acos</button>
                 <button class="calc-btn calc-fn" data-val="atan">atan</button>
+                <button class="calc-btn calc-fn" data-val="pow">x²</button>
               </div>
             </div>
           </div>
@@ -204,6 +205,7 @@ export function openCalculator() {
     fitDisplayFont();
     // Kurzor/pohled na konec – u dlouhých výrazů je vidět to, co se právě píše
     display.scrollLeft = display.scrollWidth;
+    livePreview();
   }
   function updateExprDisplay(text) { exprDisplay.textContent = text || "\u00a0"; }
   function showError(msg) {
@@ -276,11 +278,10 @@ export function openCalculator() {
       delBtn.title = "Smazat";
       delBtn.addEventListener("click", (e) => { e.stopPropagation(); removeHistoryItem(i); });
       row.appendChild(delBtn);
+      // Klepnutí vloží výsledek do rozepsaného výrazu (po „=" začne nový)
       row.addEventListener("click", () => {
-        expr = String(item.result);
-        updateDisplay(expr);
-        updateExprDisplay("← " + item.result);
-        justEvaluated = true;
+        const r = Number(item.result);
+        appendValue(r < 0 ? "(" + item.result + ")" : String(item.result));
       });
       historyEl.appendChild(row);
     });
@@ -308,49 +309,35 @@ export function openCalculator() {
     updateDisplay(expr);
   }
 
-  function safeEval(expression) {
-    let e = String(expression)
-      .replace(/,/g, ".")
-      .replace(/π/g, "(" + Math.PI + ")")
-      .replace(/×/g, "*").replace(/−/g, "-").replace(/÷/g, "/");
-    if (!e.trim() || !/^[\d+\-*/().eE\s%]*$/.test(e)) return null;
-    // % = /100 (funguje i za závorkou: „(2+3)%")
-    e = e.replace(/%/g, "/100");
-    try {
-      const r = _parseMathExpr(e);
-      return (typeof r === "number" && isFinite(r)) ? r : null;
-    } catch (_) { return null; }
+  // Výpočet jako v Boně: funkce ve výrazu (sin(30)*2), ^, domyšlené × a závorky
+  function safeEval(expression) { return evalCalcExpr(expression); }
+
+  // Průběžný výsledek při psaní (= 194), ne až po „="
+  function livePreview() {
+    if (justEvaluated) return;
+    const plain = /^\s*-?[\d.]*\s*$/.test(expr);
+    const v = plain ? null : safeEval(expr);
+    updateExprDisplay(v === null ? "" : "= " + roundResult(v));
   }
 
+  // Funkce se vkládá do výrazu (sin( … ), ne na celý výsledek – jako v Boně.
+  // Po „=" začne nový příklad; x² připíše ^2 (na prázdném displeji k ANS).
   function handleFn(fn) {
-    const cur = safeEval(expr);
-    if (cur === null) { if (expr) showError("Neplatný výraz"); return; }
-    let r;
-    const fnExpr = fn + "(" + formatExpr(expr) + ")";
-    switch (fn) {
-      case "sqrt": r = Math.sqrt(cur); break;
-      case "sin":  r = Math.sin(cur * Math.PI / 180); break;
-      case "cos":  r = Math.cos(cur * Math.PI / 180); break;
-      case "tan":  r = Math.tan(cur * Math.PI / 180); break;
-      case "atan": r = Math.atan(cur) * 180 / Math.PI; break;
-      case "asin": r = (cur >= -1 && cur <= 1) ? Math.asin(cur) * 180 / Math.PI : NaN; break;
-      case "acos": r = (cur >= -1 && cur <= 1) ? Math.acos(cur) * 180 / Math.PI : NaN; break;
-      case "pow":  r = cur * cur; break;
-      default: return;
+    if (fn === "pow") {
+      if (justEvaluated) justEvaluated = false;
+      if (!expr) expr = String(lastAnswer);
+      if (!endsWithValue(expr)) return;
+      expr += "^2";
+      updateDisplay(expr);
+      return;
     }
-    if (typeof r !== "number" || !isFinite(r)) { showError("Mimo definiční obor"); return; }
-    const result = roundResult(r);
-    addHistory(fnExpr, result);
-    lastAnswer = _calcLastResult = result;
-    expr = String(result);
-    updateDisplay(expr);
-    updateExprDisplay(fnExpr + " = " + result);
-    justEvaluated = true;
+    appendValue(fn + "(");
   }
 
   function doEval() {
     if (!expr.trim()) return;
-    const displayExpr = formatExpr(expr);
+    const open = (expr.match(/\(/g) || []).length - (expr.match(/\)/g) || []).length;
+    const displayExpr = formatExpr(expr + ")".repeat(Math.max(0, open)));   // doplněné závorky i v historii
     const r = safeEval(expr);
     if (r === null) { showError("Chyba ve výrazu"); return; }
     const result = roundResult(r);
@@ -412,13 +399,13 @@ export function openCalculator() {
         case "%":
           if (endsWithValue(expr) && !expr.endsWith("%")) { expr += "%"; justEvaluated = false; updateDisplay(expr); }
           break;
-        case "+": case "-": case "*": case "/": {
+        case "+": case "-": case "*": case "/": case "^": {
           justEvaluated = false; // operátor pokračuje s výsledkem
           const last = expr.slice(-1);
-          if ("+-*/".includes(last) && last !== "") {
+          if ("+-*/^".includes(last) && last !== "") {
             // Dva operátory za sebou → nahradit; výjimka „*-" / „/-" (záporné číslo)
             if (val === "-" && (last === "*" || last === "/")) expr += val;
-            else expr = expr.replace(/[+\-*/]+$/, "") + val;
+            else expr = expr.replace(/[+\-*/^]+$/, "") + val;
           } else if (expr === "" && val !== "-") {
             expr = String(lastAnswer) + val; // operátor na prázdném displeji → navázat na ANS
           } else {
@@ -456,6 +443,7 @@ export function openCalculator() {
     justEvaluated = false;
     display.classList.remove("calc-display-error");
     fitDisplayFont();
+    livePreview();
   });
   display.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); doEval(); }

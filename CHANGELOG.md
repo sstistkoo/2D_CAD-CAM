@@ -107,6 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **🔢 Kalkulačka počítá jako v Boně** (uživatel 20. 11. 2026, porovnání SKICA × Bona). Funkce se vkládají do výrazu (`sin(30)*2`, `sqrt(9)+1`) místo použití na celý výsledek; průběžný výsledek už při psaní („= 194"); tlačítko **xʸ** (`2^10`), x² je v f(x); domyšlené × (`2π`, `3(2)`, `2sqrt(9)`) a neuzavřené závorky; klepnutí na řádek historie vloží výsledek do rozepsaného výrazu. Plovoucí okno, ⤓ vložit do pole, 📋, %, ANS zůstávají. `js/calcPrep.js`.
+
 - **Krajní body / Body R: u nejvzdálenějšího bodu i průměr v závorce** (uživatel 20. 11. 2026). V ⊹ Krajní body (řádek ★ i „nejdál od osy") a v ◜ Přechod R – body (★ krajní Ø, i v kopii) je za souřadnicí v režimu poloměr „(Ø…)", v režimu průměr „(R…)".
 
 - **Zaoblení ukáže body R a ★ krajní Ø – jako kalkulačka Kužel** (uživatel 20. 11. 2026). Po zaoblení nástrojem Zaoblení (roh, dvě úsečky, úsečka + oblouk, roh kontury) se otevře plovoucí panel **◜ Přechod R – body**: začátek a konec R (tečné body od Z+: karusel shora, soustruh zprava), střed R a **★ největší / nejmenší Ø na R** – kvadrant ve směru průměru uvnitř oblouku (místo pro posuvku, když je hrana jen teoretická). 📐 u ★ přidá přes bod vodorovnou a svislou čáru s kótou, 📋 kopíruje, vypínač „ukazovat po zaoblení". Pro existující oblouk: 📏 Měřit → klepnout na oblouk → **◜ Body R**. `geometry/extremePoints.js` (`arcTransitionPoints`), `dialogs/filletInfo.js`.

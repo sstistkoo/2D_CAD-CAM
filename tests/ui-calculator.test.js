@@ -101,20 +101,28 @@ describe('kalkulačka', () => {
     expect(q('#calcDisplay').classList.contains('calc-display-error')).toBe(true);
   });
 
-  it('funkce: √, x², sin ve stupních, asin mimo obor; rozbalovací f(x)', async () => {
+  it('funkce se vkládají do výrazu (jako v Boně): √, x², ^, sin ve stupních, průběžný výsledek', async () => {
     await openCalc();
-    press('9', 'sqrt');
+    press('sqrt', '9');
+    expect(display()).toBe('sqrt(9');
+    expect(exprLine()).toBe('= 3');                       // průběžně, neuzavřená závorka se doplní
+    press('=');
     expect(display()).toBe('3');
     expect(exprLine()).toBe('sqrt(9) = 3');
-    press('pow');
+    press('pow', '=');
     expect(display()).toBe('9');
+    press('C', '2', '^', '1', '0', '=');
+    expect(display()).toBe('1024');
     press('_trig');
     expect(q('#calcTrigDropdown').classList.contains('open')).toBe(true);
-    press('C', '3', '0', 'sin');
-    expect(display()).toBe('0.5');
+    press('C', 'sin');
     expect(q('#calcTrigDropdown').classList.contains('open')).toBe(false);
-    press('C', '2', 'asin');
-    expect(exprLine()).toBe('⚠ Mimo definiční obor');
+    press('3', '0', ')', '*', '2');
+    expect(exprLine()).toBe('= 1');                       // sin(30)*2, sin ve stupních
+    press('C', '2', 'pi');
+    expect(display()).toBe('2*π');                         // domyšlené ×
+    press('C', 'asin', '2', '=');
+    expect(exprLine()).toBe('⚠ Chyba ve výrazu');
   });
 
   it('ANS přežije zavření okna; operátor na prázdném displeji naváže na ANS', async () => {
@@ -131,13 +139,16 @@ describe('kalkulačka', () => {
     expect(display()).toBe('2*21');
   });
 
-  it('historie: klik na řádek vrátí výsledek, ✕ smaže řádek, 🗑 smaže vše', async () => {
+  it('historie: klik na řádek vloží výsledek do výrazu, ✕ smaže řádek, 🗑 smaže vše', async () => {
     await setMeta('calcHistory', [{ expr: '1+1', result: 2 }, { expr: '2+2', result: 4 }]);
     await openCalc();
     await vi.waitFor(() => expect(history()).toEqual(['1+1 = 2', '2+2 = 4']));
     overlay().querySelectorAll('.calc-history-item')[1].click();
     expect(display()).toBe('4');
-    expect(exprLine()).toBe('← 4');
+    press('+');
+    overlay().querySelectorAll('.calc-history-item')[0].click();   // vloží se do výrazu
+    expect(display()).toBe('4+2');
+    expect(exprLine()).toBe('= 6');
     overlay().querySelectorAll('.calc-hist-del')[0].click();
     expect(history()).toEqual(['2+2 = 4']);
     await vi.waitFor(async () => expect(await getMeta('calcHistory')).toEqual([{ expr: '2+2', result: 4 }]));
