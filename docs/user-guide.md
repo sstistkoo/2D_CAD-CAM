@@ -2506,6 +2506,9 @@ Přístup: **☰ Nastavení** → **Kalkulačky** nebo přímo z toolbaru.
     kuželu), střed R a ★ největší / nejmenší Ø na oblouku – místo, kde jde Ø změřit
     posuvkou, když je hrana kužele jen teoretická. Hloubky jsou od vrchu; se
     zadaným „Z čela vrchu" rovnou souřadnice Z pro program. R v náčrtu je klikací.
+    Nad poli je **klikací detail** přechodu (nahoře přepínač Vrch / Spodek) ve
+    skutečných úhlech: klepni na R, průsečík, začátek R, „⇄ čelo", „∠ čela" nebo
+    „Z vrchu" a zadej hodnotu – vše jde vyplnit jen přes detail.
   - *Morse / ISO* (dole, rozbalovací) – klepnutím na řádek se kužel vyplní.
 - **Závity** – převodné tabulky. U vybraného závitu **rozpis průchodů**:
   hloubky řezů stejné jako v CAM (ubývající přísuv a_k = h·√(k/n), počet řezů

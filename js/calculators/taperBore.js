@@ -280,7 +280,13 @@ export function initTaperBore(overlay) {
     }
 
     // Tvarový přechod R na hranách (taperFillet.js)
-    const fr = fil ? fil.update(done ? { D: sol.D, d: sol.d, L: sol.L, C: sol.C } : null, bigSide) : null;
+    const stOfE = key => isEdited(key) && okNum(k[key]) ? 'val' : okNum(sol[key]) ? 'calc' : 'empty';
+    const keyAt = side => side === bigSide ? 'D' : 'd';
+    const fr = fil ? fil.update(done ? { D: sol.D, d: sol.d, L: sol.L, C: sol.C } : null, bigSide, {
+      C: okNum(sol.C) ? sol.C : null,
+      coneDia: { A: okNum(sol[keyAt('A')]) ? sol[keyAt('A')] : null, B: okNum(sol[keyAt('B')]) ? sol[keyAt('B')] : null },
+      coneSt: { A: stOfE(keyAt('A')), B: stOfE(keyAt('B')) },
+    }) : null;
     if (fr && fr.text.length) {
       lastText = (lastText ? lastText + '\n' : '') + fr.text.join('\n');
       lastNc = (lastNc ? lastNc + '\n' : '') + ncText(fr.nc.join('\n'));

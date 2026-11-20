@@ -9,7 +9,8 @@
 import { safeEvalMath } from '../utils.js';
 import { taperFillets } from './taperFilletMath.js';
 import { f3 } from './taperBoreMath.js';
-import { openInlineEdit, setField } from './svgInlineEdit.js';
+import { openInlineEdit, setField, wireSvgEditing } from './svgInlineEdit.js';
+import { drawFilletSketch } from './taperFilletSketch.js';
 
 const LS_KEY = 'skica.taperFillet';
 const SIDES = ['B', 'A'];                               // shora dolů
@@ -35,6 +36,8 @@ function edgeHTML(side) {
 /** HTML skupiny. */
 export function taperFilletHTML() {
   return '<fieldset class="tb-group" id="tfSection"><legend>Tvarový přechod R <small>(nepovinné – rádius kužel ↔ čelo)</small></legend>' +
+    '<div class="tp-hint">Klepni v detailu na hodnotu a zadej ji – R, průsečík nebo začátek R na čele, směr a úhel čela. Nahoře přepínáš vrch / spodek.</div>' +
+    '<svg class="calc-svg tf-svg" viewBox="0 0 340 300" role="img" aria-label="Detail přechodu R – klikací kóty"></svg>' +
     edgeHTML('B') + edgeHTML('A') +
     '<div class="cnc-fields">' + fld('zTop', 'Z čela vrchu', 'nepovinné', 'pro souřadnice Z') + '</div>' +
     '</fieldset>';
@@ -58,6 +61,9 @@ export function initTaperFillet(root, cb) {
   const num = el => { const s = el.value.trim(); if (!s) return null; const v = safeEvalMath(s); return Number.isFinite(v) ? v : NaN; };
   const IDS = ['RB', 'faceB', 'angB', 'givenB', 'diaB', 'RA', 'faceA', 'angA', 'givenA', 'diaA', 'zTop'];
   let last = null;
+  let curSide = 'B';                                    // hrana v detailu
+  let lastArgs = null;                                  // poslední vstup update() pro překreslení
+  const svg = box.querySelector('.tf-svg');
 
   function syncVisibility() {
     SIDES.forEach(side => {
@@ -96,9 +102,31 @@ export function initTaperFillet(root, cb) {
    * Přepočet po změně kužele.
    * @param {{D:number,d:number,L:number,C:number}|null} sol  vyřešený kužel (null = neúplný)
    * @param {'A'|'B'} bigSide
+   * @param {{C?:number|null, coneDia?:{A:number|null,B:number|null}, coneSt?:{A:string,B:string}}} [cone] i neúplný kužel (pro detail)
    * @returns {{ sketch: Record<string, any>, text: string[], nc: string[] }}
    */
-  function update(sol, bigSide) {
+  function update(sol, bigSide, cone = {}) {
+    lastArgs = [sol, bigSide, cone];
+    const out = compute(sol, bigSide);
+    drawDetail(sol, bigSide, cone);
+    return out;
+  }
+
+  function drawDetail(sol, bigSide, cone) {
+    if (!svg) return;
+    const edges = readEdges();
+    const zTop = num($('zTop'));
+    const inputRaw = { R: num($('R' + curSide)) || 0, face: $('face' + curSide).value, beta: num($('ang' + curSide)) || 0,
+      given: $('given' + curSide).value, dia: num($('dia' + curSide)) };
+    const res = last && last.edges[curSide] && edges[curSide] ? last.edges[curSide] : null;
+    drawFilletSketch(svg, {
+      side: curSide, input: inputRaw, res, C: Number.isFinite(cone.C) ? cone.C : sol ? sol.C : null, bigSide,
+      coneDia: cone.coneDia ? cone.coneDia[curSide] : null, coneSt: cone.coneSt ? cone.coneSt[curSide] : 'empty',
+      zTop: Number.isFinite(zTop) ? zTop : null, raw: { face: $('face' + curSide).value, ang: $('ang' + curSide).value },
+    });
+  }
+
+  function compute(sol, bigSide) {
     const edges = readEdges();
     const bad = [];
     SIDES.forEach(side => {
@@ -114,7 +142,7 @@ export function initTaperFillet(root, cb) {
     resEl.innerHTML = '';
     errEl.textContent = bad.length ? 'Neplatný zápis: ' + bad.join(', ') + '.' : '';
     if (!edges.A && !edges.B) { last = null; return out; }
-    if (!sol) { if (!bad.length) errEl.textContent = 'Pro přechod R nejdřív doplň kužel (D, d, délka, kuželovitost).'; return out; }
+    if (!sol) { last = null; if (!bad.length) errEl.textContent = 'Pro přechod R nejdřív doplň kužel (D, d, délka, kuželovitost).'; return out; }
 
     const r = taperFillets({ ...sol, bigSide, edges });
     last = r;
@@ -183,6 +211,56 @@ export function initTaperFillet(root, cb) {
       onCommit: (v, ch, raw) => { $('face' + side).value = ch; setField($('R' + side), raw); },
     });
   }
+
+  // ── Klikání do detailu
+  const redraw = () => { if (lastArgs) drawDetail(...lastArgs); };
+  const commitField = (id, raw) => setField($(id), raw);       // input → přepočet celé kalkulačky
+  if (svg) wireSvgEditing(svg, (key, ev) => {
+    const side = curSide, nm = SIDE_NAME[side].toLowerCase();
+    if (key.startsWith('side:')) { curSide = /** @type {'A'|'B'} */ (key.slice(5)); redraw(); return; }
+    if (key === 'R') { editR(ev, side); return; }
+    if (key === 'face') {
+      $('face' + side).value = $('face' + side).value === 'in' ? 'out' : 'in';
+      save(); cb.onChange(); return;
+    }
+    if (key === 'ang') {
+      openInlineEdit(ev, {
+        label: 'Úhel čela – ' + nm, unit: '°', value: $('ang' + side).value,
+        hint: '0 = kolmo k ose, + stoupá k vrchu, − klesá ke spodku (−90 … 90)',
+        onCommit: (v, ch, raw) => commitField('ang' + side, raw),
+      });
+      return;
+    }
+    if (key === 'corner') {
+      openInlineEdit(ev, {
+        label: 'Průsečík – ostrá hrana (' + nm + ')', unit: 'Ø mm', value: '',
+        hint: 'Zapíše se jako Ø kužele na hraně; R se pak počítá od průsečíku',
+        onCommit: (v) => {
+          if (!(v > 0)) return;
+          $('given' + side).value = 'corner'; syncVisibility(); save();
+          cb.setConeDia(side, v);
+        },
+      });
+      return;
+    }
+    if (key === 'start') {
+      openInlineEdit(ev, {
+        label: 'Začátek R na čele (' + nm + ')', unit: 'Ø mm', value: $('dia' + side).value,
+        hint: 'Ø, kde rádius z čela odbočí – průsečík se dopočítá',
+        onCommit: (v, ch, raw) => {
+          $('given' + side).value = raw ? 'start' : 'corner'; syncVisibility();
+          commitField('dia' + side, raw);
+        },
+      });
+      return;
+    }
+    if (key === 'zTop') {
+      openInlineEdit(ev, {
+        label: 'Z čela vrchu', unit: 'mm', value: $('zTop').value, hint: 'Prázdné = hloubky od vrchu',
+        onCommit: (v, ch, raw) => commitField('zTop', raw),
+      });
+    }
+  });
 
   function clear() {
     SIDES.forEach(side => { $('R' + side).value = ''; $('dia' + side).value = ''; $('ang' + side).value = ''; $('given' + side).value = 'corner'; });

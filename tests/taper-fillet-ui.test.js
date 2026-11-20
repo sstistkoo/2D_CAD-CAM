@@ -32,4 +32,20 @@ describe('kalkulačka Kužel – tvarový přechod R (UI)', () => {
     expect(Number($('d').value)).toBeCloseTo(300 + 2 * 12 / Math.tan(50 * Math.PI / 180), 3);
     expect(ov.querySelector('.tf-take')).toBe(null);
   });
+
+  it('klikací detail: přepnutí hrany, směr čela, popisky bodů', () => {
+    const ov = document.body.lastElementChild;
+    const svg = ov.querySelector('.tf-svg');
+    const f = id => ov.querySelector('[data-tf="' + id + '"]');
+    const click = key => svg.querySelector('[data-edit="' + key + '"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(svg.textContent).toContain('R12');
+    expect(svg.textContent).toContain('průsečík');
+    click('side:A');
+    expect(svg.textContent).toContain('R ?');            // spodek zatím bez R
+    const before = f('faceA').value;
+    click('face');
+    expect(f('faceA').value).not.toBe(before);
+    click('side:B');
+    expect(svg.textContent).toContain('R12');
+  });
 });
