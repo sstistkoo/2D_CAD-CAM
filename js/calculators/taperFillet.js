@@ -233,7 +233,8 @@ export function initTaperFillet(root, cb) {
     }
     if (key === 'corner') {
       openInlineEdit(ev, {
-        label: 'Průsečík – ostrá hrana (' + nm + ')', unit: 'Ø mm', value: '',
+        label: 'Průsečík – ostrá hrana (' + nm + ')', unit: 'Ø mm',
+        value: (() => { const v = lastArgs?.[2]?.coneDia?.[side]; return Number.isFinite(v) ? String(+v.toFixed(4)) : ''; })(),
         hint: 'Zapíše se jako Ø kužele na hraně; R se pak počítá od průsečíku',
         onCommit: (v) => {
           if (!(v > 0)) return;

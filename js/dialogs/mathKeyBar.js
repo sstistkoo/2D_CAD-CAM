@@ -62,6 +62,11 @@ function numberToText(el) {
 function textToNumber(el) {
   if (el.dataset?.mkbNum == null) return;
   evalMathField(el);
+  // Číselné pole čárku nebere (hodnota by se smazala) – desetinná čárka → tečka
+  if (/^\s*[-+]?\d*,\d+\s*$/.test(el.value)) {
+    el.value = el.value.trim().replace(',', '.');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
   const im = el.dataset.mkbNum;
   delete el.dataset.mkbNum;
   el.type = 'number';
@@ -130,7 +135,12 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   // rovnou otevře s tečkou a lišta může psát znaménka.
   document.addEventListener('pointerdown', (e) => {
     const el = e.target;
-    if (el?.tagName === 'INPUT' && el.type === 'number' && isMathField(el)) numberToText(el);
+    if (el?.tagName === 'INPUT' && el.type === 'number' && isMathField(el)) {
+      numberToText(el);
+      // Jen posun prstem (pole nedostalo fokus) → vrátit zpátky na číselné,
+      // jinak by zůstalo textové (obsluha může číst inp.type === 'number').
+      setTimeout(() => { if (document.activeElement !== el) textToNumber(el); }, 800);
+    }
   }, true);
 
   document.addEventListener('focusin', (e) => {

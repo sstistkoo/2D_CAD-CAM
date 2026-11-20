@@ -423,7 +423,17 @@ export function initTaperBore(overlay) {
   // Tvarový přechod R: Ø průsečíku ze začátku R → do pole D / d kužele
   fil = initTaperFillet(root, {
     onChange: () => update(),
-    setConeDia: (side, dia) => setField(fieldOf(side === $('big').value ? 'D' : 'd'), String(dia)),
+    // Ø hrany z přechodu R: má přednost před druhým průměrem (ne před nejstarším
+    // zadáním) – délka a kuželovitost zůstanou, jak je uživatel zadal.
+    setConeDia: (side, dia) => {
+      const key = side === $('big').value ? 'D' : 'd', other = key === 'D' ? 'd' : 'D';
+      const el = fieldOf(key);
+      el.value = String(dia); el.classList.remove('computed');
+      order = order.filter(x => x !== key); order.push(key);
+      if (!(num($('refD')) > 0) && order.length > 3 && order.includes(other)) { order = order.filter(x => x !== other); clearKey(other); }
+      trimOrder();
+      update();
+    },
   });
   fil?.restore($('big').value);
 

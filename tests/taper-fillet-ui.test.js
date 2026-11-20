@@ -33,6 +33,27 @@ describe('kalkulačka Kužel – tvarový přechod R (UI)', () => {
     expect(ov.querySelector('.tf-take')).toBe(null);
   });
 
+  it('převzetí průsečíku nahradí druhý průměr, délka a úhel zůstanou', () => {
+    localStorage.clear();
+    const ov = document.createElement('div');
+    ov.innerHTML = taperBoreHTML();
+    document.body.appendChild(ov);
+    initTaperBore(ov);
+    const $ = id => ov.querySelector('[data-tb="' + id + '"]');
+    const f = id => ov.querySelector('[data-tf="' + id + '"]');
+    $('big').value = 'A'; $('big').dispatchEvent(new Event('input', { bubbles: true }));
+    type($('D'), '360'); type($('L'), '50'); type($('a'), '10');   // vrch d se dopočítá
+    f('faceB').value = 'in';
+    f('givenB').value = 'start'; f('givenB').dispatchEvent(new Event('change', { bubbles: true }));
+    type(f('RB'), '12'); type(f('diaB'), '300');
+    ov.querySelector('.tf-take').click();
+    expect($('L').value).toBe('50');
+    expect($('a').value).toBe('10');
+    expect($('D').classList.contains('computed')).toBe(true);    // D se teď dopočítá
+    expect(ov.querySelector('.tf-take')).toBe(null);
+    ov.remove();
+  });
+
   it('klikací detail: přepnutí hrany, směr čela, popisky bodů', () => {
     const ov = document.body.lastElementChild;
     const svg = ov.querySelector('.tf-svg');

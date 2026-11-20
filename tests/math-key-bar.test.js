@@ -61,6 +61,15 @@ describe('výrazy v číselných polích (lišta + × ÷)', () => {
     expect(seen).toEqual(['number', '9']);
   });
 
+  it('desetinná čárka v číselném poli se po opuštění nezahodí', () => {
+    const el = field('<input type="number">');
+    el.focus();
+    el.value = '1,5';
+    el.blur();
+    expect(el.type).toBe('number');
+    expect(el.value).toBe('1.5');
+  });
+
   it('type="number" je při psaní textové a po opuštění zase číselné s výsledkem', () => {
     const el = field('<input type="number" inputmode="numeric"><button>ok</button>');
     el.focus();
