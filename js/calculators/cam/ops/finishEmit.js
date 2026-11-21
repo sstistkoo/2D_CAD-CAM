@@ -27,7 +27,7 @@ import { mirrorsWorldZ } from '../calculatePipeline.js';
 import { makeArcFeedWriter, arcFeedFactor, ARC_FEED_MAX_FACTOR } from '../arcFeedComp.js';
 import { finishFeedFromRa, finishBaseFeed, cornerFeedFactor, innerCornerFlags, splitLineAtCorners } from '../finishFeed.js';
 import { arcSignedR } from '../arcSign.js';
-import { sinumerikToolName } from '../toolCall.js';
+import { toolCallWord } from '../toolCall.js';
 
 /**
  * @param E  sdílené emisní prostředí z `generateAutoGCode()`
@@ -157,8 +157,11 @@ const finSlotData = (finSlotIdx !== null && S.toolMagazine[finSlotIdx]) ? S.tool
 // F dokončení podle cílového Ra (finishFeed.js) — jinak nastavené F.
 const finRa = finishFeedFromRa(prms, finSlotData);
 const finFeedSet = finishBaseFeed(prms, finSlotData);
-const finFeed  = finRa ? finRa.f : (finSlotData ? finSlotData.f : finFeedSet);
-const finSpeed = finSlotData ? finSlotData.vc : prms.speed;
+// Slot bez vc/f (starší nebo importovaný zásobník) → hodnoty z panelu; jinak
+// vyšlo `G96 Sundefined` / `F undefined` (audit 21. 11. 2026).
+const slotNum = (v) => (parseFloat(v) > 0 ? v : null);
+const finFeed  = finRa ? finRa.f : ((finSlotData && slotNum(finSlotData.f)) || finFeedSet);
+const finSpeed = (finSlotData && slotNum(finSlotData.vc)) || prms.speed;
 const finTipRf = parseFloat(finSlotData ? finSlotData.radius : prms.toolRadius) || 0;
 // Snížené F oblouků (arcFeedComp.js) a vnitřních rohů (finishFeed.js): blok
 // dostane přepočtené F a další řezný blok se vrátí na finFeed.
@@ -172,27 +175,25 @@ if (typeof E.setMotionFeed === 'function') E.setMotionFeed(finFeed);
 if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   addCmt('--- DOKONCOVANI ---');
   if (finSlotData) {
+    const ctrl = prms.controlSystem;
+    // Vřeteno a chlazení stojí při výměně nože — stejně jako při spojování
+    // částí (gcodeMerge.js: M5/M9 před odjezdem, M3/M8 po výměně).
+    addN(`M5${note('', 'Vřeteno STOP')}`);
+    addN(`M9${note('', 'Chlazení VYP')}`);
     // Bezpečná poloha před výměnou
     addN(`G0 X${prms.safeX} Z${prms.safeZ}${note('', 'Výjezd do bezpečné polohy')}`);
     // Výměna ve stejném místě jako na začátku programu (hlavička, controlDialect.js):
     // revolver se nesmí otáčet jen na bezpečné poloze blízko dílu (audit 21. 11. 2026).
     // Heidenhain hlavička bod výměny nemá — zůstává bezpečná poloha.
-    if (prms.controlSystem === 'sinumerik') {
+    if (ctrl === 'sinumerik') {
       addN(`G75 X${prms.safeX}${note('', 'Najetí na pevný bod stroje')}`);
       addN(`G75 Z${prms.safeZ}`);
-    } else if (prms.controlSystem === 'fanuc') addN(`G28 U0 W0${note('', 'Referenční bod')}`);
-    if (prms.controlSystem === 'sinumerik') {
-      addN(`T="${sinumerikToolName(finSlotData.name)}" D1 M6${note('', `Výměna na dokončovací nástroj T${finSlotData.slot}`)}`);
-      addN(`G96 S${finSpeed} ${prms.machineType}${note('', 'Řezná rychlost – dokončování')}`);
-    } else if (prms.controlSystem === 'fanuc') {
-      const tNum = String(finSlotData.slot).padStart(2, '0');
-      addN(`T${tNum}${tNum}${note('', `Výměna na T${finSlotData.slot} – dokončování`)}`);
-      addN(`G96 S${finSpeed} M3${note('', 'Řezná rychlost – dokončování')}`);
-    } else {
-      addN(`T${finSlotData.slot} M6${note('', `Výměna na dokončovací nástroj T${finSlotData.slot}`)}`);
-      addN(`G96 S${finSpeed} M3${note('', 'Řezná rychlost – dokončování')}`);
-    }
+    } else if (ctrl === 'fanuc') addN(`G28 U0 W0${note('', 'Referenční bod')}`);
+    // Volání nástroje jako v hlavičce (toolCall.js): Sinumerik jménem, ostatní číslem slotu.
+    addN(`${toolCallWord(ctrl, { name: finSlotData.name, num: finSlotData.slot })}${note('', `Výměna na dokončovací nástroj T${finSlotData.slot}`)}`);
+    addN(`G96 S${finSpeed}${ctrl === 'sinumerik' ? ` ${prms.machineType}` : ''}${note('', 'Řezná rychlost – dokončování')}`);
     addN(`M3${note('', 'Vřeteno CW')}`);
+    addN(`M8${note('', 'Chlazení ZAP')}`);
   }
   // Nájezd pod úhlem entryAngle (úhel spodní strany destičky) —
   // G0 na přibližovací bod 2 mm v X a rampDz v Z mimo konturu,

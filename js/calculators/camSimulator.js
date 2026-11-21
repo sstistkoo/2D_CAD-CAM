@@ -52,6 +52,7 @@ import { createXzSimView } from './cam/sim/xzSim.js'; import { createLimitMark }
 import { createSnap } from './cam/sim/snap.js';
 import { dropInsaneSavedProgram } from './cam/sim/programSanity.js';
 import { confirmNcExport } from './ncCheck.js';
+import { fanucProgramFrame } from './cam/controlDialect.js';   // Fanuc % … % + O-číslo při výstupu
 import { paramsPanelsHtml } from './cam/sim/paramsPanelsHtml.js';
 import { paramsMachiningHtml } from './cam/sim/paramsMachiningHtml.js';
 import { _defaultMagSlot, _slotNameFromFilename, _buildMagSlotFromTool, _isoMagSlot, _isoDefaultMagSlots, _setMagSlotShape } from './cam/sim/magSlots.js';
@@ -2714,7 +2715,7 @@ export function openCamSimulator(initialContour, initialGCode) {
   // Ven (schránka/soubor/editor) jde vždy CELÝ program — u víc částí tedy
   // všechny operace za sebou (viz outputGCode/combinedProgram).
   function handleCopyGCode() {
-    const text = outputGCode();
+    const text = fanucProgramFrame(outputGCode(), S.params.controlSystem);   // Fanuc % … % + O-číslo
     if (!confirmNcExport(text, S.params.controlSystem)) return;   // ncCheck.js
     writeClipboard(text).then(() => {
       const btn = tabBody.querySelector('[data-act="copy-code"]');
@@ -2722,7 +2723,7 @@ export function openCamSimulator(initialContour, initialGCode) {
     }).catch(() => alert('Nepodařilo se zkopírovat kód do schránky.'));
   }
   function handleDownload() {
-    const text = outputGCode();
+    const text = fanucProgramFrame(outputGCode(), S.params.controlSystem);   // Fanuc % … % + O-číslo
     if (!confirmNcExport(text, S.params.controlSystem)) return;   // ncCheck.js
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);

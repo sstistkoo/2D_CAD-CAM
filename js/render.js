@@ -23,7 +23,8 @@ let _renderRAF = null;
 let _shownZoom = null;   // zoom naposledy vypsaný v mobilním řádku souřadnic
 /** Naplánuje překreslení celého canvasu (requestAnimationFrame). */
 export function renderAll() {
-  if (_renderRAF) return;
+  // Bez rAF (prostředí zavřené po konci testu — async překreslení z podkladu) nekreslit.
+  if (_renderRAF || typeof requestAnimationFrame !== 'function') return;
   _renderRAF = requestAnimationFrame(() => {
     _renderRAF = null;
     renderObjects();

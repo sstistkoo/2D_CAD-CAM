@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Výměna na dokončovací nůž: vřeteno a chlazení stojí, slot bez vc/f** (audit CAM 21. 11. 2026). Před výměnou na dokončovací nůž ze zásobníku se teď vypne vřeteno a chlazení (`M5`, `M9`) a po výměně zapne (`M3`, `M8`) – stejně jako při spojování částí. Volání nože jde přes `toolCallWord` jako v hlavičce (Fanuc dřív bez stropu T99). Slot zásobníku bez řezné rychlosti nebo posuvu (starší či importovaný zásobník) dával `G96 Sundefined` a celé dokončení `F0` – teď platí hodnoty z panelu.
+
+- **Fanuc: `%` … `%` a číslo programu** (audit CAM 21. 11. 2026). Kopie do schránky i stažený soubor pro Fanuc začínají `%` a `O0001 ( SKICA )` a končí `%` – bez nich ho řada Fanuců do paměti nenačte. Vlastní `O`-číslo v programu zůstane. Text v editoru se nemění (`fanucProgramFrame` v `cam/controlDialect.js`).
+
+- **Testy: „requestAnimationFrame is not defined" po konci testu** (audit CAM 21. 11. 2026). Asynchronní překreslení z podkladu přišlo až po zavření prostředí testu a celá sada končila chybou, i když testy prošly. `renderAll()` bez `requestAnimationFrame` nic nedělá.
+
 - **Hrubování: dojezd po kontuře nejede pod zbytkem, který nechal držák** (audit CAM 21. 11. 2026, pravidla 2 a 3). Když se vrstvy u hrbu kvůli držáku zkrátily, materiál pod nimi stál, ale dojezd „bez schodků“ hlubší vrstvy o něm nevěděl: na `long-pclnr-valley` jel `G1 X13.140 Z246.234` z Z285 (tříska 24 mm, držák 80 mm² v materiálu) a další dojezd po válci přes 100 mm (110 mm²). Dojezd se teď utne tam, kde by držák vjel do zbytku od mělčích vrstev (`stairForbidden` v `toolEnvelope.js`, tatáž mez jako u těla vrstvy), a dojezd odtržený od konce těla se vynechá (`openPass.js`). Na dílu: kolize 5 → 0, tříska > ap 5 → 0, posuv vzduchem 2 → 0. Otisk ostatních 32 fixtures beze změny, baseline pravidel snížena (1584 → 1569).
 
 - **Fanuc: jen ASCII v programu** (audit CAM 21. 11. 2026). Komentáře Fanuc programu měly diakritiku (`( Metrický vstup )`, `( X = PRŮMĚR … )`) – mnoho Fanuců ji při načtení přes kartu nebo RS232 odmítne nebo zkomolí. Teď se háčky a čárky odstraní a pár znaků přepíše (`–` → `-`, `×` → `x`, `Ø` → `D`, `°` → ` st`) – při generování, převodu z jiného systému i spojování částí (`fanucAscii` / `fanucLine` v `cam/controlDialect.js`). Kontrola NC programu upozorní na znaky mimo ASCII v ručně upraveném Fanuc kódu. Sinumerik a Heidenhain beze změny.

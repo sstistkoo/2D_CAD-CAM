@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { fanucDecimalPoints, fanucAscii, convertGCodeControlSystem } from '../js/calculators/cam/controlDialect.js';
+import { fanucDecimalPoints, fanucAscii, fanucProgramFrame, convertGCodeControlSystem } from '../js/calculators/cam/controlDialect.js';
 import { mergePrograms } from '../js/calculators/cam/gcodeMerge.js';
 import { runCamProg } from './helpers/camHeadless.mjs';
 
@@ -65,5 +65,17 @@ describe('fanucAscii', () => {
     ['( ŘEZ – Ø40 × 2° )', '( REZ - D40 x 2 st )'],
     ['G0 X500. Z500.', 'G0 X500. Z500.'],
   ])('%s', (inp, out) => expect(fanucAscii(inp)).toBe(out));
+});
+
+describe('fanucProgramFrame (výstup do souboru/schránky)', () => {
+  it('Fanuc dostane % … % a O-číslo, jednou', () => {
+    const out = fanucProgramFrame('( HLAVA )\nN10 G21\nN20 M30\n( --- KONTURA --- )\n', 'fanuc');
+    expect(out.split('\n')).toEqual(['%', 'O0001 ( SKICA )', '( HLAVA )', 'N10 G21', 'N20 M30', '( --- KONTURA --- )', '%']);
+    expect(fanucProgramFrame(out, 'fanuc')).toBe(out);   // idempotentní
+  });
+  it('vlastní O-číslo zůstane, ostatní systémy beze změny', () => {
+    expect(fanucProgramFrame('%\nO1234\nM30\n%', 'fanuc')).toBe('%\nO1234\nM30\n%');
+    expect(fanucProgramFrame('G0 X1\nM30', 'sinumerik')).toBe('G0 X1\nM30');
+  });
 });
 

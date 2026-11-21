@@ -68,6 +68,23 @@ export function fanucizeLines(prms, out) {
     : l && typeof l.text === 'string' ? { ...l, text: fanucLine(l.text) } : l));
 }
 
+// FANUC: RÁMEC SOUBORU `%` … `%` A ČÍSLO PROGRAMU `O…` (audit 21. 11. 2026).
+// Do paměti řízení (karta, RS232, USB) Fanuc program bez `%` na začátku/konci
+// a bez `O`-čísla často nenačte. Přidává se až při VÝSTUPU (schránka,
+// soubor — camSimulator.js), ne do textu v editoru: slučování částí,
+// převod systému i simulace pracují s tělem programu. Idempotentní.
+export function fanucProgramFrame(code, ctrl, num = 1) {
+  if (ctrl !== 'fanuc' || typeof code !== 'string' || !code.trim()) return code;
+  const lines = code.replace(/\r\n/g, '\n').replace(/\s+$/, '').split('\n');
+  const first = lines.findIndex((l) => l.trim());
+  if (lines[first].trim() !== '%') lines.splice(first, 0, '%');
+  const iPct = lines.findIndex((l) => l.trim() === '%');
+  const next = lines.slice(iPct + 1).find((l) => l.trim());
+  if (!/^\s*O\d+/i.test(next || '')) lines.splice(iPct + 1, 0, `O${String(Math.max(1, Math.min(9999, num | 0))).padStart(4, '0')} ( SKICA )`);
+  if (lines[lines.length - 1].trim() !== '%') lines.push('%');
+  return lines.join('\n');
+}
+
 // PRŮMĚR × POLOMĚR U SYSTÉMŮ BEZ DIAMON/DIAMOF.
 // Souřadnice X se podle `prms.mode` emitují buď jako průměr (DIAMON), nebo
 // jako poloměr (DIAMOF) — viz `xDia` v gcodeEmit.js. Sinumerik to v hlavičce

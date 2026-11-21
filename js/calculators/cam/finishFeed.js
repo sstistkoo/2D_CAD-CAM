@@ -37,7 +37,9 @@ export function feedToRa(f, r) {
  *   týž nůž → prms.finishFeed; 0 = auto z plátku; tvar bez pravidla → F
  */
 export function finishBaseFeed(prms, slot = null) {
-  if (slot) return slotFinishFeed(slot);
+  // Slot bez f / plátku (starší či importovaný zásobník) dal 0 → `F0` na
+  // celém dokončení (audit 21. 11. 2026). Pak platí F z panelu jako bez slotu.
+  if (slot) { const fs = Number(slotFinishFeed(slot)); if (fs > 0) return fs; }
   const ff = parseFloat(prms?.finishFeed);
   if (ff > 0) return ff;
   return paramsFinishFeed(prms) ?? (parseFloat(prms?.feed) || 0);
