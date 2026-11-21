@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Fanuc: jen ASCII v programu** (audit CAM 21. 11. 2026). Komentáře Fanuc programu měly diakritiku (`( Metrický vstup )`, `( X = PRŮMĚR … )`) – mnoho Fanuců ji při načtení přes kartu nebo RS232 odmítne nebo zkomolí. Teď se háčky a čárky odstraní a pár znaků přepíše (`–` → `-`, `×` → `x`, `Ø` → `D`, `°` → ` st`) – při generování, převodu z jiného systému i spojování částí (`fanucAscii` / `fanucLine` v `cam/controlDialect.js`). Kontrola NC programu upozorní na znaky mimo ASCII v ručně upraveném Fanuc kódu. Sinumerik a Heidenhain beze změny.
+
 - **Výměna na dokončovací nůž v bodě výměny** (audit CAM 21. 11. 2026). Před výměnou na nůž ze zásobníku se jelo jen na bezpečnou polohu – revolver se otáčel jinde než při první výměně v hlavičce. Teď se jede stejně jako v hlavičce: Sinumerik `G75 X…` a `G75 Z…` (pevný bod), Fanuc `G28 U0 W0`. Heidenhain beze změny (hlavička bod výměny nemá). Test `cam-finish-toolchange-point`.
 
 - **Heidenhain: limit otáček `G26 S` v hlavičce** (audit CAM 21. 11. 2026). Program jel `G96` bez omezení otáček (hlavička jen radila nastavit limit na řízení) – u osy by vřeteno vyletělo na maximum stroje. Teď hlavička píše `G26 S…` z pole Max. otáčky před `G96` – zápis DIN PLUS (CNC PILOT 640 / MANUALplus 620, nejrozšířenější soustružnická řízení Heidenhain). Kontrola NC programu hlídá `G96` bez `G26 S` i na Heidenhainu.

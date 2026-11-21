@@ -83,6 +83,12 @@ export function checkNcProgram(code, ctrl = 'sinumerik') {
       add('error', idx, 'Souřadnice bez desetinné tečky (např. X500) — Fanuc bez parametru DPI ji čte v tisícinách mm (X500 = 0,5 mm). Piš X500.', 'fanuc-dpi');
     }
 
+    // Fanuc: znaky mimo ASCII (diakritika v komentáři) — řízení je při načtení
+    // často odmítne nebo zkomolí (audit 21. 11. 2026).
+    if (ctrl === 'fanuc' && /[^\x00-\x7F]/.test(raw)) {
+      add('warn', idx, 'Znaky mimo ASCII (diakritika) — Fanuc je při načtení může odmítnout. Piš komentáře bez háčků a čárek.', 'fanuc-ascii');
+    }
+
     if (parseToolCall(raw)) tool = true;
 
     const g = words(c, 'G');

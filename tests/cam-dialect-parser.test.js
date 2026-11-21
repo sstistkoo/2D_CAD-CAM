@@ -75,8 +75,8 @@ describe('buildControlHeaderLines – průměr × poloměr bez DIAMON/DIAMOF', (
     it(`${ctrl}: hlavička vysloví režim X`, () => {
       const dia = buildControlHeaderLines(ctrl, { ...prms(), mode: 'DIAMON' }, false, false);
       const rad = buildControlHeaderLines(ctrl, { ...prms(), mode: 'DIAMOF' }, false, false);
-      expect(dia.join('\n')).toMatch(/X = PRŮMĚR/);
-      expect(rad.join('\n')).toMatch(/POZOR: X = POLOMĚR/);
+      expect(dia.join('\n')).toMatch(ctrl === 'fanuc' ? /X = PRUMER/ : /X = PRŮMĚR/);   // Fanuc jen ASCII
+      expect(rad.join('\n')).toMatch(ctrl === 'fanuc' ? /POZOR: X = POLOMER/ : /POZOR: X = POLOMĚR/);
     });
   }
 
@@ -130,9 +130,9 @@ describe('mergePrograms – dopisované řádky v dialektu spojovaného kódu', 
     ]);
     expect(out).not.toContain('STOPRE');           // sinumerikové slovo
     expect(out).not.toMatch(/;/);                  // Fanuc středník neumí
-    expect(out).toContain('( ===== Drážky ===== )');
-    expect(out).toContain('M5 ( Vřeteno STOP )');
-    expect(out).toContain('M3 ( Vřeteno CW )');
+    expect(out).toContain('( ===== Drazky ===== )');
+    expect(out).toContain('M5 ( Vreteno STOP )');   // Fanuc jen ASCII
+    expect(out).toContain('M3 ( Vreteno CW )');
   });
 
   it('sinumerikové části se spojí jako dosud (středníky, STOPRE)', () => {

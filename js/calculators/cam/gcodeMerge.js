@@ -6,7 +6,7 @@
 // cam/opParts.js). Dřív žilo jen v camEditor.js; vytaženo sem, aby obě
 // místa spojovala PŘESNĚ stejně a nevznikl cyklický import.
 
-import { fanucDecimalPoints } from './controlDialect.js';
+import { fanucLine } from './controlDialect.js';
 
 // Komentář k M-kódu vřetena při znovuzapnutí mezi částmi.
 const SPINDLE_CMT = { 3: 'Vřeteno CW', 4: 'Vřeteno CCW' };
@@ -265,7 +265,7 @@ export function mergePrograms(items, ctrl = null) {
   });
   refs.forEach((r) => out.push(...r.blk));
 
-  // Fanuc: desetinná tečka u souřadnic (controlDialect.js, fanucDecimalPoints).
-  const fixed = dialect === 'fanuc' ? out.map(fanucDecimalPoints) : out;
+  // Fanuc: jen ASCII a desetinná tečka u souřadnic (controlDialect.js, fanucLine).
+  const fixed = dialect === 'fanuc' ? out.map(fanucLine) : out;
   return renumberLines(fixed, 10, 10).join('\n');
 }

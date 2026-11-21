@@ -33,7 +33,7 @@ describe('spojení programů: jméno nástroje s mezerou', () => {
   it('fanucovský komentář části bez vnořených závorek', () => {
     const fan = (t) => ['G21', 'G99', `${t}`, '( --- )', 'G1 X10 Z-5 F0.1', 'M30'].join('\n');
     const out = mergePrograms([{ name: 'díl (2)', code: fan('T0101') }, { name: 'B', code: fan('T0202') }], 'fanuc');
-    expect(out).toContain('( ===== díl 2 ===== )');
+    expect(out).toContain('( ===== dil 2 ===== )');   // Fanuc jen ASCII
   });
 });
 
@@ -42,7 +42,7 @@ describe('převod Sinumerik → Fanuc: závorky v komentáři', () => {
     const code = ['G18 G90', 'T="A" D1 M6', '; --- HRUBOVANI ---', 'G1 X10 Z-5 F0.2 ; Výjezd (čelo)', 'M30'].join('\n');
     const out = convertGCodeControlSystem(code, 'sinumerik', 'fanuc', { mode: 'DIAMON', speed: 200, safeX: 100, safeZ: 5, machineType: 'M4' }, false, false);
     const line = out.split('\n').find(l => l.includes('X10'));
-    expect(line).toMatch(/\( Výjezd čelo \)$/);
+    expect(line).toMatch(/\( Vyjezd celo \)$/);   // Fanuc jen ASCII
   });
 });
 

@@ -157,3 +157,12 @@ describe('ncCheck – Fanuc desetinná tečka', () => {
     expect(kinds(program('sinumerik', ['G0 X150 Z5']), 'sinumerik').join()).not.toMatch(/desetinné tečky/);
   });
 });
+
+describe('ncCheck – Fanuc jen ASCII', () => {
+  it('diakritika v komentáři = upozornění, jen u Fanucu', () => {
+    const f = checkNcProgram(program('fanuc', ['G0 X150. Z5. ( Výjezd )']), 'fanuc').filter(x => /ASCII/.test(x.msg));
+    expect(f.map(x => x.level)).toEqual(['warn']);
+    expect(checkNcProgram(program('sinumerik', ['G0 X150 Z5 ; Výjezd']), 'sinumerik').filter(x => /ASCII/.test(x.msg))).toEqual([]);
+  });
+});
+

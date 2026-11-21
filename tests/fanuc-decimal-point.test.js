@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { fanucDecimalPoints, convertGCodeControlSystem } from '../js/calculators/cam/controlDialect.js';
+import { fanucDecimalPoints, fanucAscii, convertGCodeControlSystem } from '../js/calculators/cam/controlDialect.js';
 import { mergePrograms } from '../js/calculators/cam/gcodeMerge.js';
 import { runCamProg } from './helpers/camHeadless.mjs';
 
@@ -37,6 +37,8 @@ describe('Fanuc výstup bez celých souřadnic', () => {
     const { gcode } = await runCamProg(prog);
     expect(gcode).toMatch(/G0 X500\. Z500\./);
     expect(intAxisWords(gcode)).toEqual([]);
+    expect(gcode.split('\n').filter(l => /[^\x00-\x7F]/.test(l))).toEqual([]);   // jen ASCII
+    expect(gcode).toMatch(/\( Metricky vstup \)/);
   }, 180000);
 
   it('převod Sinumerik → Fanuc', () => {
@@ -44,6 +46,9 @@ describe('Fanuc výstup bez celých souřadnic', () => {
     const out = convertGCodeControlSystem(sin, 'sinumerik', 'fanuc', { speed: 200, mode: 'DIAMON', machineType: 'LIMS=2000' }, false, false, []);
     expect(out).toMatch(/G0 X150\. Z5\./);
     expect(intAxisWords(out)).toEqual([]);
+    const withCmt = convertGCodeControlSystem('; hlava\n; --- HRUBOVANI ---\nG1 X40 F0.3 ; Výjezd čelem\nM30', 'sinumerik', 'fanuc', { speed: 200, mode: 'DIAMON', machineType: 'LIMS=2000' }, false, false, []);
+    expect(withCmt).toMatch(/\( Vyjezd celem \)/);
+    expect(withCmt.split('\n').filter(l => /[^\x00-\x7F]/.test(l))).toEqual([]);
   });
 
   it('spojení fanucovských částí', () => {
@@ -53,3 +58,12 @@ describe('Fanuc výstup bez celých souřadnic', () => {
     expect(intAxisWords(out)).toEqual([]);
   });
 });
+
+describe('fanucAscii', () => {
+  it.each([
+    ['( Metrický vstup )', '( Metricky vstup )'],
+    ['( ŘEZ – Ø40 × 2° )', '( REZ - D40 x 2 st )'],
+    ['G0 X500. Z500.', 'G0 X500. Z500.'],
+  ])('%s', (inp, out) => expect(fanucAscii(inp)).toBe(out));
+});
+

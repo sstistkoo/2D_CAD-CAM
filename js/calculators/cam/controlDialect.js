@@ -22,7 +22,19 @@ import { toolCallWord, convertToolCallLine, parseToolCall, toolNumberForName, to
 // Fanuc: závorky uvnitř textu se zahodí — první `)` komentář ukončí a zbytek
 // by řízení četlo jako kód (např. „HRUBOVANI (CELNI)" → alarm).
 export function ctrlCmt(ctrl) {
-  return (text) => ctrl === 'fanuc' ? `( ${String(text).replace(/[()]/g, '')} )` : `; ${text}`;
+  return (text) => ctrl === 'fanuc' ? `( ${fanucAscii(String(text).replace(/[()]/g, ''))} )` : `; ${text}`;
+}
+
+// FANUC: JEN ASCII (audit 21. 11. 2026). Mnoho Fanuců při načtení přes kartu
+// nebo RS232 hlásí neplatný znak, nebo text komolí — „( Metrický vstup )".
+// Diakritika se zbaví háčků/čárek, pár běžných znaků se přepíše, zbytek pryč.
+// Kód (adresy, čísla) je ASCII vždy, takže se může převést celý řádek.
+const FANUC_CHAR_MAP = { '–': '-', '—': '-', '×': 'x', '°': ' st', '²': '2', '³': '3', '⌀': 'D', 'Ø': 'D', 'ø': 'D',
+  '≈': '~', '…': '...', '→': '->', '←': '<-', '±': '+-', '·': '.', '„': '"', '“': '"', '”': '"', '‚': "'", '‘': "'", '’': "'", 'µ': 'u' };
+export function fanucAscii(line) {
+  if (typeof line !== 'string' || !/[^\x00-\x7F]/.test(line)) return line;
+  return line.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x00-\x7F]/g, (ch) => FANUC_CHAR_MAP[ch] ?? '');
 }
 
 // FANUC: DESETINNÁ TEČKA U SOUŘADNIC (audit 21. 11. 2026).
@@ -46,11 +58,14 @@ export function fanucDecimalPoints(line) {
   }).join('');
 }
 
-/** Výstup generátoru (řádky `{text}` nebo řetězce) pro Fanuc s tečkami; ostatní beze změny. */
+/** Řádek pro Fanuc: jen ASCII a souřadnice s desetinnou tečkou. */
+export function fanucLine(line) { return fanucDecimalPoints(fanucAscii(line)); }
+
+/** Výstup generátoru (řádky `{text}` nebo řetězce) pro Fanuc (fanucLine); ostatní beze změny. */
 export function fanucizeLines(prms, out) {
   if (!prms || prms.controlSystem !== 'fanuc' || !Array.isArray(out)) return out;
-  return out.map((l) => (typeof l === 'string' ? fanucDecimalPoints(l)
-    : l && typeof l.text === 'string' ? { ...l, text: fanucDecimalPoints(l.text) } : l));
+  return out.map((l) => (typeof l === 'string' ? fanucLine(l)
+    : l && typeof l.text === 'string' ? { ...l, text: fanucLine(l.text) } : l));
 }
 
 // PRŮMĚR × POLOMĚR U SYSTÉMŮ BEZ DIAMON/DIAMOF.
@@ -263,7 +278,7 @@ export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, f
       out = out.replace(/\bG0?4\s+[FPXU]\d*\.?\d+/i, word);
     }
     // Fanuc: celé souřadnice s tečkou (`X500` by Fanuc bez DPI četl jako 0,5 mm).
-    if (newCtrl === 'fanuc') out = fanucDecimalPoints(out);
+    if (newCtrl === 'fanuc') out = fanucLine(out);
     return out;
   };
 
@@ -271,6 +286,6 @@ export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, f
   const newTail = hasTail ? buildControlTailLines(newCtrl) : [];
 
   const assembled = [...newHeader, ...middle.map(convLine), ...newTail, ...trailing.map(convLine)];
-  const fixed = newCtrl === 'fanuc' ? assembled.map(fanucDecimalPoints) : assembled;
+  const fixed = newCtrl === 'fanuc' ? assembled.map(fanucLine) : assembled;
   return renumberGCodeLines(fixed, 10, 10).join('\n');
 }
