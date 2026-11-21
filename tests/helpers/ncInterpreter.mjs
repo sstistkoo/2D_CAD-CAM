@@ -63,7 +63,7 @@ export function arcPoint(arc, p1, cw, t) {
 const num = (s) => parseFloat(s);
 const word = (body, letter) => {
   // Adresa jako samostatné slovo: písmeno, za ním číslo (ne „CR=", „LIMS=", „DIAMON")
-  const m = body.match(new RegExp(`(?:^|[\\s])${letter}(-?\\d*\\.?\\d+)(?=$|[\\s])`));
+  const m = body.match(new RegExp(`(?:^|[\\s])${letter}(-?(?:\\d+\\.?\\d*|\\.\\d+))(?=$|[\\s])`));
   return m ? num(m[1]) : null;
 };
 

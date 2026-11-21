@@ -25,6 +25,34 @@ export function ctrlCmt(ctrl) {
   return (text) => ctrl === 'fanuc' ? `( ${String(text).replace(/[()]/g, '')} )` : `; ${text}`;
 }
 
+// FANUC: DESETINNÁ TEČKA U SOUŘADNIC (audit 21. 11. 2026).
+// Fanuc bez parametru 3401#0 (DPI) čte číslo bez tečky v nejmenším přírůstku
+// (0,001 mm): `G0 X500 Z500` = X0,5 Z0,5 mm → rychloposuvem do dílu.
+// Proto každé nenulové celé číslo u X/Z/U/W/I/K/R dostane tečku (`X500.`).
+// Nula je nula i bez tečky (`G28 U0 W0` zůstává). Komentáře v závorkách se
+// nemění; S/T/P/M/N/G/F se nedotýká (P u G04 jsou ms, S otáčky, celá čísla).
+// Idempotentní — lze volat opakovaně (generování, převod, slučování).
+const FANUC_INT_AXIS = /(?<![A-Z_#])([XZUWIKR])(-?)(\d+)(?![\d.])/gi;
+export function fanucDecimalPoints(line) {
+  if (typeof line !== 'string' || !/[XZUWIKR]-?\d/i.test(line)) return line;
+  const fix = (code) => code.replace(FANUC_INT_AXIS, (m, a, s, d) => (/^0+$/.test(d) ? m : `${a}${s}${d}.`));
+  let inCmt = false;   // za `;` je komentář až do konce řádku
+  return line.split(/(\([^)]*\)?)/).map((part) => {
+    if (inCmt || part.startsWith('(')) return part;
+    const i = part.indexOf(';');
+    if (i < 0) return fix(part);
+    inCmt = true;
+    return fix(part.slice(0, i)) + part.slice(i);
+  }).join('');
+}
+
+/** Výstup generátoru (řádky `{text}` nebo řetězce) pro Fanuc s tečkami; ostatní beze změny. */
+export function fanucizeLines(prms, out) {
+  if (!prms || prms.controlSystem !== 'fanuc' || !Array.isArray(out)) return out;
+  return out.map((l) => (typeof l === 'string' ? fanucDecimalPoints(l)
+    : l && typeof l.text === 'string' ? { ...l, text: fanucDecimalPoints(l.text) } : l));
+}
+
 // PRŮMĚR × POLOMĚR U SYSTÉMŮ BEZ DIAMON/DIAMOF.
 // Souřadnice X se podle `prms.mode` emitují buď jako průměr (DIAMON), nebo
 // jako poloměr (DIAMOF) — viz `xDia` v gcodeEmit.js. Sinumerik to v hlavičce
@@ -232,6 +260,8 @@ export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, f
         : newCtrl === 'heidenhain' ? `G04 F${dwellS}` : `G4 F${dwellS}`;
       out = out.replace(/\bG0?4\s+[FPXU]\d*\.?\d+/i, word);
     }
+    // Fanuc: celé souřadnice s tečkou (`X500` by Fanuc bez DPI četl jako 0,5 mm).
+    if (newCtrl === 'fanuc') out = fanucDecimalPoints(out);
     return out;
   };
 
@@ -239,5 +269,6 @@ export function convertGCodeControlSystem(code, oldCtrl, newCtrl, prms, flipX, f
   const newTail = hasTail ? buildControlTailLines(newCtrl) : [];
 
   const assembled = [...newHeader, ...middle.map(convLine), ...newTail, ...trailing.map(convLine)];
-  return renumberGCodeLines(assembled, 10, 10).join('\n');
+  const fixed = newCtrl === 'fanuc' ? assembled.map(fanucDecimalPoints) : assembled;
+  return renumberGCodeLines(fixed, 10, 10).join('\n');
 }

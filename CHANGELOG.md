@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Fanuc: souřadnice s desetinnou tečkou** (audit CAM 21. 11. 2026). Bezpečná poloha se psala jako `G0 X500 Z500` (dříve `G0 X150 Z5`) – Fanuc bez parametru 3401#0 (DPI) čte číslo bez tečky v tisícinách mm, tedy X0,5 Z0,5 → rychloposuvem do dílu. Týkalo se všech Fanuc programů (hlavička, výměna nože, upich, zápichy, závit, vrtání, vyvrtávání). Teď dostane každé nenulové celé číslo u X/Z/U/W/I/K/R tečku (`X500.`) – při generování, při převodu z jiného řídicího systému i při spojování částí (`fanucDecimalPoints` v `cam/controlDialect.js`). Kontrola NC programu před uložením hlásí celou souřadnici bez tečky i v ručně upraveném Fanuc programu. Sinumerik a Heidenhain beze změny. Test `fanuc-decimal-point`.
+
 - **Kalkulačka: procenta jako na běžné kalkulačce** (uživatel 21. 11. 2026). 200 + 10 % = 220, 200 − 10 % = 180 (dřív 200,1 / 199,9), 200 ÷ 10 % = 2000 (dřív chybně 0,2); 200 × 10 % = 20 beze změny. V závorce se procenta berou jen z jejího obsahu.
 
 - **Mobil: horní lišta KAR · ABS · R · # · ∠ · 📐 · 🔔 leží přímo na výkresu** (uživatel 20. 11. 2026). Lišta měla tmavý poloprůhledný pruh přes celou šířku, který zakrýval vršek výkresu. Teď je průhledná (jen tlačítka se stínem) a prázdná místa lišty propouštějí klepnutí, posun i zoom na plátno.

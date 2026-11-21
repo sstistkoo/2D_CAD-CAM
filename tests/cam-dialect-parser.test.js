@@ -101,7 +101,7 @@ describe('convertGCodeControlSystem – převod nesmí mazat program', () => {
     // hlavička — přepnutí řídicího systému uživateli smazalo práci.
     const code = ['G18', 'G90', 'G0 X150 Z5', 'M3', 'G0 X50 Z0', 'M5', 'M30'].join('\n');
     const out = convertGCodeControlSystem(code, 'sinumerik', 'fanuc', prms(), false, false);
-    expect(out).toContain('G0 X50 Z0');
+    expect(out).toContain('G0 X50. Z0');   // Fanuc: celá souřadnice s tečkou, nula ne
     expect(out).toContain('M3');
     expect(out).toMatch(/\bM30\b/);
   });
@@ -110,7 +110,7 @@ describe('convertGCodeControlSystem – převod nesmí mazat program', () => {
     const code = ['; hlavička', 'G18 ; Rovina ZX', '; --- HRUBOVANI ---',
       'G1 X40 Z-10 F0.25', 'M30 ; Konec'].join('\n');
     const out = convertGCodeControlSystem(code, 'sinumerik', 'fanuc', prms(), false, false);
-    expect(out).toContain('G1 X40 Z-10 F0.25');
+    expect(out).toContain('G1 X40. Z-10. F0.25');
     expect(out).toContain('( Rovina ZX )');       // nová fanucovská hlavička
     expect(out).not.toMatch(/^\s*(N\d+\s*)?G18\s*;/m);
   });

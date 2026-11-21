@@ -77,6 +77,12 @@ export function checkNcProgram(code, ctrl = 'sinumerik') {
       }
     }
 
+    // Fanuc bez parametru 3401#0 (DPI) čte celé číslo v nejmenším přírůstku:
+    // `G0 X500` = 0,5 mm (audit 21. 11. 2026). Nula je nula i bez tečky.
+    if (ctrl === 'fanuc' && /(?<![A-Z_#])[XZUWIKR]-?0*[1-9]\d*(?![\d.])/.test(c)) {
+      add('error', idx, 'Souřadnice bez desetinné tečky (např. X500) — Fanuc bez parametru DPI ji čte v tisícinách mm (X500 = 0,5 mm). Piš X500.', 'fanuc-dpi');
+    }
+
     if (parseToolCall(raw)) tool = true;
 
     const g = words(c, 'G');

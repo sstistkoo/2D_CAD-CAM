@@ -19,7 +19,7 @@ import { roughingKey, mirrorsWorldZ, computeCalculation } from './calculatePipel
 import { mergeCollinearMoves } from './gcodeCollapse.js'; import { tuneFeeds, createFeedTrack } from './feedTuning.js';
 import { swapsXZ, emitSwapped } from './xzSwap.js';
 import { ctrlCmt, buildControlHeaderLines, buildControlTailLines,
-  controlArcFormatter, renumberGCodeLines, convertGCodeControlSystem } from './controlDialect.js';
+  controlArcFormatter, renumberGCodeLines, convertGCodeControlSystem, fanucizeLines } from './controlDialect.js';
 import { emitThread } from './ops/thread.js';
 import { emitPartOff } from './ops/partOff.js';
 import { emitGrooveInner } from './ops/grooveInner.js';
@@ -36,16 +36,16 @@ export function generateGCode(S, calc) {
   return S.manualGCode.split('\n').map((line, idx) => ({ text: line, simIdx: idx }));
 }
 
-// Dialekt řídicího systému (hlavička/závěr/převod) — viz cam/controlDialect.js.
-// Reexport kvůli zpětné kompatibilitě: camSimulator.js i headless harness
-// berou `convertGCodeControlSystem` odsud.
+// Dialekt (hlavička/závěr/převod, Fanuc tečky) — cam/controlDialect.js. Reexport:
+// camSimulator.js i headless harness berou `convertGCodeControlSystem` odsud.
 export { ctrlCmt, buildControlHeaderLines, buildControlTailLines,
   controlArcFormatter, renumberGCodeLines, convertGCodeControlSystem };
 
 // ── Auto G-Code Generator (z aktuální kontury/parametrů) ─────
 // Volá se jen z tlačítka "🔄 Autorefresh drah" — výsledek přepíše
 // S.manualGCode (a tedy i editor a simulační dráhu).
-export function generateAutoGCode(S, calc) {
+export function generateAutoGCode(S, calc) { return fanucizeLines(S.params, generateAutoGCodeRaw(S, calc)); }
+function generateAutoGCodeRaw(S, calc) {
   if (swapsXZ(S)) return emitSwapped(S, calc, generateAutoGCode, computeCalculation, ctrlCmt(S.params.controlSystem));   // karusel po X (xzSwap.js)
   const prms = S.params;
   // Hlášení, na která se přijde až při EMISI (znají pořadí obrábění a

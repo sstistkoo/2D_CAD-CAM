@@ -5,7 +5,7 @@
 // dávala kontrola při zavedení 0 nálezů (10. 11. 2026).
 import { describe, it, expect } from 'vitest';
 import { checkNcProgram, formatNcFindings, confirmNcExport } from '../js/calculators/ncCheck.js';
-import { buildControlHeaderLines, buildControlTailLines, controlArcFormatter } from '../js/calculators/cam/controlDialect.js';
+import { buildControlHeaderLines, buildControlTailLines, controlArcFormatter, fanucDecimalPoints } from '../js/calculators/cam/controlDialect.js';
 
 const PRMS = { speed: 200, safeX: 150, safeZ: 5, machineType: 'M3 LIMS=2500', mode: 'DIAMON', toolName: 'HRUB' };
 const CTRLS = ['sinumerik', 'fanuc', 'heidenhain'];
@@ -20,7 +20,9 @@ function program(ctrl, body) {
     'G1 X60',
     'G0 X150 Z5',
   ];
-  return [...buildControlHeaderLines(ctrl, PRMS, false, false), ...moves, ...buildControlTailLines(ctrl)].join('\n');
+  // Fanuc: souřadnice s desetinnou tečkou jako z generátoru (gcodeEmit.js).
+  const fix = ctrl === 'fanuc' ? fanucDecimalPoints : (l) => l;
+  return [...buildControlHeaderLines(ctrl, PRMS, false, false), ...moves, ...buildControlTailLines(ctrl)].map(fix).join('\n');
 }
 const kinds = (code, ctrl) => checkNcProgram(code, ctrl).map(f => f.msg);
 
@@ -30,7 +32,7 @@ describe('ncCheck – čistý program', () => {
   });
 
   it('komentáře se nečtou jako kód (G41 v textu, závorky Fanuc)', () => {
-    const code = program('fanuc').replace('G1 X60', 'G1 X60 ( G41 G2 bez R )');
+    const code = program('fanuc').replace('G1 X60.', 'G1 X60. ( G41 G2 bez R )');
     expect(checkNcProgram(code, 'fanuc')).toEqual([]);
   });
 
@@ -106,7 +108,7 @@ describe('ncCheck – hlášené chyby', () => {
     const code = program('fanuc', ['G0 X40 Z2', 'G1 Z-30', 'G1 X50', 'G1 Z-40']);
     const f = checkNcProgram(code, 'fanuc').filter(x => /bez posuvu/.test(x.msg));
     expect(f).toHaveLength(1);
-    expect(code.split('\n')[f[0].line - 1]).toBe('G1 Z-30');
+    expect(code.split('\n')[f[0].line - 1]).toBe('G1 Z-30.');
   });
 });
 
@@ -123,12 +125,25 @@ describe('ncCheck – potvrzení exportu', () => {
     expect(confirmNcExport(code, 'fanuc', (t) => { text = t; return false; })).toBe(false);
     expect(confirmNcExport(code, 'fanuc', () => true)).toBe(true);
     expect(text).toMatch(/chyby: 1/);
-    expect(text).toMatch(/ř\. \d+ \(G1 Z-30\): Řezný pohyb bez posuvu/);
+    expect(text).toMatch(/ř\. \d+ \(G1 Z-30\.\): Řezný pohyb bez posuvu/);
     expect(text).toMatch(/Přesto pokračovat\?/);
   });
 
   it('dlouhý seznam se zkrátí', () => {
     const many = Array.from({ length: 12 }, (_, i) => ({ level: 'warn', line: i + 1, block: '', msg: `x${i}` }));
     expect(formatNcFindings(many, 8)).toMatch(/… a 4 dalších/);
+  });
+});
+
+describe('ncCheck – Fanuc desetinná tečka', () => {
+  it('celá souřadnice bez tečky je chyba (X500 = 0,5 mm bez DPI)', () => {
+    const code = program('fanuc') + '\n';
+    const bad = code.replace('G0 X150. Z5.', 'G0 X150 Z5');
+    expect(kinds(bad, 'fanuc').join()).toMatch(/desetinné tečky/);
+    expect(kinds(code, 'fanuc').join()).not.toMatch(/desetinné tečky/);
+  });
+  it('nula, P u G04 a ostatní řízení se nehlásí', () => {
+    expect(kinds(program('fanuc', ['G0 X150. Z5.', 'G04 P500', 'G28 U0 W0']), 'fanuc').join()).not.toMatch(/desetinné tečky/);
+    expect(kinds(program('sinumerik', ['G0 X150 Z5']), 'sinumerik').join()).not.toMatch(/desetinné tečky/);
   });
 });

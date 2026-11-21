@@ -1532,6 +1532,7 @@ pokračovat?* Vygenerovaný program je čistý, okno se ukáže hlavně po ručn
 - ⛔ pohyb před voláním nástroje (`T…`),
 - ⛔ oblouk bez poloměru (`CR=`/`R`) i bez středu (`I`/`K`), nebo s nulovým poloměrem,
 - ⛔ nesmyslná souřadnice (mimo ±10 000 mm),
+- ⛔ Fanuc: celá souřadnice bez desetinné tečky (`X500` místo `X500.` – bez parametru DPI = 0,5 mm),
 - ⚠ chybějící `M30`, kód za `M30`, korekce `G41`/`G42` nezrušená `G40`.
 
 Cykly (`CYCLE95`, `G71` Fanuc…) a podprogramy se nekontrolují. Srážky

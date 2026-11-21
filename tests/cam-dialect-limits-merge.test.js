@@ -50,8 +50,8 @@ describe('převod Sinumerik → Fanuc', () => {
     'N15 T="DOKONCOVAK" D1 M6', 'N20 G33 Z-20 K1.5', 'N30 M30'].join('\n');
   const out = convertGCodeControlSystem(sin, 'sinumerik', 'fanuc', prms, false, false, mag);
   it('závit G33 K → G32 F a zpět', () => {
-    expect(out).toMatch(/G32 Z-20 F1\.5/);
-    expect(convertGCodeControlSystem(out, 'fanuc', 'sinumerik', prms, false, false, mag)).toMatch(/G33 Z-20 K1\.5/);
+    expect(out).toMatch(/G32 Z-20\. F1\.5/);   // Fanuc: celá souřadnice s tečkou
+    expect(convertGCodeControlSystem(out, 'fanuc', 'sinumerik', prms, false, false, mag)).toMatch(/G33 Z-20\.? K1\.5/);
   });
   it('LIMS= v těle zmizí', () => { expect(out).not.toMatch(/LIMS/); });
   it('nástroj v hlavičce i výměna uvnitř podle zásobníku', () => {
