@@ -60,10 +60,15 @@ function findCut(lo, prevX) {
       // až na konec dílu), je to jiná věc než přejezd jednoho hrbu a nechá
       // se být: zbytek by vjel do údolí, jehož vrstvy ještě nejely (part-8:
       // tříska 6 mm).
-      let low = q.x;
+      // ZA HRBEM DALŠÍ ÚDOLÍ (audit 21. 11. 2026): dřív `return null` — dojezd
+      // se pak nechal CELÝ a sjel do údolí, jehož vrstvy ještě nejely (part-1
+      // `N2240 G1 X31.201 Z40.243`: z X38,8 na X31,2 jedním tahem, tříska
+      // 6,8 mm při ap 3). Teď se utne na vrcholu stejně jako přes jeden hrb,
+      // jen se zbytek NEVYDÁ (`dropTail`): údolí za hrbem má vlastní průchody.
+      let low = q.x, valleyBeyond = false;
       for (let j = i + 1; j < pts.length; j++) {
         if (pts[j].x < low) low = pts[j].x;
-        else if (pts[j].x > low + HUMP_MIN) return null;
+        else if (pts[j].x > low + HUMP_MIN) { valleyBeyond = true; break; }
       }
       // Střih na mělčí vrstvě (když ji stěna dosáhla dřív), jinak na
       // začátku vrcholu.
@@ -75,9 +80,9 @@ function findCut(lo, prevX) {
         const s = lo[c.k], tPrev = pts[at - 1].k === c.k ? pts[at - 1].t : 0;
         let a = tPrev, b = c.t;
         for (let n = 0; n < 30; n++) { const m = (a + b) / 2; if (segAt(s, m).x >= prevX - TOL) b = m; else a = m; }
-        return { k: c.k, t: b };
+        return { k: c.k, t: b, dropTail: valleyBeyond };
       }
-      return { k: c.k, t: c.t };
+      return { k: c.k, t: c.t, dropTail: valleyBeyond };
     }
   }
   return null;
@@ -191,6 +196,7 @@ export function splitPocketLeadOutsOverHumps(list, step) {
     if (tl.length === 0) continue;
     if (h.length > 0) p.contourLeadOut = h; else delete p.contourLeadOut;
     p.humpLeadOutCut = true;
+    if (cut.dropTail) continue;   // za hrbem další údolí s vlastními průchody (findCut)
     const end = tl[tl.length - 1];
     const cutZ = tl[0].z1;
     // Za hrbem jede vlastní kus téže vrstvy s nájezdem po kontuře → přejezd

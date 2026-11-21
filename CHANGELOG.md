@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hrubování: dojezd z kapsy nesjede přes hrb do dalšího údolí** (audit CAM 21. 11. 2026, pravidla 3 a 7). Když za hrbem kontura zase stoupala (další údolí), `pocketHumpSplit.js` dojezd nechal celý – sjel do údolí, jehož vrstvy ještě nejely: part-1 `N2240 G1 X31.201 Z40.243` z X38,8 na X31,2 jedním tahem, tříska 6,8 mm při ap 3. Teď se utne na vrcholu hrbu jako přes jeden hrb a zbytek se nevydá – údolí si vezmou jeho vlastní průchody. Změněno 7 dílů (part-1, 2, 4, 6, 8, 9, pocket-wall-at-plunge-angle): tříska > ap 27 → 4–5 na díl, posuv vzduchem 6–9 → 1–3, kolize ani zbytek na dně nepřibyly. Baseline pravidel 1569 → 1395. Test `cam-pocket-leadout-valley`.
+
 - **Výměna na dokončovací nůž: vřeteno a chlazení stojí, slot bez vc/f** (audit CAM 21. 11. 2026). Před výměnou na dokončovací nůž ze zásobníku se teď vypne vřeteno a chlazení (`M5`, `M9`) a po výměně zapne (`M3`, `M8`) – stejně jako při spojování částí. Volání nože jde přes `toolCallWord` jako v hlavičce (Fanuc dřív bez stropu T99). Slot zásobníku bez řezné rychlosti nebo posuvu (starší či importovaný zásobník) dával `G96 Sundefined` a celé dokončení `F0` – teď platí hodnoty z panelu.
 
 - **Fanuc: `%` … `%` a číslo programu** (audit CAM 21. 11. 2026). Kopie do schránky i stažený soubor pro Fanuc začínají `%` a `O0001 ( SKICA )` a končí `%` – bez nich ho řada Fanuců do paměti nenačte. Vlastní `O`-číslo v programu zůstane. Text v editoru se nemění (`fanucProgramFrame` v `cam/controlDialect.js`).
