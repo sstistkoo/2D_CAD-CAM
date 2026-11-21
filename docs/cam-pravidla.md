@@ -653,3 +653,15 @@ smykadla. Všechna pravidla platí v prohozeném světě (x' = z, z' = x).**
   `tests/cam-carousel-swap-xz.test.js`, `tests/cam-carousel-xz-sections.test.js`;
   `scripts/cam_rules_check.mjs` měří karusel po X v prohozených osách
   (od 11. 11. 2026; „Z…" v jeho hlášení = poloměr).
+
+---
+
+## Baseline porušení (brána v testech)
+
+Počty porušení na díl a pravidlo, které `scripts/cam_rules_check.mjs` naměří
+na všech fixtures, jsou uložené v `scripts/cam-rules-baseline.json`
+(21. 11. 2026: 76 dílů, 1584 porušení). Test `cam-rules-baseline` selže,
+když kterékoli číslo vzroste. Baseline se přepisuje (`--fixtures
+--save-baseline`) jen po zlepšení; růst je regrese, nebo změna pravidla,
+kterou schvaluje uživatel.
+

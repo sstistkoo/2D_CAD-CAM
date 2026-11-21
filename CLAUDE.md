@@ -29,6 +29,8 @@ node scripts/cam_rules_check.mjs soubor.camprog [--generator=simple] [--all]  # 
 node scripts/cam_fingerprint.mjs --save=pred.json    # otisk PŘED zásahem
 node scripts/cam_fingerprint.mjs --diff=pred.json    # PO zásahu → změněné díly (~35 s)
 node scripts/cam_sweep.mjs                           # úběr × kolize
+node scripts/cam_rules_check.mjs --fixtures --check-baseline  # porušení pravidel nesmí vzrůst (test cam-rules-baseline)
+node scripts/cam_rules_check.mjs --fixtures --save-baseline   # po ZLEPŠENÍ snížit baseline
 ```
 
 ## Struktura (výběr)

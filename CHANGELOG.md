@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Brána pravidel CAM v testech** (audit CAM 21. 11. 2026). Kontrola `scripts/cam_rules_check.mjs` hlásila na 76 testovacích dílech 1584 porušení pravidel a nová regrese mezi nimi zapadla. Počty na díl a pravidlo jsou teď uložené v `scripts/cam-rules-baseline.json` a test `cam-rules-baseline` selže, když kterékoli vzroste (výpis řekne díl, pravidlo a starý → nový počet). Nové volby skriptu: `--fixtures` (všechny fixtures), `--check-baseline`, `--save-baseline` (po zlepšení snížit). Běží jen v plné sadě (`npm test`), ~3 min.
+
 ### Fixed
 
 - **Výměna na dokončovací nůž v bodě výměny** (audit CAM 21. 11. 2026). Před výměnou na nůž ze zásobníku se jelo jen na bezpečnou polohu – revolver se otáčel jinde než při první výměně v hlavičce. Teď se jede stejně jako v hlavičce: Sinumerik `G75 X…` a `G75 Z…` (pevný bod), Fanuc `G28 U0 W0`. Heidenhain beze změny (hlavička bod výměny nemá). Test `cam-finish-toolchange-point`.

@@ -28,8 +28,17 @@
 // Parametry se berou jako v aplikaci (bez klíčů, které vlastní kód — Bp X500
 // Z500). Karusel po X (pravidlo 21) se měří v PROHOZENÝCH osách, kde dráhy
 // vznikají: „X" = výška nad stolem, „Z" = poloměr, držák svisle.
+//
+// BASELINE (audit 21. 11. 2026) — počty porušení na díl a pravidlo
+// v `scripts/cam-rules-baseline.json`; test `cam-rules-baseline` pustí
+// `--fixtures --check-baseline` a selže, když kterékoli číslo VZROSTE:
+//   node scripts/cam_rules_check.mjs --fixtures --check-baseline  (jen kontrola)
+//   node scripts/cam_rules_check.mjs --fixtures --save-baseline   (po zlepšení)
+// `--fixtures` = všechny tests/fixtures/{cam,cam-cases,cam-xrange}/*.camprog.
+// Baseline se smí přepsat jen POKLESEM; růst je regrese (nebo vědomá změna
+// pravidla, kterou schvaluje uživatel).
 
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync, writeFileSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join, basename } from 'path';
 
@@ -57,12 +66,23 @@ const AIR_CUT_PER_MM = 0.01; // mm² na mm dráhy = „nic neubral"
 const SAMPLE = 0.5;         // krok vzorkování podél pohybu [mm]
 
 const args = process.argv.slice(2);
+const FIXTURE_DIRS = ['tests/fixtures/cam', 'tests/fixtures/cam-cases', 'tests/fixtures/cam-xrange'];
+const BASELINE = join(root, 'scripts', 'cam-rules-baseline.json');
+const saveBaseline = args.includes('--save-baseline');
+const checkBaseline = args.includes('--check-baseline');
+const quiet = checkBaseline && !args.includes('--verbose');
 const files = args.filter(a => !a.startsWith('--'));
+if (args.includes('--fixtures')) {
+  for (const d of FIXTURE_DIRS) {
+    for (const f of readdirSync(join(root, d)).filter(n => n.endsWith('.camprog')).sort()) files.push(join(root, d, f));
+  }
+}
 const showAll = args.includes('--all');
 if (files.length === 0) {
-  console.log('Použití: node scripts/cam_rules_check.mjs soubor.camprog [--all]');
+  console.log('Použití: node scripts/cam_rules_check.mjs soubor.camprog [--all] | --fixtures [--check-baseline | --save-baseline]');
   process.exit(1);
 }
+const log = quiet ? () => {} : (...a) => console.log(...a);
 
 const topAt = (loops, z) => {
   let top = null;
@@ -343,13 +363,16 @@ const fmtList = (arr, fmt) => (showAll ? arr : arr.slice(0, 8)).map(fmt).join('\
   + (!showAll && arr.length > 8 ? `\n      … a dalších ${arr.length - 8} (--all)` : '');
 
 let total = 0;
+const counts = {};   // díl → pravidlo → počet (baseline)
 for (const f of files) {
   const c = await check(f);
   const { found: F } = c;
-  console.log(`\n══ ${c.name}  (${c.P.toolShape}, ap ${c.ap}, ${c.P.roughingSide === 'left' ? 'zleva' : 'zprava'}${c.carouselXZ ? ', karusel po X — měřeno v prohozených osách, Z… v hlášení = poloměr' : ''})`);
+  log(`\n══ ${c.name}  (${c.P.toolShape}, ap ${c.ap}, ${c.P.roughingSide === 'left' ? 'zleva' : 'zprava'}${c.carouselXZ ? ', karusel po X — měřeno v prohozených osách, Z… v hlášení = poloměr' : ''})`);
+  const cnt = counts[c.name] = {};
   const row = (label, arr, fmt) => {
-    console.log(`  ${arr.length === 0 ? '✓' : '✗'} ${label}: ${arr.length}`);
-    if (arr.length) console.log('      ' + fmtList(arr, fmt));
+    cnt[label] = arr.length;
+    log(`  ${arr.length === 0 ? '✓' : '✗'} ${label}: ${arr.length}`);
+    if (arr.length) log('      ' + fmtList(arr, fmt));
   };
   row('P2 kolize', c.coll, (q) => `${q.kind} ${q.area.toFixed(1)} mm² @X${q.x.toFixed(2)} Z${q.z.toFixed(2)}`);
   row('P3 tříska větší než ap', F.chip, (q) => `${c.N(q.i)}: ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
@@ -363,5 +386,30 @@ for (const f of files) {
   row('P4 vrstva končí uprostřed materiálu', F.endMid, (q) => `${c.N(q.i)}: za koncem ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   total += c.coll.length + F.chip.length + F.thin.length + c.floors.length + F.air.length + F.plunge.length + F.endMid.length + c.order.found.hump.length + c.order.found.order.length + F.humpBreak.length;
 }
-console.log(`\nCELKEM porušení: ${total}`);
-console.log('(Čísla N… jsou z programu, který TEĎ vygeneruje aktuální kód — ne z G-kódu uloženého v souboru.)');
+log(`\nCELKEM porušení: ${total}`);
+log('(Čísla N… jsou z programu, který TEĎ vygeneruje aktuální kód — ne z G-kódu uloženého v souboru.)');
+
+if (saveBaseline) {
+  const sorted = Object.fromEntries(Object.keys(counts).sort().map(k => [k, counts[k]]));
+  writeFileSync(BASELINE, JSON.stringify({ total, parts: sorted }, null, 2) + '\n');
+  console.log(`Baseline uložena: ${BASELINE} (${Object.keys(counts).length} dílů, ${total} porušení)`);
+}
+if (checkBaseline) {
+  const base = JSON.parse(readFileSync(BASELINE, 'utf8')).parts || {};
+  const worse = [], better = [];
+  for (const [part, rules] of Object.entries(counts)) {
+    const b = base[part];
+    if (!b) { worse.push(`${part}: díl chybí v baseline — přidej ho (--save-baseline)`); continue; }
+    for (const [rule, n] of Object.entries(rules)) {
+      const was = b[rule] ?? 0;
+      if (n > was) worse.push(`${part} · ${rule}: ${was} → ${n}`);
+      else if (n < was) better.push(`${part} · ${rule}: ${was} → ${n}`);
+    }
+  }
+  if (better.length) console.log(`Zlepšení (${better.length}) — sniž baseline: node scripts/cam_rules_check.mjs --fixtures --save-baseline\n  ` + better.join('\n  '));
+  if (worse.length) {
+    console.log(`REGRESE pravidel CAM (${worse.length}) — podrobnosti: node scripts/cam_rules_check.mjs <díl> --all\n  ` + worse.join('\n  '));
+    process.exit(1);
+  }
+  console.log(`Baseline OK: ${Object.keys(counts).length} dílů, ${total} porušení, nic nevzrostlo.`);
+}
