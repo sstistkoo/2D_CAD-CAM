@@ -174,6 +174,13 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   if (finSlotData) {
     // Bezpečná poloha před výměnou
     addN(`G0 X${prms.safeX} Z${prms.safeZ}${note('', 'Výjezd do bezpečné polohy')}`);
+    // Výměna ve stejném místě jako na začátku programu (hlavička, controlDialect.js):
+    // revolver se nesmí otáčet jen na bezpečné poloze blízko dílu (audit 21. 11. 2026).
+    // Heidenhain hlavička bod výměny nemá — zůstává bezpečná poloha.
+    if (prms.controlSystem === 'sinumerik') {
+      addN(`G75 X${prms.safeX}${note('', 'Najetí na pevný bod stroje')}`);
+      addN(`G75 Z${prms.safeZ}`);
+    } else if (prms.controlSystem === 'fanuc') addN(`G28 U0 W0${note('', 'Referenční bod')}`);
     if (prms.controlSystem === 'sinumerik') {
       addN(`T="${sinumerikToolName(finSlotData.name)}" D1 M6${note('', `Výměna na dokončovací nástroj T${finSlotData.slot}`)}`);
       addN(`G96 S${finSpeed} ${prms.machineType}${note('', 'Řezná rychlost – dokončování')}`);

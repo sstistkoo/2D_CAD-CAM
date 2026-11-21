@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Výměna na dokončovací nůž v bodě výměny** (audit CAM 21. 11. 2026). Před výměnou na nůž ze zásobníku se jelo jen na bezpečnou polohu – revolver se otáčel jinde než při první výměně v hlavičce. Teď se jede stejně jako v hlavičce: Sinumerik `G75 X…` a `G75 Z…` (pevný bod), Fanuc `G28 U0 W0`. Heidenhain beze změny (hlavička bod výměny nemá). Test `cam-finish-toolchange-point`.
+
 - **Heidenhain: limit otáček `G26 S` v hlavičce** (audit CAM 21. 11. 2026). Program jel `G96` bez omezení otáček (hlavička jen radila nastavit limit na řízení) – u osy by vřeteno vyletělo na maximum stroje. Teď hlavička píše `G26 S…` z pole Max. otáčky před `G96` – zápis DIN PLUS (CNC PILOT 640 / MANUALplus 620, nejrozšířenější soustružnická řízení Heidenhain). Kontrola NC programu hlídá `G96` bez `G26 S` i na Heidenhainu.
 
 - **Fanuc: souřadnice s desetinnou tečkou** (audit CAM 21. 11. 2026). Bezpečná poloha se psala jako `G0 X500 Z500` (dříve `G0 X150 Z5`) – Fanuc bez parametru 3401#0 (DPI) čte číslo bez tečky v tisícinách mm, tedy X0,5 Z0,5 → rychloposuvem do dílu. Týkalo se všech Fanuc programů (hlavička, výměna nože, upich, zápichy, závit, vrtání, vyvrtávání). Teď dostane každé nenulové celé číslo u X/Z/U/W/I/K/R tečku (`X500.`) – při generování, při převodu z jiného řídicího systému i při spojování částí (`fanucDecimalPoints` v `cam/controlDialect.js`). Kontrola NC programu před uložením hlásí celou souřadnici bez tečky i v ručně upraveném Fanuc programu. Sinumerik a Heidenhain beze změny. Test `fanuc-decimal-point`.
