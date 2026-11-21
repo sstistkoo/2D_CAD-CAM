@@ -58,6 +58,16 @@ describe('ncCheck – hlášené chyby', () => {
     expect(kinds(code, 'fanuc').join()).toMatch(/G50 S/);
   });
 
+  it('Heidenhain (DIN PLUS): G26 S v hlavičce před G96, bez něj chyba', () => {
+    const code = program('heidenhain');
+    const lines = code.split('\n');
+    const i26 = lines.findIndex(l => /^G26 S2500\b/.test(l)), i96 = lines.findIndex(l => /^G96\b/.test(l));
+    expect(i26).toBeGreaterThanOrEqual(0);
+    expect(i26).toBeLessThan(i96);
+    const bad = lines.filter(l => !/^G26 S/.test(l)).join('\n');
+    expect(kinds(bad, 'heidenhain').join()).toMatch(/G26 S/);
+  });
+
   it('Heidenhain: limit otáček se nehlásí (program ho psát neumí, hlavička na to upozorňuje)', () => {
     expect(kinds(program('heidenhain'), 'heidenhain').join()).not.toMatch(/omezení otáček/);
   });

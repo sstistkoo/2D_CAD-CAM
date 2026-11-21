@@ -98,8 +98,9 @@ export function checkNcProgram(code, ctrl = 'sinumerik') {
     // Omezení otáček (musí platit dřív než G96, nebo ve stejném bloku).
     if (has(c, /(?<![A-Z_])LIMS\s*=/)) limit = true;
     if (ctrl === 'fanuc' && (g.includes(50) || g.includes(92)) && s.length && !has(c, /(?<![A-Z_])[XZUW]\s*-?[\d.]/)) limit = true;
-    if (g.includes(96) && !limit && ctrl !== 'heidenhain') {
-      const word = ctrl === 'fanuc' ? 'G50 S…' : 'LIMS=…';
+    if (ctrl === 'heidenhain' && g.includes(26) && s.length) limit = true;   // DIN PLUS G26 S
+    if (g.includes(96) && !limit) {
+      const word = ctrl === 'fanuc' ? 'G50 S…' : ctrl === 'heidenhain' ? 'G26 S…' : 'LIMS=…';
       add('error', idx, `G96 (konst. řezná rychlost) bez omezení otáček — doplň ${word} před G96. U malého průměru by vřeteno vyletělo na maximum stroje.`, 'g96-limit');
     }
 

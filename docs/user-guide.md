@@ -1527,8 +1527,7 @@ pokračovat?* Vygenerovaný program je čistý, okno se ukáže hlavně po ručn
 úpravě. Hlídá se:
 
 - ⛔ řezný pohyb (G1/G2/G3) bez zapnutého vřetena (M3/M4), bez otáček S nebo bez posuvu F,
-- ⛔ `G96` bez omezení otáček (`LIMS=` na Sinumeriku, `G50 S` na Fanucu); na Heidenhainu
-  se nehlídá, limit se tam nastavuje na řízení (hlavička programu na to upozorní),
+- ⛔ `G96` bez omezení otáček (`LIMS=` na Sinumeriku, `G50 S` na Fanucu, `G26 S` na Heidenhainu – DIN PLUS),
 - ⛔ pohyb před voláním nástroje (`T…`),
 - ⛔ oblouk bez poloměru (`CR=`/`R`) i bez středu (`I`/`K`), nebo s nulovým poloměrem,
 - ⛔ nesmyslná souřadnice (mimo ±10 000 mm),

@@ -117,7 +117,9 @@ export function buildControlHeaderLines(ctrl, prms, flipX, flipZ, tool) {
     lines.push(`G18${note('Rovina ZX')}`, `G90${note('Absolutní')}`);
     lines.push(`G71${note('Metrický systém')}`, `G54${note('Nulový bod')}`);
     lines.push(cmt(diaModeNote(ctrl, prms)));
-    lines.push(cmt(`POZOR: limit otáček ${lims} 1/min nastavit na řízení, program ho nepíše`));
+    // G26 S = omezení otáček v DIN PLUS (CNC PILOT 640 / MANUALplus 620), musí
+    // platit před G96 — jinak u osy vřeteno vyletí na maximum stroje.
+    lines.push(`G26 S${lims}${note('Max otáčky')}`);
     lines.push(`G96 S${prms.speed} M3${note('Řezná rychlost')}`);
     lines.push(`${tWord}${note(`Nástroj ${tNum}`)}`, 'M8');
   } else {
