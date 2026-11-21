@@ -1,5 +1,5 @@
 {
-  "total": 1584,
+  "total": 1569,
   "parts": {
     "carousel-center-axis.camprog": {
       "P2 kolize": 0,
@@ -338,11 +338,11 @@
       "P4 vrstva končí uprostřed materiálu": 0
     },
     "long-pclnr-valley.camprog": {
-      "P2 kolize": 5,
-      "P3 tříska větší než ap": 5,
+      "P2 kolize": 0,
+      "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 0,
-      "P3 zbytek na dně (chybí poslední vrstva)": 6,
-      "P5 posuv vzduchem": 2,
+      "P3 zbytek na dně (chybí poslední vrstva)": 3,
+      "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
       "P7 přes hrb dřív, než je pravá strana hotová": 0,
       "P7 vrstva přes hrb vcelku až na konec": 0,

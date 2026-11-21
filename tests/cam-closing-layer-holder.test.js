@@ -31,3 +31,21 @@ describe('poslední vrstva nepustí držák do stojícího zbytku', () => {
     expect(await collisions(id, size)).toEqual([]);
   }, 180000);
 });
+
+// Audit 21. 11. 2026: s VLASTNÍM nožem dílu (nakreslený držák, „Šlicht") jel
+// dojezd po kontuře pod zbytkem, který vrstvy nad ním kvůli držáku nechaly
+// stát — `G1 X13.140 Z246.234` z Z285 (tříska 24 mm, držák 80 mm²) a dojezd
+// po válci r 10,4 přes 100 mm (držák 110 mm²). Dojezd teď končí tam, kde by
+// držák vjel do toho zbytku (toolEnvelope.js `stairForbidden`), a odtržený
+// dojezd se vynechá (openPass.js).
+describe('dojezd po kontuře nejede pod zbytkem od držáku', () => {
+  it('vlastní nůž dílu: žádná kolize držáku', async () => {
+    const prog = JSON.parse(readFileSync(FILE, 'utf8'));
+    const { calcSim, params, gcode } = await runCamProg(prog);
+    const hits = validateToolpath(calcSim.simPath, params, calcSim.stockPathSegments, { backside: false, maxIssues: 50 })
+      .map((s) => `${s.kind} ${s.area.toFixed(1)} mm² @X${s.x.toFixed(1)} Z${s.z.toFixed(1)}`);
+    expect(hits).toEqual([]);
+    expect(gcode).not.toMatch(/G1 X13\.140 Z246\.234/);
+  }, 180000);
+});
+

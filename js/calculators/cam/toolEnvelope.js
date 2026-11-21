@@ -350,6 +350,19 @@ export function makeHolderClamp(prms, offsetPath, { backside = false, margin = H
     return nz;
   };
   clamp.noteMainEnd = (xLo, xHi, zEnd) => { stair.push({ xLo, xHi, zEnd }); };
+  // Bodový test proti „schodům": stojí-li v pásu výšek držáku materiál, který
+  // mělčí vrstva kvůli držáku nechala stát (konec `zEnd`, vlevo od něj), smí
+  // špička nejvýš na `zEnd + hwLeft + rezerva` — táž mez jako `mainStair`.
+  // Pro DOJEZD po kontuře (holderTrim.js): statická překážka zbytek nezná
+  // a dojezd hlubší vrstvy pod ním jel skrz (audit 21. 11. 2026).
+  clamp.stairForbidden = (x, z) => {
+    if (!(hwLeft > 0)) return false;
+    for (const s of stair) {
+      if (s.xHi <= x + hLo || s.xLo >= x + hHi) continue;
+      if (z < s.zEnd + hwLeft + margin) return true;
+    }
+    return false;
+  };
   clamp.resetStair = () => { stair = []; };
   // Bodový test (tvrdá oblast) — konce otevřených průchodů.
   clamp.isForbidden = (x, z) => pointInForbidden(forbidden, x, z);

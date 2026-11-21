@@ -17,8 +17,12 @@ export function makeHolderTrim({ holderClampZEnd }) {
   // podél stěn toleruje — používá se JEN pro dočišťovací trasy kapes
   // (guides v2 tam vědomě pouští držák těsně podél stěn, dno musí
   // zůstat dosažitelné). Vše ostatní testuje tvrdou oblast.
-  const _traceSegBlocked = (s, soft) => {
-    const test = soft ? holderClampZEnd?.isForbiddenSoft : holderClampZEnd?.isForbidden;
+  // `stair` = i proti zbytku od mělčích vrstev zkrácených držákem (jen dojezd,
+  // toolEnvelope.js `stairForbidden`).
+  const _traceSegBlocked = (s, soft, stair = false) => {
+    const t0 = soft ? holderClampZEnd?.isForbiddenSoft : holderClampZEnd?.isForbidden;
+    const st = stair ? holderClampZEnd?.stairForbidden : null;
+    const test = t0 && st ? (x, z) => t0(x, z) || st(x, z) : t0;
     if (!test) return false;
     const n = Math.max(1, Math.min(32, Math.ceil(Math.hypot(s.x2 - s.x1, s.z2 - s.z1) / 0.5)));
     for (let k = 0; k <= n; k++) {
@@ -40,7 +44,7 @@ export function makeHolderTrim({ holderClampZEnd }) {
     if (globalThis.__DISABLE_HOLDER_TRIMS__) return lo;
     if (!holderClampZEnd || !holderClampZEnd.isForbidden || lo.length === 0) return lo;
     for (let i = 0; i < lo.length; i++) {
-      if (_traceSegBlocked(lo[i], soft)) {
+      if (_traceSegBlocked(lo[i], soft, true)) {
         if (globalThis.__HOLDER_CLAMP_DEBUG__)
           console.log(`[trimOut${soft ? '/soft' : ''}] ${lo.length} segů → ${i} (blok u (${lo[i].x1?.toFixed(1)},${lo[i].z1?.toFixed(1)}))`);
         return lo.slice(0, i);

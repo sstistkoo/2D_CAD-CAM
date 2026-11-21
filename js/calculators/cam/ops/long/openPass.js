@@ -486,6 +486,16 @@ export function emitOpenInterval(D) {
     // currentX (krátký "dip"). Průchod nesmí řezat pod svou hloubku —
     // sledování kontury začne až tam, kde se zvedne na currentX.
     while (leadOut.length > 0 && leadOut[0].x2 <= currentX + 0.02) leadOut.shift();
+    // ── DOJEZD ODTRŽENÝ OD KONCE TĚLA (audit 21. 11. 2026) ─────────────
+    // Tělo zkrácené držákem (`holderClamped`) končí uprostřed kuželu NAD
+    // konturou; kontura pod ním leží pod hloubkou vrstvy, takže smyčka výš
+    // zahodí celou trasu až tam, kde kontura zase stoupne — klidně o desítky
+    // mm dál. Emise pak spojí konec těla s tím bodem rovným G1 skrz materiál,
+    // který vrstvy nad ním kvůli držáku nechaly stát (`long-pclnr-valley`:
+    // průchod 22 `G1 X13.140 Z246.234` z Z285, tříska 24 mm, držák 80 mm²).
+    // Pravidlo 2: kde se držák nevejde, dráha skončí dřív — dojezd se vynechá.
+    // Krátký „dip" (zaoblený roh, diskretizace) do jedné hloubky záběru zůstává.
+    if (leadOut.length > 0 && Math.abs(leadOut[0].z1 - iv.zEnd) > step + 1e-6) leadOut.length = 0;
     // „Bez schodků" smí obrobit schod jen k SOUSEDNÍ (mělčí) hloubce
     // (prevX) — dál (X > prevX) je materiál už obroben mělčím průchodem.
     // U šikmé kontury to řeší findLeadOutEndZ (v ose Z), ale VODOROVNÉ
