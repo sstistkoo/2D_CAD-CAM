@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Kalkulačka: procenta jako na běžné kalkulačce** (uživatel 21. 11. 2026). 200 + 10 % = 220, 200 − 10 % = 180 (dřív 200,1 / 199,9), 200 ÷ 10 % = 2000 (dřív chybně 0,2); 200 × 10 % = 20 beze změny. V závorce se procenta berou jen z jejího obsahu.
+
 - **Mobil: horní lišta KAR · ABS · R · # · ∠ · 📐 · 🔔 leží přímo na výkresu** (uživatel 20. 11. 2026). Lišta měla tmavý poloprůhledný pruh přes celou šířku, který zakrýval vršek výkresu. Teď je průhledná (jen tlačítka se stínem) a prázdná místa lišty propouštějí klepnutí, posun i zoom na plátno.
 
 - **Přechod R: ★ krajní Ø velkým modrým štítkem** (uživatel 20. 11. 2026). V profilu záložky Přechod R byl ★ Ø malým modrým písmem mezi ostatními popisky. Teď je to velký modrý štítek (15 px tučně) v pevném místě – u spodku nad dolní lištou, u vrchu pod horní – s vodicí čarou k většímu bodu na oblouku; ostatní popisky se mu vyhnou.
