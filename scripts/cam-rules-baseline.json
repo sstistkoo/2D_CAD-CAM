@@ -1,5 +1,5 @@
 {
-  "total": 1359,
+  "total": 1321,
   "parts": {
     "carousel-center-axis.camprog": {
       "P2 kolize": 0,
@@ -195,7 +195,7 @@
     },
     "face-parting-retract-holder.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 1,
+      "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 1,
       "P5 posuv vzduchem": 0,
@@ -435,7 +435,7 @@
     },
     "part-16-face-holder.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 1,
+      "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 0,
       "P5 posuv vzduchem": 0,
@@ -471,7 +471,7 @@
     },
     "part-18-parting-90-ramp.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 1,
+      "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 1,
       "P5 posuv vzduchem": 0,
@@ -507,7 +507,7 @@
     },
     "part-20-zleva-parting-taper.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 13,
+      "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 0,
       "P5 posuv vzduchem": 1,
@@ -627,7 +627,7 @@
     },
     "parting-face-holder-gaps.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 1,
+      "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 0,
       "P5 posuv vzduchem": 0,
@@ -639,7 +639,7 @@
     },
     "parting-finish-envelope-edge.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 20,
+      "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 0,
       "P5 posuv vzduchem": 0,
@@ -735,7 +735,7 @@
     },
     "range-parting-plunge.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 1,
+      "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 1,
       "P5 posuv vzduchem": 0,

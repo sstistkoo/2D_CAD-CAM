@@ -11,7 +11,8 @@
 //   P2  kolize nástroje/držáku (validátor)
 //   P3  tříska > ap          — v každém bodě posuvu: materiál nad břitem PŘED
 //                              pohybem (povrch − břit) > ap; jednou za řádek,
-//                              bez dokončování, výjezd v X od osy = úběr ÷ délka
+//                              bez dokončování, výjezd v X od osy = úběr ÷ délka,
+//                              kolmé zanoření upichováku se nepočítá
 //   P3  zbytek na dně        — po celém programu: materiál nad dílem víc než
 //                              Přídavek X (poslední vrstva chybí)
 //   P3  tenká vrstva uprostřed — průchod v Z ubral nejvýš ap − 0,3 mm, a přesto
@@ -256,9 +257,20 @@ async function check(file) {
       //    kulatou by úběr ÷ délka započítal celý kruh nosu (part-23 R10
       //    `N2610` „4,21 mm"); čelně se tříska měří úběrem po sloupcích výš.
       const finishLine = finishFromLine >= 0 && sp[i].originalLineIdx > finishFromLine;
-      const outwardX = !face && Math.abs(b.z - a.z) < 1e-6 && b.x - a.x > 1e-6;
-      const chipV = outwardX ? cut / (b.x - a.x) : worst;
-      if (!finishLine && chipV > ap + TOL_AP && cut > 0.05) found.chip.push({ i, v: chipV, line: sp[i].originalLineIdx });
+      // Skoro radiální (Z nejvýš desetina délky — výjezd po čele `X18.140
+      // Z257.514` z Z257,518) a aspoň 1 mm: u kratičkého pohybu (0,002 mm,
+      // part-1 `G1 X36.180`) by úběr ÷ délka vyletěl na desítky mm.
+      const dxOut = b.x - a.x;
+      const outwardX = !face && dxOut > 1 && Math.abs(b.z - a.z) <= 0.1 * dxOut;
+      const chipV = outwardX ? cut / dxOut : worst;
+      //  • UPICHOVÁK ZANOŘUJE KOLMO CELOU ŠÍŘKOU (uživatel 22. 11. 2026: „tak má
+      //    jet kolmo a celou stranou plátku, jinak to ani nejde"). Radiální
+      //    zanoření k ose není vrstva — sloupec tu byl celá hloubka zápichu
+      //    (part-20 `G1 X31.766` „98,7 mm"). Krok vedle sebe hlídá pravidlo 17.
+      // Ve SKUTEČNÝCH osách stroje (`spR`) — čelně jsou `a`/`b` prohozené.
+      const ra = spR[i - 1], rb = spR[i];
+      const partingPlunge = partingOk && rb.x < ra.x && Math.abs(rb.z - ra.z) <= 0.1 * (ra.x - rb.x);
+      if (!finishLine && !partingPlunge && chipV > ap + TOL_AP && cut > 0.05) found.chip.push({ i, v: chipV, line: sp[i].originalLineIdx });
       if (Math.abs(b.x - a.x) < 1e-6 && len > 1 && cut > 0.05 && worst > 0.05 && worst < ap - THIN
           && (!rmPlan.model || worstPlan < ap - THIN))
         thinCand.push({ i, v: worst, z: (a.z + b.z) / 2, edge: b.x - lift });
