@@ -9,7 +9,7 @@
 // `closed`) — je to objekt, protože tělo má `return;` uprostřed.
 
 import { isFaceLeadOut, traceIfContinuous } from './segUtils.js';
-import { ENTRY_FIT_TOL, HOLDER_FIT_TOL, clipLeadOutToDepth } from '../shared.js';
+import { ENTRY_FIT_TOL, HOLDER_FIT_TOL, clipLeadOutToDepth, cutLeadOutAtDepth } from '../shared.js';
 import { entryApproachDz, plungeDisabled } from '../../camMath.js';
 
 export function emitOpenInterval(D) {
@@ -520,8 +520,12 @@ export function emitOpenInterval(D) {
     // takže se jen dojede ROVNĚ doleva, dokud na téhle hloubce materiál
     // sahá. Právě proto je to bezpečné tam, kde posouvání vjezdu není
     // (to se 10. 8. 2026 třikrát nepovedlo, viz holderClampZEnd níž).
-    if (leadOut.length > 0 && capTab) {
-      const last = leadOut[leadOut.length - 1];
+    // Vrací úseky, které se mají za dojezd `lo` přidat, nebo null.
+    // `ivTol` = tolerance, s jakou konec dojezdu padne do následujícího
+    // intervalu (utnutý dojezd končí na průsečíku s currentX, který se od
+    // hranice intervalu liší o vzorkování).
+    const finishLayerRun = (lo, ivTol) => {
+      const last = lo[lo.length - 1];
       const xT = last.x2, zT = last.z2;
       // Vrstva se dobírá na HLOUBCE VRSTVY, ne na X, kde zrovna skončilo
       // sledování kontury. Dojezd sjede po obrysu klidně pod currentX
@@ -535,7 +539,7 @@ export function emitOpenInterval(D) {
         // dojel až na Z −9 (přes celý díl) a bral práci jiným vrstvám
         // i regionům: dojezdy narostly z 1–3 na 10–13 segmentů.
         const ivTail = intervals.find(q => q !== iv
-          && zT <= q.zStart + 1e-6 && zT >= q.zEnd - 1e-6);
+          && zT <= q.zStart + ivTol && zT >= q.zEnd - 1e-6);
         // Kam až v tom úseku na téhle hloubce materiál sahá. Měří se
         // proti PLÁNOVACÍMU obrysu (offsetová čára) jako všechno
         // ostatní — co z toho je vzduch, rozdělí až emise
@@ -553,7 +557,7 @@ export function emitOpenInterval(D) {
           // průchodu, celý dojezd a ta část jízdy, kterou má nástroj
           // v daném bodě za sebou — destička si cestu řeže sama.
           const own = [{ z1: passObj.zStart, x1: currentX, z2: passObj.zEnd, x2: currentX }]
-            .concat(leadOut.map(s => ({ z1: s.z1, x1: s.x1, z2: s.z2, x2: s.x2 })));
+            .concat(lo.map(s => ({ z1: s.z1, x1: s.x1, z2: s.z2, x2: s.x2 })));
           let ok = true;
           const n = Math.max(1, Math.min(64, Math.ceil(zT - zTo)));
           for (let k = 1; k <= n && ok; k++) {
@@ -561,10 +565,36 @@ export function emitOpenInterval(D) {
             if (holderFitArea(z, xRun, 0, own.concat([{ z1: zT, x1: xRun, z2: z, x2: xRun }])) > HOLDER_FIT_TOL) ok = false;
           }
           if (ok) {
-            if (xRun > xT + 1e-6) leadOut.push({ type: 'line', x1: xT, z1: zT, x2: xRun, z2: zT });
-            leadOut.push({ type: 'line', x1: xRun, z1: zT, x2: xRun, z2: zTo });
+            const add = [];
+            if (xRun > xT + 1e-6) add.push({ type: 'line', x1: xT, z1: zT, x2: xRun, z2: zT });
+            add.push({ type: 'line', x1: xRun, z1: zT, x2: xRun, z2: zTo });
+            return add;
           }
         }
+      }
+      return null;
+    };
+    if (leadOut.length > 0 && capTab) {
+      // ── NEJDŘÍV VRSTVA, DO SVAHU AŽ POTOM (audit 21. 11. 2026, pravidla 3 a 7) ──
+      // Dojezd přes malý hrb sjel po svahu za ním až na hloubku DALŠÍ vrstvy
+      // a „dodělat vrstvu" se pak vracel nahoru na currentX. Jenže nad tím
+      // svahem stál ještě materiál téhle vrstvy (mělčí průchod tam jel rovně),
+      // takže sjezd bral dvě vrstvy naráz: part-4 `N1600 G1 X32.971 Z133.125`
+      // z X35,657, tříska ~5 mm při ap 2,5. Pravidlo 7 bod 5: vrstva hrb
+      // kopíruje a jede na SVÉ hloubce až na konec; svah pod ní začíná další
+      // vrstva tam, kde tahle sjela. Dojezd se proto utne, kde po hrbu
+      // naposledy sestoupí na currentX, a vrstva se dojede rovně odtud.
+      // Platí jen tehdy, když ta rovná jízda opravdu něco dobere (jinak pod
+      // svahem materiál vrstvy není a sjezd k další hloubce je běžný dojezd).
+      const cut = leadOut[leadOut.length - 1].x2 < currentX - 0.02
+        ? cutLeadOutAtDepth(leadOut, currentX) : null;
+      const runCut = cut && cut.length > 0 ? finishLayerRun(cut, 0.05) : null;
+      if (runCut) {
+        leadOut.length = 0;
+        leadOut.push(...cut, ...runCut);
+      } else {
+        const run = finishLayerRun(leadOut, 1e-6);
+        if (run) leadOut.push(...run);
       }
     }
     // ── CO DOJEZD UŽ DOBRAL, SE NEVYDÁ PODRUHÉ ────────────────────────────

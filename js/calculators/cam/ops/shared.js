@@ -74,4 +74,39 @@ export function clipLeadOutToDepth(segs, maxX) {
   segs.push(...out);
 }
 
+// Utne dojezd (x1/z1 → x2/z2, směr k nižšímu Z) v místě, kde naposledy
+// SESTOUPÍ na hloubku X: koncové úseky celé na X nebo pod ní zahodí, úsek,
+// který hloubku protíná shora dolů, zkrátí na průsečík. Vrací NOVÉ pole, nebo
+// null, když dojezd nad X vůbec nebyl. Oblouk se krátí po úhlu (bod
+// x = cx + sin(a)·r, z = cz + cos(a)·r, jako všude v dojezdech).
+export function cutLeadOutAtDepth(segs, X, eps = 0.02) {
+  let k = segs.length;
+  while (k > 0 && Math.max(segs[k - 1].x1, segs[k - 1].x2) <= X + eps) k--;
+  if (k === 0) return null;
+  const s = segs[k - 1];
+  const out = segs.slice(0, k - 1);
+  if (s.x2 >= X - eps) { out.push(s); return out; }
+  if (s.type === 'arc' && Number.isFinite(s.startAngle) && Number.isFinite(s.endAngle)) {
+    const angAt = (t) => s.startAngle + (s.endAngle - s.startAngle) * t;
+    const xAt = (t) => s.cx + Math.sin(angAt(t)) * s.r;
+    // Poslední vzorek nad X → půlení mezi ním a dalším (oblouk může nad X
+    // vystoupit a zase klesnout, i když začíná pod ní).
+    const N = 32;
+    let lo = 0;
+    for (let i = N; i >= 0; i--) { if (xAt(i / N) > X) { lo = i / N; break; } }
+    let hi = Math.min(1, lo + 1 / N);
+    for (let i = 0; i < 40; i++) {
+      const m = (lo + hi) / 2;
+      if (xAt(m) > X) lo = m; else hi = m;
+    }
+    const a = angAt((lo + hi) / 2);
+    out.push({ ...s, x2: X, z2: s.cz + Math.cos(a) * s.r, endAngle: a });
+    return out;
+  }
+  const dx = s.x2 - s.x1;
+  const z = Math.abs(dx) < 1e-9 ? s.z2 : s.z1 + (X - s.x1) / dx * (s.z2 - s.z1);
+  out.push({ ...s, x2: X, z2: z });
+  return out;
+}
+
 // ČELNÍ HRUBOVÁNÍ (od povrchu polotovaru −X k ose / kontuře).
