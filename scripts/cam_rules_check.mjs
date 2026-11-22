@@ -290,12 +290,19 @@ async function check(file) {
       // Materiál pod nosem se počítá jako dřív od 0,1 mm². Jen polygon podélně
       // (šikmá hlavní hrana; u kulaté a čelně měří `worst` jinak).
       const sideTouch = P.toolShape === 'polygon' && !face && !(worst > 0.05) && cut <= PLUNGE_MIN_CUT;
-      if (!partingOk && dx < -0.2 && cut > 0.1 && !sideTouch) {
-        const deg = Math.abs(dz) < 1e-9 ? 90 : Math.atan(Math.abs(dx) / Math.abs(dz)) * 180 / Math.PI;
+      const roughing = !(finishFromLine >= 0 && sp[i].originalLineIdx > finishFromLine);
+      // DOKONČOVÁNÍ PO ČELNÍM HRUBOVÁNÍ se měří ve SKUTEČNÝCH osách (audit
+      // 22. 11. 2026): dokončení jede po obrysu jako vždy a pravidlo 15 je
+      // o sjíždění k OSE. V prohozených osách čelního měření byl každý pohyb
+      // podél průměru (`N5220 G1 X19.117 Z251.333`, čistě −Z) „zanoření 90°"
+      // — part-23 54 hlášení.
+      const pa = face && !roughing ? spR[i - 1] : a, pb = face && !roughing ? spR[i] : b;
+      const pdx = pb.x - pa.x, pdz = pb.z - pa.z;
+      if (!partingOk && pdx < -0.2 && cut > 0.1 && !sideTouch) {
+        const deg = Math.abs(pdz) < 1e-9 ? 90 : Math.atan(Math.abs(pdx) / Math.abs(pdz)) * 180 / Math.PI;
         // Kolmo u strmé stěny (kulatá, pravidlo 6 — uživatel 11. 11. 2026) je
         // schválená výjimka PRO HRUBOVÁNÍ: sjezd po stěně = střed nosu jede po
         // hrubovacím offsetu dílu (emise ho navíc značí „Kolmo u stěny").
-        const roughing = !(finishFromLine >= 0 && sp[i].originalLineIdx > finishFromLine);
         const onWall = () => {
           if (!offsetXAt) return false;
           for (let k = 0; k <= 4; k++) {
@@ -307,7 +314,7 @@ async function check(file) {
         const wall = roughing && wallPlungeOn(P)
           && (/Kolmo u stěny/.test(lines[sp[i].originalLineIdx] || '') || onWall());
         const lim = wall ? 90 : roughing ? plungeLimit : plungeLimitFinish;
-        if (deg > lim + 1) found.plunge.push({ i, v: deg, lim });
+        if (deg > lim + 1) found.plunge.push({ i, v: deg, lim, line: sp[i].originalLineIdx });
       }
       // P7/P8 — posuzuje se na první vrstvě (posuv v Z) po rychloposuvu.
       // Obrácená vrstva Cik cak (pravidlo 20) jede ze vzduchu za hrbem KE stěně
@@ -346,14 +353,17 @@ async function check(file) {
   // P3 — tříska se hlásí JEDNOU za řádek G-kódu (nejhorší bod): oblouk nebo
   // dlouhý řádek má v simPath víc bodů a každý se dřív počítal zvlášť
   // (433 hlášení = 311 řádků).
-  {
+  // Totéž P6 (oblouk dokončení part-23 `N5440` hlášen 46×).
+  const onePerLine = (arr) => {
     const byLine = new Map();
-    for (const q of found.chip) {
+    for (const q of arr) {
       const k = q.line ?? `#${q.i}`, prev = byLine.get(k);
       if (!prev || q.v > prev.v) byLine.set(k, q);
     }
-    found.chip = [...byLine.values()].sort((u, v) => u.i - v.i);
-  }
+    return [...byLine.values()].sort((u, v) => u.i - v.i);
+  };
+  found.chip = onePerLine(found.chip);
+  found.plunge = onePerLine(found.plunge);
 
   // P7 — první vrstva pod vrcholem hrbu jede přes hrb vcelku (scripts/lib/camRuleHump.mjs).
   found.humpBreak = face ? [] : checkHumpContinuity(sp, offsetXAt);
