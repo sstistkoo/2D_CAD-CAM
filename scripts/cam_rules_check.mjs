@@ -331,7 +331,7 @@ async function check(file) {
           finishApproachOk = deg <= (ins.plungeAngleMaxDeg ?? 0) + 1
             && depth <= (parseFloat(P.finishAllowance) || 0) + TOL_AP;
         }
-        if (deg > lim + 1 && !finishApproachOk) found.plunge.push({ i, v: deg, lim, depth, line: sp[i].originalLineIdx });
+        if (deg > lim + 1 && !finishApproachOk) found.plunge.push({ i, v: deg, lim, depth, cut, under: worst, line: sp[i].originalLineIdx });
       }
       // P7/P8 — posuzuje se na první vrstvě (posuv v Z) po rychloposuvu.
       // Obrácená vrstva Cik cak (pravidlo 20) jede ze vzduchu za hrbem KE stěně
@@ -444,7 +444,7 @@ for (const f of files) {
   row('P3 tenká vrstva uprostřed', F.thin, (q) => `${c.N(q.i)}: jen ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   row('P3 zbytek na dně (chybí poslední vrstva)', c.floors, (q) => `Z ${q.z0.toFixed(1)}…${q.z1.toFixed(1)}: až ${q.max.toFixed(2)} mm nad přídavkem`);
   row('P5 posuv vzduchem', F.air, (q) => `${c.N(q.i)}: ${q.v.toFixed(1)} mm   | ${c.txt(q.i)}`);
-  row('P6 zanoření strměji než dovoleno', F.plunge, (q) => `${c.N(q.i)}: ${q.v.toFixed(0)}° (smí ${q.lim.toFixed(0)}°)${q.depth !== null && q.depth !== undefined ? `, nájezd dokončení do ${q.depth.toFixed(2)} mm` : ''}   | ${c.txt(q.i)}`);
+  row('P6 zanoření strměji než dovoleno', F.plunge, (q) => `${c.N(q.i)}: ${q.v.toFixed(0)}° (smí ${q.lim.toFixed(0)}°)${q.depth !== null && q.depth !== undefined ? `, nájezd dokončení do ${q.depth.toFixed(2)} mm` : ''}${showAll && Number.isFinite(q.cut) ? ` [úběr ${q.cut.toFixed(2)} mm², pod nosem ${q.under.toFixed(2)} mm]` : ''}   | ${c.txt(q.i)}`);
   row('P7 přes hrb dřív, než je pravá strana hotová', c.order.found.hump, (q) => `${c.N(q.i)}: za hrbem Z${q.zTop.toFixed(1)}, vpravo ještě ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   row('P7 vrstva přes hrb vcelku až na konec', F.humpBreak, (q) => `${c.N(q.i)}: vrstva X${q.x.toFixed(3)} se na hrbu Z${Math.min(q.h0, q.h1).toFixed(1)}…${Math.max(q.h0, q.h1).toFixed(1)} (vrchol X${q.top.toFixed(2)}) přerušila   | ${c.txt(q.i)}`);
   row('P8 pořadí úseků', c.order.found.order, (q) => `${c.N(q.i)}: úsek Z${q.A.zLo.toFixed(1)}…${q.A.zHi.toFixed(1)} jde pod vrch úseku Z${q.B.zLo.toFixed(1)}…${q.B.zHi.toFixed(1)} (${q.B.top.toFixed(1)}), ten ještě není hotový   | ${c.txt(q.i)}`);
