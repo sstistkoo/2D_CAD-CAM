@@ -135,6 +135,8 @@ async function check(file) {
   // Břit = nejnižší bod stopy nástroje pod programovaným bodem (kulatá R, polygon rádius nosu).
   const lift = Math.max(0, -Math.min(...toolFootprint(P).map(q => T(q).x)));
   const ins = getInsert(P);
+  // Břit ve SKUTEČNÝCH osách (lift výš je čelně v prohozených).
+  const liftR = Math.max(0, -Math.min(...toolFootprint(P).map(q => q.x)));
   const partingOk = !!ins.cutsFullWidth;
   // P6: dovolený úhel posuvu k ose. Polygon nikdy strměji než spodní hrana.
   // Čelně: úhel zanoření (pravidlo 6, „Čelně"); spodní hrana podélného plátku tu neplatí.
@@ -198,6 +200,7 @@ async function check(file) {
     if (len < 1e-9) { rm.advanceTo(spR, i); continue; }
     const before = Math.abs(rm.model.area());
     const loopsBefore = TL(rm.model.loops);
+    const loopsBeforeR = rm.model.loops;   // skutečné osy (P6 nájezd dokončování)
     if (b.type !== 'G0') {
       // P3 — tříska: materiál nad břitem v každém bodě pohybu (stav PŘED ním).
       // Čelně jen podle ÚBĚRU (níž): vrstva končí o strmé zúžení a řádek pod
@@ -314,7 +317,21 @@ async function check(file) {
         const wall = roughing && wallPlungeOn(P)
           && (/Kolmo u stěny/.test(lines[sp[i].originalLineIdx] || '') || onWall());
         const lim = wall ? 90 : roughing ? plungeLimit : plungeLimitFinish;
-        if (deg > lim + 1) found.plunge.push({ i, v: deg, lim, line: sp[i].originalLineIdx });
+        // NÁJEZD DOKONČOVÁNÍ SVISLE (uživatel 22. 11. 2026: „nájezd do hloubky
+        // na hotovo by mohl jít svisle dolů, když by materiál jen objížděl —
+        // pokud by bral jen na hotovo a plátek by to dovolil"). První řezný
+        // pohyb dokončení po rychloposuvu smí být strmější než úhel zanoření,
+        // když jde do materiálu nejvýš o Přídavek na hotovo a úhel nepřesáhne
+        // strop plátku (`plungeAngleMaxDeg`: kulatá 89° ≈ kolmo, polygon =
+        // spodní hrana). Hloubka = materiál nad břitem na konci nájezdu.
+        let finishApproachOk = false, depth = null;
+        if (!roughing && spR[i - 1].type === 'G0') {
+          const top = topAt(loopsBeforeR, pb.z);
+          depth = top === null ? 0 : top - (pb.x - liftR);
+          finishApproachOk = deg <= (ins.plungeAngleMaxDeg ?? 0) + 1
+            && depth <= (parseFloat(P.finishAllowance) || 0) + TOL_AP;
+        }
+        if (deg > lim + 1 && !finishApproachOk) found.plunge.push({ i, v: deg, lim, depth, line: sp[i].originalLineIdx });
       }
       // P7/P8 — posuzuje se na první vrstvě (posuv v Z) po rychloposuvu.
       // Obrácená vrstva Cik cak (pravidlo 20) jede ze vzduchu za hrbem KE stěně
@@ -427,7 +444,7 @@ for (const f of files) {
   row('P3 tenká vrstva uprostřed', F.thin, (q) => `${c.N(q.i)}: jen ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   row('P3 zbytek na dně (chybí poslední vrstva)', c.floors, (q) => `Z ${q.z0.toFixed(1)}…${q.z1.toFixed(1)}: až ${q.max.toFixed(2)} mm nad přídavkem`);
   row('P5 posuv vzduchem', F.air, (q) => `${c.N(q.i)}: ${q.v.toFixed(1)} mm   | ${c.txt(q.i)}`);
-  row('P6 zanoření strměji než dovoleno', F.plunge, (q) => `${c.N(q.i)}: ${q.v.toFixed(0)}° (smí ${q.lim.toFixed(0)}°)   | ${c.txt(q.i)}`);
+  row('P6 zanoření strměji než dovoleno', F.plunge, (q) => `${c.N(q.i)}: ${q.v.toFixed(0)}° (smí ${q.lim.toFixed(0)}°)${q.depth !== null && q.depth !== undefined ? `, nájezd dokončení do ${q.depth.toFixed(2)} mm` : ''}   | ${c.txt(q.i)}`);
   row('P7 přes hrb dřív, než je pravá strana hotová', c.order.found.hump, (q) => `${c.N(q.i)}: za hrbem Z${q.zTop.toFixed(1)}, vpravo ještě ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   row('P7 vrstva přes hrb vcelku až na konec', F.humpBreak, (q) => `${c.N(q.i)}: vrstva X${q.x.toFixed(3)} se na hrbu Z${Math.min(q.h0, q.h1).toFixed(1)}…${Math.max(q.h0, q.h1).toFixed(1)} (vrchol X${q.top.toFixed(2)}) přerušila   | ${c.txt(q.i)}`);
   row('P8 pořadí úseků', c.order.found.order, (q) => `${c.N(q.i)}: úsek Z${q.A.zLo.toFixed(1)}…${q.A.zHi.toFixed(1)} jde pod vrch úseku Z${q.B.zLo.toFixed(1)}…${q.B.zHi.toFixed(1)} (${q.B.top.toFixed(1)}), ten ještě není hotový   | ${c.txt(q.i)}`);

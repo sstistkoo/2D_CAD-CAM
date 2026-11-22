@@ -385,6 +385,13 @@ nožem stojí materiál, aby na průměru nezůstal schodek. Teprve pak odjezd.*
   Z-1.500 ; Rovný průměr` má dojet v rovině až za polotovar (Z −4,89).
 - Implementace: `cam/ops/finishSteep.js` (dělení úseku), rovný průměr
   `finRunOut` v `cam/ops/finishEmit.js`. Test: `tests/cam-finish-plunge-limit.test.js`.
+- **Nájezd svisle jen na hotovo** (uživatel 22. 11. 2026: *„nájezd do hloubky
+  na hotovo by mohl jít svisle dolů, když by materiál jenom objížděl — pokud
+  by bral jenom na hotovo a plátek by to dovolil"*): první řezný pohyb
+  dokončení po rychloposuvu smí být strmější než úhel zanoření, když jde do
+  materiálu nejvýš o Přídavek na hotovo a plátek takový úhel dovolí (strop
+  zanoření plátku: kulatá ≈ kolmo, polygon jen po spodní hranu). Kontrola:
+  P6 v `scripts/cam_rules_check.mjs` hloubku nájezdu vypíše.
 
 ## Pravidlo 16 — Meze platí pro obrys plátku ✅ schváleno
 
