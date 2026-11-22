@@ -10,7 +10,8 @@
 // Co se měří (materiál = model úběru ze skutečně vydané dráhy, jako simulátor):
 //   P2  kolize nástroje/držáku (validátor)
 //   P3  tříska > ap          — v každém bodě posuvu: materiál nad břitem PŘED
-//                              pohybem (povrch − břit) > ap
+//                              pohybem (povrch − břit) > ap; jednou za řádek,
+//                              bez dokončování, výjezd v X od osy = úběr ÷ délka
 //   P3  zbytek na dně        — po celém programu: materiál nad dílem víc než
 //                              Přídavek X (poslední vrstva chybí)
 //   P3  tenká vrstva uprostřed — průchod v Z ubral nejvýš ap − 0,3 mm, a přesto
@@ -244,7 +245,20 @@ async function check(file) {
           if (d > worst) worst = d;
         }
       }
-      if (worst > ap + TOL_AP && cut > 0.05) found.chip.push({ i, v: worst });
+      // P3 — CO SE ZA TŘÍSKU NEPOČÍTÁ (audit 21.–22. 11. 2026, roztřídění P3):
+      //  • DOKONČOVÁNÍ: pravidlo 3 je o vrstvách hrubování; dokončení jede po
+      //    přídavku a sloupec materiálu pod ním je výška stěny dílu (part-1
+      //    `G1 X31.140 Z257.214` hlášeno 30 mm).
+      //  • ČISTÝ VÝJEZD V X OD OSY (po stěně/čele): sloupec v Z = výška stěny,
+      //    kterou pohyb jen ošlehne (49 řádků). Tloušťka třísky je tu v Z —
+      //    úběr ÷ délka pohybu. Zanoření K OSE se dál měří sloupcem. Jen
+      //    podélně: čelně je to pohyb v Z stroje a u krátkého pohybu s velkou
+      //    kulatou by úběr ÷ délka započítal celý kruh nosu (part-23 R10
+      //    `N2610` „4,21 mm"); čelně se tříska měří úběrem po sloupcích výš.
+      const finishLine = finishFromLine >= 0 && sp[i].originalLineIdx > finishFromLine;
+      const outwardX = !face && Math.abs(b.z - a.z) < 1e-6 && b.x - a.x > 1e-6;
+      const chipV = outwardX ? cut / (b.x - a.x) : worst;
+      if (!finishLine && chipV > ap + TOL_AP && cut > 0.05) found.chip.push({ i, v: chipV, line: sp[i].originalLineIdx });
       if (Math.abs(b.x - a.x) < 1e-6 && len > 1 && cut > 0.05 && worst > 0.05 && worst < ap - THIN
           && (!rmPlan.model || worstPlan < ap - THIN))
         thinCand.push({ i, v: worst, z: (a.z + b.z) / 2, edge: b.x - lift });
@@ -315,6 +329,18 @@ async function check(file) {
       rm.advanceTo(spR, i);
       if (rmPlan.model) rmPlan.advanceTo(spR, i);
     }
+  }
+
+  // P3 — tříska se hlásí JEDNOU za řádek G-kódu (nejhorší bod): oblouk nebo
+  // dlouhý řádek má v simPath víc bodů a každý se dřív počítal zvlášť
+  // (433 hlášení = 311 řádků).
+  {
+    const byLine = new Map();
+    for (const q of found.chip) {
+      const k = q.line ?? `#${q.i}`, prev = byLine.get(k);
+      if (!prev || q.v > prev.v) byLine.set(k, q);
+    }
+    found.chip = [...byLine.values()].sort((u, v) => u.i - v.i);
   }
 
   // P7 — první vrstva pod vrcholem hrbu jede přes hrb vcelku (scripts/lib/camRuleHump.mjs).

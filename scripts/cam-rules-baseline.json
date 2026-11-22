@@ -1,5 +1,5 @@
 {
-  "total": 1378,
+  "total": 1359,
   "parts": {
     "carousel-center-axis.camprog": {
       "P2 kolize": 0,
@@ -99,7 +99,7 @@
     },
     "carousel-zigzag-center-range.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 24,
+      "P3 tříska větší než ap": 23,
       "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 7,
       "P5 posuv vzduchem": 10,
@@ -111,7 +111,7 @@
     },
     "carousel-zigzag-center-u3-beyond.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 11,
+      "P3 tříska větší než ap": 10,
       "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 8,
       "P5 posuv vzduchem": 1,
@@ -291,7 +291,7 @@
     },
     "lathe-zigzag-left-valley.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 10,
+      "P3 tříska větší než ap": 8,
       "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 6,
       "P5 posuv vzduchem": 4,
@@ -351,7 +351,7 @@
     },
     "part-1.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 4,
+      "P3 tříska větší než ap": 3,
       "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 1,
       "P5 posuv vzduchem": 3,
@@ -447,7 +447,7 @@
     },
     "part-17-long-parting.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 2,
+      "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 0,
       "P5 posuv vzduchem": 0,
@@ -495,7 +495,7 @@
     },
     "part-2.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 4,
+      "P3 tříska větší než ap": 3,
       "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 1,
       "P5 posuv vzduchem": 3,
@@ -579,7 +579,7 @@
     },
     "part-4.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 4,
+      "P3 tříska větší než ap": 3,
       "P3 tenká vrstva uprostřed": 5,
       "P3 zbytek na dně (chybí poslední vrstva)": 1,
       "P5 posuv vzduchem": 0,
@@ -591,7 +591,7 @@
     },
     "part-6.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 4,
+      "P3 tříska větší než ap": 3,
       "P3 tenká vrstva uprostřed": 5,
       "P3 zbytek na dně (chybí poslední vrstva)": 1,
       "P5 posuv vzduchem": 0,
@@ -603,7 +603,7 @@
     },
     "part-8.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 4,
+      "P3 tříska větší než ap": 3,
       "P3 tenká vrstva uprostřed": 5,
       "P3 zbytek na dně (chybí poslední vrstva)": 2,
       "P5 posuv vzduchem": 0,
@@ -615,7 +615,7 @@
     },
     "part-9.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 4,
+      "P3 tříska větší než ap": 3,
       "P3 tenká vrstva uprostřed": 5,
       "P3 zbytek na dně (chybí poslední vrstva)": 1,
       "P5 posuv vzduchem": 0,
@@ -627,7 +627,7 @@
     },
     "parting-face-holder-gaps.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 3,
+      "P3 tříska větší než ap": 1,
       "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 0,
       "P5 posuv vzduchem": 0,
@@ -639,7 +639,7 @@
     },
     "parting-finish-envelope-edge.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 21,
+      "P3 tříska větší než ap": 20,
       "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 0,
       "P5 posuv vzduchem": 0,
@@ -747,7 +747,7 @@
     },
     "round-r10-chain-beyond-section.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 2,
+      "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 2,
       "P5 posuv vzduchem": 5,
@@ -759,7 +759,7 @@
     },
     "round-r10-face-small-fillet.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 3,
+      "P3 tříska větší než ap": 2,
       "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 2,
       "P5 posuv vzduchem": 3,
@@ -771,7 +771,7 @@
     },
     "round-r10-finish-steep-arc.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 1,
+      "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 4,
       "P3 zbytek na dně (chybí poslední vrstva)": 3,
       "P5 posuv vzduchem": 2,
