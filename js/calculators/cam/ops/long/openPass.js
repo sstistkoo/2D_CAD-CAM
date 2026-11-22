@@ -9,7 +9,7 @@
 // `closed`) — je to objekt, protože tělo má `return;` uprostřed.
 
 import { isFaceLeadOut, traceIfContinuous } from './segUtils.js';
-import { ENTRY_FIT_TOL, HOLDER_FIT_TOL, clipLeadOutToDepth, cutLeadOutAtDepth } from '../shared.js';
+import { ENTRY_FIT_TOL, HOLDER_FIT_TOL, clipLeadOutToDepth, cutLeadOutAtDepth, segPeakX } from '../shared.js';
 import { entryApproachDz, plungeDisabled } from '../../camMath.js';
 
 export function emitOpenInterval(D) {
@@ -485,7 +485,13 @@ export function emitOpenInterval(D) {
     // zaoblenému rohu může trasa hned na začátku klesnout pod
     // currentX (krátký "dip"). Průchod nesmí řezat pod svou hloubku —
     // sledování kontury začne až tam, kde se zvedne na currentX.
-    while (leadOut.length > 0 && leadOut[0].x2 <= currentX + 0.02) leadOut.shift();
+    // OBLOUK SE MĚŘÍ CELÝ, ne jen koncem (audit 22. 11. 2026, pravidlo 7):
+    // oblouk přes nízký hrb začne i skončí skoro na currentX a nad ním je jen
+    // vrchol — part-1 vrstva X34,978, oblouk 34,979 → 34,986 s vrcholem
+    // 35,059. Podle konce se vzal za „dip", zahodil se a s ním celý dojezd;
+    // vrstva skončila u hrbu a za hrb se vrátila až o 9 průchodů později
+    // (P7 „vrstva přes hrb vcelku"). Úsečka se dál měří koncem (`segPeakX`).
+    while (leadOut.length > 0 && segPeakX(leadOut[0]) <= currentX + 0.02) leadOut.shift();
     // ── DOJEZD ODTRŽENÝ OD KONCE TĚLA (audit 21. 11. 2026) ─────────────
     // Tělo zkrácené držákem (`holderClamped`) končí uprostřed kuželu NAD
     // konturou; kontura pod ním leží pod hloubkou vrstvy, takže smyčka výš

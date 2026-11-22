@@ -74,6 +74,21 @@ export function clipLeadOutToDepth(segs, maxX) {
   segs.push(...out);
 }
 
+// Nejvyšší X úseku dojezdu bez počátečního bodu: úsečka = konec, oblouk =
+// i jeho vnitřek. Oblouk přes nízký hrb začne i skončí skoro na hloubce
+// vrstvy a nad ní je jen vrchol (part-1 X34,979 → 34,986, vrchol 35,059) —
+// měřený jen konci vypadá jako „dip" pod hloubku (audit 22. 11. 2026).
+export function segPeakX(s) {
+  let m = s.x2;
+  if (s.type === 'arc' && Number.isFinite(s.startAngle) && Number.isFinite(s.endAngle)) {
+    for (let k = 1; k < 16; k++) {
+      const a = s.startAngle + (s.endAngle - s.startAngle) * (k / 16);
+      m = Math.max(m, s.cx + Math.sin(a) * s.r);
+    }
+  }
+  return m;
+}
+
 // Utne dojezd (x1/z1 → x2/z2, směr k nižšímu Z) v místě, kde naposledy
 // SESTOUPÍ na hloubku X: koncové úseky celé na X nebo pod ní zahodí, úsek,
 // který hloubku protíná shora dolů, zkrátí na průsečík. Vrací NOVÉ pole, nebo
@@ -81,7 +96,7 @@ export function clipLeadOutToDepth(segs, maxX) {
 // x = cx + sin(a)·r, z = cz + cos(a)·r, jako všude v dojezdech).
 export function cutLeadOutAtDepth(segs, X, eps = 0.02) {
   let k = segs.length;
-  while (k > 0 && Math.max(segs[k - 1].x1, segs[k - 1].x2) <= X + eps) k--;
+  while (k > 0 && Math.max(segs[k - 1].x1, segPeakX(segs[k - 1])) <= X + eps) k--;
   if (k === 0) return null;
   const s = segs[k - 1];
   const out = segs.slice(0, k - 1);
