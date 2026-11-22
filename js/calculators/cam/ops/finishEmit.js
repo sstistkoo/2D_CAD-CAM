@@ -199,7 +199,6 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   // G0 na přibližovací bod 2 mm v X a rampDz v Z mimo konturu,
   // G1 posuvem do startovního bodu kontury (gentle dotek).
   const finishApproachDx = 2;
-  const finishRampDz = finishApproachDx / Math.tan(entryRadGc);
   // Poloměr, na který špička ŘEŽE, je o rádius destičky pod středem —
   // střed jede po offsetu (kontura + R), materiál se odebírá po X−R.
   const finTipR = Math.max(parseFloat(prms.toolRadius) || 0, 0);
@@ -289,6 +288,12 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
       if (prof !== null && prof > tx + 0.02) return null;         // kontura se zvedá
       const top = residualTopXAtZ(z);
       if (top !== null && top > xCut + finMaxCut) return null;    // moc velký záběr
+      // Hrana materiálu = volné CELÉ okno nosu, ne jen sloupec pod středem
+      // (pravidlo 15, nájezd svisle jen na hotovo — uživatel 22. 11. 2026):
+      // kulatá R10 sjížděla svisle vedle hrany a bokem nosu brala 0,79 mm
+      // (round-r10-finish-steep-arc `N910 G1 X18.743`, přídavek 0).
+      const noseM = finMatX(z, finTipR);
+      if (noseM !== null && noseM > tx + finAlw + 0.02) continue;
       if (!finHasStockAt(z, tx)) return d < 0.7 || !finStraightOk(tx, tz, z) ? null : z;   // hrana materiálu (a držák)
     }
     return null;
@@ -325,7 +330,8 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
   // Zkrácená rampa leží uvnitř prověřené (`finRampClear`). Jen když to
   // ušetří aspoň 3 mm posuvu (mez kontroly P5) — u rampy 45° (2,8 mm) se
   // nic neušetří. Klíč plátku `finishRampFromContact`.
-  const finRampShort = getInsert(prms).finishRampFromContact;
+  const finIns = getInsert(prms);
+  const finRampShort = finIns.finishRampFromContact;
   const finClr = stockClearances(prms);
   const finMatX = (z0, w) => {
     // Nejvyšší X středu nosu, kde se v Z-okně z0 ± w dotkne materiálu.
@@ -351,8 +357,50 @@ if ((prms.doFinishing || prms.finishOnly) && firstGcFinSeg) {
     return null;
   };
   const finLeadInRamp = (tx, tz, withFeed) => {
-    const zApp = clipZGc(tz - finDirZ * finishRampDz);
-    const xApp = tx + finishApproachDx;
+    // PŘIBLIŽOVACÍ BOD VE VZDUCHU (pravidlo 15 — nájezd svisle jen na hotovo,
+    // uživatel 22. 11. 2026). Rychloposuv k němu poslední kus dojede svisle
+    // POSUVEM; stál-li nad ním materiál, šel ten sjezd do něj kolmo (part-24
+    // polygon `N750 G1 X16.489` 0,34 mm při přídavku 0,2 a stropu plátku 15°).
+    // Bod se proto posune dál po TÉŽE přímce rampy, dokud nos nemá materiál
+    // pod sebou — do materiálu pak vjede rampa pod úhlem plátku.
+    // Posunutý bod musí unést i DRŽÁK (pravidlo 2): na celé rampě se ptá
+    // `finLeftoverHits` (držák ve zbytku) a `finTipGuard` (zakázaná poloha).
+    // Bez toho kulatá R10 s bodem 8,5 mm nad cílem drhla držákem 0,6 mm²
+    // (round-r10-finish-steep-arc). Nejde-li to, zůstává původní nájezd.
+    // Svislý sjezd na (x, z) je v pořádku, když jde do materiálu (sloupec pod
+    // nosem) nejvýš o Přídavek na hotovo a plátek kolmo smí (strop zanoření
+    // ≥ 89°, kulatá); jinak (polygon) jen vzduchem. Jen tam se bod posouvá —
+    // zbytečný posun stál kolizi držáku s offsetovou čarou
+    // (holder-casting-slanted-face, 1,3 mm²).
+    const finVertLim = (finIns.plungeAngleMaxDeg ?? 0) >= 89 ? finAlw : 0;
+    const airAt = (x, z) => {
+      const top = residualTopXAtZ(z);
+      // 0,1 mm: setinový svislý dotek (holder-casting 0,066 mm) se nehlídá.
+      return top === null || top - (x - finTipR) <= finVertLim + 0.1;
+    };
+    const zAt = (dx) => clipZGc(tz - finDirZ * dx / Math.tan(entryRadGc));
+    const holderOkAt = (dx) => {
+      const x0 = tx + dx, z0 = zAt(dx);
+      if (finTipGuard && finTipGuard.isForbidden(x0, z0)) return false;
+      return !(finLeftoverHits && finLeftoverHits([{ x: x0, z: z0 }, { x: tx, z: tz }]));
+    };
+    let appDx = finishApproachDx;
+    // Svislý nájezd (upichovák 90°) je svislý celý — posun bodu by jen
+    // prodloužil posuv vzduchem (part-16 `G0 X8.000` místo X3,534).
+    const rampSlanted = entryRadGc < (89 * Math.PI) / 180;
+    if (rampSlanted && !airAt(tx + appDx, zAt(appDx))) {
+      let d = appDx + 0.5;
+      while (d <= finishApproachDx + 8 && !airAt(tx + d, zAt(d))) d += 0.5;
+      // …a delší rampa musí projít i koridorem níž (`finRampClear`) — jinak
+      // by emise spadla do svislého dosednutí (lathe-zigzag-left-10 `N4620`).
+      // Mez rozsahu Z (`clipZGc`) by z delší rampy udělala SVISLÝ sjezd
+      // (part-16 čelo: `G0 X8.000` → `G1 X0.000 Z347.176`) — pak ne.
+      const unclipped = Math.abs(zAt(d) - (tz - finDirZ * d / Math.tan(entryRadGc))) < 1e-6;
+      if (d <= finishApproachDx + 8 && unclipped && holderOkAt(d)
+        && finRampClear(tx + d, zAt(d), tx, tz, finStartCut)) appDx = d;
+    }
+    const zApp = zAt(appDx);
+    const xApp = tx + appDx;
     // Náhradou za rampu je SVISLÝ sjezd do cíle, a ten smí vzít až
     // `finStartCut` (začátek řetězu se posouvá až nad tím). Rampa se proto
     // nezahazuje kvůli slupce, kterou by svislý sjezd vzal stejně — jen
