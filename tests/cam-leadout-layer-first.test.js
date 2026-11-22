@@ -64,6 +64,42 @@ describe('vrstva přes nízký hrb jede vcelku (oblouk se neměří jen koncem)'
   }, 180000);
 });
 
+/** Řezné pohyby hrubovacího průchodu, které jdou v Z PROTI směru průchodu. */
+function backSteps(gcode) {
+  const out = [];
+  let rough = false, z = null, pass = [];
+  const flush = () => {
+    const mv = pass;
+    const dir = Math.sign(mv.reduce((s, m) => s + m.dz, 0));
+    for (const m of mv) if (dir !== 0 && Math.sign(m.dz) === -dir && Math.abs(m.dz) > 0.5) out.push(m.raw);
+    pass = [];
+  };
+  for (const raw of gcode.split('\n')) {
+    if (/HRUBOVANI/.test(raw)) rough = true;
+    if (/DOKONCOVANI/.test(raw)) { flush(); rough = false; }
+    if (/^\s*;/.test(raw)) { flush(); continue; }
+    const zm = raw.match(/\bZ(-?[\d.]+)/);
+    const nz = zm ? +zm[1] : z;
+    // Jen řezné pohyby (s F) — odskok emise píše jako G1 bez F.
+    if (rough && /\bG[123]\b/.test(raw) && /\bF[\d.]/.test(raw) && z !== null && nz !== z) pass.push({ raw: raw.trim(), dz: nz - z });
+    z = nz;
+  }
+  flush();
+  return out;
+}
+
+// Roh strmé stěny POD hloubkou vrstvy: ořez rampy počítal cíl z rohu po
+// přímce zanoření a ten vyšel ZPÁTKY — part-21 (zleva) `N1330 G1 X39.740
+// Z137.821` → `N1340 G1 X40.118 Z136.412`: pod vrstvu, šikmo proti směru
+// jízdy zpátky nahoru (P7 „přerušila", tříska 3,38 mm).
+describe('rampa z rohu pod vrstvou: žádný zpětný krok', () => {
+  it('part-21-zleva-insert-shadow', async () => {
+    const prog = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'cam', 'part-21-zleva-insert-shadow.camprog'), 'utf8'));
+    const { gcode } = await runCamProg(prog);
+    expect(backSteps(gcode)).toEqual([]);
+  }, 180000);
+});
+
 describe('dojezd přes hrb: nejdřív vrstva, do svahu až potom', () => {
   it.each(['part-4', 'part-10-zapich-casting', 'part-13-zleva-flange'])('%s', async (name) => {
     const prog = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'cam', `${name}.camprog`), 'utf8'));

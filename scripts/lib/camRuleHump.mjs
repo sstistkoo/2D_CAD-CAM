@@ -63,8 +63,14 @@ export function checkHumpContinuity(sp, offsetXAt) {
       }
     }
     for (const h of humps) {
-      // Jen PRVNÍ vrstva pod vrcholem.
-      if (depths.some(d => d > x + 1e-3 && d < h.top - 0.05)) continue;
+      // Jen PRVNÍ vrstva pod vrcholem. Počítá se i vrstva těsně pod ním (do
+      // 0,05 mm, kde se hrb pro ni za hrb nepovažuje): ta hrb přejede skoro
+      // naplocho a je to ONA, kdo na hrb narazí (pravidlo 7 bod 2). Další
+      // vrstva už patří k „dodělat stranu před hrbem" a údolí za ním — bez
+      // toho se hlásilo přerušení u vrstvy, která přes hrb jet nemá
+      // (round-r10-valley-holder: vrchol X60,58, vrstva 60,545 hrb přejela
+      // `N390 G1 X60.581`, hlášena byla 58,045; audit 22. 11. 2026).
+      if (depths.some(d => d > x + 1e-3 && d < h.top + 1e-3)) continue;
       const before = (p) => dir > 0 ? p.z < h.h0 : p.z > h.h1;
       const after = (p) => dir > 0 ? p.z > h.h1 : p.z < h.h0;
       // Řeže vrstva z obou stran hrbu?

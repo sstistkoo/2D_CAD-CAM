@@ -423,9 +423,24 @@ export function emitOpenInterval(D) {
     // tam, kam původně mířila celá rampa (rampTargetRaw.z) — dojezd
     // tak pokryje STEJNÝ Z-rozsah (žádný schod), jen ho pod currentX
     // dohoní až následující (hlubší) průchod svým vlastním dojezdem.
-    const rampTarget = (rampTargetRaw && rampTargetRaw.x < currentX)
-      ? { x: currentX, z: corner.z - (corner.x - currentX) / effPlungeTanL }
-      : rampTargetRaw;
+    // ── ROH POD HLOUBKOU VRSTVY (audit 22. 11. 2026, pravidlo 7) ──────────
+    // Sledování obrysu k rohu sjede pod currentX, když roh leží níž než
+    // vrstva (part-21 zleva: roh X39,740, vrstva 40,118). Ořez výš pak
+    // počítal cíl z rohu po přímce zanoření — z rohu POD vrstvou vyšel
+    // o 1,41 mm ZPÁTKY a nahoru: dráha sjela pod vrstvu, vrátila se šikmo
+    // proti směru jízdy a teprve pak jela dál. Správně: utnout obrys, kde
+    // sestoupí na currentX, a jet rovně; rampu z rohu (pod vrstvou) dodělá
+    // dokončení ořízlých ramp, obnovené přímo v rohu.
+    const headCut = (rampTargetRaw && corner.x < currentX - 0.02)
+      ? cutLeadOutAtDepth(traceOffsetPath(iv.zEnd, corner.z)
+          .filter(s => s.type !== 'line' || Math.abs(s.z1 - s.z2) > 1e-6), currentX)
+      : null;
+    const headCutOk = headCut && headCut.length > 0;
+    const rampTarget = headCutOk
+      ? { x: currentX, z: headCut[headCut.length - 1].z2 }
+      : (rampTargetRaw && rampTargetRaw.x < currentX)
+        ? { x: currentX, z: corner.z - (corner.x - currentX) / effPlungeTanL }
+        : rampTargetRaw;
     // Rovné pokračování na hloubce currentX vede až tam, kde vrstvu
     // zastaví STĚNA KONTURY (nebo dno okna) — ne jen k Z, kam mířila
     // rampa. Rampa je jen VJEZD do vrstvy; po dosednutí má dojezd dobrat
@@ -435,12 +450,17 @@ export function emitOpenInterval(D) {
     const straightContinueZ = (rampTarget && rampTarget !== rampTargetRaw)
       ? straightRunEndZ(currentX, rampTarget.z, effZMin)
       : null;
-    if (rampTarget) rampedOutCorners.push({ x: corner.x, z: corner.z, reachedX: rampTarget.x });
+    // Roh pod vrstvou: rampa z něj ještě nejela (reachedX = roh, níž nic).
+    if (rampTarget) rampedOutCorners.push({ x: corner.x, z: corner.z, reachedX: headCutOk ? corner.x : rampTarget.x });
     // Ořízlá rampa nechala pod currentX klín materiálu, který žádná
     // hlubší vrstva sama nenajde (leží mimo její vlastní Z-interval) —
     // dokončí se až po skončení hloubkové smyčky tohoto regionu.
     if (straightContinueZ !== null) {
-      pendingRampCompletions.push({ resumeX: rampTarget.x, resumeZ: rampTarget.z, targetX: rampTargetRaw.x, targetZ: rampTargetRaw.z });
+      if (headCutOk) {
+        if (rampTargetRaw.x < corner.x - 1e-6) pendingRampCompletions.push({ resumeX: corner.x, resumeZ: corner.z, targetX: rampTargetRaw.x, targetZ: rampTargetRaw.z });
+      } else {
+        pendingRampCompletions.push({ resumeX: rampTarget.x, resumeZ: rampTarget.z, targetX: rampTargetRaw.x, targetZ: rampTargetRaw.z });
+      }
     }
     // Konec rovného pokračování je STEJNÁ situace jako konec běžného
     // zablokovaného průchodu: vrstva dosedla na stěnu kontury a schod
@@ -473,9 +493,9 @@ export function emitOpenInterval(D) {
             rampTarget.x, rampTarget.z)
         : [];
     const leadOut = rampTarget
-      ? holderTrimLeadOut(traceOffsetPath(iv.zEnd, corner.z)
+      ? holderTrimLeadOut((headCutOk ? headCut : traceOffsetPath(iv.zEnd, corner.z)
           .filter(s => s.type !== 'line' || Math.abs(s.z1 - s.z2) > 1e-6)
-          .concat([{ type: 'line', x1: corner.x, z1: corner.z, x2: rampTarget.x, z2: rampTarget.z }])
+          .concat([{ type: 'line', x1: corner.x, z1: corner.z, x2: rampTarget.x, z2: rampTarget.z }]))
           .concat(straightContinueZ !== null && rampTarget.z - straightContinueZ > 1e-6
             ? [{ type: 'line', x1: rampTarget.x, z1: rampTarget.z, x2: rampTarget.x, z2: straightContinueZ }]
             : [])
