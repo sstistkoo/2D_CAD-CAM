@@ -28,7 +28,17 @@ export function emitZigzagPass(pass, env, simCounter) {
     simCounter += 1; addN(`G0 Z${mv[0].z.toFixed(3)}`, simCounter); setPos(cur.x, mv[0].z);
     if (cur.x - mv[0].x > 0.5) { simCounter += 1; addN(`G0 X${xDia(mv[0].x + 0.5)}`, simCounter); setPos(mv[0].x + 0.5, cur.z); }
     simCounter += 1; addN(`G1 X${xDia(mv[0].x)} F${prms.feed}`, simCounter); setPos(mv[0].x, cur.z);
-  } else safeRapidTo(mv[0].x, mv[0].z, true);
+  } else {
+    // Rychloposuv se zastaví podle KRUŽNICE NOSU nad skutečným zbytkem
+    // (`rapidStopXAt`), ne pevně o Stop rychloposuvu nad začátkem — pravidlo
+    // 20 „rychloposuv končí 0,5 nad vrstvou" a pravidlo 5. Dřív se k začátku
+    // každé vrstvy sjíždělo 6 mm posuvem vzduchem (lathe-zigzag-left-10
+    // `G0 X149.000` → `G1 X143.000`, audit 23. 11. 2026). Stejně jako rampa
+    // podélného hrubování (`rampEntryClear`, roughEmit.js).
+    const stop = typeof env.rapidStopXAt === 'function' ? env.rapidStopXAt(mv[0].z) : null;
+    safeRapidTo(mv[0].x, mv[0].z, true, false, true,
+      stop === null || !Number.isFinite(env.rapidStopX) ? null : Math.min(env.rapidStopX, Math.max(stop - mv[0].x, 0)));
+  }
   // Posuv u čela (ops/zigzagFeed.js); zanoření řeší cam/feedTuning.js.
   const plan = (zigzagWallFeed(prms) || prms.chipThinOn) ? zigzagFeedPlan(mv, prms) : null;
   const steps = plan || mv.slice(1).map((m) => ({ g: m.g, x: m.x, z: m.z, f: null }));

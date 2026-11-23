@@ -282,7 +282,7 @@ calc.passes.forEach((pass, i) => {
     feedTrack.tag.chipK = chipRatio(prms, ap) || undefined;
   }
   // Cik cak: hotová řada pohybů, směr se střídá (ops/zigzagEmit.js).
-  if (pass.type === 'zigzag') { simCounter = emitZigzagPass(pass, { addN, xDia, cur, setPos, safeRapidTo, noteCutMove, prms, rDist, rDistZ, residualTopXAtZ }, simCounter); return; }
+  if (pass.type === 'zigzag') { simCounter = emitZigzagPass(pass, { addN, xDia, cur, setPos, safeRapidTo, noteCutMove, prms, rDist, rDistZ, residualTopXAtZ, rapidStopXAt, rapidStopX }, simCounter); return; }
   if (pass.type === 'long' && (pass.contourLeadIn || pass.ramp || pass.pocketClean)) {
     // Kapsa za bossem kontury: namísto odskoku a rychloposuvu přes
     // vršek polotovaru se kopíruje samotná kontura (G1/G2/G3) až k

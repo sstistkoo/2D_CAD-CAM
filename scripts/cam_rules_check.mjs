@@ -107,6 +107,18 @@ const bottomAt = (loops, z) => {
   return lo ?? 0;
 };
 
+// Nejmenší vzdálenost bodu od lomených čar `polys` ([[{x,z}…]…]).
+const distToPoly = (polys, x, z) => {
+  let best = Infinity;
+  for (const pl of polys) for (let i = 1; i < pl.length; i++) {
+    const a = pl[i - 1], b = pl[i], vx = b.x - a.x, vz = b.z - a.z, L2 = vx * vx + vz * vz;
+    const t = L2 > 0 ? Math.max(0, Math.min(1, ((x - a.x) * vx + (z - a.z) * vz) / L2)) : 0;
+    const d = Math.hypot(x - (a.x + vx * t), z - (a.z + vz * t));
+    if (d < best) best = d;
+  }
+  return best;
+};
+
 async function check(file) {
   const prog = JSON.parse(readFileSync(file, 'utf8'));
   // Parametry JAKO APLIKACE při načtení: klíče, které vlastní kód (bezpečná
@@ -174,6 +186,27 @@ async function check(file) {
     ? (z) => { const t = topXOnLoop(allowLoop, z); return t === null ? null : t + lift; }
     : makePassHelpers(r.calc.offsetPath || []).offsetXAt;
   const dir = P.roughingSide === 'left' ? -1 : 1;
+  // Hrubovací offset stěny jako lomená čára (oblouky po 16 bodech) — P6 „po
+  // stěně". Bere se dráha nosu po HOTOVÉ kontuře (`finishRefPath`) a „po
+  // stěně" = ve vzdálenosti přídavku (`allow`) od ní: cik cak jede jízdu po
+  // stěně „po hrubovacím offsetu s přídavkem na hotovo" (pravidlo 20) —
+  // lathe-zigzag-left-10 přesně 0,20 mm = přídavek; `calc.offsetPath` je
+  // u cik caku jinde (23–59 mm).
+  const offsetPoly = face ? null : (() => {
+    const out = [];
+    for (const s of r.calc.finishRefPath || []) {
+      if (!s || s.isDegenerate) continue;
+      if (s.type === 'arc' && Number.isFinite(s.startAngle) && Number.isFinite(s.endAngle)) {
+        let a0 = s.startAngle, a1 = s.endAngle;
+        if (s.dir === 'G2' && a1 > a0) a1 -= 2 * Math.PI;
+        if (s.dir !== 'G2' && a1 < a0) a1 += 2 * Math.PI;
+        const seg = [];
+        for (let k = 0; k <= 16; k++) { const ang = a0 + (a1 - a0) * k / 16; seg.push({ x: s.cx + Math.sin(ang) * s.r, z: s.cz + Math.cos(ang) * s.r }); }
+        out.push(seg);
+      } else if (s.p1 && s.p2) out.push([s.p1, s.p2]);
+    }
+    return out.length ? out : null;
+  })();
   // P7/P8 (hrb, pořadí úseků) jsou v pravidlech jen podélně — čelně se nehodnotí.
   // Co po CELÉM programu zůstane stát: „nehotová pravá strana" se měří jen
   // z materiálu, který program později opravdu odebere. Zbytek, který tam
@@ -225,6 +258,26 @@ async function check(file) {
     const loopsBefore = TL(rm.model.loops);
     const loopsBeforeR = rm.model.loops;   // skutečné osy (P6 nájezd dokončování)
     if (b.type !== 'G0') {
+      // Pohyb jede po hrubovacím offsetu stěny (P3/P6 — viz `offsetPoly`).
+      const onWall = () => {
+        if (!offsetPoly) return false;
+        for (let k = 0; k <= 8; k++) {
+          const t = k / 8;
+          if (Math.abs(distToPoly(offsetPoly, a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t) - allow) > 0.15) return false;
+        }
+        return true;
+      };
+      // CIK CAK — „u stěny pod trojúhelníkem rampy se krátce bere víc než ap"
+      // (pravidlo 20, schváleno): u vodorovné vrstvy cik caku se do třísky
+      // nepočítají sloupce do délky rampy (ap / tan úhlu zanoření) + R od
+      // jejích konců (lathe-zigzag-left-10 `N1470` 10,6 mm při ap 8 na konci
+      // u stěny). Jízda po stěně cik caku sbírá schody mezi vrstvami — to
+      // není vrstva, tříska se jí neměří (`N1690` po offsetu stěny).
+      const zz = P.roughingStrategy === 'zigzag' && !face;
+      const zzLayer = zz && Math.abs(b.x - a.x) < 1e-6 && len > 1;
+      const zzZone = ap / Math.tan(Math.max(1, Math.min(plungeLimit, 89)) * Math.PI / 180) + lift;
+      const inZzEnd = (z) => zzLayer && Math.min(Math.abs(z - a.z), Math.abs(z - b.z)) < zzZone;
+      let worstChip = 0;
       // P3 — tříska: materiál nad břitem v každém bodě pohybu (stav PŘED ním).
       // Čelně jen podle ÚBĚRU (níž): vrstva končí o strmé zúžení a řádek pod
       // středem nosu tam vede tělem DÍLU za stěnou — „materiál nad břitem"
@@ -235,6 +288,7 @@ async function check(file) {
         const t = k / n, x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
         const top = topAt(loopsBefore, z);
         if (top !== null && top - (x - lift) > worst) worst = top - (x - lift);
+        if (top !== null && !inZzEnd(z) && top - (x - lift) > worstChip) worstChip = top - (x - lift);
       }
       let worstPlan = 0, cutPlan = 0;
       if (rmPlan.model) {
@@ -270,6 +324,7 @@ async function check(file) {
           // (osa měření je tam Z stroje — „0" by bylo Z 0, ne konec materiálu).
           const d = t0 - (t1 !== null ? t1 : face ? bottomAt(loopsBefore, z) : 0);
           if (d > worst) worst = d;
+          if (!inZzEnd(z) && d > worstChip) worstChip = d;
         }
       }
       // P3 — CO SE ZA TŘÍSKU NEPOČÍTÁ (audit 21.–22. 11. 2026, roztřídění P3):
@@ -288,7 +343,7 @@ async function check(file) {
       // part-1 `G1 X36.180`) by úběr ÷ délka vyletěl na desítky mm.
       const dxOut = b.x - a.x;
       const outwardX = !face && dxOut > 1 && Math.abs(b.z - a.z) <= 0.1 * dxOut;
-      const chipV = outwardX ? cut / dxOut : worst;
+      const chipV = outwardX ? cut / dxOut : (zz && onWall() ? 0 : worstChip);
       //  • UPICHOVÁK ZANOŘUJE KOLMO CELOU ŠÍŘKOU (uživatel 22. 11. 2026: „tak má
       //    jet kolmo a celou stranou plátku, jinak to ani nejde"). Radiální
       //    zanoření k ose není vrstva — sloupec tu byl celá hloubka zápichu
@@ -333,15 +388,14 @@ async function check(file) {
         // Kolmo u strmé stěny (kulatá, pravidlo 6 — uživatel 11. 11. 2026) je
         // schválená výjimka PRO HRUBOVÁNÍ: sjezd po stěně = střed nosu jede po
         // hrubovacím offsetu dílu (emise ho navíc značí „Kolmo u stěny").
-        const onWall = () => {
-          if (!offsetXAt) return false;
-          for (let k = 0; k <= 4; k++) {
-            const t = k / 4, ox = offsetXAt(a.z + dz * t);
-            if (ox === null || Math.abs(ox - (a.x + dx * t)) > 0.1) return false;
-          }
-          return true;
-        };
-        const wall = roughing && wallPlungeOn(P)
+        // Po offsetu = KOLMÁ vzdálenost od offsetové dráhy (`onWall` výš; ne X
+        // ve stejném Z — u strmé stěny dá malá odchylka v Z velkou v X a offset
+        // má v jednom Z víc průsečíků, cik cak `N1690` 71° po stěně neprošel).
+        // Cik cak (pravidlo 20, „Schody na stěnách spodku"): jízda po
+        // hrubovacím offsetu šikmé stěny shora do rohu u dna, svislá stěna
+        // svisle dolů — schválená výjimka; jen pohyb, který po offsetu
+        // opravdu jede (lathe-zigzag-left-10 `N1690 G1 X66.220 Z115.732` 71°).
+        const wall = roughing && (wallPlungeOn(P) || P.roughingStrategy === 'zigzag')
           && (/Kolmo u stěny/.test(lines[sp[i].originalLineIdx] || '') || onWall());
         const lim = wall ? 90 : roughing ? plungeLimit : plungeLimitFinish;
         // NÁJEZD DOKONČOVÁNÍ SVISLE (uživatel 22. 11. 2026: „nájezd do hloubky
