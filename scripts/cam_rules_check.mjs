@@ -258,7 +258,8 @@ async function check(file) {
   }
   const order = face ? { onPassStart: () => {}, found: { hump: [], order: [] } }
     : makeOrderChecks({ ap, part, allowLoop, stockLoop: rm.baseLoop, guides: r.calc.interferenceGuides,
-      cutsFullWidth: partingOk, offsetXAt, dir, topAt, topXOnLoop, pointInLoop, finalLoops });
+      cutsFullWidth: partingOk, offsetXAt, dir, topAt, topXOnLoop, pointInLoop, finalLoops, sp,
+      zigzag: P.roughingStrategy === 'zigzag', noseR: parseFloat(P.toolRadius) || 0 });
   let afterRapid = true;
   const found = { chip: [], air: [], plunge: [], endMid: [], thin: [] };
   const thinCand = [];
@@ -535,7 +536,7 @@ async function check(file) {
   found.plunge = onePerLine(found.plunge);
 
   // P7 — první vrstva pod vrcholem hrbu jede přes hrb vcelku (scripts/lib/camRuleHump.mjs).
-  found.humpBreak = face ? [] : checkHumpContinuity(sp, offsetXAt);
+  found.humpBreak = face ? [] : checkHumpContinuity(sp, offsetXAt, { zigzag: P.roughingStrategy === 'zigzag' });
 
   for (const q of hRuns) {
     if (q.len > 1 && q.cut > 0.05 && q.worst > 0.05 && q.worst < ap - THIN && (!rmPlan.model || q.worstPlan < ap - THIN))

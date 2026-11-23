@@ -24,9 +24,10 @@ const HUG_ABOVE = 0.15;   // mm nad čarou kopírování (numerika oblouků)
 /**
  * @param sp        simPath (body { x, z, type })
  * @param offsetXAt offset dráhy (střed nosu) na z, null = mimo
+ * @param opts.zigzag  Cik cak — hrb smí pokrýt i dvojice jízd (viz níž)
  * @returns [{ i, x, h0, h1, top }] — i = index pohybu, kde vrstva za hrbem začala zvlášť
  */
-export function checkHumpContinuity(sp, offsetXAt) {
+export function checkHumpContinuity(sp, offsetXAt, { zigzag = false } = {}) {
   const out = [];
   // Vrstvy = hloubky vodorovných posuvů delších než 1 mm; směr jízdy z nich.
   const depthSet = new Map();
@@ -103,6 +104,28 @@ export function checkHumpContinuity(sp, offsetXAt) {
               && Math.abs(p.z - q.z) >= 0.5) { ok = true; break; }
         }
         if (ok) break;
+      }
+      // CIK CAK (pravidlo 20): vrstva zepředu hrb kopíruje a skončí na něm,
+      // kus za hrbem vezme OBRÁCENÁ vrstva ze vzduchu ke stěně, která vyjede
+      // na hrb a pokračuje po offsetu přes vršek. Hrb je přejetý, když se
+      // obě souvislé jízdy po čáře kopírování potkají (mezera ≤ 0,5 mm).
+      // Karusel ap6 `N1590` (vrstva Z155,062 přes plošinu X236,9–294,2 do
+      // X238,82, obrácená z X223,96 do X238,60), left-valley `N1910`
+      // (průchod 29 do Z55,47, obrácený průchod 39 po plošině do Z55,89).
+      if (!ok && zigzag) {
+        const u = (p) => p.z * dir;
+        const hug = (p) => !(p.x < x - HUG_BELOW || p.x > hugY(x, p.z) + HUG_ABOVE);
+        // Jak daleko (v u) se od řezu na vrstvě dostane souvislá jízda po čáře.
+        const reach = (i0, sgn) => {
+          let best = sgn > 0 ? -Infinity : Infinity;
+          const take = (p) => { best = sgn > 0 ? Math.max(best, u(p)) : Math.min(best, u(p)); };
+          for (let k = i0; k < sp.length; k++) { if (sp[k].type === 'G0' || !hug(sp[k])) break; take(sp[k]); }
+          for (let k = i0 - 1; k >= 0; k--) { if (sp[k + 1].type === 'G0' || !hug(sp[k])) break; take(sp[k]); }
+          return best;
+        };
+        const fromBefore = Math.max(...idxBefore.map((i) => reach(i, +1)));
+        const fromAfter = Math.min(...idxAfter.map((i) => reach(i, -1)));
+        if (fromBefore >= fromAfter - 0.5) ok = true;
       }
       if (!ok) out.push({ i: idxAfter[0], x, h0: h.h0, h1: h.h1, top: h.top });
     }

@@ -1,5 +1,5 @@
 {
-  "total": 493,
+  "total": 481,
   "parts": {
     "carousel-center-axis.camprog": {
       "P2 kolize": 0,
@@ -20,7 +20,7 @@
       "P3 zbytek na dně (chybí poslední vrstva)": 3,
       "P5 posuv vzduchem": 2,
       "P6 zanoření strměji než dovoleno": 0,
-      "P7 přes hrb dřív, než je pravá strana hotová": 1,
+      "P7 přes hrb dřív, než je pravá strana hotová": 0,
       "P7 vrstva přes hrb vcelku až na konec": 0,
       "P8 pořadí úseků": 0,
       "P4 vrstva končí uprostřed materiálu": 0
@@ -81,7 +81,7 @@
       "P5 posuv vzduchem": 1,
       "P6 zanoření strměji než dovoleno": 0,
       "P7 přes hrb dřív, než je pravá strana hotová": 0,
-      "P7 vrstva přes hrb vcelku až na konec": 1,
+      "P7 vrstva přes hrb vcelku až na konec": 0,
       "P8 pořadí úseků": 0,
       "P4 vrstva končí uprostřed materiálu": 0
     },
@@ -141,7 +141,7 @@
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 1,
       "P7 přes hrb dřív, než je pravá strana hotová": 0,
-      "P7 vrstva přes hrb vcelku až na konec": 1,
+      "P7 vrstva přes hrb vcelku až na konec": 0,
       "P8 pořadí úseků": 0,
       "P4 vrstva končí uprostřed materiálu": 0
     },
@@ -152,7 +152,7 @@
       "P3 zbytek na dně (chybí poslední vrstva)": 3,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 4,
-      "P7 přes hrb dřív, než je pravá strana hotová": 1,
+      "P7 přes hrb dřív, než je pravá strana hotová": 0,
       "P7 vrstva přes hrb vcelku až na konec": 0,
       "P8 pořadí úseků": 0,
       "P4 vrstva končí uprostřed materiálu": 0
@@ -164,7 +164,7 @@
       "P3 zbytek na dně (chybí poslední vrstva)": 6,
       "P5 posuv vzduchem": 3,
       "P6 zanoření strměji než dovoleno": 3,
-      "P7 přes hrb dřív, než je pravá strana hotová": 1,
+      "P7 přes hrb dřív, než je pravá strana hotová": 0,
       "P7 vrstva přes hrb vcelku až na konec": 0,
       "P8 pořadí úseků": 0,
       "P4 vrstva končí uprostřed materiálu": 0
@@ -296,9 +296,9 @@
       "P3 zbytek na dně (chybí poslední vrstva)": 3,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
-      "P7 přes hrb dřív, než je pravá strana hotová": 1,
-      "P7 vrstva přes hrb vcelku až na konec": 1,
-      "P8 pořadí úseků": 1,
+      "P7 přes hrb dřív, než je pravá strana hotová": 0,
+      "P7 vrstva přes hrb vcelku až na konec": 0,
+      "P8 pořadí úseků": 0,
       "P4 vrstva končí uprostřed materiálu": 0
     },
     "lathe-zigzag-stock-valley.camprog": {
@@ -308,7 +308,7 @@
       "P3 zbytek na dně (chybí poslední vrstva)": 3,
       "P5 posuv vzduchem": 1,
       "P6 zanoření strměji než dovoleno": 3,
-      "P7 přes hrb dřív, než je pravá strana hotová": 1,
+      "P7 přes hrb dřív, než je pravá strana hotová": 0,
       "P7 vrstva přes hrb vcelku až na konec": 0,
       "P8 pořadí úseků": 0,
       "P4 vrstva končí uprostřed materiálu": 0
@@ -320,7 +320,7 @@
       "P3 zbytek na dně (chybí poslední vrstva)": 10,
       "P5 posuv vzduchem": 6,
       "P6 zanoření strměji než dovoleno": 1,
-      "P7 přes hrb dřív, než je pravá strana hotová": 1,
+      "P7 přes hrb dřív, než je pravá strana hotová": 0,
       "P7 vrstva přes hrb vcelku až na konec": 0,
       "P8 pořadí úseků": 0,
       "P4 vrstva končí uprostřed materiálu": 0
@@ -334,7 +334,7 @@
       "P6 zanoření strměji než dovoleno": 0,
       "P7 přes hrb dřív, než je pravá strana hotová": 0,
       "P7 vrstva přes hrb vcelku až na konec": 0,
-      "P8 pořadí úseků": 2,
+      "P8 pořadí úseků": 0,
       "P4 vrstva končí uprostřed materiálu": 0
     },
     "long-pclnr-valley.camprog": {

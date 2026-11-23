@@ -27,7 +27,7 @@ const TOL = 0.1;         // mm pod vrcholem = „níž než"
 // `finalLoops` = zbytek po celém programu (null = neznámý): materiál, který
 // zůstane navždy, se do „nehotovo" nepočítá.
 export function makeOrderChecks({ ap, part, allowLoop, stockLoop, guides, cutsFullWidth,
-  offsetXAt, dir, topAt, topXOnLoop, pointInLoop, finalLoops = null }) {
+  offsetXAt, dir, topAt, topXOnLoop, pointInLoop, finalLoops = null, sp = null, zigzag = false, noseR = 0 }) {
   let zLo = Infinity, zHi = -Infinity;
   for (const p of part) { zLo = Math.min(zLo, p.z); zHi = Math.max(zHi, p.z); }
   const uLo = Math.min(zLo * dir, zHi * dir), uHi = Math.max(zLo * dir, zHi * dir);
@@ -71,9 +71,10 @@ export function makeOrderChecks({ ap, part, allowLoop, stockLoop, guides, cutsFu
 
   // Nejvíc materiálu nad přídavkem v rozsahu u (0 = hotovo) — a jen toho,
   // který program později odebere (nad konečným zbytkem `finalLoops`).
-  const leftover = (loops, u0, u1) => {
+  const leftover = (loops, u0, u1, skip = null) => {
     let worst = 0;
     for (let u = Math.min(u0, u1); u <= Math.max(u0, u1); u += DZ) {
+      if (skip && skip(u)) continue;
       const top = topAt(loops, zOf(u)), at = allowTop(u);
       if (top === null || at === null) continue;
       const fin = finalLoops ? topAt(finalLoops, zOf(u)) : null;
@@ -83,6 +84,46 @@ export function makeOrderChecks({ ap, part, allowLoop, stockLoop, guides, cutsFu
     return worst;
   };
 
+  // PRVNÍ VRSTVA, KTERÁ NA HRB NARAZÍ, jede až na konec (pravidlo 7 bod 2)
+  // — i když hrb nekopíruje: u Cik cak kus hned za hrbem bere obrácená
+  // vrstva (pravidlo 20) a „materiál dál vlevo za mezerou zůstává původní
+  // vrstvě", která přes hrb přejede rychloposuvem a pokračuje
+  // (lathe-zigzag-stock-valley `N900`: vrstva X151 skončila na stěně hrbu
+  // Z659,8, pokračuje za údolím polotovaru Z460→87). Podmínka: tatáž hloubka
+  // už řezala před hrbem a před hrbem pod jeho vrcholem nejela vrstva výš.
+  const firstLayerGoesOn = (i, x, lift, h) => {
+    if (!sp) return false;
+    const front = (p) => p.z * dir > h.uFront + DZ && p.z * dir <= h.frontEnd + DZ;
+    let same = false;
+    for (let k = 1; k < i; k++) {
+      const a = sp[k - 1], b = sp[k];
+      if (b.type === 'G0' || Math.abs(b.x - a.x) > 1e-6 || Math.abs(b.z - a.z) < 0.5 || !front(a) || !front(b)) continue;
+      if (b.x > x + 0.05 && b.x - lift < h.top - TOL) return false;
+      if (Math.abs(b.x - x) <= 0.05) same = true;
+    }
+    return same;
+  };
+
+  // CIK CAK — SPODEK U HRANICE ÚSEKU (pravidlo 20, výjimka z pravidla 11):
+  // jeden průchod cik cak po dně úseku jede „vpravo až ke stěně i za
+  // hranicí úseku". Kus dna sousedního úseku pod ním tak úsek sám nedělá —
+  // nehotový není (lathe-zigzag-wall-steps `N2870`: údolí Z195,3–205 v Ú1
+  // bere průchod 67 Z199,8 → 143 po dně Ú2). Sloupce, přes které později
+  // vede vodorovná jízda přes hranici úseků (± rádius nosu), se do zbytku
+  // úseku nepočítají.
+  const crossing = [];
+  if (zigzag && sp) {
+    const inner = cuts.slice(1, -1);
+    for (let k = 1; k < sp.length; k++) {
+      const a = sp[k - 1], b = sp[k];
+      if (b.type === 'G0' || Math.abs(b.x - a.x) > 1e-6 || Math.abs(b.z - a.z) < 1) continue;
+      const u0 = Math.min(a.z * dir, b.z * dir), u1 = Math.max(a.z * dir, b.z * dir);
+      if (inner.some((c) => c > u0 + DZ && c < u1 - DZ)) crossing.push({ k, u0: u0 - noseR, u1: u1 + noseR });
+    }
+  }
+  const crossedLater = (i) => (crossing.length
+    ? (u) => crossing.some((c) => c.k >= i && u >= c.u0 && u <= c.u1) : null);
+
   const found = { hump: [], order: [] };
   const seenHump = new Set(), seenOrder = new Set();
   const onPassStart = (i, x, z, edge, loops) => {
@@ -91,6 +132,7 @@ export function makeOrderChecks({ ap, part, allowLoop, stockLoop, guides, cutsFu
     for (const h of humps) {
       if (!(u < h.uBack - DZ) || !(edge < h.top - TOL)) continue;
       if (seenHump.has(h)) continue;
+      if (firstLayerGoesOn(i, x, x - edge, h)) continue;
       const rest = leftover(loops, h.uFront, h.frontEnd);
       if (rest > ap) { seenHump.add(h); found.hump.push({ i, v: rest, zTop: h.zTop }); }
     }
@@ -101,7 +143,7 @@ export function makeOrderChecks({ ap, part, allowLoop, stockLoop, guides, cutsFu
       if (B === A || !(B.lo >= A.hi - 1e-6) || !(edge < B.top - TOL)) continue;
       const key = `${A.lo}|${B.lo}`;
       if (seenOrder.has(key)) continue;
-      const rest = leftover(loops, B.lo, B.hi);
+      const rest = leftover(loops, B.lo, B.hi, crossedLater(i));
       if (rest > ap) { seenOrder.add(key); found.order.push({ i, v: rest, A, B }); }
     }
   };
