@@ -17,6 +17,8 @@
 // Všechno ostatní se mutuje na místě (`cur` je objekt, modely materiálu taky).
 
 import { segmentHitsPath } from '../contourBuild.js';
+import { polyArea, toolSweep } from '../../../geom/geomCore.js';
+import { toolFootprintVisual } from '../materialRemoval.js';
 import { getInsert } from '../inserts/index.js';
 import { rapidFeedGap } from '../camMath.js';
 import { makeFaceTransitGuard } from '../faceTransitGuard.js';
@@ -47,6 +49,44 @@ export function emitRoughing(E) {
   const chipOn = !!feedTrack && chipThinActive(prms);   // konst. tloušťka třísky (feedTuning.js)
   const insGc = getInsert(prms);
   const isPartingGc = !!insGc.cutsFullWidth;
+  // ── KONCOVÝ VZDUCH DOJEZDU SE NEJEDE (audit 22. 11. 2026, pravidlo 5) ──
+  // Dojezd „bez schodků" po šikmé stěně nahoru na vršek schodu: klínek mezi
+  // koncem vrstvy a stěnou ubrala už hlavní hrana polygonu během vrstvy,
+  // takže úsek po stěně jel posuvem vzduchem (part-15 `N330 G1 X50.583
+  // Z236.194` 5,2 mm, part-21 3,3 mm na každé vrstvě). Koncové ŠIKMÉ úsečky,
+  // které celou destičkou z plánovacího zbytku neuberou nic (práh kontroly
+  // P5: 0,01 mm²/mm), se zahodí — odskok odjede rovnou od konce vrstvy.
+  // Vodorovné řeší `emitLeadOutLine` (airSplitAxial), oblouky zůstávají.
+  // JEN POLYGON: klínek u stěny bere jeho hlavní hrana; kulatá dojezdem po
+  // stěně řeže kružnicí nosu a plánovací zbytek to nevidí (round-r10-left-
+  // full-steps: zahozený dojezd nechal 0,2 mm na Z220,8).
+  // Plánovací zbytek se ubírá celou destičkou (noteCutPts), takže zná i to,
+  // co z klínku u stěny vzala hlavní hrana. Ubere úsečka víc než perMm mm²/mm?
+  let visFoot = null;
+  const planCutsAlong = (x1, z1, x2, z2, perMm) => {
+    if (!rapidStockPlan) return true;
+    try {
+      visFoot = visFoot || toolFootprintVisual(prms);
+      const a = Math.abs(polyArea(rapidStockPlan.collide(toolSweep(visFoot, [{ x: x1, z: z1 }, { x: x2, z: z2 }]))));
+      return a >= perMm * Math.hypot(x2 - x1, z2 - z1);
+    } catch { return true; }   // chyba = bráno jako řez (dojezd zůstane)
+  };
+  // Zbytek zná tělo průchodu z PLÁNU (`noteCutPass` až po `pass.zEnd`). Když
+  // emise tělo ukončila jinde (ořez držákem), je optimistický a dojezd po
+  // stěně ještě bral — holder-region-roughing: 1,27 mm na Z161,875
+  // (`cam-strategy-residual`). Pak se nic nezahazuje.
+  const dropAirTail = (segs, pass) => {
+    if (!segs || insGc.shape !== 'polygon') return segs;
+    if (!pass || Math.abs(cur.z - pass.zEnd) > 0.05) return segs;
+    let n = segs.length;
+    while (n > 0) {
+      const s = segs[n - 1];
+      if (s.type !== 'line' || Math.abs(s.x2 - s.x1) < 1e-6) break;
+      if (planCutsAlong(s.x1, s.z1, s.x2, s.z2, 0.01)) break;
+      n--;
+    }
+    return n === segs.length ? segs : segs.slice(0, n);
+  };
   let simCounter = E.simCounter;
   let holderShallowBodies = E.holderShallowBodies;
   // PŘEJEZD VZDUCHEM SE DOTÝKÁ JEN MÍSTY (24. 9. 2026). Mezera ve vzduchu
@@ -591,7 +631,7 @@ calc.passes.forEach((pass, i) => {
       // hranu materiálu (`trimLeadOutToStock`) je tu ze stejného důvodu
       // jako u otevřeného průchodu níž: dojezd kroku dorampování může po
       // kontuře dojet až tam, kde nad nástrojem polotovar dávno nesahá.
-      const loSegs = trimLeadOutToStock(pass.contourLeadOut, tipRGc);
+      const loSegs = dropAirTail(trimLeadOutToStock(pass.contourLeadOut, tipRGc), pass);
       leadOutClimb(loSegs, zDir);
       for (const seg of loSegs) {
         if (seg.type === 'line') {
@@ -783,7 +823,7 @@ calc.passes.forEach((pass, i) => {
     // dojezd o Vůli Z se kvůli tomu zbytečně netiskl, i když za koncem
     // řezu byl prokazatelně vzduch).
     if (rapidStock) noteCutPass(pass);
-    const leadOutSegs = pass.contourLeadOut ? trimLeadOutToStock(pass.contourLeadOut, tipRGc) : null;
+    const leadOutSegs = pass.contourLeadOut ? dropAirTail(trimLeadOutToStock(pass.contourLeadOut, tipRGc), pass) : null;
     const hasLeadOut = !!(leadOutSegs && leadOutSegs.length > 0);
     if (!pass.blocked && !hasLeadOut && rapidStock) {
       // Dál ve směru řezu: buď o Vůli Z, nebo až na vůlí-posunutou siluetu —

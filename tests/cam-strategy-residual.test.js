@@ -32,7 +32,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { runCamProg } from './helpers/camHeadless.mjs';
 import { StockModel, toolSweep } from '../js/geom/geomCore.js';
-import { toolFootprint } from '../js/calculators/cam/materialRemoval.js';
+import { toolFootprint, toolFootprintVisual } from '../js/calculators/cam/materialRemoval.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fxDir = join(__dirname, 'fixtures', 'cam');
@@ -68,9 +68,14 @@ function tabTopAt(tab, z, withFloor = true) {
 
 // Zbytek podle REÁLNĚ projeté dráhy — řezné bloky `simPath` do StockModelu,
 // stejně jako to dělá validateToolpath (a `cam-residual-model`).
+// REALITA = SKUTEČNÝ OBRYS DESTIČKY (rozhodnutí uživatele 23. 11. 2026), jako
+// kontrola pravidel. Samotná kružnice nosu (`toolFootprint`) nevidí, co ubrala
+// hlavní hrana polygonu: po zahození koncového vzduchu dojezdu po stěně
+// (`dropAirTail`, roughEmit.js, pravidlo 5) tu stál fantomový klínek 1,27 mm
+// (holder-region-roughing Z161,875), který podle tvaru destičky neexistuje.
 function replayReality(seed, calcSim, prms) {
   const stock = new StockModel([seed]);
-  const foot = toolFootprint(prms);
+  const foot = toolFootprintVisual(prms) || toolFootprint(prms);
   const sp = calcSim.simPath || [];
   let cur = null;
   const blocks = [];

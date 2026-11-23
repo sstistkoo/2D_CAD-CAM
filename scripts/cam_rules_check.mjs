@@ -48,7 +48,7 @@ const PLUNGE_MIN_CUT = 0.5;   // mm² — P6: dotek bokem bez materiálu pod nos
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const imp = (p) => import(pathToFileURL(join(root, p)).href);
 const { runCamProg } = await imp('tests/helpers/camHeadless.mjs');
-const { MaterialRemoval, toolFootprint } = await imp('js/calculators/cam/materialRemoval.js');
+const { MaterialRemoval, toolFootprint, insertExtent } = await imp('js/calculators/cam/materialRemoval.js');
 const { validateToolpath } = await imp('js/calculators/cam/collisionValidator.js');
 const { offsetSilhouetteLoop } = await imp('js/calculators/cam/toolEnvelope.js');
 const { getEffectivePlungeAngle, plungeDisabled, wallPlungeOn, topXOnLoop } = await imp('js/calculators/cam/camMath.js');
@@ -193,6 +193,29 @@ async function check(file) {
   const found = { chip: [], air: [], plunge: [], endMid: [], thin: [] };
   const thinCand = [];
   const pendingEnd = [];
+  const layerEnds = [];   // konce vrstev (P4 schod podle úhlu zanoření)
+  // Upichovák s ČELNÍM výstupem (zápichy vedle sebe, pravidlo 17) — strategie
+  // v parametrech může zůstat „podélně", program je ale radiální. Zápich končí
+  // na dně, ne uprostřed vrstvy (uživatel 22. 11. 2026: jede kolmo celou
+  // šířkou); P4 tu měřil celou hloubku zápichu (range-parting-plunge 40–64 mm).
+  const partingPlungeOut = partingOk && /HRUBOVANI \(CELNI/.test(r.gcode);
+  // HRANICE ROZSAHU Z (pravidla 4, 11, 12): vrstva smí skončit, kde by o 1 mm
+  // dál OBRYS DESTIČKY přejel konec rozsahu — stěnu pod X max (`rangeEndZ`)
+  // nebo ruční rozsah 📐. Meze platí pro obrys destičky, ne pro střed nosu
+  // (xmax-wall: stěna Z269,63, konce vrstev Z272,927 = stěna + přesah 3,3).
+  // Jen podélně (čelně jsou osy měření prohozené).
+  const extR = insertExtent(P);
+  const zlR = prog.zLimits || {};
+  const rangeZ = (zlR.rangeActive && Number.isFinite(zlR.rangeStart) && Number.isFinite(zlR.rangeEnd))
+    ? [Math.min(zlR.rangeStart, zlR.rangeEnd), Math.max(zlR.rangeStart, zlR.rangeEnd)] : [-Infinity, Infinity];
+  if (Number.isFinite(r.calc.rangeEndZ)) {
+    // Zleva se jede k +Z (konec rozsahu nahoře), zprava k −Z (dole).
+    if (P.roughingSide === 'left') rangeZ[1] = Math.min(rangeZ[1], r.calc.rangeEndZ);
+    else rangeZ[0] = Math.max(rangeZ[0], r.calc.rangeEndZ);
+  }
+  const pastRange = (q) => !face && (q.dir < 0
+    ? q.e - 1 - extR.zNeg < rangeZ[0] - 0.05
+    : q.e + 1 + extR.zPos > rangeZ[1] + 0.05);
 
   for (let i = 1; i < sp.length; i++) {
     const a = sp[i - 1], b = sp[i];
@@ -347,7 +370,7 @@ async function check(file) {
       const next = sp[i + 1];
       const axial = Math.abs(dx) < 1e-6 && Math.abs(dz) > 1;
       if (axial && next && (next.type === 'G0' || next.x > b.x + 0.5))
-        pendingEnd.push({ i, zN: b.z + Math.sign(dz) * 1, edge: b.x - lift });
+        pendingEnd.push({ i, zN: b.z + Math.sign(dz) * 1, edge: b.x - lift, d: b.x, e: b.z, dir: Math.sign(dz) });
     } else {
       // Konec průchodu (včetně dojezdu) = první rychloposuv: teprve teď se
       // ptáme, jestli za koncem vrstvy zůstal stát její materiál.
@@ -355,8 +378,28 @@ async function check(file) {
         // Materiál za koncem, a přitom by tam dráha na téže hloubce ještě mohla jet
         // (offsetová dráha tam leží pod ní) — tedy nebránila kontura ani přídavek.
         const top = topAt(TL(rm.model.loops), q.zN), offX = offsetXAt(q.zN);
-        if (top !== null && top > q.edge + 0.2 && (offX === null || offX < q.edge + lift - 0.2))
+        // SCHOD PODLE ÚHLU ZANOŘENÍ (audit 22. 11. 2026, pravidla 4 a 6): vrstva
+        // smí skončit nejvýš o ap·tan(úhel zanoření) PŘED koncem vrstvy o ap
+        // mělčí — dál by zadní roh / spodní hrana destičky řezala do schodu,
+        // který ta mělčí vrstva nechala (pravidlo 6 „Čelně", schodiště PSKNR
+        // −15° potvrzené uživatelem 12. 11. 2026 jako fyzikální). Materiál za
+        // takovým koncem není „uprostřed vrstvy" — lathe-face-casting-axial
+        // 70 hlášení, konce po 1,07 mm = 4 · tan 15°.
+        // Schod musí být PRÁVĚ ap·tan(úhel) (± 0,15) — konce na stejném Z
+        // (xmax-wall, stěna) schodem nejsou.
+        // Úhel schodu dává nastavené zanoření, spodní hrana destičky
+        // (`plungeAngleMaxDeg`) NEBO natočení destičky (`guideRotDeg` — zadní
+        // roh níž než špička): face-cylinder ap 2 → 0,536 = 2·tan 15° při
+        // zanoření 45° a natočení −15°.
+        const stepNoms = [plungeLimit, ins.plungeAngleMaxDeg, Math.abs(ins.guideRotDeg || 0)]
+          .filter(a => Number.isFinite(a) && a > 0 && a < 89)
+          .map(a => ap * Math.tan(a * Math.PI / 180)).filter(s => s > 0.2);
+        // Upichovák (řeže celou šířkou, úhel 90°) žádný schod nemá.
+        const stair = !partingOk && layerEnds.some(L => L.dir === q.dir && Math.abs(L.d - (q.d + ap)) < 0.1
+          && stepNoms.some(s => Math.abs((L.e - q.e) * q.dir - s) <= 0.15));
+        if (top !== null && top > q.edge + 0.2 && (offX === null || offX < q.edge + lift - 0.2) && !stair && !partingPlungeOut && !pastRange(q))
           found.endMid.push({ i: q.i, v: top - q.edge });
+        layerEnds.push(q);
       }
       pendingEnd.length = 0;
       // Rychloposuv VZDUCHEM uvnitř vrstvy (stejná hloubka, jen v Z) průchod
