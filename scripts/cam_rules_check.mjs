@@ -48,7 +48,7 @@ const PLUNGE_MIN_CUT = 0.5;   // mm² — P6: dotek bokem bez materiálu pod nos
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const imp = (p) => import(pathToFileURL(join(root, p)).href);
 const { runCamProg } = await imp('tests/helpers/camHeadless.mjs');
-const { MaterialRemoval, toolFootprint, insertExtent } = await imp('js/calculators/cam/materialRemoval.js');
+const { MaterialRemoval, toolFootprint, toolFootprintVisual, insertExtent } = await imp('js/calculators/cam/materialRemoval.js');
 const { validateToolpath } = await imp('js/calculators/cam/collisionValidator.js');
 const { offsetSilhouetteLoop } = await imp('js/calculators/cam/toolEnvelope.js');
 const { getEffectivePlungeAngle, plungeDisabled, wallPlungeOn, topXOnLoop } = await imp('js/calculators/cam/camMath.js');
@@ -118,6 +118,43 @@ const distToPoly = (polys, x, z) => {
   }
   return best;
 };
+
+// DOSAH DESTIČKY (P3 zbytek na dně): nejnižší X, kam sáhne stopa destičky
+// (tvar plátku, `toolFootprintVisual`), když střed nosu jede po kontuře
+// (`paths` = offset dílu o rádius nosu — do drážky užší než nos nevjede),
+// + přídavek. Mřížka z = z0 + k·dz.
+function toolReach(P, paths, allow, z0, dz, n) {
+  if (!paths || !(n > 0)) return null;
+  const fp = toolFootprintVisual(P) || toolFootprint(P);
+  if (!fp || fp.length < 3) return null;
+  let fzLo = Infinity, fzHi = -Infinity;
+  for (const p of fp) { fzLo = Math.min(fzLo, p.z); fzHi = Math.max(fzHi, p.z); }
+  const prof = [];   // spodní hrana stopy po 0,05 mm v z
+  const st = 0.05, m = Math.ceil((fzHi - fzLo) / st);
+  for (let j = 0; j <= m; j++) {
+    const zz = Math.min(fzLo + j * st, fzHi - 1e-9);
+    let lo = Infinity;
+    for (let i = 0; i < fp.length; i++) {
+      const a = fp[i], b = fp[(i + 1) % fp.length];
+      if ((a.z <= zz && b.z > zz) || (b.z <= zz && a.z > zz)) lo = Math.min(lo, a.x + (b.x - a.x) * ((zz - a.z) / (b.z - a.z)));
+    }
+    prof.push(lo);
+  }
+  const out = new Array(n).fill(Infinity);
+  const stamp = (cx, cz) => {
+    const k0 = Math.max(0, Math.ceil((cz + fzLo - z0) / dz)), k1 = Math.min(n - 1, Math.floor((cz + fzHi - z0) / dz));
+    for (let k = k0; k <= k1; k++) {
+      const lo = prof[Math.round((z0 + k * dz - cz - fzLo) / st)];
+      if (lo !== undefined && cx + lo + allow < out[k]) out[k] = cx + lo + allow;
+    }
+  };
+  for (const pl of paths) for (let i = 1; i < pl.length; i++) {
+    const a = pl[i - 1], b = pl[i], L = Math.hypot(b.x - a.x, b.z - a.z), s = Math.max(1, Math.ceil(L / 0.1));
+    // Střed nosu za osou nejede nikdy (offset uzavírací čáry po ose X−R).
+    for (let j = 0; j <= s; j++) { const cx = a.x + (b.x - a.x) * j / s; if (cx >= 0) stamp(cx, a.z + (b.z - a.z) * j / s); }
+  }
+  return out;
+}
 
 async function check(file) {
   const prog = JSON.parse(readFileSync(file, 'utf8'));
@@ -508,16 +545,32 @@ async function check(file) {
     ? [Math.min(zl.rangeStart, zl.rangeEnd), Math.max(zl.rangeStart, zl.rangeEnd)] : null;
   const fLo = rng ? Math.max(rng[0], Math.min(zLo, sLo)) : Math.min(zLo, sLo);
   const fHi = rng ? Math.min(rng[1], Math.max(zHi, sHi)) : Math.max(zHi, sHi);
-  for (let z = fLo + 0.25; z < fHi; z += 0.25) {
+  // Dráha středu nosu čistě GEOMETRICKY (offset dílu o rádius nosu, úzké
+  // drážky offset sám zavře) — ne `finishRefPath`: ta je u podélného
+  // napojená na čáru zanoření a schovala by klín pod ní, který P3 hlásí.
+  let nosePath = null;
+  if (!face && liftR > 0) {
+    try { const o = polyOffset([partR], liftR); if (o && o[0]) { const l = o.sort((u, v) => v.length - u.length)[0]; nosePath = [[...l, l[0]]]; } } catch { /* bez dosahu */ }
+  }
+  const reach = face ? null : toolReach(P, nosePath, allow, fLo + 0.25, 0.25, Math.ceil((fHi - fLo) / 0.25));
+  for (let k = 0, z = fLo + 0.25; z < fHi; k++, z += 0.25) {
     const ptRaw = topXOnLoop(allowLoop, z);
     // Čelně: řádek nad průměrem dílu nemá přídavkovou čáru (podélně tam je osa = 0).
-    const pt = ptRaw ?? (face ? null : 0), top = topAt(TL(rm.model.loops), z);
+    // Kam destička nedosáhne ani po hotovní čáře (dno V-drážky užší než
+    // kulatá R10 — lathe-zigzag-left-10 Z554…562), tam zbytek NENÍ chybějící
+    // vrstva, ale tvar nástroje: mez je výš z přídavkové čáry a dosahu.
+    const ptA = ptRaw ?? (face ? null : 0), top = topAt(TL(rm.model.loops), z);
+    // (+0,1 = tětivy oblouků a mřížka dosahu — jinak řada hlášení „0,11 mm".)
+    // Úsek se vymezí proti přídavkové čáře (jako dřív) a vypustí se, jen když
+    // ho dosah vysvětlí CELÝ — jinak by dosah jeden zbytek rozsekal na víc.
+    const pt = ptA !== null && reach && Number.isFinite(reach[k]) ? Math.max(ptA, reach[k] + 0.1) : ptA;
+    const overA = top !== null && ptA !== null ? top - ptA : 0;
     const over = top !== null && pt !== null ? top - pt : 0;
-    if (over > TOL_FLOOR) {
+    if (overA > TOL_FLOOR) {
       if (!run) run = { z0: z, z1: z, max: over }; else { run.z1 = z; run.max = Math.max(run.max, over); }
-    } else if (run) { floors.push(run); run = null; }
+    } else if (run) { if (run.max > TOL_FLOOR) floors.push(run); run = null; }
   }
-  if (run) floors.push(run);
+  if (run && run.max > TOL_FLOOR) floors.push(run);
 
   const coll = validateToolpath(spR, P, r.calcSim.stockPathSegments,
     { backside: P.roughingSide === 'left', maxIssues: 200 });

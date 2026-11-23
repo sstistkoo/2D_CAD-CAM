@@ -214,11 +214,11 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
           zz = Math.min(to, zz + 0.5);
           if (covered.some(([c0, c1]) => zz > c0 + 1e-6 && zz < c1)) return { pts, back: null, end: zz };
           const f = fR(zz);
-          if (!(f > X + 0.02) || f > X + step) return { pts, back: f <= X + 0.02 ? zz : null, end: zz };
+          if (!(f > X + 0.02) || f > X + step) return { pts, back: f <= X + 0.02 ? zz : null, end: zz, wall: f > X + step };
           if (floorDone.some(([c0, c1, qx]) => Math.abs(qx - f) < 0.15 && zz > c0 + 1e-6 && zz < c1)) return { pts, back: null, end: zz };
           pts.push({ g: 'G1', x: f, z: zz });
         }
-        return { pts, back: null, end: zz };
+        return { pts, back: null, end: zz, lim: true };
       };
       // Pod obrácenou vrstvou o ap výš, která dojela dál (ke stěně), jede
       // jízda po dně až pod její konec — nad dnem je volno (karusel Od středu,
@@ -243,6 +243,7 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
         && (() => { const zw2 = wallRight(X + 0.02, w.back, target.zStart); return zw2 === null || zw2 >= target.zStart - 0.05; })();
       // Bez napojení zbytek zůstává a jede sám → jeho úsek je „projetý".
       if (!viaTarget && target) w = walk(lz, lim, same.map(span));
+      if (!viaTarget) w = slopeOn(w, X, lim, target ? same.map(span) : same.filter((q) => !isTarget(q)).map(span), walk);
       moves.push(...w.pts);
       if (w.back === null) break;
       moves.push({ g: 'G1', x: X, z: w.back });
@@ -253,6 +254,36 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
       target = null;
     }
     return mergeCollinear(moves);
+  };
+  // MÍRNÝ SVAH (lathe-zigzag-left-10, kužel X45→39 přes 169 mm, audit 23. 11.
+  // 2026): offset stoupá pomaleji, než nos ujede 4R + 4ap, takže to není vršek
+  // hrbu — jízda po offsetu skončila uprostřed svahu (Z772,6) a pás pod vrstvou
+  // o ap výš (až 4 mm nad přídavkem, Z673–772) nevzal nikdo, ani dokončování.
+  // Došla-li jízda jen na strop vzdálenosti a offset dál stoupá, pokračuje po
+  // něm, dokud je nad ní ubráno (`clearedUntil`) — tříska ≤ ap; narazí-li na
+  // stěnu, vyjede po ní o vrstvu nahoru (pravidlo 20 „po stěně vyjede o vrstvu").
+  let slopeShort = false;
+  const slopeRedo = [];
+  const zRawEnd = Math.max(-Infinity, ...(raw || []).map((sg) => (sg.type === 'arc' ? sg.cz + sg.r : Math.max(sg.p1 ? sg.p1.z : -Infinity, sg.p2 ? sg.p2.z : -Infinity))));
+  const slopeOn = (w, X, lim, covered, walk) => {
+    if (!w.lim || w.back !== null || !w.pts.length || !Number.isFinite(lim)) return w;
+    const last = w.pts[w.pts.length - 1], first = w.pts[0];
+    if (!(last.x > first.x + 0.05)) return w;   // rovný vršek → beze změny
+    const hi = Math.min(zBeyond !== null && lim > zHi ? zBeyond + 1 : zHi, zRawEnd);
+    if (!(hi > lim + 0.5)) return w;
+    const far = Math.min(hi, clearedUntil(X, lim, hi) - 0.5);
+    // Nad svahem ještě neubráno — vrstva o ap výš může vzniknout až ve druhém
+    // kole (`reverseLayers(true)`, stěna dál); pak se zkusí znovu (`slopeRedo`).
+    if (far < hi - 0.5) slopeShort = true;
+    if (!(far > lim + 0.5)) return w;
+    const w2 = walk(lim, far, covered);
+    if (w2.back !== null) return w;   // sjede zpět na vrstvu = vršek, ne svah
+    const pts = [...w.pts, ...w2.pts];
+    if (w2.wall && pts.length) {
+      const p = pts[pts.length - 1], zt = wallRight(X + step, p.z, p.z + 2 * step + 2 * noseR);
+      if (zt !== null) for (const q of wallStep(p.x, p.z, X + step, zt)) pts.push({ g: 'G1', x: q.x, z: q.z });
+    }
+    return { pts, back: null, end: w2.end };
   };
   const done = [];
   // Je nad vrstvou X v pásu (z0, z1) ubráno? Polotovar nejvýš o ap nad ní,
@@ -348,12 +379,15 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
       && Math.abs(q.x - (X - step)) < 0.6 * step && q.zStart > q.zEnd
       && Math.min(q.zStart, q.zEnd) < target.zStart && Math.max(q.zStart, q.zEnd) > target.zEnd)) target = null;
     const tgt = target ? { zEnd: target.zEnd, zStart: target.zStart } : null;
+    slopeShort = false;
     const moves = layerMoves(X, zAir, zw, tgt, p);
+    const short = slopeShort && !tgt;
     if (tgt && tgt.used) { const t = passes.indexOf(target); if (t > i) passes.splice(t, 1); else if (t >= 0) { passes.splice(t, 1); i--; } }
     // `chain`: hned předchozí průchod je obrácená vrstva — emise po jejím
     // odskoku jede rychloposuvem rovnou nad vjezd a dolů (ne přes vrch).
     const prev = passes[i - 1];
     passes[i] = { type: 'zigzag', moves, xSafe: X + step, reversedLayer: true, chain: !!(prev && prev.reversedLayer) };
+    if (short) slopeRedo.push({ q: passes[i], X, zAir, zw });
     if (zNext !== null) {
       const rest = { ...p, zStart: Math.min((zFree + zNext) / 2, zNext + ENTRY_AIR) };
       delete rest.contourLeadIn; delete rest.ramp; delete rest.rampFeedFrom; delete rest.leadInTrimmed;
@@ -393,7 +427,9 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
       if (!mat || zFree === null) break;
       const zAir = entryAir(X, zFree - ENTRY_AIR, -Infinity);
       if (zAir === null || zAir - noseR < zLo - 1e-6) break;
+      slopeShort = false;
       add.push({ type: 'zigzag', moves: layerMoves(X, zAir, zw), xSafe: X + step, reversedLayer: true, chain: true });
+      if (slopeShort) slopeRedo.push({ q: add[add.length - 1], X, zAir, zw });
       done.push({ x: X, z0: zAir, z1: zw });
       zA = zAir; zW = zw;
     }
@@ -402,6 +438,14 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
   // Stěna dál (řetěz ramp od strmé stěny): až teď, kdy vrstvy nad ní u stěny
   // už existují (doplnění výš), se ověří, že je nad cestou ubráno.
   reverseLayers(true);
+  // Mírný svah (`slopeOn`): vrstvy, kterým jízda po svahu skončila pod dosud
+  // neubraným pásem, se po druhém kole přepočítají — vrstva o ap výš už je.
+  for (const { q, X, zAir, zw } of slopeRedo) {
+    const i = passes.indexOf(q);
+    if (i < 0) continue;
+    const mv = layerMoves(X, zAir, zw, null, q);
+    if (Math.max(...mv.map((m) => m.z)) > Math.max(...q.moves.map((m) => m.z)) + 0.5) passes[i] = { ...q, moves: mv };
+  }
   // SESKUPENÍ: obrácené vrstvy téhož místa za hrbolem jdou ZA SEBOU, shora
   // dolů, na místě poslední z nich — tedy až po pravé straně (pravidlo 7:
   // „pak se přejede přes hrb a dodělá se zbytek"). Mezi nimi jen odskok,
