@@ -407,7 +407,7 @@ async function check(file) {
           if (cut > 0.05 && len > hRun.bestLen) { hRun.i = i; hRun.z = (a.z + b.z) / 2; hRun.bestLen = len; }
         } else {
           hRun = { x: b.x, worst, worstPlan, len, cut, last: i, i, z: (a.z + b.z) / 2, bestLen: cut > 0.05 ? len : 0, edge: b.x - lift,
-            z0: Math.min(a.z, b.z), z1: Math.max(a.z, b.z) };
+            z0: Math.min(a.z, b.z), z1: Math.max(a.z, b.z), finish: finishLine };
           hRuns.push(hRun);
         }
       }
@@ -551,6 +551,49 @@ async function check(file) {
   // po stěně nebo dojezd do dna V-drážky pod poslední vrstvou z ní „vrstvu
   // mezi dvěma plnými" nedělá (lathe-zigzag-left-10 `N2740` X45,08 a pod ní
   // jen dojezd po stěně V na X43,87).
+  const stockLoops = TL([rm.baseLoop || []]);
+  // Vrstva je (aspoň zčásti) PRVNÍ pod tenčím polotovarem: polotovar nad
+  // jejím břitem je tu tenčí než ap a nad ní tu dřív nejela žádná vrstva.
+  // Zbytek vrstvy smí jet pod vrstvou nad sebou (lathe-face-casting-axial
+  // `N5680`: zčásti pod vrstvou Z220, zčásti pod šikmým odlitkem).
+  // Hrana polotovaru NAD bodem (nejbližší průsečík nad břitem) — u čelního
+  // odlitku je nejvyšší průsečík jiná část odlitku (lathe-face-casting-axial:
+  // X476 v čelních osách), ne povrch přímo nad vrstvou.
+  const stockAbove = (z, e) => {
+    let best = null;
+    for (const l of stockLoops) for (let k = 0; k < l.length; k++) {
+      const a = l[k], b = l[(k + 1) % l.length];
+      if ((a.z - z) * (b.z - z) > 0 || a.z === b.z) continue;
+      const x = a.x + (b.x - a.x) * (z - a.z) / (b.z - a.z);
+      if (x > e - 1e-6 && (best === null || x < best)) best = x;
+    }
+    return best;
+  };
+  const firstUnderThinStock = (q) => {
+    const edge = q.run.x - lift, n = Math.max(2, Math.ceil((q.run.z1 - q.run.z0) / 0.5));
+    const above = hRuns.filter((o) => o.last < q.run.i && o.x > q.run.x + 0.05 && o.cut > 0.05);
+    let nS = 0, nT = 0;
+    for (let k = 0; k <= n; k++) {
+      const z = q.run.z0 + (q.run.z1 - q.run.z0) * k / n, t0 = stockAbove(z, edge);
+      const t = t0 === null ? edge : t0;   // nad břitem žádný polotovar = tloušťka 0
+      nS++;
+      // Vrstva nad ní = mezi břitem a hranou polotovaru nad ním (ne vrstvy za
+      // odlitkem na druhé straně dílu).
+      if (t - edge < ap - 0.05 && !above.some((o) => o.x - lift < t + 0.05 && z >= o.z0 - 0.5 && z <= o.z1 + 0.5)) nT++;
+    }
+    return nS > 0 && nT >= 0.1 * nS;
+  };
+  // Čelně (pravidlo 3, výjimka): pás nad čelem mezi offsetovou čarou
+  // polotovaru a první vrstvou mřížky se dělí ROVNOMĚRNĚ — druhá vrstva shora
+  // leží pod první přesně o svou tloušťku (face-cylinder Z49,5 → 48 po 1,5).
+  const faceSkimPair = (q) => {
+    if (!face) return false;
+    const over = hRuns.filter((o) => o.last < q.run.i && o.x > q.run.x + 0.05 && o.cut > 0.05
+      && o.z0 < q.run.z1 && o.z1 > q.run.z0);
+    if (!over.length) return false;
+    const up = over.reduce((a, b) => (b.x < a.x ? b : a));
+    return Math.abs(up.x - q.run.x - q.v) < 0.2 && !over.some((o) => o.x > up.x + 0.05);
+  };
   for (const q of thinCand) {
     const topEnd = topAt(TL(rm.model.loops), q.z);
     if (topEnd === null || topEnd >= q.edge - 0.5) continue;
@@ -559,10 +602,17 @@ async function check(file) {
     // jen proto, že kulatý nos předchozí vrstvy u stěn zúžené drážky ubral
     // víc (v-insert-size R20 `N3060` X75,22 pod X83,22, ap 8).
     if (hRuns.some((o) => o.last < q.run.i && Math.abs(o.x - q.run.x - ap) < 0.15 && o.cut > 0.05 && o.z0 < zs[1] && o.z1 > zs[0])) continue;
+    // Pravidlo 3, výjimky (uživatel 23. 11. 2026): první vrstva pod tenčím
+    // polotovarem smí být tenčí (lathe-zigzag-left-10 `N240` 1 mm při ap 8);
+    // čelně se pás nad čelem dělí rovnoměrně.
+    if (firstUnderThinStock(q) || faceSkimPair(q)) continue;
     // Hlubší vrstva musí jet POD ní (překryv v Z aspoň 0,5 mm) — dno údolí,
     // které u paty stěny sahá 0,2 mm pod plošinu, vrstvu pod ní nedělá
     // (left-valley `N5420` dojezd po plošině X35,356, dno údolí X11,744 do Z200,009).
-    if (hRuns.some((o) => o.last > q.run.last && o.x < q.run.x - 0.5 && o.cut > 0.05 && Math.min(o.z1, zs[1]) - Math.max(o.z0, zs[0]) > 0.5)) found.thin.push(q);
+    // Dokončení (jede po kontuře pod přídavkem) další vrstvou hrubování není:
+    // hrubovací vrstva po čáře přídavku je poslední a tenčí být smí
+    // (part-4 `N300` X32,14 po plošině, pod ní jen dokončení X31,14).
+    if (hRuns.some((o) => !o.finish && o.last > q.run.last && o.x < q.run.x - 0.5 && o.cut > 0.05 && Math.min(o.z1, zs[1]) - Math.max(o.z0, zs[0]) > 0.5)) found.thin.push(q);
   }
 
   // P3 — zbytek na dně po celém programu (materiál nad díl + Přídavek X).

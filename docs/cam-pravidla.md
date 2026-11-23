@@ -73,6 +73,17 @@ tenčí, je ta poslední — a ta se udělá vždy.**
 - Na dně ani na schodu nesmí zůstat víc než přídavek.
 - Tenčí vrstva mezi dvěma plnými je chyba.
 - Rampa ani vjezd nesmí vzít víc než jednu vrstvu naráz.
+- **Výjimka (uživatel 23. 11. 2026):** první vrstva pod tenčím polotovarem
+  smí být tenčí. Vrstvy jedou v jedné mřížce úseku; kde polotovar leží níž,
+  první vrstva pod ním vyjde tenčí (lathe-zigzag-left-10 `N240` 1 mm při
+  ap 8). Platí pro samostatný průchod i pro vrstvu, která dál jede pod
+  vrstvou nad sebou (zčásti pod předchozí vrstvou, zčásti pod tenčím nebo
+  šikmým polotovarem — lathe-face-casting-axial `N5680`). Přeložení mřížky
+  by ušetřilo nejvýš jeden krátký průchod a měnilo sdílený výpočet vrstev.
+- **Výjimka — čelní hrubování (uživatel 23. 11. 2026):** pás nad čelem mezi
+  offsetovou čarou polotovaru (pravidlo 9) a první vrstvou mřížky se dělí
+  rovnoměrně (face-cylinder Z51 → 49,5 → 48 po 1,5 při ap 2), ne na plnou
+  vrstvu a tenký zbytek.
 
 ---
 
