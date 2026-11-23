@@ -569,11 +569,12 @@ N1510 G0 Z32.537
 N1520 G1 X11.073 Z30.537
 N1530 G1 X15.073 Z22.537
 N1540 G1 X15.073 Z20.537 ; Rovný průměr (zbytek nejde dokončit celý)
-N1550 G1 X150.000 F0.25 ; Výjezd materiálem posuvem
-N1560 G0 Z5.000
-N1570 M9
-N1580 M5
-N1590 M30 ; Konec programu
+N1550 G1 X17.234 F0.25 ; Výjezd materiálem posuvem
+N1560 G0 X150.000 ; Výjezd nad konturu
+N1570 G0 Z5.000
+N1580 M9
+N1590 M5
+N1600 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X4 Z48
 ; G1 X4.293 Z47.707

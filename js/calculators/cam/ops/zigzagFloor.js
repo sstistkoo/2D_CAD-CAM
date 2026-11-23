@@ -357,3 +357,54 @@ export function zigzagSteepLimit(zigzagWalls, prms, seg, stock, tipR, plungeDeg,
   }
   return 90;
 }
+
+// ── VRSTVA, KTEROU UŽ PROJELA JÍZDA PO STĚNĚ ───────────────────────────────
+// Jízda po stěně spodku (`wallClean`, pravidlo 20 „shora do rohu u dna")
+// vede k rohu u dna i přes dno mezi stěnami — po vrstvě pod ní (`coverMin`)
+// a po plošině offsetu. Podélné vrstvy na téže výšce za ní pak jely totéž
+// podruhé vzduchem (carousel-contour-ends-on-stock-end, audit 23. 11. 2026:
+// jízda po X67 Z308–443 a X68,2 Z445–536, pak vrstvy 68,22 a 67 znovu —
+// `N10150` 89 mm a `N10190` 135 mm posuvem vzduchem). Takový průchod
+// vypadne: tělo celé na dráze jízdy (výška ± 0,05 mm), nájezd a dojezd
+// krátké (do 3 mm). Navázaný předchozí průchod odskočí normálně.
+const rideXAt = (moves, z) => {
+  let best = null;
+  for (let k = 1; k < moves.length; k++) {
+    const a = moves[k - 1], b = moves[k];
+    if (b.g !== 'G1') continue;
+    const lo = Math.min(a.z, b.z), hi = Math.max(a.z, b.z);
+    if (z < lo - 1e-6 || z > hi + 1e-6) continue;
+    const x = hi - lo < 1e-9 ? Math.min(a.x, b.x) : a.x + (b.x - a.x) * (z - a.z) / (b.z - a.z);
+    if (best === null || x < best) best = x;
+  }
+  return best;
+};
+const segsLen = (segs) => (segs || []).reduce((s, g) => s + Math.hypot(g.x2 - g.x1, g.z2 - g.z1), 0);
+
+/** @returns {number} počet vypuštěných průchodů */
+export function dropUnderWallClean({ passes, start = 0 }) {
+  if (!Array.isArray(passes)) return 0;
+  let n = 0;
+  const rides = [];
+  for (let i = start; i < passes.length; i++) {
+    const p = passes[i];
+    if (!p) continue;
+    if (p.type === 'zigzag' && p.wallClean && Array.isArray(p.moves)) { rides.push(p.moves); continue; }
+    if (!rides.length || p.type !== 'long' || !Number.isFinite(p.x) || p.ramp) continue;
+    const lo = Math.min(p.zStart, p.zEnd), hi = Math.max(p.zStart, p.zEnd);
+    if (!(hi - lo > 1) || segsLen(p.contourLeadIn) > 3 || segsLen(p.contourLeadOut) > 3) continue;
+    const covered = rides.some((mv) => {
+      // Konce těla se nehodnotí (0,3 mm) — jízda tam už stoupá po stěně.
+      for (let z = lo + 0.3; z <= hi - 0.3 + 1e-9; z += 0.5) {
+        const x = rideXAt(mv, z);
+        if (x === null || Math.abs(x - p.x) > 0.05) return false;
+      }
+      return true;
+    });
+    if (!covered) continue;
+    const prev = passes[i - 1];
+    if (prev && prev.noRetract) delete prev.noRetract;
+    passes.splice(i, 1); i--; n++;
+  }
+  return n;
+}

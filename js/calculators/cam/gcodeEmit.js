@@ -1054,9 +1054,9 @@ function generateAutoGCodeRaw(S, calc) {
       emit(`G1 X${xDia(feedTop)} F${motionFeed ?? prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
       if (toX > feedTop + 1e-6) emit(`G0 X${xDia(toX)}${rapidNote ? note('', rapidNote) : ''}`);
     } else if (surf !== null) {
-      // Zbytek zdvih protíná, ale povrch na tomto Z je neznámý/pod nástrojem
-      // → celý zdvih konzervativně posuvem (feed vzduchem je jen pomalý).
-      emit(`G1 X${xDia(toX)} F${motionFeed ?? prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
+      const top = ((t) => (toX - t < 1 ? toX : t))(Math.min(toX, Math.max(fromX, rapidStopXAt(z) ?? toX)));   // zbytek pod středem: posuvem jen nad kružnici nosu, dál G0 (face-cylinder dřív 485 mm posuvem); zbytek < 1 mm dojede posuvem
+      if (top > fromX + 1e-6) emit(`G1 X${xDia(top)} F${motionFeed ?? prms.feed}${note('', 'Výjezd materiálem posuvem')}`);
+      if (toX > top + 1e-6) emit(`G0 X${xDia(toX)}${rapidNote ? note('', rapidNote) : ''}`);
     } else {
       emit(`G0 X${xDia(toX)}${rapidNote ? note('', rapidNote) : ''}`);
     }

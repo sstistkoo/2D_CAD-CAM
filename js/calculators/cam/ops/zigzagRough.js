@@ -14,7 +14,7 @@
 import { genLongPasses } from './roughLong.js';
 import { getInsert } from '../inserts/index.js';
 import { reverseAirLayers } from './zigzagReverse.js';
-import { floorZigzag } from './zigzagFloor.js';
+import { floorZigzag, dropUnderWallClean } from './zigzagFloor.js';
 import { zigzagWallStart } from './zigzagWallStart.js';
 import { zigzagBeyondStart } from './zigzagBeyondStart.js';
 import { valleyZigzag, pocketsBelowZigzag, dropBelowValleyFloor, dropUnderOffset } from './zigzagValley.js';
@@ -82,6 +82,8 @@ export function genZigzagPasses(ctx, op) {
     noSteps: !!prms.noStepRoughing,   // schody na stěnách dojet (Hrub. bez schodků)
     valleyStart: !!ctx.valleyStart,   // za hranicí údolí až ke stěně hrbu (pravidlo 1)
   });
+  // Podélná vrstva, kterou už projela jízda po stěně spodku, podruhé nejede.
+  dropUnderWallClean({ passes, start });
   // Údolí za hrbem bez hranice úseku (čára zanoření skončí na kontuře): místo
   // řetězu ramp po čáře zanoření taky cik cak až ke stěně (ops/zigzagValley.js).
   // Na tyči platí Podélně beze změny (pravidlo 20).
@@ -97,6 +99,7 @@ export function genZigzagPasses(ctx, op) {
   // Kapsy pod spodkem (zářez do V, nižší dno): napřed pravá, pak levá.
   // Pod podélnou vrstvou jen mimo úsek nad údolím (tam pod dnem údolí nic — dropBelowValleyFloor).
   pocketsBelowZigzag({ ...vo, belowLong: valleyFloorC === null, valleyFloor: valleyFloorC });
+  dropUnderWallClean({ passes, start });   // i po spodku v údolí (valleyZigzag)
   // Materiál za začátkem úseku (kapsa za hranicí, kterou předchozí úsek
   // nebere): cik cak shora až ke stěně (ops/zigzagBeyondStart.js).
   // Jen když se před úsekem obráběl jiný úsek — v Ú1 je za začátkem konec
