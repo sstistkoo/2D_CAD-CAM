@@ -80,6 +80,10 @@ tenčí, je ta poslední — a ta se udělá vždy.**
   vrstvou nad sebou (zčásti pod předchozí vrstvou, zčásti pod tenčím nebo
   šikmým polotovarem — lathe-face-casting-axial `N5680`). Přeložení mřížky
   by ušetřilo nejvýš jeden krátký průchod a měnilo sdílený výpočet vrstev.
+- **Tolerance — polygon, první vrstva (uživatel 23. 11. 2026):** mřížka
+  vrstev počítá se středem nosu, destička řeže o rádius nosu níž. První
+  vrstva pod polotovarem proto smí vzít až ap + rádius nosu (part-4: 2,7 mm
+  při ap 2,5 a R 1,2). Další vrstvy jsou od sebe přesně ap.
 - **Výjimka — čelní hrubování (uživatel 23. 11. 2026):** pás nad čelem mezi
   offsetovou čarou polotovaru (pravidlo 9) a první vrstvou mřížky se dělí
   rovnoměrně (face-cylinder Z51 → 49,5 → 48 po 1,5 při ap 2), ne na plnou

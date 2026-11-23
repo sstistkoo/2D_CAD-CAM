@@ -97,6 +97,23 @@ const topAt = (loops, z) => {
 };
 
 // Spodní hrana materiálu na souřadnici z (nejnižší průsečík se smyčkami).
+// Délka materiálu ve sloupci z (součet úseků uvnitř, sudo-liché pravidlo).
+const colLen = (loops, z) => {
+  const xs = [];
+  for (const l of loops) {
+    for (let i = 0; i < l.length; i++) {
+      const a = l[i], b = l[(i + 1) % l.length];
+      if ((a.z - z) * (b.z - z) > 0 || a.z === b.z) continue;
+      if (Math.min(a.z, b.z) === z && Math.max(a.z, b.z) !== z && b.z === z) continue;
+      xs.push(a.x + (b.x - a.x) * (z - a.z) / (b.z - a.z));
+    }
+  }
+  xs.sort((p, q) => p - q);
+  let s = 0;
+  for (let k = 0; k + 1 < xs.length; k += 2) s += xs[k + 1] - xs[k];
+  return s;
+};
+
 const bottomAt = (loops, z) => {
   let lo = null;
   for (const l of loops) {
@@ -364,9 +381,14 @@ async function check(file) {
           const t0 = topAt(loopsBefore, z);
           if (t0 === null) continue;
           const t1 = topAt(loopsAfter, z);
-          // Sloupec vybraný celý: podélně až k ose (0); čelně až ke spodku řádku
-          // (osa měření je tam Z stroje — „0" by bylo Z 0, ne konec materiálu).
-          const d = t0 - (t1 !== null ? t1 : face ? bottomAt(loopsBefore, z) : 0);
+          // Sloupec vybraný celý: až ke SPODKU materiálu ve sloupci (čelně je
+          // osa měření Z stroje; podélně ne vždy osa — odlitek s šikmým spodkem,
+          // part-13 Z −1…0 klín X107…109,9 vybraný celý hlášen „109,92 mm").
+          // Odlitek s dutinami (čelně lathe-face-casting-axial: sloupec přes
+          // oddělené kusy, „vrchol − spodek" hlásil 587 mm) → úbytek DÉLKY
+          // materiálu ve sloupci, ne rozdíl výšek.
+          const d = Math.min(t0 - (t1 !== null ? t1 : bottomAt(loopsBefore, z)),
+            colLen(loopsBefore, z) - colLen(loopsAfter, z));
           if (d > worst) worst = d;
           if (!inZzEnd(z) && d > worstChip) worstChip = d;
         }
@@ -395,7 +417,16 @@ async function check(file) {
       // Ve SKUTEČNÝCH osách stroje (`spR`) — čelně jsou `a`/`b` prohozené.
       const ra = spR[i - 1], rb = spR[i];
       const partingPlunge = partingOk && rb.x < ra.x && Math.abs(rb.z - ra.z) <= 0.1 * (ra.x - rb.x);
-      if (!finishLine && !partingPlunge && chipV > ap + TOL_AP && cut > 0.05) found.chip.push({ i, v: chipV, line: sp[i].originalLineIdx });
+      // Tolerance pravidla 3 (uživatel 23. 11. 2026): polygon — první vrstva
+      // pod NEDOTČENÝM polotovarem smí vzít až ap + rádius nosu (mřížka počítá
+      // se středem nosu; part-4 `N160` 2,7 mm při ap 2,5 a R 1,2).
+      const polyFirst = () => {
+        if (P.toolShape !== 'polygon' || !(chipV <= ap + liftR + TOL_AP)) return false;
+        const SL = TL([rm.baseLoop || []]);
+        const zm = (a.z + b.z) / 2, tb = topAt(loopsBefore, zm), ts = topAt(SL, zm);
+        return tb !== null && ts !== null && Math.abs(tb - ts) < 0.05;
+      };
+      if (!finishLine && !partingPlunge && chipV > ap + TOL_AP && cut > 0.05 && !polyFirst()) found.chip.push({ i, v: chipV, line: sp[i].originalLineIdx });
       // Vrstva = navazující vodorovné řádky na tomtéž X (cik cak u stěny dojede
       // kus vrstvy jiným posuvem — v-insert-size `N2590 G1 Z583.210` +
       // `N2600 G1 Z593.410 F0.053`; ten kus sám by vyšel „tenký").

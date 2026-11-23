@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Kontrola pravidel: tříska větší než ap měří skutečný úběr ve sloupci; tolerance první vrstvy polygonu** (audit CAM 23. 11. 2026). Sloupec vybraný celý se dřív počítal až k ose – odlitek se šikmým spodkem (part-13) nebo s dutinami (lathe-face-casting-axial) dával třísky 95–587 mm; teď se měří úbytek délky materiálu ve sloupci. Pravidlo 3 dostalo toleranci (uživatel): u polygonu smí první vrstva pod nedotčeným polotovarem vzít až ap + rádius nosu (mřížka vrstev počítá se středem nosu). Tříska 39 → 14, porušení 386 → 357, program beze změny.
+
 - **Cik cak: vrstva, kterou už projela jízda po stěně spodku, se nejede podruhé** (audit CAM 23. 11. 2026, pravidlo 5). Jízda po stěně spodku (Hrub. bez schodků, pravidlo 20 „shora do rohu u dna") vede i přes dno mezi stěnami; podélné vrstvy na téže výšce za ní jely totéž znovu vzduchem (carousel-contour-ends-on-stock-end: 89 + 135 mm). Takový průchod teď vypadne (`dropUnderWallClean` v `ops/zigzagFloor.js`). Změnil se jen ten díl.
 
 - **Výjezd materiálem posuvem jen nad kružnici nosu** (audit CAM 23. 11. 2026, pravidlo 5). Když zdvih v X protne zbytek, ale povrch zbytku leží pod středem nosu, jel se celý zdvih posuvem – face-cylinder po dokončení 485 mm až na X500, karusel cik cak Od středu 24 mm. Teď se jede posuvem jen tam, kde se rychloposuv dolů zastavuje (`rapidStopXAt`: zbytek + vůle i v šířce nosu ±R), dál rychloposuvem; zbytek kratší než 1 mm dojede posuvem jako dřív. Změnily se jen tyto dva programy.
