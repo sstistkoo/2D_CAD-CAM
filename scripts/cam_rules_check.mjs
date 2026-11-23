@@ -6,6 +6,8 @@
 //
 //   node scripts/cam_rules_check.mjs soubor.camprog [další.camprog …]
 //   node scripts/cam_rules_check.mjs soubor.camprog --all      (vypsat všechny řádky)
+//   … --jobs=N   víc dílů paralelně v N podprocesech (výchozí = počet jader,
+//                nebo CAM_RULES_JOBS); --jobs=1 po jednom. --times = nejpomalejší díly.
 //
 // Co se měří (materiál = model úběru ze skutečně vydané dráhy, jako simulátor):
 //   P2  kolize nástroje/držáku (validátor)
@@ -43,6 +45,8 @@
 import { readFileSync, readdirSync, writeFileSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join, basename } from 'path';
+import { spawn } from 'child_process';
+import { availableParallelism } from 'os';
 
 const PLUNGE_MIN_CUT = 0.5;   // mm² — P6: dotek bokem bez materiálu pod nosem (tolerance validátoru)
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -613,13 +617,13 @@ async function check(file) {
 const fmtList = (arr, fmt) => (showAll ? arr : arr.slice(0, 8)).map(fmt).join('\n      ')
   + (!showAll && arr.length > 8 ? `\n      … a dalších ${arr.length - 8} (--all)` : '');
 
-let total = 0;
-const counts = {};   // díl → pravidlo → počet (baseline)
-for (const f of files) {
-  const c = await check(f);
+// Výpis a počty jednoho dílu (text se skládá, ať ho může vrátit i podproces).
+function report(c) {
   const { found: F } = c;
+  const lines = [];
+  const log = (t) => lines.push(t);
   log(`\n══ ${c.name}  (${c.P.toolShape}, ap ${c.ap}, ${c.P.roughingSide === 'left' ? 'zleva' : 'zprava'}${c.carouselXZ ? ', karusel po X — měřeno v prohozených osách, Z… v hlášení = poloměr' : ''})`);
-  const cnt = counts[c.name] = {};
+  const cnt = {};
   const row = (label, arr, fmt) => {
     cnt[label] = arr.length;
     log(`  ${arr.length === 0 ? '✓' : '✗'} ${label}: ${arr.length}`);
@@ -635,7 +639,63 @@ for (const f of files) {
   row('P7 vrstva přes hrb vcelku až na konec', F.humpBreak, (q) => `${c.N(q.i)}: vrstva X${q.x.toFixed(3)} se na hrbu Z${Math.min(q.h0, q.h1).toFixed(1)}…${Math.max(q.h0, q.h1).toFixed(1)} (vrchol X${q.top.toFixed(2)}) přerušila   | ${c.txt(q.i)}`);
   row('P8 pořadí úseků', c.order.found.order, (q) => `${c.N(q.i)}: úsek Z${q.A.zLo.toFixed(1)}…${q.A.zHi.toFixed(1)} jde pod vrch úseku Z${q.B.zLo.toFixed(1)}…${q.B.zHi.toFixed(1)} (${q.B.top.toFixed(1)}), ten ještě není hotový   | ${c.txt(q.i)}`);
   row('P4 vrstva končí uprostřed materiálu', F.endMid, (q) => `${c.N(q.i)}: za koncem ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
-  total += c.coll.length + F.chip.length + F.thin.length + c.floors.length + F.air.length + F.plunge.length + F.endMid.length + c.order.found.hump.length + c.order.found.order.length + F.humpBreak.length;
+  const sum = c.coll.length + F.chip.length + F.thin.length + c.floors.length + F.air.length + F.plunge.length + F.endMid.length + c.order.found.hump.length + c.order.found.order.length + F.humpBreak.length;
+  return { name: c.name, text: lines.join('\n'), cnt, total: sum };
+}
+
+// ── PARALELNĚ (23. 11. 2026) ─────────────────────────────────────────
+// Víc dílů = podprocesy téhož skriptu (`--worker`, jeden díl na proces;
+// start ~0,3 s proti 10–30 s na díl), nejvýš `--jobs=N` / CAM_RULES_JOBS /
+// počet jader najednou. Výsledky se vypíšou v původním pořadí dílů, takže
+// výstup i baseline jsou stejné jako po jednom (`--jobs=1`).
+const MARK = '@@CAMRULES@@';
+const isWorker = args.includes('--worker');
+const jobsArg = args.find(a => a.startsWith('--jobs='));
+const jobs = Math.max(1, Math.min(files.length,
+  parseInt(jobsArg ? jobsArg.slice(7) : process.env.CAM_RULES_JOBS, 10) || availableParallelism()));
+
+const runWorker = (f) => new Promise((resolve) => {
+  const pass = args.filter(a => a === '--all');
+  const ch = spawn(process.execPath, [fileURLToPath(import.meta.url), f, '--worker', ...pass], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let out = '', err = '';
+  ch.stdout.on('data', (d) => { out += d; });
+  ch.stderr.on('data', (d) => { err += d; });
+  ch.on('close', (code) => {
+    const at = out.lastIndexOf(MARK);
+    if (code === 0 && at >= 0) resolve(JSON.parse(out.slice(at + MARK.length)));
+    else resolve({ error: `${basename(f)}: podproces skončil s kódem ${code}\n${err.split('\n').slice(-15).join('\n')}` });
+  });
+});
+
+let total = 0;
+const counts = {};   // díl → pravidlo → počet (baseline)
+const take = (r) => { log(r.text); counts[r.name] = r.cnt; total += r.total; };
+if (isWorker) {
+  process.stdout.write(MARK + JSON.stringify(report(await check(files[0]))));
+  process.exit(0);
+} else if (jobs > 1) {
+  const results = new Array(files.length);
+  let next = 0, shown = 0;
+  const flush = () => {
+    while (shown < files.length && results[shown]) {
+      const r = results[shown++];
+      if (r.error) console.error(r.error); else take(r);
+    }
+  };
+  const ms = new Array(files.length);
+  await Promise.all(Array.from({ length: jobs }, async () => {
+    while (next < files.length) {
+      const k = next++, t0 = Date.now();
+      results[k] = await runWorker(files[k]); ms[k] = Date.now() - t0; flush();
+    }
+  }));
+  if (args.includes('--times')) {
+    console.error('Nejpomalejší díly:\n' + files.map((f, k) => [ms[k], basename(f)]).sort((a, b) => b[0] - a[0])
+      .slice(0, 10).map(([t, n]) => `  ${(t / 1000).toFixed(1)} s  ${n}`).join('\n'));
+  }
+  if (results.some(r => r.error)) { console.error('Kontrola některých dílů selhala — výsledek neplatí.'); process.exit(1); }
+} else {
+  for (const f of files) take(report(await check(f)));
 }
 log(`\nCELKEM porušení: ${total}`);
 log('(Čísla N… jsou z programu, který TEĎ vygeneruje aktuální kód — ne z G-kódu uloženého v souboru.)');

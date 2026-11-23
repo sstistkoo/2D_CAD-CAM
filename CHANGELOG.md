@@ -158,6 +158,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Kontrola pravidel CAM běží paralelně** (23. 11. 2026). `scripts/cam_rules_check.mjs` s více díly pouští každý díl ve vlastním podprocesu, nejvýš tolik najednou, kolik má počítač jader (`--jobs=N`, `CAM_RULES_JOBS`; `--jobs=1` po jednom, `--times` vypíše nejpomalejší díly). Výstup i baseline jsou stejné jako po jednom; kontrola všech 76 dílů (i test `cam-rules-baseline`) 4:39 → 3:15 na čtyřjádrovém N100.
+
 - **Jedna funkce pro escapování HTML** (úklid 13. 11. 2026). 26 vlastních kopií v dialozích, editorech a CAM panelech (dvě varianty: přes DOM a přes `replace`, některé neescapovaly `"` nebo vypisovaly „null") nahradila `escapeHtml()` z nového `js/htmlEscape.js`. Escapuje `& < > "`, null/undefined vrací prázdně. Seznam projektů teď escapuje název správně i v atributu `data-name`. Opraveno tím i 📋 Kopírovat u CNC příkladů a systémových proměnných: kód s uvozovkami (např. `MSG("hodnoty osy X "<<R1<<" mm")`) se dřív zkopíroval useknutý na `MSG(`, protože stará funkce uvozovky v atributu `data-code` neescapovala. Test `tests/html-escape.test.js`.
 - **Changelog zkrácen** (úklid 13. 11. 2026). Celá verze 1.9.0 (5 664 ř.) přesunuta do `docs/changelog-archiv.md` (teď 1.0.0–1.9.0); `CHANGELOG.md` drží jen nevydané změny a má ~90 ř. místo 5 750.
 
