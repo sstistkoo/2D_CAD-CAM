@@ -491,6 +491,19 @@ export function dropUnderOffset({ passes, start = 0, raw }) {
     const p = passes[i];
     if (!p || p.type !== 'long' || !Number.isFinite(p.x) || !Number.isFinite(p.zStart) || !Number.isFinite(p.zEnd)) continue;
     const lo = Math.min(p.zStart, p.zEnd), hi = Math.max(p.zStart, p.zEnd);
+    // PŘEJEZD HRBU PO PLOŠINĚ (pravidlo 7): průchod bez těla, jehož nájezd
+    // jede po plošině vršku a za ní sjede pod offset. Zahozením vypadla
+    // i jízda po plošině (lathe-zigzag-v-insert-size: válec X189 na konci
+    // dílu, dráha X209,2 Z83,5 → −8,4, zůstal 4,8 mm nad přídavkem; audit
+    // 23. 11. 2026). Zbude jen ta jízda po plošině — vrstva na dně, navazuje
+    // na dojezd předchozí vrstvy; sjezd za ní do vzduchu za čelem odpadne.
+    const s0 = hi - lo < 0.5 && p.contourLeadIn && p.contourLeadIn[0];
+    if (s0 && Math.abs(s0.x1 - s0.x2) < 1e-6 && Math.abs(s0.z1 - s0.z2) > 1 && s0.x1 > p.x + 0.05) {
+      // Tvar průchodu zůstane (nájezd navazuje na dojezd předchozí vrstvy bez
+      // odskoku), jen nájezd skončí na konci plošiny a tělo stojí tam.
+      passes[i] = { ...p, x: s0.x2, zStart: s0.z2, zEnd: s0.z2, contourLeadIn: [s0], floorOfHump: true };
+      continue;
+    }
     const k = Math.max(2, Math.ceil((hi - lo) / DS));
     let under = 0;
     for (let j = 0; j <= k; j++) if (fR(lo + (hi - lo) * j / k) > p.x + 0.05) under++;
