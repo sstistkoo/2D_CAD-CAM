@@ -63,6 +63,9 @@ export function genZigzagPasses(ctx, op) {
     passes, start, raw: ctx.offsetPathNoGuide || offsetPath, guided: offsetPath,
     stock: stockPathSegments, noseR: parseFloat(prms.toolRadius) || 0, step,
     afterPrev: !!ctx.afterPrev,   // za hranici jen po předchozím úseku
+    // Poslední vrstva až na osu (střed nosu X0) jen na soustruhu — u karuselu
+    // je „X0" v prohozených osách spodní plocha dílu, ne osa rotace.
+    axisLayer: prms.machineStructure !== 'carousel' && !prms.xzSwapped,
     // Vjezd je ve vzduchu (nos se nedotkne polotovaru), takže smí i za hranici
     // úseku (Po úsecích: Ú1 končí na patě čáry zanoření, volno je za ní —
     // pravidlo 11 hlídá jen materiál). Mez jsou jen čelisti.

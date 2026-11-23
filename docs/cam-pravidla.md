@@ -558,6 +558,10 @@ stěně vyjede o vrstvu nahoru.**
   v jejím záběru, konec na stěně, odtud vrstva. Schody po ap dojede jízda po
   stěně. Konec dílu na straně konce obrábění (u 1/18) se bere obrácenými
   vrstvami zprava doleva až dolů (řetěz ramp z čáry zanoření tam nejede).
+  „Až dolů" na soustruhu znamená až na osu: vyšla-li by další vrstva po ap
+  pod osu a poslední je nad osou víc než 1 mm, jede ještě vrstva se středem
+  nosu na ose X0 (uživatel 23. 11. 2026; lathe-zigzag-left-10 u čela 84°
+  zůstal pahýl 1,27 mm). U karuselu ne — X0 je tam spodní plocha dílu.
   Stojí-li za začátkem úseku materiál tohoto úseku (pás širší než destička),
   obrácená vrstva jede až ke stěně za hranicí NAJEDNOU, ne na dvě části
   (uživatel 5. 11. 2026, pod S4: „dělá se to na dvě části místo aby se to

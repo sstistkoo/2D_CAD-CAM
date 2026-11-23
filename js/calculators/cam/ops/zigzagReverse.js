@@ -18,6 +18,7 @@ import { maxXAt } from '../passHelpers.js';
 const DZ = 0.05;
 const ENTRY_AIR = 1;        // vjezd o tolik před koncem materiálu (ve vzduchu)
 const WALL_STEP = 0.25;
+const AXIS_MIN = 1;         // vrstva na osu jen nad 1 mm (tenčí = posuv vzduchem, P5)
 
 /**
  * Dotkne se SPODNÍ půlka kružnice nosu (střed x, z) polotovaru? Horní půlka
@@ -40,14 +41,14 @@ function makeStockTouch(stockSegs, R, clear = 0) {
 
 /**
  * Obrátí vrstvy za hrbolem, které končí ve vzduchu. Mění `passes` na místě.
- * @param {object} o { passes, start, raw, guided, stock, noseR, step, zLo, zHi }
+ * @param {object} o { passes, start, raw, guided, stock, noseR, step, zLo, zHi, axisLayer }
  *   zLo    — čelisti (vjezd vlevo za ně nesmí)
  *   zHi    — začátek rozsahu úseku (obrácená vrstva za něj nejede)
  *   raw    — offset bez čar zanoření (stěna hrbolu, kam se dojede)
  *   guided — offset, nad kterým jelo podélné hrubování
  * @returns {number} počet obrácených vrstev
  */
-export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR, step, zLo = -Infinity, zHi = Infinity, clear = 0, afterPrev = false }) {
+export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR, step, zLo = -Infinity, zHi = Infinity, clear = 0, afterPrev = false, axisLayer = false }) {
   const touch = makeStockTouch(stock, noseR);
   // Vjezd (sem sjede rychloposuv): s vůlí polotovaru; nevyjde-li, o kus dál
   // doleva ve volnu (do 2R). Rozhodnutí „vlevo je volno" se dělá bez vůle.
@@ -407,16 +408,22 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
     if (!r || !r.reversedLayer) continue;
     const X0 = r.moves[0].x;
     // Vrstva pod ní (do 0,6 ap) už je — obrácená nebo podélná přes totéž místo.
-    const near = (X, za, zb) => done.some((d) => Math.abs(d.x - X) < 0.6 * step && d.z0 < zb && d.z1 > za)
-      || passes.some((q) => q && q.type === 'long' && Math.abs(q.x - X) < 0.6 * step && Math.abs(q.zStart - q.zEnd) > 0.5
+    // `gap` = krok k vrstvě nad ní (u vrstvy na osu kratší než ap).
+    const near = (X, za, zb, gap = step) => done.some((d) => Math.abs(d.x - X) < 0.6 * gap && d.z0 < zb && d.z1 > za)
+      || passes.some((q) => q && q.type === 'long' && Math.abs(q.x - X) < 0.6 * gap && Math.abs(q.zStart - q.zEnd) > 0.5
         && Math.min(q.zStart, q.zEnd) < zb && Math.max(q.zStart, q.zEnd) > za);
     if (near(X0 - step, r.moves[0].z, r.moves[1].z)) continue;
     const add = [];
     let zA = r.moves[0].z, zW = r.moves[1].z;
-    for (let X = X0 - step; X > 0; X -= step) {
+    // Poslední vrstva po ap by vyšla pod osu: o krok míň až NA OSU (střed nosu
+    // X0 jako dokončení), jinak pod poslední vrstvou u konce dílu zůstal pahýl
+    // (lathe-zigzag-left-10 Z846: vrstvy po X3,07, čelo 84° dokončení nesjede).
+    // Jen na soustruhu (`axisLayer`): u karuselu je X0 spodní plocha dílu.
+    const nextX = (X) => (X - step > 1e-6 ? X - step : (axisLayer && X > AXIS_MIN ? 0 : -1));
+    for (let X = nextX(X0), Xp = X0; X >= 0; Xp = X, X = X > 0 ? nextX(X) : -1) {
       // Tu vrstvu už jede jiná (krok řetězu zanoření bez těla se nepočítá —
       // ten v obrácené oblasti nemá co dělat a smaže se níž).
-      if (near(X, zA, zW)) break;
+      if (near(X, zA, zW, Math.min(step, Xp - X))) break;
       const zw = wallRight(X, zA, zW + 2 * noseR + step);
       if (zw === null) break;
       let z0 = zw - 0.1, zFree = null, mat = false;

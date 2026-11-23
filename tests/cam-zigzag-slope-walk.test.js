@@ -23,3 +23,18 @@ describe('cik cak: jízda po mírném svahu jede až ke stěně', () => {
     expect(floors.filter(([a, b]) => a < 800 && b > 680)).toEqual([]);
   }, 180000);
 });
+
+// Poslední obrácená vrstva u konce dílu až NA OSU (uživatel 23. 11. 2026):
+// vrstvy po ap skončily na X3,07 a u osy pod čelem 84° (Z846) zůstal pahýl
+// 1,27 mm, který dokončení po strmém čele nesjede. Jen soustruh (u karuselu
+// je X0 v prohozených osách spodní plocha dílu) a jen nad 1 mm.
+describe('cik cak: poslední vrstva u konce dílu až na osu', () => {
+  it('lathe-zigzag-left-10', () => {
+    const out = execFileSync(process.execPath, [join(ROOT, 'scripts/cam_rules_check.mjs'),
+      join(ROOT, 'tests/fixtures/cam-cases/lathe-zigzag-left-10.camprog'), '--all'], { encoding: 'utf8', maxBuffer: 1 << 24 });
+    const end = [...out.matchAll(/Z (\d+\.\d)…(\d+\.\d): až (\d+\.\d+)/g)].filter((m) => +m[2] > 840);
+    for (const m of end) expect(+m[3]).toBeLessThan(0.3);
+    expect(end.length).toBeGreaterThan(0);   // měření na konci dílu proběhlo (0,16 mm)
+    expect(out).toMatch(/P2 kolize: 0/);
+  }, 180000);
+});
