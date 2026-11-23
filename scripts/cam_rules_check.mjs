@@ -287,6 +287,8 @@ async function check(file) {
     ? q.e - 1 - extR.zNeg < rangeZ[0] - 0.05
     : q.e + 1 + extR.zPos > rangeZ[1] + 0.05);
 
+  const hRuns = [];
+  let hRun = null;
   for (let i = 1; i < sp.length; i++) {
     const a = sp[i - 1], b = sp[i];
     const len = Math.hypot(b.x - a.x, b.z - a.z);
@@ -389,9 +391,21 @@ async function check(file) {
       const ra = spR[i - 1], rb = spR[i];
       const partingPlunge = partingOk && rb.x < ra.x && Math.abs(rb.z - ra.z) <= 0.1 * (ra.x - rb.x);
       if (!finishLine && !partingPlunge && chipV > ap + TOL_AP && cut > 0.05) found.chip.push({ i, v: chipV, line: sp[i].originalLineIdx });
-      if (Math.abs(b.x - a.x) < 1e-6 && len > 1 && cut > 0.05 && worst > 0.05 && worst < ap - THIN
-          && (!rmPlan.model || worstPlan < ap - THIN))
-        thinCand.push({ i, v: worst, z: (a.z + b.z) / 2, edge: b.x - lift });
+      // Vrstva = navazující vodorovné řádky na tomtéž X (cik cak u stěny dojede
+      // kus vrstvy jiným posuvem — v-insert-size `N2590 G1 Z583.210` +
+      // `N2600 G1 Z593.410 F0.053`; ten kus sám by vyšel „tenký").
+      if (Math.abs(b.x - a.x) < 1e-6) {
+        if (hRun && hRun.last === i - 1 && Math.abs(hRun.x - b.x) < 1e-6) {
+          hRun.worst = Math.max(hRun.worst, worst); hRun.worstPlan = Math.max(hRun.worstPlan, worstPlan);
+          hRun.len += len; hRun.cut += cut; hRun.last = i;
+          hRun.z0 = Math.min(hRun.z0, b.z); hRun.z1 = Math.max(hRun.z1, b.z);
+          if (cut > 0.05 && len > hRun.bestLen) { hRun.i = i; hRun.z = (a.z + b.z) / 2; hRun.bestLen = len; }
+        } else {
+          hRun = { x: b.x, worst, worstPlan, len, cut, last: i, i, z: (a.z + b.z) / 2, bestLen: cut > 0.05 ? len : 0, edge: b.x - lift,
+            z0: Math.min(a.z, b.z), z1: Math.max(a.z, b.z) };
+          hRuns.push(hRun);
+        }
+      }
       // P5 — posuv vzduchem. Vzduch = neubere nic ani z odlitku velkého až po
       // OFFSETOVOU čáru (pravidlo 9: ta čára JE materiál). Měřeno jen proti
       // nakreslenému odlitku se za vzduch počítal pás vůle, kterým emise
@@ -523,10 +537,24 @@ async function check(file) {
   // P7 — první vrstva pod vrcholem hrbu jede přes hrb vcelku (scripts/lib/camRuleHump.mjs).
   found.humpBreak = face ? [] : checkHumpContinuity(sp, offsetXAt);
 
-  // P3 — tenká vrstva uprostřed: později na tomtéž Z jelo ještě hlouběji.
+  for (const q of hRuns) {
+    if (q.len > 1 && q.cut > 0.05 && q.worst > 0.05 && q.worst < ap - THIN && (!rmPlan.model || q.worstPlan < ap - THIN))
+      thinCand.push({ i: q.i, v: q.worst, z: q.z, edge: q.edge, run: q });
+  }
+  // P3 — tenká vrstva uprostřed: později na tomtéž Z jelo ještě hlouběji —
+  // a to další VRSTVOU (vodorovný průchod přes totéž Z, ≥ 0,5 mm níž). Jízda
+  // po stěně nebo dojezd do dna V-drážky pod poslední vrstvou z ní „vrstvu
+  // mezi dvěma plnými" nedělá (lathe-zigzag-left-10 `N2740` X45,08 a pod ní
+  // jen dojezd po stěně V na X43,87).
   for (const q of thinCand) {
     const topEnd = topAt(TL(rm.model.loops), q.z);
-    if (topEnd !== null && topEnd < q.edge - 0.5) found.thin.push(q);
+    if (topEnd === null || topEnd >= q.edge - 0.5) continue;
+    const zs = [q.run.z0, q.run.z1];
+    // Vrstva přesně o ap pod předchozí vrstvou přes totéž Z má ap — tenká je
+    // jen proto, že kulatý nos předchozí vrstvy u stěn zúžené drážky ubral
+    // víc (v-insert-size R20 `N3060` X75,22 pod X83,22, ap 8).
+    if (hRuns.some((o) => o.last < q.run.i && Math.abs(o.x - q.run.x - ap) < 0.15 && o.cut > 0.05 && o.z0 < zs[1] && o.z1 > zs[0])) continue;
+    if (hRuns.some((o) => o.last > q.run.last && o.x < q.run.x - 0.5 && o.cut > 0.05 && o.z0 < zs[1] && o.z1 > zs[0])) found.thin.push(q);
   }
 
   // P3 — zbytek na dně po celém programu (materiál nad díl + Přídavek X).

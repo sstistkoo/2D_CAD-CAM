@@ -1,5 +1,5 @@
 {
-  "total": 554,
+  "total": 498,
   "parts": {
     "carousel-center-axis.camprog": {
       "P2 kolize": 0,
@@ -16,7 +16,7 @@
     "carousel-contour-ends-on-stock-end.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 1,
+      "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 3,
       "P5 posuv vzduchem": 2,
       "P6 zanoření strměji než dovoleno": 0,
@@ -64,7 +64,7 @@
     "carousel-sections3.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 6,
+      "P3 tenká vrstva uprostřed": 3,
       "P3 zbytek na dně (chybí poslední vrstva)": 12,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
@@ -88,7 +88,7 @@
     "carousel-zigzag-center-ap10.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 3,
+      "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 6,
       "P5 posuv vzduchem": 3,
       "P6 zanoření strměji než dovoleno": 4,
@@ -100,7 +100,7 @@
     "carousel-zigzag-center-range.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 2,
+      "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 4,
       "P5 posuv vzduchem": 1,
       "P6 zanoření strměji než dovoleno": 2,
@@ -124,7 +124,7 @@
     "carousel-zigzag-center-wedge.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 3,
+      "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 3,
       "P5 posuv vzduchem": 2,
       "P6 zanoření strměji než dovoleno": 3,
@@ -160,7 +160,7 @@
     "carousel-zigzag-wall-steps.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 2,
+      "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 6,
       "P5 posuv vzduchem": 4,
       "P6 zanoření strměji než dovoleno": 3,
@@ -244,7 +244,7 @@
     "lathe-face-casting-axial.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 5,
-      "P3 tenká vrstva uprostřed": 5,
+      "P3 tenká vrstva uprostřed": 4,
       "P3 zbytek na dně (chybí poslední vrstva)": 2,
       "P5 posuv vzduchem": 1,
       "P6 zanoření strměji než dovoleno": 0,
@@ -280,7 +280,7 @@
     "lathe-zigzag-left-10.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 3,
+      "P3 tenká vrstva uprostřed": 2,
       "P3 zbytek na dně (chybí poslední vrstva)": 3,
       "P5 posuv vzduchem": 3,
       "P6 zanoření strměji než dovoleno": 3,
@@ -292,7 +292,7 @@
     "lathe-zigzag-left-valley.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 1,
-      "P3 tenká vrstva uprostřed": 2,
+      "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 3,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
@@ -316,7 +316,7 @@
     "lathe-zigzag-v-insert-size.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 6,
+      "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 10,
       "P5 posuv vzduchem": 6,
       "P6 zanoření strměji než dovoleno": 1,
@@ -328,7 +328,7 @@
     "lathe-zigzag-wall-steps.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 1,
+      "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 6,
       "P5 posuv vzduchem": 2,
       "P6 zanoření strměji než dovoleno": 0,
@@ -484,7 +484,7 @@
     "part-19-face-tilted-insert.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 4,
+      "P3 tenká vrstva uprostřed": 3,
       "P3 zbytek na dně (chybí poslední vrstva)": 1,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
@@ -532,7 +532,7 @@
     "part-22-round-r10.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 8,
+      "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 7,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
@@ -652,7 +652,7 @@
     "pocket-wall-at-plunge-angle.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 1,
+      "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 1,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 1,
@@ -748,7 +748,7 @@
     "round-r10-chain-beyond-section.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 1,
+      "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 1,
       "P5 posuv vzduchem": 5,
       "P6 zanoření strměji než dovoleno": 0,
@@ -772,7 +772,7 @@
     "round-r10-finish-steep-arc.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 4,
+      "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 2,
       "P5 posuv vzduchem": 2,
       "P6 zanoření strměji než dovoleno": 0,
@@ -784,7 +784,7 @@
     "round-r10-left-floor-chain.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 2,
+      "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 6,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
@@ -796,7 +796,7 @@
     "round-r10-left-full-steps.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 5,
+      "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 8,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
@@ -808,7 +808,7 @@
     "round-r10-left-section2.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 2,
+      "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 6,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
@@ -820,7 +820,7 @@
     "round-r10-left-valley-chain.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 3,
+      "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 4,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
@@ -844,7 +844,7 @@
     "round-r10-recess-left.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 3,
+      "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 4,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
@@ -856,7 +856,7 @@
     "round-r10-section2-parts.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 3,
+      "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 5,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
@@ -868,7 +868,7 @@
     "round-r10-section3-recess.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 2,
+      "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 2,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
@@ -880,7 +880,7 @@
     "round-r10-valley-holder.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 1,
-      "P3 tenká vrstva uprostřed": 8,
+      "P3 tenká vrstva uprostřed": 1,
       "P3 zbytek na dně (chybí poslední vrstva)": 9,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
@@ -892,7 +892,7 @@
     "round-r10-zleva-section2.camprog": {
       "P2 kolize": 0,
       "P3 tříska větší než ap": 0,
-      "P3 tenká vrstva uprostřed": 2,
+      "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 6,
       "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
