@@ -305,7 +305,11 @@ async function check(file) {
       // nakreslenému odlitku se za vzduch počítal pás vůle, kterým emise
       // správně jede posuvem (karusel R5, vůle 1 mm: 19× „Přejezd materiálem
       // posuvem" 4 mm hlášeno jako vzduch, 11. 11. 2026).
-      if (len > AIR_MIN_LEN && Math.max(cut, cutPlan) < AIR_CUT_PER_MM * len) found.air.push({ i, v: len });
+      // Dokončení při NULOVÉM přídavku (přídavek X/Z + na hotovo < 0,05 mm)
+      // po obrysu nic neubere ze své podstaty — je to nastavení, ne vzduch
+      // dráhy (holder-* díly, audit 23. 11. 2026).
+      const finishNoAllow = finishLine && allow < 0.05;
+      if (len > AIR_MIN_LEN && Math.max(cut, cutPlan) < AIR_CUT_PER_MM * len && !finishNoAllow) found.air.push({ i, v: len });
       // P6 — kolmé zanoření (pohyb k ose strmější než úhel zanoření)
       const dx = b.x - a.x, dz = b.z - a.z;
       // DOTEK BOKEM ≠ ZANOŘENÍ: pod nosem (sloupec dráhy, `worst`) žádný materiál

@@ -56,7 +56,8 @@ export function emitRoughing(E) {
   // Z236.194` 5,2 mm, part-21 3,3 mm na každé vrstvě). Koncové ŠIKMÉ úsečky,
   // které celou destičkou z plánovacího zbytku neuberou nic (práh kontroly
   // P5: 0,01 mm²/mm), se zahodí — odskok odjede rovnou od konce vrstvy.
-  // Vodorovné řeší `emitLeadOutLine` (airSplitAxial), oblouky zůstávají.
+  // I koncové VODOROVNÉ úsečky (part-1: svislý dojezd po čele 14,5 mm a za ním
+  // 0,05 mm vodorovně — ten kousek jinak zastavil celé zahození). Oblouky zůstávají.
   // JEN POLYGON: klínek u stěny bere jeho hlavní hrana; kulatá dojezdem po
   // stěně řeže kružnicí nosu a plánovací zbytek to nevidí (round-r10-left-
   // full-steps: zahozený dojezd nechal 0,2 mm na Z220,8).
@@ -71,17 +72,16 @@ export function emitRoughing(E) {
       return a >= perMm * Math.hypot(x2 - x1, z2 - z1);
     } catch { return true; }   // chyba = bráno jako řez (dojezd zůstane)
   };
-  // Zbytek zná tělo průchodu z PLÁNU (`noteCutPass` až po `pass.zEnd`). Když
-  // emise tělo ukončila jinde (ořez držákem), je optimistický a dojezd po
-  // stěně ještě bral — holder-region-roughing: 1,27 mm na Z161,875
-  // (`cam-strategy-residual`). Pak se nic nezahazuje.
+  // Pojistka: zbytek zná tělo průchodu z PLÁNU (`noteCutPass` až po
+  // `pass.zEnd`). Když emise tělo ukončila jinde, mohl by být optimistický —
+  // pak se nic nezahazuje.
   const dropAirTail = (segs, pass) => {
     if (!segs || insGc.shape !== 'polygon') return segs;
     if (!pass || Math.abs(cur.z - pass.zEnd) > 0.05) return segs;
     let n = segs.length;
     while (n > 0) {
       const s = segs[n - 1];
-      if (s.type !== 'line' || Math.abs(s.x2 - s.x1) < 1e-6) break;
+      if (s.type !== 'line') break;
       if (planCutsAlong(s.x1, s.z1, s.x2, s.z2, 0.01)) break;
       n--;
     }
