@@ -32,7 +32,7 @@
 import { topXOnLoop, topXOnLoopFn } from '../../camMath.js';
 import { polyOffset } from '../../../../geom/geomCore.js';
 import { segAt, subSeg } from './segUtils.js';
-import { joinFloorToLayer } from './rule7FloorJoin.js';
+import { joinFloorToLayer, floorShadowedByLayer } from './rule7FloorJoin.js';
 
 const H = 0.1;        // krok vzorkování offsetu v Z [mm]
 const EPS = 0.01;     // o kolik musí offset přesáhnout vrstvu = kontura vystoupila
@@ -664,6 +664,7 @@ export function genRule7Layers(D) {
       const d = depths[di];
       if (Number.isFinite(lastD) && d >= lastD - 1e-6) continue;
       let floorPass = null;
+      const fStart = passes.length;
       // VRSTVA NA SCHODU (pravidlo 3: „na dně ani na schodu nesmí zůstat víc
       // než přídavek"). Plošina offsetu mezi mělčí vrstvou a touhle by jinak
       // zůstala pod pásem až skoro ap (plošina X 30,156 před přírubou úseku 2:
@@ -699,6 +700,15 @@ export function genRule7Layers(D) {
       const humps = runs.filter((r, k) => r.above && k > 0 && k < runs.length - 1);
       const nBefore = passes.length;
       const start = emitLayer(d, runs, up, chain);
+      // Vrstvu na schodu celou zastíní tahle vrstva (dojezd jede po plošině
+      // stejně hluboko) → vypadne, jinak by se dno jelo dvakrát
+      // (rule7FloorJoin.js, `floorShadowedByLayer`).
+      if (start !== null && floorPass && nBefore > fStart
+          && floorShadowedByLayer(passes.slice(fStart, nBefore), passes.slice(nBefore))) {
+        for (const p of passes.slice(fStart, nBefore)) floorLevels.delete((p.x).toFixed(3));
+        passes.splice(fStart, nBefore - fStart);
+        floorPass = null;
+      }
       // Vrstva na dně, za kterou stěna sjíždí k téhle vrstvě: bez odskoku
       // pokračuje po stěně dolů (ops/long/rule7FloorJoin.js).
       if (start !== null && floorPass && passes[nBefore - 1] === floorPass && passes[nBefore]) {

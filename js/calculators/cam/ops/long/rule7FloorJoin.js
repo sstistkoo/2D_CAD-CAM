@@ -65,3 +65,57 @@ export function joinFloorToLayer(F, P, { traceOffsetPath, plungeTan, step, floor
   P.floorJoin = true;
   return true;
 }
+
+// ── VRSTVU NA SCHODU ZASTÍNÍ DALŠÍ VRSTVA ─────────────────────────────────
+// Když navazující vrstva (tělem, nájezdem nebo dojezdem „zarovnání schodku")
+// projede v KAŽDÉM Z dráhy vrstvy na schodu stejně hluboko nebo hlouběji,
+// vrstva na schodu nic neubere navíc — jen pojede dno podruhé. Audit
+// 23. 11. 2026, lathe-zigzag-left-valley `N5420`: vrstva na plošině X35,356
+// přesáhla oknem nad údolí (tenká vrstva 1,16 mm mezi X36,545 a X34,545)
+// a dojezd další vrstvy (`N5490`) pak celou plošinu sjel znovu.
+// U další vrstvy se počítá jen TĚLO a DOJEZD: nájezdy (rampa, po stěně) se
+// po vytvoření ještě přestavují (řetězy, přeřazení přes hrb) — v-insert-size
+// zastínil schod X83,2 nájezd po stěně, který pak skončil jinde a dno jelo
+// 86 mm vzduchem.
+
+const passSegs = (p, entry = true) => {
+  const out = [];
+  if (entry && p.ramp) out.push({ x1: p.ramp.x0, z1: p.ramp.z0, x2: p.x, z2: p.zStart });
+  if (entry) for (const s of p.contourLeadIn || []) out.push(s);
+  out.push({ x1: p.x, z1: p.zStart, x2: p.x, z2: p.zEnd });
+  for (const s of p.contourLeadOut || []) out.push(s);
+  return out.filter((s) => [s.x1, s.z1, s.x2, s.z2].every(Number.isFinite));
+};
+
+// Nejnižší X dráhy `segs` v místě z (null = tam nejede).
+const lowXAt = (segs, z) => {
+  let best = null;
+  for (const s of segs) {
+    const lo = Math.min(s.z1, s.z2), hi = Math.max(s.z1, s.z2);
+    if (z < lo - 1e-6 || z > hi + 1e-6) continue;
+    const x = hi - lo < 1e-9 ? Math.min(s.x1, s.x2) : s.x1 + (s.x2 - s.x1) * (z - s.z1) / (s.z2 - s.z1);
+    if (best === null || x < best) best = x;
+  }
+  return best;
+};
+
+/**
+ * @param floor  průchody vrstvy na schodu
+ * @param next   průchody navazující (hlubší) vrstvy
+ * @returns true, když `next` (tělo + dojezd) v každém Z dráhy `floor` jede aspoň stejně hluboko
+ */
+export function floorShadowedByLayer(floor, next, tol = 0.03, h = 0.25) {
+  if (!floor.length || !next.length) return false;
+  const nSegs = next.flatMap((p) => passSegs(p, false));
+  for (const p of floor) {
+    for (const s of passSegs(p)) {
+      const n = Math.max(1, Math.ceil(Math.abs(s.z2 - s.z1) / h));
+      for (let k = 0; k <= n; k++) {
+        const t = k / n, z = s.z1 + (s.z2 - s.z1) * t, x = s.x1 + (s.x2 - s.x1) * t;
+        const xn = lowXAt(nSegs, z);
+        if (xn === null || xn > x + tol) return false;
+      }
+    }
+  }
+  return true;
+}

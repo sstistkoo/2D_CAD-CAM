@@ -554,7 +554,10 @@ async function check(file) {
     // jen proto, že kulatý nos předchozí vrstvy u stěn zúžené drážky ubral
     // víc (v-insert-size R20 `N3060` X75,22 pod X83,22, ap 8).
     if (hRuns.some((o) => o.last < q.run.i && Math.abs(o.x - q.run.x - ap) < 0.15 && o.cut > 0.05 && o.z0 < zs[1] && o.z1 > zs[0])) continue;
-    if (hRuns.some((o) => o.last > q.run.last && o.x < q.run.x - 0.5 && o.cut > 0.05 && o.z0 < zs[1] && o.z1 > zs[0])) found.thin.push(q);
+    // Hlubší vrstva musí jet POD ní (překryv v Z aspoň 0,5 mm) — dno údolí,
+    // které u paty stěny sahá 0,2 mm pod plošinu, vrstvu pod ní nedělá
+    // (left-valley `N5420` dojezd po plošině X35,356, dno údolí X11,744 do Z200,009).
+    if (hRuns.some((o) => o.last > q.run.last && o.x < q.run.x - 0.5 && o.cut > 0.05 && Math.min(o.z1, zs[1]) - Math.max(o.z0, zs[0]) > 0.5)) found.thin.push(q);
   }
 
   // P3 — zbytek na dně po celém programu (materiál nad díl + Přídavek X).
