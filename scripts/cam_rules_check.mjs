@@ -344,13 +344,25 @@ async function check(file) {
       // středem nosu tam vede tělem DÍLU za stěnou — „materiál nad břitem"
       // by započítal celý díl (part-16 N2690: 23 mm, reálně ubráno 3,0 mm).
       let worst = 0;
+      // TŘÍSKA = tloušťka, která vydrží aspoň na 0,5 mm šířky (minimum v okně
+      // podél Z). Proužek užší než to (konce sousedních vrstev o 0,1 mm jinde —
+      // part-1 `N540`: vrstvy končí na Z257,468 / 257,614 / 257,506, proužek
+      // 0,1 mm široký přes dvě vrstvy hlášen „5,68 mm") třískou ap není.
+      const winMax = (vals, w) => {
+        let m = 0;
+        for (let k = 0; k + w <= vals.length; k++) { let lo = Infinity; for (let j = k; j < k + w; j++) lo = Math.min(lo, vals[j]); if (lo > m) m = lo; }
+        if (vals.length < w && vals.length) m = Math.max(m, Math.min(...vals));
+        return m;
+      };
       const n = face ? -1 : Math.max(1, Math.ceil(len / SAMPLE));
+      const chipPts = [];
       for (let k = 0; k <= n; k++) {
         const t = k / n, x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
         const top = topAt(loopsBefore, z);
         if (top !== null && top - (x - lift) > worst) worst = top - (x - lift);
-        if (top !== null && !inZzEnd(z) && top - (x - lift) > worstChip) worstChip = top - (x - lift);
+        chipPts.push(top !== null && !inZzEnd(z) ? top - (x - lift) : 0);
       }
+      worstChip = Math.max(worstChip, winMax(chipPts, 2));
       let worstPlan = 0, cutPlan = 0;
       if (rmPlan.model) {
         const beforePlan = Math.abs(rmPlan.model.area());
@@ -377,7 +389,8 @@ async function check(file) {
         // na svislou hranu, topXOnLoop vrátí před řezem horní a po něm dolní
         // konec téže stěny → falešná tříska výšky celé stěny (part-22 N160:
         // schod odlitku Z 196,278 X 64,4→16,7 = „47,6 mm", reálně 1,3 mm).
-        for (let zg = zA; zg <= zB + 1e-9; zg += 0.25) for (const z of [zg - 1e-4, zg + 1e-4]) {
+        const chipCols = [];
+        for (let zg = zA; zg <= zB + 1e-9; zg += 0.25) { let dCol = 0; for (const z of [zg - 1e-4, zg + 1e-4]) {
           const t0 = topAt(loopsBefore, z);
           if (t0 === null) continue;
           const t1 = topAt(loopsAfter, z);
@@ -390,8 +403,9 @@ async function check(file) {
           const d = Math.min(t0 - (t1 !== null ? t1 : bottomAt(loopsBefore, z)),
             colLen(loopsBefore, z) - colLen(loopsAfter, z));
           if (d > worst) worst = d;
-          if (!inZzEnd(z) && d > worstChip) worstChip = d;
-        }
+          if (!inZzEnd(z) && d > dCol) dCol = d;
+        } chipCols.push(dCol); }
+        worstChip = Math.max(worstChip, winMax(chipCols, 3));
       }
       // P3 — CO SE ZA TŘÍSKU NEPOČÍTÁ (audit 21.–22. 11. 2026, roztřídění P3):
       //  • DOKONČOVÁNÍ: pravidlo 3 je o vrstvách hrubování; dokončení jede po
@@ -409,7 +423,11 @@ async function check(file) {
       // part-1 `G1 X36.180`) by úběr ÷ délka vyletěl na desítky mm.
       const dxOut = b.x - a.x;
       const outwardX = !face && dxOut > 1 && Math.abs(b.z - a.z) <= 0.1 * dxOut;
-      const chipV = outwardX ? cut / dxOut : (zz && onWall() ? 0 : worstChip);
+      // Cik cak — SJEZD RAMPOU u stěny (pravidlo 20: „u stěny pod trojúhelníkem
+      // rampy se krátce bere víc než ap"): šikmý pohyb dolů nejvýš o ap
+      // (lathe-zigzag-left-valley `N5810` 3,26 mm, carousel-zigzag-po-x `N4470`).
+      const zzRamp = zz && b.x < a.x - 0.05 && Math.abs(b.z - a.z) > 0.05 && a.x - b.x <= ap + 0.05;
+      const chipV = outwardX ? cut / dxOut : (zz && (onWall() || zzRamp) ? 0 : worstChip);
       //  • UPICHOVÁK ZANOŘUJE KOLMO CELOU ŠÍŘKOU (uživatel 22. 11. 2026: „tak má
       //    jet kolmo a celou stranou plátku, jinak to ani nejde"). Radiální
       //    zanoření k ose není vrstva — sloupec tu byl celá hloubka zápichu
