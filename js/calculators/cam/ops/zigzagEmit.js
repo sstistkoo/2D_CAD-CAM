@@ -38,6 +38,15 @@ export function emitZigzagPass(pass, env, simCounter) {
     const stop = typeof env.rapidStopXAt === 'function' ? env.rapidStopXAt(mv[0].z) : null;
     safeRapidTo(mv[0].x, mv[0].z, true, false, true,
       stop === null || !Number.isFinite(env.rapidStopX) ? null : Math.min(env.rapidStopX, Math.max(stop - mv[0].x, 0)));
+    // `safeRapidTo` někdy zůstane ve výšce přejezdu (karusel wall-steps:
+    // X114,38 nad začátkem rampy X78,22) a první pohyb průchodu pak jel z ní
+    // jedním strmým G1 (`N2400` 78°, posledních 10 mm v materiálu; audit
+    // 24. 11. 2026). Dojet: rychloposuvem na zastavení nad zbytkem, pak posuvem.
+    if (Math.abs(cur.z - mv[0].z) < 1e-6 && cur.x > mv[0].x + 1e-6) {
+      const xs = stop !== null ? Math.min(cur.x, Math.max(stop, mv[0].x)) : cur.x;
+      if (xs < cur.x - 1e-6) { simCounter += 1; addN(`G0 X${xDia(xs)}`, simCounter); setPos(xs, cur.z); }
+      if (cur.x > mv[0].x + 1e-6) { simCounter += 1; addN(`G1 X${xDia(mv[0].x)} F${prms.feed}`, simCounter); setPos(mv[0].x, cur.z); }
+    }
   }
   // Posuv u čela (ops/zigzagFeed.js); zanoření řeší cam/feedTuning.js.
   const plan = (zigzagWallFeed(prms) || prms.chipThinOn) ? zigzagFeedPlan(mv, prms) : null;

@@ -142,18 +142,27 @@ export function wallFinders(raw) {
  * `W` = wallFinders(raw).
  * @returns {number} počet nahrazených vrstev
  */
-export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSteps = false, W }) {
+export function zigzagFromLayers({ passes, grp, layers: layersIn, xTop, tanA, reach, noSteps = false, W }) {
   const { fR, wallRight, wallLeft } = W;
+  // První rampa začíná nejvýš o ap nad první vrstvou: nad ní je obrobeno
+  // (vrstva o ap výš) a rampa z výšky `xTop` (čára zanoření ve vzduchu) jela
+  // jedním strmým pohybem až 46 mm, posledních ap v materiálu pod 78°
+  // (karusel wall-steps `N2400`; audit 24. 11. 2026). ap = z `reach`
+  // (všichni volající: 4·ap/max(tanA, 0,2) + 2).
+  const apZ = Math.max(0, (reach - 2) * Math.max(tanA, 0.2) / 4);
+  const xRamp = apZ > 0 && layersIn.length ? Math.min(xTop, layersIn[0].X + apZ) : xTop;
+  const layers = fitRampLayers(layersIn, xRamp, tanA, W, reach);
   // Začátek u PRAVÉ stěny (uživatel: „začít se zanořovat vpravo u čela"):
   // nad stěnou ve výšce rampy původní první vrstvy, rampa doleva o vrstvu.
   const L0 = layers[0];
-  const run0 = (xTop - L0.X) / Math.max(tanA, 1e-3);
+  const run0 = (xRamp - L0.X) / Math.max(tanA, 1e-3);
   // Stěna na výšce začátku rampy (šikmá stěna je nahoře dál vpravo). Hledá se
   // o 0,05 mm pod výškou: plošina dna těsně pod ní (vrstva na dně 68,22 nad
   // dnem 68,20) by jinak stěnu „zakryla" a jízda po stěně začala o kus dál
   // svisle (karusel 5. 11. 2026, N4690).
   const bTop = wallRight(xTop - 0.05, L0.b, L0.b + reach) ?? L0.b;
-  const mv = [{ g: 'G0', x: xTop, z: bTop }];
+  const bRamp = xRamp < xTop - 1e-6 ? (wallRight(xRamp - 0.05, L0.b, L0.b + reach) ?? L0.b) : bTop;
+  const mv = [{ g: 'G0', x: xRamp, z: bRamp }];
   const push = (x, z) => { const l = mv[mv.length - 1]; if (Math.abs(l.x - x) > 1e-6 || Math.abs(l.z - z) > 1e-6) mv.push({ g: 'G1', x, z }); };
   // Vrstva PO DNĚ (`follow`): mírně šikmé dno (karusel 5. 11. 2026, N4630:
   // dno Z46→44) by poslední vodorovná vrstva vzala jen u nejnižšího místa
@@ -179,8 +188,8 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
     zr = Math.min(next.b, Math.max(next.a, zr));
     push(next.follow ? Math.min(L, Math.max(next.X, onFloor(next, zr))) : next.X, zr);
   };
-  rampTo(xTop, bTop, 1, L0);
-  if (mv.length >= 2 && !L0.follow) mv[1].z = Math.min(L0.b, Math.max(L0.a + 0.5, bTop - run0));
+  rampTo(xRamp, bRamp, 1, L0);
+  if (mv.length >= 2 && !L0.follow) mv[1].z = Math.min(L0.b, Math.max(L0.a + 0.5, bRamp - run0));
   // Bez výjezdů po stěně nahoru a zpět (uživatel: „jede nahoru, pak zas
   // dolů"): na konci vrstvy hned rampa od stěny o vrstvu níž.
   let dir = -1;   // první vrstva jede doleva
@@ -278,6 +287,38 @@ export function zigzagFromLayers({ passes, grp, layers, xTop, tanA, reach, noSte
   for (let k = grp.length - 1; k >= 0; k--) passes.splice(grp[k], 1);
   passes.splice(grp[0], 0, zig, ...clean);
   return grp.length;
+}
+
+// ── ÚZKÉ V: MEZIVRSTVY, ABY SE RAMPA VEŠLA POD ÚHLEM ZANOŘENÍ ──────────────
+// Rampa mezi vrstvami končí uvnitř další vrstvy; u zužujícího se V byla
+// vrstva kratší než rampa o ap pod úhlem zanoření a rampa se ZOSTŘILA
+// (lathe-zigzag-left-10 `N2710` 8 mm dolů na 5,3 mm = 56°, karusel wall-steps
+// 78° s plným ap 10; audit 23.–24. 11. 2026). Uživatel 24. 11. 2026: v úzkém
+// V tenčí vrstvy (výjimka pravidla 3), rampa pod úhlem zanoření (pravidlo 6).
+// Mezivrstva leží tak, aby rampa do ní přesně vešla do šířky další vrstvy
+// (vyšší vrstva V je širší). JÁMA (do další vrstvy se nevejde ani 1 mm
+// rampy) mezivrstvou nejde — tam zůstane strmý sjezd (výjimka pravidla 6).
+const PIT_MIN = 1;
+export function fitRampLayers(layers, xTop, tanA, W, reach) {
+  const t = Math.max(tanA, 1e-3);
+  const out = [];
+  let prevX = xTop;
+  for (const L of layers) {
+    for (let guard = 0; guard < 20 && !L.follow; guard++) {
+      const avail = (L.b - L.a) - 0.5;
+      if ((prevX - L.X) / t <= avail + 1e-6 || avail < PIT_MIN) break;
+      const Xm = prevX - avail * t;
+      if (!(Xm > L.X + 0.05)) break;
+      const c = (L.a + L.b) / 2;
+      const a = W.wallLeft(Xm, c, c - reach), b = W.wallRight(Xm, c, c + reach);
+      if (a === null || b === null || b - a < L.b - L.a - 1e-6) break;
+      out.push({ X: Xm, a, b, fitted: true });
+      prevX = Xm;
+    }
+    out.push(L);
+    prevX = L.X;
+  }
+  return out;
 }
 
 /** Totéž bez nahrazení: vrátí průchody [cik cak, dojetí stěn…] k vložení. */

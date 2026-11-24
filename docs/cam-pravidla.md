@@ -80,6 +80,11 @@ tenčí, je ta poslední — a ta se udělá vždy.**
   vrstvou nad sebou (zčásti pod předchozí vrstvou, zčásti pod tenčím nebo
   šikmým polotovarem — lathe-face-casting-axial `N5680`). Přeložení mřížky
   by ušetřilo nejvýš jeden krátký průchod a měnilo sdílený výpočet vrstev.
+- **Výjimka — cik cak v úzkém V (uživatel 24. 11. 2026):** kde se rampa
+  o ap pod úhlem zanoření do další vrstvy nevejde (V se dolů zužuje), vloží
+  se mezivrstvy, aby rampa pod úhlem zanoření vešla — vrstvy tam smí být
+  tenčí (lathe-zigzag-left-10: mezivrstva X49,657 mezi X55 a X47).
+  `ops/zigzagFloor.js` `fitRampLayers`.
 - **Tolerance — polygon, první vrstva (uživatel 23. 11. 2026):** mřížka
   vrstev počítá se středem nosu, destička řeže o rádius nosu níž. První
   vrstva pod polotovarem proto smí vzít až ap + rádius nosu (part-4: 2,7 mm
@@ -114,6 +119,9 @@ Kolmo jen tehdy, když je v nastavení kolmo (90°).**
   je v nastavení cokoli. Materiál, kam by musela sáhnout spodní hrana,
   zůstane stát a nahlásí se.
 - **Kulatá:** přednastaveno 45°; smí i kolmo, pokud je tak nastaveno.
+- **Cik cak — jáma (uživatel 24. 11. 2026):** do vrstvy, ve které má střed
+  nosu na rampu méně než 1 mm (jáma na dně užší než nos), se rampa pod úhlem
+  zanoření nevejde ani s mezivrstvami — tam smí sjezd strměji.
 - **Kulatá u strmé stěny kolmo** (uživatel 11. 11. 2026: *„v místech, kde je
   potřeba, nastavit ten úhel 90°"*): u stěny strmější než úhel zanoření se
   do vrstvy sjede po stěně kolmo (nos po offsetu stěny), jinde platí úhel

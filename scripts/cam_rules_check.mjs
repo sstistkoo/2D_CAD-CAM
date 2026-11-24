@@ -655,6 +655,14 @@ async function check(file) {
     // polotovarem smí být tenčí (lathe-zigzag-left-10 `N240` 1 mm při ap 8);
     // čelně se pás nad čelem dělí rovnoměrně.
     if (firstUnderThinStock(q) || faceSkimPair(q)) continue;
+    // Cik cak v ÚZKÉM V (pravidlo 3, výjimka uživatele 24. 11. 2026): vrstva
+    // kratší než rampa o ap pod úhlem zanoření — mezivrstvy, aby se rampa
+    // vešla (zigzagFloor.js `fitRampLayers`; lathe-zigzag-left-10 X49,657).
+    // I mezivrstva nad takovou krátkou vrstvou (vznikla kvůli ní).
+    const shortRun = ap / Math.tan(Math.max(1, Math.min(plungeLimit || 45, 89)) * Math.PI / 180) + 0.5;
+    if (P.roughingStrategy === 'zigzag' && !face && (q.run.z1 - q.run.z0 < shortRun
+      || hRuns.some((o) => o.last > q.run.last && o.x < q.run.x - 0.05 && o.x > q.run.x - ap - 0.05
+        && o.z1 - o.z0 < shortRun && o.z0 < q.run.z1 && o.z1 > q.run.z0))) continue;
     // Hlubší vrstva musí jet POD ní (překryv v Z aspoň 0,5 mm) — dno údolí,
     // které u paty stěny sahá 0,2 mm pod plošinu, vrstvu pod ní nedělá
     // (left-valley `N5420` dojezd po plošině X35,356, dno údolí X11,744 do Z200,009).
