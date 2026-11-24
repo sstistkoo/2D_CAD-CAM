@@ -58,9 +58,10 @@ export function emitRoughing(E) {
   // P5: 0,01 mm²/mm), se zahodí — odskok odjede rovnou od konce vrstvy.
   // I koncové VODOROVNÉ úsečky (part-1: svislý dojezd po čele 14,5 mm a za ním
   // 0,05 mm vodorovně — ten kousek jinak zastavil celé zahození). Oblouky zůstávají.
-  // JEN POLYGON: klínek u stěny bere jeho hlavní hrana; kulatá dojezdem po
-  // stěně řeže kružnicí nosu a plánovací zbytek to nevidí (round-r10-left-
-  // full-steps: zahozený dojezd nechal 0,2 mm na Z220,8).
+  // KULATÁ (audit 24. 11. 2026): dojezdem po stěně řeže kružnicí nosu, kterou
+  // plánovací zbytek nevidí celou (round-r10-left-full-steps: s prahem
+  // 0,01 zahozený dojezd nechal 0,2 mm na Z220,8) — proto přísnější práh
+  // 0,002 mm²/mm. Posuv vzduchem kulaté −9, bez nového zbytku.
   // Plánovací zbytek se ubírá celou destičkou (noteCutPts), takže zná i to,
   // co z klínku u stěny vzala hlavní hrana. Ubere úsečka víc než perMm mm²/mm?
   let visFoot = null;
@@ -76,13 +77,13 @@ export function emitRoughing(E) {
   // `pass.zEnd`). Když emise tělo ukončila jinde, mohl by být optimistický —
   // pak se nic nezahazuje.
   const dropAirTail = (segs, pass) => {
-    if (!segs || insGc.shape !== 'polygon') return segs;
+    if (!segs) return segs;
     if (!pass || Math.abs(cur.z - pass.zEnd) > 0.05) return segs;
     let n = segs.length;
     while (n > 0) {
       const s = segs[n - 1];
       if (s.type !== 'line') break;
-      if (planCutsAlong(s.x1, s.z1, s.x2, s.z2, 0.01)) break;
+      if (planCutsAlong(s.x1, s.z1, s.x2, s.z2, insGc.shape === 'polygon' ? 0.01 : 0.002)) break;
       n--;
     }
     return n === segs.length ? segs : segs.slice(0, n);
