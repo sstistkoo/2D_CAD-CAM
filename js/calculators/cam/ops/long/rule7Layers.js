@@ -776,6 +776,20 @@ export function genRule7Layers(D) {
     const real = { topAt: chainTopAt };
     const chain = [];
     let x = e.x, z = e.z;
+    // „PO TÉŽE PŘÍMCE" (audit 24. 11. 2026): poslední vrstva úseku vjela po
+    // mezní čáře a skončila na hranici — o kus dál než čára. Řetěz z jejího
+    // KONCE jel rovnoběžně s čarou, o (vzdálenost konce od čáry)·tg výš, a po
+    // celé šikmině nechal pás (part-22: X40,545 končí Z195,278, čára tam
+    // X38,99 → 1,55 mm nad ní, zbytek +1,7 mm). Začne proto na místě, kde
+    // vrstva čáru protíná, nejvýš o jeden krok rampy zpět po už ujeté vrstvě.
+    if (!lo || !lo.length) {
+      const zTop = Math.min(last.zStart, e.z + run);
+      if (zTop > e.z + 0.05 && O(e.z) < e.x - 0.05 && O(zTop) >= e.x - 0.01) {
+        let a = e.z, b = zTop;   // O(a) < x, O(b) ≥ x
+        for (let it = 0; it < 40; it++) { const m = (a + b) / 2; if (O(m) >= e.x - 0.01) b = m; else a = m; }
+        z = b;
+      }
+    }
     for (let k = 0; k < 400; k++) {
       let x2 = x - step, z2 = z - run, floorHit = false;
       // Nezajet do dílu: krok se zkrátí na první dotek offsetu (dno — konec řetězu).
