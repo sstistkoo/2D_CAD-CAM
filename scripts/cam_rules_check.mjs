@@ -521,7 +521,13 @@ async function check(file) {
           finishApproachOk = deg <= (ins.plungeAngleMaxDeg ?? 0) + 1
             && depth <= (parseFloat(P.finishAllowance) || 0) + TOL_AP;
         }
-        if (deg > lim + 1 && !finishApproachOk) found.plunge.push({ i, v: deg, lim, depth, cut, under: worst, line: sp[i].originalLineIdx });
+        // Cik cak — SVISLÉ DOJETÍ DO TROJÚHELNÍKU U STĚNY (pravidlo 20, výjimka
+        // uživatele 24. 11. 2026): první posuv po rychloposuvu k začátku rampy
+        // nebo jízdy po stěně smí jít svisle do zbytku pod rampou / schody vyšších
+        // vrstev, nejvýš o ap pod nosem (stock-valley `N2940` 3 mm, left-10 `N1760`).
+        const zzEntry = roughing && P.roughingStrategy === 'zigzag' && !face && deg >= 85
+          && sp[i - 1] && sp[i - 1].type === 'G0' && worst <= ap + TOL_AP;
+        if (deg > lim + 1 && !finishApproachOk && !zzEntry) found.plunge.push({ i, v: deg, lim, depth, cut, under: worst, line: sp[i].originalLineIdx });
       }
       // P7/P8 — posuzuje se na první vrstvě (posuv v Z) po rychloposuvu.
       // Obrácená vrstva Cik cak (pravidlo 20) jede ze vzduchu za hrbem KE stěně

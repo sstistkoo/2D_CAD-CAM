@@ -561,7 +561,10 @@ stěně vyjede o vrstvu nahoru.**
   (u strmé stěny klín). Místo toho cik cak jako spodek u hranice úseku:
   vrstva od stěny ke stěně, vpravo až ke skutečné stěně hrbu (přes čáru
   zanoření), na konci rampa pod úhlem zanoření o ap níž a další vrstva
-  opačně; u stěny pod trojúhelníkem rampy se krátce bere víc než ap. Stěny
+  opačně; u stěny pod trojúhelníkem rampy se krátce bere víc než ap.
+  Výjimka z pravidla 6 (uživatel 24. 11. 2026): první posuv po rychloposuvu
+  k začátku rampy nebo jízdy po stěně smí jít svisle do zbytku u stěny
+  (trojúhelník pod rampou, schody vyšších vrstev), nejvýš o ap. Stěny
   pak dojede jízda po offsetu (Hrub. bez schodků). Kde by rampa mezi
   vrstvami projela pod offset (stupeň dna), spodní vrstvy jedou postaru.
   Na tyči ne (bod níž). `ops/zigzagValley.js`, `tests/cam-zigzag-valley.test.js`.

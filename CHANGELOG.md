@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Pravidlo 20: svislé dojetí cik caku do trojúhelníku u stěny** (audit CAM 24. 11. 2026, uživatel). První posuv po rychloposuvu k začátku rampy nebo jízdy po stěně smí jít svisle do zbytku u stěny (trojúhelník pod rampou předchozí vrstvy, schody vyšších vrstev), nejvýš o ap – výjimka z pravidla 6. Kontrola P6 ji zná (19 hlášení). Strmé zanoření 21 → 2, porušení 338 → 319, program beze změny.
+
 - **Ořez držákem u schodu podle přesného obrysu držáku** (audit CAM 24. 11. 2026, pravidlo 2; uživatel). Hlubší vrstva smí za konec mělčí vrstvy o nejlevější bod té části obrysu držáku, která leží ve výškách schodu – dřív o nejlevější bod celého držáku (bbox). U vlastního obrysu (PCLNR) to vrstvy zbytečně zkracovalo; long-pclnr-valley teď dojede dál (zbytek Z237–345 26,6 → 11,6 mm, Z140–194 15,4 → 9,4 mm), kolize 0. `minZInXBand`/`stairReach` v `toolEnvelope.js`. Kontrola P4 bere konec mezi tím a koncem mělčí vrstvy se zbytkem do ap jako schod od držáku. Změnil se jen tento díl; porušení 339 → 338.
 
 - **Kontrola pravidel: konec vrstvy daný schodem od držáku** (audit CAM 24. 11. 2026, pravidla 2 a 4). Hlubší vrstva smí nejvýš o levou šířku držáku + 0,1 mm za konec mělčí vrstvy (`mainStair` v `toolEnvelope.js`) – materiál za koncem je schod, který mělčí vrstva kvůli držáku nechala. Kontrola P4 ho teď bere jako schodiště (long-pclnr-valley konce po 3,772 = 3,672 + 0,1; 13 → 1). Porušení 351 → 339, program beze změny.
