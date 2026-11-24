@@ -351,13 +351,31 @@ export function floorFinishZHi(passes, zHi, allowZ = 0) {
  * po čele sjede (uživatel 1. 11.: „aby to jelo po tom pravém čele").
  * Jen když dráha začíná na čele za hranicí úseku `zHi` (floorFinishZHi).
  */
-export function floorFinishFace(path, passes, zHi, contour, tipR) {
+export function floorFinishFace(path, passes, zHi, contour, tipR, allowZ = 0) {
   if (!path.length || !(passes || []).some((p) => p && p.floorZigzag)) return path;
   const s0 = path[0];
   if (!s0 || !s0.p1 || s0.p1.z <= zHi + 0.05) return path;
   const zF = s0.p1.z;
   const top = maxXAt(contour, zF + tipR + 0.01);
   if (top === null || top + tipR <= s0.p1.x + 0.5) return path;
+  // ČELO MUSÍ BÝT VYHRUBOVANÉ: po čele se sjede svisle jen tam, kde ho
+  // spodek / jízda po stěně opravdu projely (pohyb podél čela do přídavku
+  // + 0,3 mm přes aspoň 80 % jeho výšky). Jinak se zapichovalo plnou hloubkou
+  // do neubraného polotovaru (karusel u3-beyond `N1150`: 33,7 mm svisle,
+  // 23,9 mm pod nosem; audit 24. 11. 2026). Bez toho dokončení začne
+  // obvykle (nájezd podle pravidla 15).
+  const xLo = s0.p1.x, xHi = top + tipR;
+  let cLo = Infinity, cHi = -Infinity;
+  for (const p of passes) {
+    if (!p || !(p.floorZigzag || p.wallClean) || !Array.isArray(p.moves)) continue;
+    for (let k = 1; k < p.moves.length; k++) {
+      const a = p.moves[k - 1], b = p.moves[k];
+      if (b.g !== 'G1' || Math.abs(a.z - zF) > allowZ + 0.3 || Math.abs(b.z - zF) > allowZ + 0.3) continue;
+      cLo = Math.min(cLo, a.x, b.x); cHi = Math.max(cHi, a.x, b.x);
+    }
+  }
+  const covered = Math.max(0, Math.min(cHi, xHi) - Math.max(cLo, xLo));
+  if (covered < 0.8 * (xHi - xLo)) return path;
   return [{ type: 'line', p1: { x: top + tipR, z: zF }, p2: { x: s0.p1.x, z: zF }, floorFace: true }, { ...s0, chainBreak: false }, ...path.slice(1)];
 }
 

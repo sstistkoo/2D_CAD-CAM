@@ -771,7 +771,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
       xHi: machiningRangeX ? machiningRangeX.xHi + (getInsert(prms).noseLiftX || 0) : Infinity,
     });
     if (res.trimmed > 0 || res.dropped > 0) {
-      finishOffsetPath = machiningRange ? floorFinishFace(res.path, passes, machiningRange.zHi, contourSegments, tipR) : res.path;
+      finishOffsetPath = machiningRange ? floorFinishFace(res.path, passes, machiningRange.zHi, contourSegments, tipR, allowanceZ + finishAllowance) : res.path;
       foundErrors.push({
         type: 'warning',
         msg: `Rozsah obrábění (📐): dokončování ořezáno na zadaný úsek — ${res.trimmed} úsek(ů) zkráceno, ${res.dropped} vynecháno. Zbytek kontury dodělá operace pro sousední úsek.`,
