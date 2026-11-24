@@ -13238,52 +13238,58 @@ N4070 G1 X19.566 Z85.518 ; Rampa 45.0°
 N4080 G1 Z84.277 F0.25
 N4090 G1 X22.066 Z83.770 F0.25
 N4100 G1 X24.066 Z85.770
-; Průchod 82 (kapsa po kontuře)
-N4110 G0 X38.480 ; Výjezd nad konturu
-N4120 G0 Z51.890
-N4130 G0 X38.090
-N4140 G1 X37.066 F0.25
-N4150 G3 X34.566 Z46.117 CR=16.557 F0.25
-N4160 G1 Z24.402 F0.25
-N4170 G3 X37.066 Z21.554 CR=20.545 F0.25
-N4180 G1 X39.066 Z23.554
+; Průchod 82 (oblouk G3)
+N4110 G0 Z85.518
+N4120 G0 X20.590
+N4130 G1 X19.566 F0.25
+N4140 G1 X18.534 Z84.485 ; Rampa 45.0°
+N4150 G1 X20.534 ; Výjezd v X (stěna)
 ; Průchod 83 (kapsa po kontuře)
-N4190 G0 Z46.117
-N4200 G0 X35.590
-N4210 G1 X34.566 F0.25
-N4220 G3 X33.246 Z44.431 CR=16.557 F0.25
-N4230 G2 X32.066 Z42.940 CR=13.925 F0.25
-N4240 G1 Z27.180 F0.25
-N4250 G2 X34.260 Z24.696 CR=13.925 F0.25
-N4260 G3 X34.566 Z24.411 CR=20.545 F0.25
-N4270 G1 X36.566 Z26.411
+N4160 G0 X38.480 ; Výjezd nad konturu
+N4170 G0 Z51.890
+N4180 G0 X38.090
+N4190 G1 X37.066 F0.25
+N4200 G3 X34.566 Z46.117 CR=16.557 F0.25
+N4210 G1 Z24.402 F0.25
+N4220 G3 X37.066 Z21.554 CR=20.545 F0.25
+N4230 G1 X39.066 Z23.554
 ; Průchod 84 (kapsa po kontuře)
-N4280 G0 Z42.940
-N4290 G0 X33.090
-N4300 G1 X32.066 F0.25
-N4310 G2 X29.654 Z35.931 CR=13.925 F0.25
-N4320 G1 X29.647 F0.25
-N4330 G1 Z34.153 F0.25
-N4340 G2 X32.066 Z27.195 CR=13.925 F0.25
-N4350 G1 X34.066 Z29.195
+N4240 G0 Z46.117
+N4250 G0 X35.590
+N4260 G1 X34.566 F0.25
+N4270 G3 X33.246 Z44.431 CR=16.557 F0.25
+N4280 G2 X32.066 Z42.940 CR=13.925 F0.25
+N4290 G1 Z27.180 F0.25
+N4300 G2 X34.260 Z24.696 CR=13.925 F0.25
+N4310 G3 X34.566 Z24.411 CR=20.545 F0.25
+N4320 G1 X36.566 Z26.411
 ; Průchod 85 (kapsa po kontuře)
-N4360 G0 X41.990 ; Výjezd nad konturu
-N4370 G0 Z-5.779
-N4380 G0 X40.590
-N4390 G1 X39.566 F0.25
-N4400 G1 X37.066 Z-8.279 F0.25
+N4330 G0 Z42.940
+N4340 G0 X33.090
+N4350 G1 X32.066 F0.25
+N4360 G2 X29.654 Z35.931 CR=13.925 F0.25
+N4370 G1 X29.647 F0.25
+N4380 G1 Z34.153 F0.25
+N4390 G2 X32.066 Z27.195 CR=13.925 F0.25
+N4400 G1 X34.066 Z29.195
 ; Průchod 86 (kapsa po kontuře)
-N4410 G1 X34.566 Z-10.779 F0.25
-; Průchod 87 (oblouk G3)
-N4420 G1 X32.066 Z-13.279 ; Rampa 45.0°
+N4410 G0 X41.990 ; Výjezd nad konturu
+N4420 G0 Z-5.779
+N4430 G0 X40.590
+N4440 G1 X39.566 F0.25
+N4450 G1 X37.066 Z-8.279 F0.25
+; Průchod 87 (kapsa po kontuře)
+N4460 G1 X34.566 Z-10.779 F0.25
 ; Průchod 88 (oblouk G3)
-N4430 G1 X29.566 Z-15.779 ; Rampa 45.0°
-N4440 G1 X31.566 ; Výjezd v X (stěna)
-N4450 G0 X150.000 ; Výjezd nad konturu
-N4460 G0 Z5.000
-N4470 M9
-N4480 M5
-N4490 M30 ; Konec programu
+N4470 G1 X32.066 Z-13.279 ; Rampa 45.0°
+; Průchod 89 (oblouk G3)
+N4480 G1 X29.566 Z-15.779 ; Rampa 45.0°
+N4490 G1 X31.566 ; Výjezd v X (stěna)
+N4500 G0 X150.000 ; Výjezd nad konturu
+N4510 G0 Z5.000
+N4520 M9
+N4530 M5
+N4540 M30 ; Konec programu
 ; --- KONTURA (Pro referenci) ---
 ; G0 X0 Z346.371
 ; G1 X9.117 Z345.397
@@ -13351,7 +13357,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-22-round-r10.camprog �
     "L (30.57,9.50)->(30.57,0.00)",
     "L (30.57,0.00)->(0.00,0.00)",
   ],
-  "passCount": 88,
+  "passCount": 89,
   "passTags": [
     "long",
     "long",
@@ -13434,6 +13440,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-22-round-r10.camprog �
     "long{ramp,contourLeadOut,blocked}",
     "long{ramp,contourLeadOut,blocked}",
     "long{ramp,contourLeadOut,blocked}",
+    "long{ramp}",
     "long{contourLeadIn,contourLeadOut,blocked}",
     "long{contourLeadIn,contourLeadOut,blocked}",
     "long{contourLeadIn,contourLeadOut,blocked}",

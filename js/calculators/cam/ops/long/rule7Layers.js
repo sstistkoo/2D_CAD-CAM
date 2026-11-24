@@ -744,7 +744,17 @@ export function genRule7Layers(D) {
         && !floorLevels.has((fMin + 0.02).toFixed(3))) {
       const dB = fMin + 0.02;
       const runs = runsAt(dB, zA, zB);
-      if (runs.some(r => !r.above)) emitLayer(dB, runs, Math.min(lastD, dB + step), chain);
+      const got = runs.some(r => !r.above) ? emitLayer(dB, runs, Math.min(lastD, dB + step), chain) : null;
+      // UZAVŘENÍ ŘETĚZU V ROHU DNA (pravidla 3 a 14, audit 24. 11. 2026): dno
+      // leží celé pod mezní čarou kromě rohu u protější stěny, a rampa o celý
+      // ap by dosedla až za ním — vrstva na dně vypadne a v rohu zůstal klín
+      // (part-22 vybrání Z 84,5: řetěz skončil X 19,566, +1,3 mm). Řetěz proto
+      // udělá ještě jeden krok po téže přímce, zkrácený na dotek dílu.
+      if (got === null && chain && chain.ramp && chainTopAt && typeof cutStats === 'function'
+          && lastD - dB < step + 0.05 && Math.abs(chain.x - lastD) < 0.05) {
+        const s = chainStep(chain.x, chain.z, [], { topAt: chainTopAt });
+        if (s && s.floorHit && s.seg.z2 <= zA + 1e-6 && s.seg.z2 >= zB - 1e-6) passes.push({ ...s.pass, chainClose: true });
+      }
     }
   };
 
@@ -791,38 +801,48 @@ export function genRule7Layers(D) {
       }
     }
     for (let k = 0; k < 400; k++) {
-      let x2 = x - step, z2 = z - run, floorHit = false;
-      // Nezajet do dílu: krok se zkrátí na první dotek offsetu (dno — konec řetězu).
-      const gougeAt = (t) => O(z + (z2 - z) * t) > x + (x2 - x) * t + 0.02;
-      let tHit = null;
-      for (let t = 0.02; t <= 1 + 1e-9; t += 0.02) if (gougeAt(t)) { tHit = t; break; }
-      if (tHit !== null) {
-        let a = Math.max(0, tHit - 0.02), b = tHit;
-        for (let it = 0; it < 30; it++) { const m = (a + b) / 2; if (gougeAt(m)) b = m; else a = m; }
-        if (a < 1e-3) break;
-        x2 = x + (x2 - x) * a; z2 = z + (z2 - z) * a; floorHit = true;
-      }
-      if (x2 < -MAT) break;
-      const seg = { type: 'line', x1: x, z1: z, x2, z2 };
-      // Kolik krok ubere ze skutečného polotovaru (proti podlaze dosud
-      // vydaných průchodů i předchozích kroků řetězu) — a nejvýš jednu
-      // vrstvu (pravidlo 3): za hranicí může stát neobrobený materiál
-      // dalšího úseku (hrb), do kterého by krok zajel celou výškou.
-      const st = cutStats([seg], { ...real, floorSegs: chain });
-      if (!st || st.maxThick > step + 0.05) break;
-      if (!(st.area > 0.05)) break;
-      const c = { x: x2, zStart: z2, zEnd: z2, ramp: { x0: x, z0: z } };
-      if (holderClamp && holderClamp(c.x, c.zStart, c.zEnd, {}) === null) break;
-      if (typeof residEntryArea === 'function' && residEntryArea(c, [], entryTol) > entryTol) break;
-      // `retractRadial` = odjezd kolmo v X (ops/roughEmit.js): šikmý odskok
-      // zpět by nosem zavadil o zbytek u hranice a výjezd by pak jel celý
-      // posuvem (`Výjezd materiálem posuvem` až na X150).
-      passes.push({ type: 'long', x: x2, zStart: z2, zEnd: z2, rule7: true, ramp: { x0: x, z0: z }, rampEntryClear: true, chainBeyond: true, retractRadial: true });
-      chain.push(seg);
-      x = x2; z = z2;
-      if (floorHit) break;
+      const s = chainStep(x, z, chain, real);
+      if (!s) break;
+      passes.push({ ...s.pass, chainBeyond: true });
+      chain.push(s.seg);
+      x = s.seg.x2; z = s.seg.z2;
+      if (s.floorHit) break;
     }
   };
+  // Jeden krok řetězu ramp z (x, z) o ap níž pod úhlem zanoření; zkrátí se
+  // na první dotek offsetu (`floorHit`). Null, když nic neubere, vzal by víc
+  // než vrstvu, nebo se nevejde držák. Sdílí řetěz za hranicí úseku
+  // (`continueChainBeyond`) a uzavření řetězu v rohu dna (`buildRegion`).
+  function chainStep(x, z, chain, real) {
+    const run = step / plungeTan;
+    let x2 = x - step, z2 = z - run, floorHit = false;
+    // Nezajet do dílu: krok se zkrátí na první dotek offsetu (dno — konec řetězu).
+    const gougeAt = (t) => O(z + (z2 - z) * t) > x + (x2 - x) * t + 0.02;
+    let tHit = null;
+    for (let t = 0.02; t <= 1 + 1e-9; t += 0.02) if (gougeAt(t)) { tHit = t; break; }
+    if (tHit !== null) {
+      let a = Math.max(0, tHit - 0.02), b = tHit;
+      for (let it = 0; it < 30; it++) { const m = (a + b) / 2; if (gougeAt(m)) b = m; else a = m; }
+      if (a < 1e-3) return null;
+      x2 = x + (x2 - x) * a; z2 = z + (z2 - z) * a; floorHit = true;
+    }
+    if (x2 < -MAT) return null;
+    const seg = { type: 'line', x1: x, z1: z, x2, z2 };
+    // Kolik krok ubere ze skutečného polotovaru (proti podlaze dosud
+    // vydaných průchodů i předchozích kroků řetězu) — a nejvýš jednu
+    // vrstvu (pravidlo 3): za hranicí může stát neobrobený materiál
+    // dalšího úseku (hrb), do kterého by krok zajel celou výškou.
+    const st = cutStats([seg], { ...real, floorSegs: chain });
+    if (!st || st.maxThick > step + 0.05) return null;
+    if (!(st.area > 0.05)) return null;
+    const c = { x: x2, zStart: z2, zEnd: z2, ramp: { x0: x, z0: z } };
+    if (holderClamp && holderClamp(c.x, c.zStart, c.zEnd, {}) === null) return null;
+    if (typeof residEntryArea === 'function' && residEntryArea(c, [], entryTol) > entryTol) return null;
+    // `retractRadial` = odjezd kolmo v X (ops/roughEmit.js): šikmý odskok
+    // zpět by nosem zavadil o zbytek u hranice a výjezd by pak jel celý
+    // posuvem (`Výjezd materiálem posuvem` až na X150).
+    return { seg, floorHit, pass: { type: 'long', x: x2, zStart: z2, zEnd: z2, rule7: true, ramp: { x0: x, z0: z }, rampEntryClear: true, retractRadial: true } };
+  }
 
   const nStart = passes.length;
   for (const reg of regions) {
