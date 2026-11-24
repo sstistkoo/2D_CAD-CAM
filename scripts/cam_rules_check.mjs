@@ -59,7 +59,7 @@ const { getEffectivePlungeAngle, plungeDisabled, wallPlungeOn, topXOnLoop } = aw
 const { getInsert } = await imp('js/calculators/cam/inserts/index.js');
 const { stripCodeOwnedParams } = await imp('js/calculators/cam/camDefaults.js');
 const { makePassHelpers } = await imp('js/calculators/cam/passHelpers.js');
-const { polyOffset, pointInLoop } = await imp('js/geom/geomCore.js');
+const { polyOffset, pointInLoop, polyUnion, polyArea } = await imp('js/geom/geomCore.js');
 const { makeOrderChecks } = await imp('scripts/lib/camRuleOrder.mjs');
 const { checkHumpContinuity } = await imp('scripts/lib/camRuleHump.mjs');
 
@@ -193,6 +193,10 @@ async function check(file) {
   const xz = r.calcSim && r.calcSim._xz;
   const carouselXZ = !!(xz && r.calc && r.calc._xz);
   if (carouselXZ) r = { ...r, params: { ...xz.S.params }, calc: r.calc._xz.calc, calcSim: xz.calc };
+  // Meze téhož výpočtu: u karuselu prohozené (rozsah X stroje = rozsah „Z"
+  // měření = poloměr). Z původních `prog.zLimits` se hlásil zbytek i mimo
+  // rozsah X (u3-beyond poloměr 69…526 při rozsahu 705,9…901; audit 24. 11. 2026).
+  const zLim = (carouselXZ ? xz.S.zLimits : prog.zLimits) || {};
   const P = r.params;
   const ap = parseFloat(P.depthOfCut);
   // ČELNÍ HRUBOVÁNÍ: vrstva má hloubku v Z a průchod jede v X. Měří se stejným
@@ -228,7 +232,18 @@ async function check(file) {
   // je materiál, vrstvy jsou kotvené na ní) — proti nakreslenému odlitku by
   // první vrstva vyšla o Přídavek X polotovaru tenčí, ačkoli bere přesně ap.
   const rmPlan = new MaterialRemoval(P, r.calcSim.stockPathSegments, { planningOutline: true });
-  const partR = offsetSilhouetteLoop(r.calc.contourSegments);
+  let partR = offsetSilhouetteLoop(r.calc.contourSegments);
+  // KARUSEL: „X0" v prohozených osách je spodní plocha dílu, ne osa — pod ni se
+  // neobrábí ani za vnějším průměrem (prstenec polotovaru, zigzagRough.js
+  // `floorLayerX`). Dno tam = spodní plocha + přídavek a roh u paty stěny je
+  // dosah nosu (audit 24. 11. 2026, karusel od středu r 842–896).
+  if (carouselXZ && partR && partR.length > 2) {
+    let zA = Infinity, zB = -Infinity;
+    for (const s of r.calcSim.stockPathSegments || []) for (const p of [s.p1, s.p2]) if (p) { zA = Math.min(zA, p.z); zB = Math.max(zB, p.z); }
+    for (const p of partR) { zA = Math.min(zA, p.z); zB = Math.max(zB, p.z); }
+    const slab = [{ x: -1, z: zA - 50 }, { x: 0, z: zA - 50 }, { x: 0, z: zB + 50 }, { x: -1, z: zB + 50 }];
+    try { const u = polyUnion([partR], [slab]); if (u && u[0]) partR = u.sort((a, b) => Math.abs(polyArea([b])) - Math.abs(polyArea([a])))[0]; } catch { /* beze změny */ }
+  }
   // Přídavek se měří KOLMO od dílu (jako offset), ne svisle — na šikmé
   // stěně je svislá vzdálenost k přídavkové čáře mnohem větší než Přídavek X.
   // + Přídavek na hotovo: hrubování ho nechává vždy (calculatePipeline), a kde
@@ -301,7 +316,7 @@ async function check(file) {
   // (xmax-wall: stěna Z269,63, konce vrstev Z272,927 = stěna + přesah 3,3).
   // Jen podélně (čelně jsou osy měření prohozené).
   const extR = insertExtent(P);
-  const zlR = prog.zLimits || {};
+  const zlR = zLim;
   const rangeZ = (zlR.rangeActive && Number.isFinite(zlR.rangeStart) && Number.isFinite(zlR.rangeEnd))
     ? [Math.min(zlR.rangeStart, zlR.rangeEnd), Math.max(zlR.rangeStart, zlR.rangeEnd)] : [-Infinity, Infinity];
   if (Number.isFinite(r.calc.rangeEndZ)) {
@@ -705,7 +720,7 @@ async function check(file) {
   for (const p of part) { zLo = Math.min(zLo, p.z); zHi = Math.max(zHi, p.z); }
   let sLo = Infinity, sHi = -Infinity;
   for (const p of TL([rm.baseLoop || []])[0]) { sLo = Math.min(sLo, p.z); sHi = Math.max(sHi, p.z); }
-  const zl = prog.zLimits || {};
+  const zl = zLim;
   const rng = !face && zl.rangeActive && Number.isFinite(zl.rangeStart) && Number.isFinite(zl.rangeEnd)
     ? [Math.min(zl.rangeStart, zl.rangeEnd), Math.max(zl.rangeStart, zl.rangeEnd)] : null;
   const fLo = rng ? Math.max(rng[0], Math.min(zLo, sLo)) : Math.min(zLo, sLo);

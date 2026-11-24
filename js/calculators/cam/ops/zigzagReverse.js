@@ -41,14 +41,15 @@ function makeStockTouch(stockSegs, R, clear = 0) {
 
 /**
  * Obrátí vrstvy za hrbolem, které končí ve vzduchu. Mění `passes` na místě.
- * @param {object} o { passes, start, raw, guided, stock, noseR, step, zLo, zHi, axisLayer }
+ * @param {object} o { passes, start, raw, guided, stock, noseR, step, zLo, zHi, floorLayerX }
+ *   floorLayerX — X poslední vrstvy (soustruh 0 = osa, karusel R + přídavek; null = žádná)
  *   zLo    — čelisti (vjezd vlevo za ně nesmí)
  *   zHi    — začátek rozsahu úseku (obrácená vrstva za něj nejede)
  *   raw    — offset bez čar zanoření (stěna hrbolu, kam se dojede)
  *   guided — offset, nad kterým jelo podélné hrubování
  * @returns {number} počet obrácených vrstev
  */
-export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR, step, zLo = -Infinity, zHi = Infinity, clear = 0, afterPrev = false, axisLayer = false }) {
+export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR, step, zLo = -Infinity, zHi = Infinity, clear = 0, afterPrev = false, floorLayerX = null }) {
   const touch = makeStockTouch(stock, noseR);
   // Vjezd (sem sjede rychloposuv): s vůlí polotovaru; nevyjde-li, o kus dál
   // doleva ve volnu (do 2R). Rozhodnutí „vlevo je volno" se dělá bez vůle.
@@ -152,9 +153,11 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
   // dojede k jeho stěně a vyjede po ní — kus pak odpadá (uživatel 4. 11. 2026,
   // karusel po X: vrstva X107 skončila po pevných 4R + 4ap uprostřed svahu a
   // zbytek jel zvlášť → 27 mm posuvem vzduchem, vrstva přes hrb přerušená).
-  const layerMoves = (X, zAir, zw, target = null, self = null) => {
+  // `rise` = jak vysoko vrstva vystoupá po stěně (k vrstvě nad ní): obvykle ap,
+  // u uzavírací vrstvy na dně jen zbytek k ní (výš je ubráno — jinak P5).
+  const layerMoves = (X, zAir, zw, target = null, self = null, rise = step) => {
     const moves = [{ g: 'G0', x: X, z: zAir }, { g: 'G1', x: X, z: zw }];
-    const k = Math.max(1, Math.ceil(step / WALL_STEP));
+    const k = Math.max(1, Math.ceil(rise / WALL_STEP));
     const span = (q) => {
       const zs = [q.zEnd, q.zStart];
       for (const sg of [...(q.contourLeadIn || []), ...(q.contourLeadOut || [])]) zs.push(sg.z1, sg.z2);
@@ -187,7 +190,7 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
     for (let guard = 0; guard < 4; guard++) {
       let lx = X, lz = zCur, top = false, stopped = false;
       for (let j = 1; j <= k; j++) {
-        const x = X + step * j / k, z = wallRight(x, lz, zCur + 2 * step + 2 * noseR);
+        const x = X + rise * j / k, z = wallRight(x, lz, zCur + 2 * step + 2 * noseR);
         if (z === null) { top = true; break; }
         const zs = floorStop(lx, x, lz, z);
         if (zs !== null) { for (const q of wallStep(lx, lz, x, zs)) if (q.z <= zs + 1e-6) moves.push({ g: 'G1', x: q.x, z: q.z }); stopped = true; break; }
@@ -418,9 +421,12 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
     // Poslední vrstva po ap by vyšla pod osu: o krok míň až NA OSU (střed nosu
     // X0 jako dokončení), jinak pod poslední vrstvou u konce dílu zůstal pahýl
     // (lathe-zigzag-left-10 Z846: vrstvy po X3,07, čelo 84° dokončení nesjede).
-    // Jen na soustruhu (`axisLayer`): u karuselu je X0 spodní plocha dílu.
-    const nextX = (X) => (X - step > 1e-6 ? X - step : (axisLayer && X > AXIS_MIN ? 0 : -1));
-    for (let X = nextX(X0), Xp = X0; X >= 0; Xp = X, X = X > 0 ? nextX(X) : -1) {
+    // Karusel (`floorLayerX` > 0): X0 je spodní plocha dílu — poslední vrstva
+    // jen se spodkem nosu na přídavku nad ní (zigzagRough.js).
+    const fl = Number.isFinite(floorLayerX) ? floorLayerX : null;
+    const lowest = fl === null ? 0 : fl;
+    const nextX = (X) => (X - step > lowest + 1e-6 ? X - step : (fl !== null && X > fl + AXIS_MIN ? fl : -1));
+    for (let X = nextX(X0), Xp = X0; X >= lowest - 1e-9; Xp = X, X = X > lowest + 1e-9 ? nextX(X) : -1) {
       // Tu vrstvu už jede jiná (krok řetězu zanoření bez těla se nepočítá —
       // ten v obrácené oblasti nemá co dělat a smaže se níž).
       if (near(X, zA, zW, Math.min(step, Xp - X))) break;
@@ -435,7 +441,7 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
       const zAir = entryAir(X, zFree - ENTRY_AIR, -Infinity);
       if (zAir === null || zAir - noseR < zLo - 1e-6) break;
       slopeShort = false;
-      add.push({ type: 'zigzag', moves: layerMoves(X, zAir, zw), xSafe: X + step, reversedLayer: true, chain: true });
+      add.push({ type: 'zigzag', moves: layerMoves(X, zAir, zw, null, null, Math.min(step, Xp - X)), xSafe: X + step, reversedLayer: true, chain: true });
       if (slopeShort) slopeRedo.push({ q: add[add.length - 1], X, zAir, zw });
       done.push({ x: X, z0: zAir, z1: zw });
       zA = zAir; zW = zw;
