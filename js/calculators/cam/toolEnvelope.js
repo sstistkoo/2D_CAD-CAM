@@ -275,6 +275,20 @@ export function holderBottomProfile(prms) {
  * pro každý schod ve výškovém rozsahu držáku. resetStair() nuluje
  * evidenci (nový region / nová operace).
  */
+/** Nejnižší Z obrysu `poly` v pásu x ∈ [x0, x1] (null = obrys pás mine). */
+export function minZInXBand(poly, x0, x1) {
+  let m = null;
+  const take = (z) => { if (m === null || z < m) m = z; };
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    if (a.x >= x0 && a.x <= x1) take(a.z);
+    for (const xb of [x0, x1]) {
+      if ((a.x - xb) * (b.x - xb) < 0) take(a.z + (b.z - a.z) * (xb - a.x) / (b.x - a.x));
+    }
+  }
+  return m;
+}
+
 export function makeHolderClamp(prms, offsetPath, { backside = false, margin = HOLDER_CLAMP_MARGIN, stockPathSegments = null } = {}) {
   const holder = holderWorldLoop(prms, backside);
   if (!holder) return null;
@@ -327,6 +341,15 @@ export function makeHolderClamp(prms, offsetPath, { backside = false, margin = H
   const hLo = Math.min(...holder.map(p => p.x));
   const hHi = Math.max(...holder.map(p => p.x));
   let stair = [];   // { xLo, xHi, zEnd } — pásy materiálu od mělčích konců
+  // PŘESNÝ OBRYS DRŽÁKU U SCHODU (uživatel 24. 11. 2026): o kolik smí špička
+  // za konec mělčí vrstvy = nejlevější bod té ČÁSTI obrysu, která leží ve
+  // výškách schodu — ne celého držáku (bbox). U vlastního obrysu (PCLNR)
+  // bbox vrstvy zbytečně zkracoval: long-pclnr-valley konce po 3,772 mm
+  // a validátor s přesným obrysem kolizi neviděl ani 6 mm za koncem.
+  const stairReach = (s, X) => {
+    const m = minZInXBand(holder, s.xLo - X, s.xHi - X);
+    return m === null ? hwLeft : Math.max(0, -m);
+  };
   const clamp = (X, zStart, zEnd, opts = {}) => {
     let nz = clampZTowardNegative(forbidden, X, zStart, zEnd, margin);
     const dbg = globalThis.__HOLDER_CLAMP_DEBUG__;
@@ -338,7 +361,7 @@ export function makeHolderClamp(prms, offsetPath, { backside = false, margin = H
     if (opts.mainStair && hwLeft > 0) {
       for (const s of stair) {
         if (s.xHi <= X + hLo || s.xLo >= X + hHi) continue;   // mimo výšky držáku
-        const lim = s.zEnd + hwLeft + margin;
+        const lim = s.zEnd + stairReach(s, X) + margin;
         if (lim > nz) nz = lim;
       }
       if (nz >= zStart) {
@@ -359,7 +382,7 @@ export function makeHolderClamp(prms, offsetPath, { backside = false, margin = H
     if (!(hwLeft > 0)) return false;
     for (const s of stair) {
       if (s.xHi <= x + hLo || s.xLo >= x + hHi) continue;
-      if (z < s.zEnd + hwLeft + margin) return true;
+      if (z < s.zEnd + stairReach(s, x) + margin) return true;
     }
     return false;
   };

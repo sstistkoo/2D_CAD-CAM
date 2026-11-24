@@ -566,10 +566,16 @@ async function check(file) {
         // tam stojí schod, který mělčí vrstva kvůli držáku nechala
         // (toolEnvelope.js `mainStair`; long-pclnr-valley konce po 3,772 =
         // 3,672 + 0,1). Šířka z obdélníku kolem obrysu držáku jako v generátoru.
-        if (holderStep > 0.2) stepNoms.push(holderStep);
+        // Generátor bere PŘESNÝ obrys držáku ve výškách schodu (toolEnvelope.js
+        // `stairReach`), takže krok je nejvýš levá šířka držáku + rezerva —
+        // konec mezi tím a koncem mělčí vrstvy, za kterým stojí jen výška
+        // schodu (≤ ap), je schod od držáku.
+        const holderStair = holderStep > 0.2 && layerEnds.some(L => L.dir === q.dir && Math.abs(L.d - (q.d + ap)) < 0.1
+          && (L.e - q.e) * q.dir > 0.05 && (L.e - q.e) * q.dir <= holderStep + 0.15);
         // Upichovák (řeže celou šířkou, úhel 90°) žádný schod nemá.
-        const stair = !partingOk && layerEnds.some(L => L.dir === q.dir && Math.abs(L.d - (q.d + ap)) < 0.1
-          && stepNoms.some(s => Math.abs((L.e - q.e) * q.dir - s) <= 0.15));
+        const stair = !partingOk && (layerEnds.some(L => L.dir === q.dir && Math.abs(L.d - (q.d + ap)) < 0.1
+          && stepNoms.some(s => Math.abs((L.e - q.e) * q.dir - s) <= 0.15))
+          || (holderStair && top !== null && top - q.edge <= ap + TOL_AP));
         if (top !== null && top > q.edge + 0.2 && (offX === null || offX < q.edge + lift - 0.2) && !stair && !partingPlungeOut && !pastRange(q))
           found.endMid.push({ i: q.i, v: top - q.edge });
         layerEnds.push(q);
