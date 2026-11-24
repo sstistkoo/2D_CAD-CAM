@@ -121,7 +121,11 @@ export function orderByHumps(list, offsetXAt, opts = {}) {
     if (p.type !== 'long' || !Number.isFinite(p.x) || !Number.isFinite(p.zStart)) return 0;
     let k = 0;
     // Pod vrcholem = hrb vrstvu přeruší; stačí setiny (offset > x).
-    for (const h of humps) if (p.zStart < h.zBack - TOL && p.x < h.top - 0.01) k++;
+    // Klíč = POŘADÍ nejvzdálenějšího takového hrbu, ne jejich počet: kus za
+    // VYŠŠÍM druhým hrbem, který leží nad vrcholem prvního, by počtem dostal
+    // klíč 1 jako údolí mezi hrby a jel by dřív, než je údolí hotové (part-13,
+    // kužel za osazením Ø202 před údolím za přírubou — pravidlo 7, bod 4).
+    humps.forEach((h, n) => { if (p.zStart < h.zBack - TOL && p.x < h.top - 0.01) k = n + 1; });
     return k;
   };
   const keyed = list.map((p, i) => ({ p, i, k: keyOf(p) }));

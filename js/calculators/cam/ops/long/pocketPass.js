@@ -20,6 +20,9 @@ import { wallEntryLeadIn } from './wallEntry.js';
 import { pocketCornerBuried, pocketPathBuried } from './pocketCornerBuried.js';
 import { dropCutLeadInPrefix } from './leadInCutPrefix.js';
 
+// Jak daleko za stěnu smí `entryPastWall` hledat místo, kam obálka pustí tělo.
+const PAST_WALL_REACH = 40;
+
 export function emitPocketInterval(D) {
   const {
     prms, passes, step, dzScan, currentX, idx, intervals, effZMin,
@@ -112,6 +115,60 @@ export function emitPocketInterval(D) {
       if (bad) continue;
       if (residEntryArea && residEntryArea(cand, [], Infinity) > 0.05) continue;
       return { zStart: zE, ramp: { x0: er.x0, z0: er.z0 } };
+    }
+    return null;
+  };
+  // ── VJEZD U STĚNY, KDE STATICKÁ OBÁLKA ZAKÁZALA ZAČÁTEK (24. 11. 2026) ──
+  // Otevřené pokračování (kus nad kuželem za osazením) začíná na stěně a
+  // statická obálka tam držák nepustí: silueta offsetu je nafouknutá o rádius
+  // a přídavek a plochý spodek držáku hned za špičkou se o ni opře, kdykoli
+  // stěna za špičkou stoupá. Dřív se proto zahodil CELÝ interval (part-13:
+  // pravý kužel Z 306…482 neobrobený, 47 mm; validátor bez obálky kolizi
+  // neviděl). Obálka teď hlídá jen TĚLO vrstvy — od prvního místa, kam ho
+  // pustí (`zFree`). Vjezd mezi stěnou a tím místem rozhoduje PŘESNÝ model:
+  // držák podél celé rampy proti skutečnému zbytku (`holderFitArea`,
+  // `residEntryArea`) — podmínka (a) z komentáře u `nz === null` níž. Vjezd:
+  // navázat na mělčí vrstvu (`chainFromPrev`), jinak rampa z povrchu nejvýš
+  // o jednu vrstvu (pravidlo 3). Vrací { zStart, ramp, nz } nebo null.
+  const rampFromSurface = (X, zE, ivq) => {
+    const er = stockEntryRamp(X, zE);
+    // Rampa celá nejvýš o jednu vrstvu — měří se od jejího ZAČÁTKU, ne od
+    // povrchu (part-11: povrch X50,6, rampa z X51,259 → tříska 5,71 při ap 5).
+    if (!er || Math.max(er.x0, er.surfX ?? er.x0) - X > step + 0.05) return null;
+    const n = Math.max(1, Math.min(64, Math.ceil(Math.hypot(zE - er.z0, X - er.x0))));
+    for (let k = 0; k <= n; k++) {
+      const t = k / n, zi = er.z0 + (zE - er.z0) * t, xi = er.x0 + (X - er.x0) * t;
+      const own = k > 0 ? [{ z1: er.z0, x1: er.x0, z2: zi, x2: xi }] : [];
+      if (holderFitArea(zi, xi, 0, own) > 0.05) return null;
+    }
+    const cand = { type: 'long', x: X, zStart: zE, zEnd: ivq.zEnd, ramp: { x0: er.x0, z0: er.z0 } };
+    if (residEntryArea(cand, [], Infinity) > 0.05) return null;
+    return { zStart: zE, ramp: { x0: er.x0, z0: er.z0 } };
+  };
+  const entryPastWall = (X, ivq) => {
+    if (!residEntryArea) return null;   // bez přesného modelu platí obálka
+    // Kus na téže hloubce už dobere čekající uzavírací rampa (roughLong.js,
+    // `pendingRampCompletions`) — jinak by jel dvakrát, podruhé vzduchem
+    // (part-11: P5 `G1 Z264.084` 7,5 mm).
+    const zHiI = Math.max(ivq.zStart, ivq.zEnd), zLoI = Math.min(ivq.zStart, ivq.zEnd);
+    if ((pendingRampCompletions || []).some((c) => X < c.resumeX - 1e-6 && X >= c.targetX - 0.05
+        && [1, -1].some((s) => { const z = c.resumeZ + s * (c.resumeX - X) / effPlungeTanL; return z >= zLoI - 0.5 && z <= zHiI + 0.5; })))
+      return null;
+    const zLim = Math.max(ivq.zEnd + dzScan, ivq.zStart - PAST_WALL_REACH);
+    let zFree = null, nzFree = null;
+    for (let zE = ivq.zStart - 0.5; zE > zLim; zE -= 0.5) {
+      nzFree = holderClampZEnd(X, zE, ivq.zEnd, {});
+      if (nzFree !== null) { zFree = zE; break; }
+    }
+    if (zFree === null) return null;
+    const ch = chainFromPrev(X, ivq);
+    if (ch && ch.zStart >= zFree) return { ...ch, nz: nzFree };
+    if (ch) { const nzc = holderClampZEnd(X, ch.zStart, ivq.zEnd, {}); if (nzc !== null) return { ...ch, nz: nzc }; }
+    for (let zE = ivq.zStart; zE > zLim; zE -= 0.5) {
+      const r = rampFromSurface(X, zE, ivq);
+      if (!r) continue;
+      const nz = zE >= zFree ? nzFree : holderClampZEnd(X, zE, ivq.zEnd, {});
+      if (nz !== null) return { ...r, nz };
     }
     return null;
   };
@@ -338,8 +395,13 @@ if (!iv.blocked) {
   // přejezd v ose Z hlouběji v odlitku (reálný nález: kolize držáku
   // u „kapsa po kontuře" mezi regiony, dosud nekryté).
   let zEndEff = iv.zEnd;
+  let pastWall = null;   // vjezd za stěnou (`entryPastWall` výš)
   if (holderClampZEnd) {
-    const nz = holderClampZEnd(currentX, iv.zStart, iv.zEnd, {});
+    let nz = holderClampZEnd(currentX, iv.zStart, iv.zEnd, {});
+    if (nz === null && !isParting) {
+      pastWall = entryPastWall(currentX, iv);
+      if (pastWall) nz = pastWall.nz;
+    }
     // Celý interval zakázaný. POČÍTAT: tohle byl hlavní zdroj TICHÉHO
     // zahazování — na `part-13-zleva-flange` tudy zmizelo 17 průchodů
     // celé pravé strany (držák 20 mm radiálně by musel přes přírubu
@@ -354,6 +416,9 @@ if (!iv.blocked) {
     // toho, že (a) vjezd i celá jeho rampa se prověří tou samou
     // Minkowského obálkou, kterou počítá validátor, a (b) kapsová větev
     // umí jednostranně otevřený interval.
+    // 24. 11. 2026: `entryPastWall` výš splňuje (a) a zůstává v TÉHLE větvi
+    // (b odpadá): vjezd + rampu měří přesný model, tělo dál statická obálka.
+    // part-13 i 29 fixtures: validátor beze změny (0 nových kolizí).
     if (nz === null) {
       holderBlockedDepths.add(depthKey(currentX));
       holderDroppedZones.push({ zHi: iv.zStart, zLo: iv.zEnd, x: currentX });
@@ -361,7 +426,7 @@ if (!iv.blocked) {
     }
     if (nz > iv.zEnd + 1e-9) zEndEff = nz;
   }
-  if (iv.zStart - zEndEff < dzScan) {
+  if ((pastWall ? pastWall.zStart : iv.zStart) - zEndEff < dzScan) {
     // obálka ho zkrátila až pod řezný krok
     if (zEndEff > iv.zEnd + 1e-9) holderBlockedDepths.add(depthKey(currentX));
     holderDroppedZones.push({ zHi: iv.zStart, zLo: iv.zEnd, x: currentX });
@@ -377,8 +442,8 @@ if (!iv.blocked) {
   // Pravidlo 10: napřed PO STĚNĚ od mělčí vrstvy, rampa až když to nejde
   // (ops/long/wallEntry.js — za hrbem stěna klesá mírněji než rampa a mezi
   // nimi zůstával klín).
-  const wallOpen = erOpen && !isParting ? wallEntryOpen(currentX, iv) : null;
-  let chainOpen = openTooDeep && !wallOpen ? chainFromPrev(currentX, iv) : null;
+  const wallOpen = erOpen && !isParting && !pastWall ? wallEntryOpen(currentX, iv) : null;
+  let chainOpen = pastWall || (openTooDeep && !wallOpen ? chainFromPrev(currentX, iv) : null);
   if (openTooDeep && !chainOpen && !wallOpen) { cnt.noEntrySkips++; return; }
   if (wallOpen) {
     passOpen.contourLeadIn = wallOpen;
