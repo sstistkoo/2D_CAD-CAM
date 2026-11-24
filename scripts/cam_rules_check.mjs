@@ -53,7 +53,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const imp = (p) => import(pathToFileURL(join(root, p)).href);
 const { runCamProg } = await imp('tests/helpers/camHeadless.mjs');
 const { MaterialRemoval, toolFootprint, toolFootprintVisual, insertExtent } = await imp('js/calculators/cam/materialRemoval.js');
-const { validateToolpath } = await imp('js/calculators/cam/collisionValidator.js');
+const { validateToolpath, holderWorldLoop } = await imp('js/calculators/cam/collisionValidator.js');
 const { offsetSilhouetteLoop } = await imp('js/calculators/cam/toolEnvelope.js');
 const { getEffectivePlungeAngle, plungeDisabled, wallPlungeOn, topXOnLoop } = await imp('js/calculators/cam/camMath.js');
 const { getInsert } = await imp('js/calculators/cam/inserts/index.js');
@@ -276,6 +276,10 @@ async function check(file) {
     const rmEnd = new MaterialRemoval(P, r.calcSim.stockPathSegments, {});
     rmEnd.advanceTo(spR, spR.length - 1);
     finalLoops = rmEnd.model ? rmEnd.model.loops : null;
+  }
+  let holderStep = 0;
+  if (!face && P.respectInsertGeometry) {
+    try { const h = holderWorldLoop(P, false); if (h && h.length) holderStep = -Math.min(...h.map(p => p.z)) + 0.1; } catch { /* bez držáku */ }
   }
   const order = face ? { onPassStart: () => {}, found: { hump: [], order: [] } }
     : makeOrderChecks({ ap, part, allowLoop, stockLoop: rm.baseLoop, guides: r.calc.interferenceGuides,
@@ -557,6 +561,12 @@ async function check(file) {
         const stepNoms = [plungeLimit, ins.plungeAngleMaxDeg, Math.abs(ins.guideRotDeg || 0)]
           .filter(a => Number.isFinite(a) && a > 0 && a < 89)
           .map(a => ap * Math.tan(a * Math.PI / 180)).filter(s => s > 0.2);
+        // SCHOD OD DRŽÁKU (pravidlo 2, audit 24. 11. 2026): hlubší vrstva smí
+        // nejvýš o levou šířku držáku + rezervu 0,1 za konec mělčí vrstvy —
+        // tam stojí schod, který mělčí vrstva kvůli držáku nechala
+        // (toolEnvelope.js `mainStair`; long-pclnr-valley konce po 3,772 =
+        // 3,672 + 0,1). Šířka z obdélníku kolem obrysu držáku jako v generátoru.
+        if (holderStep > 0.2) stepNoms.push(holderStep);
         // Upichovák (řeže celou šířkou, úhel 90°) žádný schod nemá.
         const stair = !partingOk && layerEnds.some(L => L.dir === q.dir && Math.abs(L.d - (q.d + ap)) < 0.1
           && stepNoms.some(s => Math.abs((L.e - q.e) * q.dir - s) <= 0.15));
