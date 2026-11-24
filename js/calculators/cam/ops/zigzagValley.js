@@ -491,6 +491,11 @@ export function dropUnderOffset({ passes, start = 0, raw }) {
     const p = passes[i];
     if (!p || p.type !== 'long' || !Number.isFinite(p.x) || !Number.isFinite(p.zStart) || !Number.isFinite(p.zEnd)) continue;
     const lo = Math.min(p.zStart, p.zEnd), hi = Math.max(p.zStart, p.zEnd);
+    const k = Math.max(2, Math.ceil((hi - lo) / DS));
+    let under = 0;
+    for (let j = 0; j <= k; j++) if (fR(lo + (hi - lo) * j / k) > p.x + 0.05) under++;
+    // Celá vrstva pod offsetem (ne jen dotek u stěny na konci).
+    if (under < k) continue;
     // PŘEJEZD HRBU PO PLOŠINĚ (pravidlo 7): průchod bez těla, jehož nájezd
     // jede po plošině vršku a za ní sjede pod offset. Zahozením vypadla
     // i jízda po plošině (lathe-zigzag-v-insert-size: válec X189 na konci
@@ -501,14 +506,13 @@ export function dropUnderOffset({ passes, start = 0, raw }) {
     if (s0 && Math.abs(s0.x1 - s0.x2) < 1e-6 && Math.abs(s0.z1 - s0.z2) > 1 && s0.x1 > p.x + 0.05) {
       // Tvar průchodu zůstane (nájezd navazuje na dojezd předchozí vrstvy bez
       // odskoku), jen nájezd skončí na konci plošiny a tělo stojí tam.
-      passes[i] = { ...p, x: s0.x2, zStart: s0.z2, zEnd: s0.z2, contourLeadIn: [s0], floorOfHump: true };
+      // (Jen průchod, který by se jinak zahodil; bez původní rampy a dojezdu —
+      // ty navazovaly na tělo, které tu není.)
+      const q = { ...p, x: s0.x2, zStart: s0.z2, zEnd: s0.z2, contourLeadIn: [s0], floorOfHump: true };
+      delete q.ramp; delete q.rampEntryClear; delete q.contourLeadOut;
+      passes[i] = q;
       continue;
     }
-    const k = Math.max(2, Math.ceil((hi - lo) / DS));
-    let under = 0;
-    for (let j = 0; j <= k; j++) if (fR(lo + (hi - lo) * j / k) > p.x + 0.05) under++;
-    // Celá vrstva pod offsetem (ne jen dotek u stěny na konci).
-    if (under < k) continue;
     passes.splice(i, 1);
     const prev = passes[i - 1];
     if (prev && prev.noRetract) delete prev.noRetract;

@@ -43,7 +43,10 @@ export function emitZigzagPass(pass, env, simCounter) {
     // jedním strmým G1 (`N2400` 78°, posledních 10 mm v materiálu; audit
     // 24. 11. 2026). Dojet: rychloposuvem na zastavení nad zbytkem, pak posuvem.
     if (Math.abs(cur.z - mv[0].z) < 1e-6 && cur.x > mv[0].x + 1e-6) {
-      const xs = stop !== null ? Math.min(cur.x, Math.max(stop, mv[0].x)) : cur.x;
+      let xs = stop !== null ? Math.min(cur.x, Math.max(stop, mv[0].x)) : cur.x;
+      // Rychloposuv dolů jen když nenarazí do zbytku (ani plánovacího) — jinak posuvem.
+      const hit = (x1, x2) => (env.rapidHitsStock && env.rapidHitsStock(x1, cur.z, x2, cur.z)) || (env.rapidHitsPlan && env.rapidHitsPlan(x1, cur.z, x2, cur.z));
+      if (xs < cur.x - 1e-6 && hit(cur.x, xs)) xs = cur.x;
       if (xs < cur.x - 1e-6) { simCounter += 1; addN(`G0 X${xDia(xs)}`, simCounter); setPos(xs, cur.z); }
       if (cur.x > mv[0].x + 1e-6) { simCounter += 1; addN(`G1 X${xDia(mv[0].x)} F${prms.feed}`, simCounter); setPos(mv[0].x, cur.z); }
     }

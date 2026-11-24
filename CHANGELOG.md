@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Pojistky po kontrole práce na auditu CAM** (24. 11. 2026; programy testovacích dílů beze změny). Výjezd posuvem jen nad nos (`emitLiftX`): rychloposuvový zbytek zdvihu se znovu ověří proti zbytku, jinak celý posuvem jako dřív (`rapidStopXAt` nezná tělo polygonu do strany). Dojetí cik caku na začátek průchodu: rychloposuv dolů jen když nenarazí do zbytku ani plánovacího zbytku. `dropUnderOffset`: přejezd hrbu po plošině se převádí jen u průchodu, který by se jinak zahodil, a bez původní rampy a dojezdu.
+
 - **Koncový vzduch dojezdu se nejede ani u kulaté destičky** (audit CAM 24. 11. 2026, pravidlo 5). `dropAirTail` (`ops/roughEmit.js`) platil jen pro polygon; kulatá řeže dojezdem kružnicí nosu, kterou plánovací zbytek nevidí celou, proto pro ni přísnější práh 0,002 mm²/mm (s 0,01 zůstalo na round-r10-left-full-steps 0,2 mm). Posuv vzduchem −9 (lathe-zigzag-v-insert-size 7 → 3, karusel wall-steps 3 → 1, round-r10-finish-steep-arc 2 → 0), bez nového zbytku; porušení 318 → 309.
 
 - **Cik cak: svislý nájezd dokončení po čele jen po vyhrubovaném čele** (audit CAM 24. 11. 2026, pravidla 6 a 20). `floorFinishFace` přidával před dokončení svislý úsek po čele ke spodku cik caku bez kontroly materiálu – karusel u3-beyond sjížděl posuvem 33,7 mm s 23,9 mm neubraného polotovaru pod nosem. Teď jen když čelo projel spodek nebo jízda po stěně (podél čela přes ≥ 80 % výšky); jinak dokončení začíná obvykle. Změnil se jen ten díl; porušení 319 → 318.
