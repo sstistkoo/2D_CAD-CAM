@@ -18,7 +18,7 @@
 
 import { segmentHitsPath } from '../contourBuild.js';
 import { polyArea, toolSweep } from '../../../geom/geomCore.js';
-import { toolFootprintVisual } from '../materialRemoval.js';
+import { toolFootprintVisual, toolFootprint } from '../materialRemoval.js';
 import { getInsert } from '../inserts/index.js';
 import { rapidFeedGap } from '../camMath.js';
 import { makeFaceTransitGuard } from '../faceTransitGuard.js';
@@ -152,6 +152,53 @@ export function emitRoughing(E) {
     simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
     noteCutMove(fx, fz, seg.x2, seg.z2);
     return true;
+  };
+  // SJEZD NA ZAČÁTEK RAMPY BOKEM DO KLÍNU (audit CAM 25. 11. 2026, pravidlo 6):
+  // začátek rampy leží nad zbytkem jen pod NOSEM — plán i emise měří stopou
+  // nosu. Spodní hrana polygonu sahá za špičkou proti směru řezu a při svislém
+  // sjezdu zabere do klínu odlitku u stěny (pocket-wall-at-plunge-angle
+  // `N2440`: vrstva X16,978, sjezd na Z209,927, klín odlitku Z214–219,
+  // 4,32 mm² proti syrovému odlitku, pod nosem nic). Celá rampa se proto
+  // posune po směru řezu (po 0,25 mm), až sjezd (4 mm nad začátek rampy) celou
+  // destičkou z plánovacího zbytku neubere víc než 0,1 mm²; dosednutí musí
+  // zůstat aspoň 1 mm před koncem těla. Klín, ke kterému se nesmí, zůstane
+  // stát (jako stín čáry zanoření). Jen polygon. Vrací true = posunuto.
+  const shiftRampOffWedge = (pass, zDir) => {
+    if (insGc.shape !== 'polygon' || !rapidStockPlan) return false;
+    const r = pass.ramp;
+    if (!r || !Number.isFinite(r.x0) || !Number.isFinite(r.z0)) return false;
+    // Jen to, co ubere destička MIMO stopu nosu (nos sjíždí na začátek rampy
+    // podle plánu — i do pásu přídavku polotovaru, pravidlo 9).
+    let noseFoot = null;
+    const hit = (z) => {
+      const a = planCutArea(r.x0 + 4, z, r.x0, z);
+      if (a === null) return null;
+      try {
+        noseFoot = noseFoot || toolFootprint(prms);
+        return a - Math.abs(polyArea(rapidStockPlan.collide(toolSweep(noseFoot, [{ x: r.x0 + 4, z }, { x: r.x0, z }]))));
+      } catch { return null; }
+    };
+    // Záběr mimo nos klesá, jak se sjezd vzdaluje od klínu; posune se tam,
+    // kde už neklesá (zbyde jen stálý dotek pásu přídavku, pocket-wall 0,83),
+    // a jen když tím klesne aspoň o 0,5 mm² (tolerance doteku bokem, P6).
+    const a0 = hit(r.z0);
+    if (a0 === null || a0 <= 0.5) return false;
+    let prev = a0;
+    for (let k = 1; k <= 200; k++) {
+      const dz = -zDir * 0.25 * k;   // po směru řezu (zprava: −Z)
+      const zl = pass.zStart - dz;
+      if (zDir * (zl - pass.zEnd) > -1) return false;
+      const a = hit(r.z0 - dz);
+      if (a === null) return false;
+      if (prev - a < 0.01) {
+        if (a0 - a < 0.5) return false;
+        pass.ramp = { ...r, z0: r.z0 - dz };
+        pass.zStart = zl;
+        return true;
+      }
+      prev = a;
+    }
+    return false;
   };
   // ÚVODNÍ VZDUCH ČELNÍHO DOJEZDU POLYGONU (audit CAM 25. 11. 2026, pravidlo 5):
   // hlavní hrana natočené destičky (PSKNR −15°) vezme při čelním řezu schod
@@ -570,6 +617,7 @@ calc.passes.forEach((pass, i) => {
       // A u nájezdu prodlouženého dozadu do vzduchu (`leadInExtended`,
       // ops/long/leadInChain.js): začíná tam, kam celá kružnice nosu
       // na polotovar nedosáhne (úsek 1 dílu 29. 9. 2026: 5 mm posuvem na Z −20).
+      if (li.length === 0 && pass.ramp && !pass.emitChainFrom && shiftRampOffWedge(pass, zDir)) { entry.x = pass.ramp.x0; entry.z = pass.ramp.z0; }
       let stop = ((pass.rampEntryClear && pass.ramp) || pass.leadInTrimmed || pass.leadInExtended) && typeof rapidStopXAt === 'function'
         ? rapidStopXAt(entry.z) : null;
       // Pod kružnicí nosu není vůbec nic (celá leží za polotovarem) — sjede
