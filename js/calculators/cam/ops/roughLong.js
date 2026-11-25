@@ -37,6 +37,7 @@ import { emitPocketInterval } from './long/pocketPass.js';
 import { depthCutClampZ, makeChainRegistry } from './long/cutRegistry.js';
 import { relinkOrphanChainSteps } from './long/chainRelink.js';
 import { makeRealStock, passPath, pathLen } from './long/realStock.js';
+import { collectFloorsAt, plateauFloors, attachPlateauDescent } from './long/floorLayers.js';
 
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
@@ -941,84 +942,9 @@ export function genLongPasses(ctx) {
   let lastDepthWithPasses = null;
   // Dna, která už se do žebříku vložila (viz „POSLEDNÍ VRSTVA NA DNĚ" níž).
   const floorsDone = new Set();
-  // Dna mezi hloubkou `currentX` a poslední vrstvou (`lastDepthWithPasses`),
-  // která leží pod průchody té vrstvy: VODOROVNÉ úseky offsetové dráhy
-  // a nejnižší body vydutých oblouků. Hloubka jde o 0,02 mm nad dno: přesně
-  // na něm leží vodorovná čára skenu na hraně oblasti dílce. Projdou celou
-  // běžnou cestou — vjezd, řetěz ramp, držák. Nález uživatele 26. 9. 2026
-  // (R 10, úsek 2): vrstva X 19,409 nad dnem X 19,243 a drážka X 17,244 —
-  // „vynechává poslední vrstvu, když nemá hloubku ap". Polygon ji dělá
-  // (uzavírací krok řetězu), kulatá ne; polygon má uzavírání vlastní a jeho
-  // otisk se nemá hnout.
-  // `bowl`: jen dna v MISCE — z obou stran stoupá offset až k poslední
-  // vrstvě (nebo k hranici úseku), takže je hlubší vrstva nemůže objet
-  // dojezdem. Okno dna = souvislé Z kolem dna, kde hloubka `currentX`
-  // NEPROJDE (offset nad ní).
-  const collectFloors = (currentX, regZLo, regZHi, bowl) => {
-    const prevSpans = [];
-    for (let i = regionMark; i < passes.length; i++) {
-      const q = passes[i];
-      if (q && q.type === 'long' && Math.abs(q.x - lastDepthWithPasses) < 1e-6
-          && Number.isFinite(q.zStart) && Number.isFinite(q.zEnd))
-        prevSpans.push({ lo: Math.min(q.zStart, q.zEnd), hi: Math.max(q.zStart, q.zEnd) });
-    }
-    const h = 0.25;
-    const side = (z0, dir) => {
-      // +1 stěna (až k poslední vrstvě / hranice úseku), −1 propad pod
-      // `currentX`, a konec okna.
-      let z = z0;
-      for (let k = 0; k < 4000; k++) {
-        const zn = z + dir * h;
-        if (zn < regZLo || zn > regZHi) return { wall: true, edge: dir > 0 ? Math.min(zn, regZHi) : Math.max(zn, regZLo) };
-        const x = offsetXAt(zn);
-        if (x === null || !(x > currentX + 1e-3)) return { wall: false, edge: zn };
-        if (x >= lastDepthWithPasses - 1e-3) return { wall: true, edge: zn };
-        z = zn;
-      }
-      return { wall: false, edge: z };
-    };
-    const floors = [];
-    const addFloor = (F, zA, zB) => {
-      if (!(F > currentX + 0.05 && F < lastDepthWithPasses - 0.1)) return;
-      if (floorsDone.has(F.toFixed(4))) return;
-      if (!prevSpans.some(sp => sp.lo < zB && sp.hi > zA)) return;
-      const lo = side(zA, -1), hi = side(zB, +1);
-      if (bowl && !(lo.wall && hi.wall)) return;
-      const w = { lo: lo.edge, hi: hi.edge };
-      const old = floors.find(f => Math.abs(f.F - F) < 1e-3);
-      if (old) old.wins.push(w);
-      else floors.push({ F, wins: [w] });
-    };
-    for (const sg of offsetPath || []) {
-      if (!sg.p1 || !sg.p2) continue;
-      if (sg.type === 'line') {
-        if (Math.abs(sg.p1.x - sg.p2.x) > 1e-6) continue;
-        const zA = Math.max(Math.min(sg.p1.z, sg.p2.z), regZLo), zB = Math.min(Math.max(sg.p1.z, sg.p2.z), regZHi);
-        if (zB - zA < dzScan) continue;
-        addFloor(sg.p1.x + 0.02, zA, zB);
-        continue;
-      }
-      // ── DNO V OBLOUKU (kruhové vybrání, 26. 9. 2026) ─────────────────────
-      // Vydutý oblouk má nejnižší bod UVNITŘ (sin úhlu = −1). Žebřík po `ap`
-      // ho podjede a nad ním zůstane čočka až skoro `ap` silná. Vrstva
-      // o 0,02 mm nad nejnižším bodem je krátká; celé dno pak objede nájezd
-      // a dojezd po kontuře jako u každé kapsy.
-      if (sg.type !== 'arc' || !Number.isFinite(sg.startAngle) || !Number.isFinite(sg.endAngle)
-          || !Number.isFinite(sg.cx) || !Number.isFinite(sg.cz) || !(sg.r > 0)) continue;
-      const a0 = Math.min(sg.startAngle, sg.endAngle), a1 = Math.max(sg.startAngle, sg.endAngle);
-      let aMin = null;
-      for (let k = -2; k <= 2 && aMin === null; k++) {
-        const a = -Math.PI / 2 + 2 * Math.PI * k;
-        if (a > a0 + 1e-6 && a < a1 - 1e-6) aMin = a;
-      }
-      if (aMin === null) continue;
-      const zBot = sg.cz + Math.cos(aMin) * sg.r;
-      if (!(zBot > regZLo && zBot < regZHi)) continue;
-      addFloor(sg.cx - sg.r + 0.02, zBot, zBot);
-    }
-    floors.sort((a, b) => b.F - a.F);
-    return floors;
-  };
+  // Dna mezi `currentX` a poslední vrstvou — viz ops/long/floorLayers.js.
+  const collectFloors = (currentX, regZLo, regZHi, bowl) => collectFloorsAt({ currentX, regZLo, regZHi, bowl,
+    passes, regionMark, lastDepthWithPasses, offsetXAt, offsetPath, floorsDone, dzScan });
   // Okno dna → jen v něm jede poslední vrstva (viz „POSLEDNÍ VRSTVA NA DNĚ").
   const floorWin = new Map();
   // ŘETĚZ ZANOŘENÍ OD HRANICE ROZSAHU NAVÁŽE NA VRSTVU, KTEROU JEL JINÝ VJEZD
@@ -1069,6 +995,16 @@ export function genLongPasses(ctx) {
     // dna, jinde by byla tenká vrstva mezi dvěma plnými.
     if (noseLiftL > 0 && lastDepthWithPasses !== null && lastDepthWithPasses - currentX > 0.1) {
       const floors = collectFloors(currentX, regZLo, regZHi, true);
+      if (floors.length > 0) {
+        for (const f of floors) { floorsDone.add(f.F.toFixed(4)); floorWin.set(f.F.toFixed(4), f.wins); }
+        depths.splice(depthIdx, 0, ...floors.map(f => f.F));
+        depthIdx--;
+        continue;
+      }
+    }
+    // Plošina na začátku vrstvy, na kterou tahle hloubka nepřijede (ops/long/floorLayers.js).
+    if (lastDepthWithPasses !== null && lastDepthWithPasses - currentX > 0.1) {
+      const floors = plateauFloors(collectFloors(currentX, regZLo, regZHi, false), { currentX, sz, regZLo, regZHi, offsetXAt, step, dzScan, depths, depthIdx });
       if (floors.length > 0) {
         for (const f of floors) { floorsDone.add(f.F.toFixed(4)); floorWin.set(f.F.toFixed(4), f.wins); }
         depths.splice(depthIdx, 0, ...floors.map(f => f.F));
@@ -1898,6 +1834,7 @@ export function genLongPasses(ctx) {
         continue;
       }
     }
+    if (fWins) attachPlateauDescent(passes, passMark, currentX, fWins, traceOffsetPath);
     if (passes.length > passMark) lastDepthWithPasses = currentX;
     // Zanoření se stropem držáku (entryZ posunutý doleva, viz výš) bere
     // MENŠÍ průměr, než na jaký v tomhle Z-okně dosáhly ostatní regiony —
