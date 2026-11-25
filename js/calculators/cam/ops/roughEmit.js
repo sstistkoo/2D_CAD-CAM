@@ -103,6 +103,22 @@ export function emitRoughing(E) {
     }
     return n === segs.length ? segs : segs.slice(0, n);
   };
+  // KONEC DOJEZDU VZDUCHEM, MĚŘENO ZA EMISÍ (audit CAM 25. 11. 2026,
+  // pravidlo 5): `dropAirTail` měří předem, kdy plánovací zbytek ještě nezná
+  // úseky dojezdu před koncem — výstup od stěny pak „ubírá" to, co vezme už
+  // úsek po Z těsně před ním (part-13 `N680` 7,2 mm, ubráno 0,0095 mm²).
+  // Před úsekem k ≥ 1: jsou-li zbylé úseky jen úsečky a z aktuálního
+  // plánovacího zbytku (od skutečné polohy) neuberou nic, nejedou se.
+  const leadOutRestInAir = (segs, k) => {
+    if (k === 0) return false;
+    let px = cur.x, pz = cur.z;
+    for (let q = k; q < segs.length; q++) {
+      const s = segs[q];
+      if (s.type !== 'line' || planCutsAlong(px, pz, s.x2, s.z2, airPerMm)) return false;
+      px = s.x2; pz = s.z2;
+    }
+    return true;
+  };
   // ÚVODNÍ VZDUCH DOJEZDU (audit CAM 25. 11. 2026, pravidlo 5): dojezd
   // nejdřív vystoupá po stěně, kterou už hlavní hrana ubrala, a teprve další
   // úsek řeže (lathe-zigzag-v-insert-size `N1750` 4,6 mm, ubráno 0; hned za
@@ -753,6 +769,7 @@ calc.passes.forEach((pass, i) => {
       const loSegs = dropAirTail(trimLeadOutToStock(pass.contourLeadOut, tipRGc), pass);
       leadOutClimb(loSegs, zDir);
       for (const [k, seg] of loSegs.entries()) {
+        if (leadOutRestInAir(loSegs, k)) break;
         if (seg.type === 'line') {
           if (k === 0 && loSegs.length > 1 && emitLeadOutHeadRapid(seg)) continue;
           emitLeadOutLine(seg);
@@ -969,6 +986,7 @@ calc.passes.forEach((pass, i) => {
       // průchodu místo okamžitého odskoku — schod se obrobí přímo.
       leadOutClimb(leadOutSegs, zDir);
       for (const [k, seg] of leadOutSegs.entries()) {
+        if (leadOutRestInAir(leadOutSegs, k)) break;
         if (seg.type === 'line') {
           if (k === 0 && leadOutSegs.length > 1 && emitLeadOutHeadRapid(seg)) continue;
           // AXIÁLNÍ úsek (konstantní hloubka — typicky rovné pokračování
