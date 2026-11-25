@@ -76,7 +76,25 @@ export function emitZigzagPass(pass, env, simCounter) {
   // je po předchozích pohybech téhož průchodu už aktuální (noteCutMove níž).
   const chipOpt = env.residualTopXAtZ && chipThinActive(prms)
     ? { topAt: env.residualTopXAtZ, tipR: parseFloat(prms.toolRadius) || 0, margin: chipMargin(prms) } : null;
-  for (const m of steps) {
+  // OBRÁCENÁ VRSTVA NEKONČÍ VZDUCHEM (audit CAM 25. 11. 2026, pravidlo 5):
+  // vrstva ze vzduchu ke stěně končí výstupem po stěně k vrstvě nad ní, který
+  // tu stěnu znovu projede (lathe-zigzag-v-insert-size `N2290` 9,2 mm,
+  // ubráno 0). Jsou-li všechny zbývající pohyby G1 ven od osy a z plánovacího
+  // zbytku (už bez těla téže vrstvy — noteCutMove níž) neuberou nic, nejedou
+  // se — odskok jde rovnou z konce vrstvy. Měří se až tady, ne předem.
+  const tailInAir = (j) => {
+    if (!pass.reversedLayer || typeof env.planCutsAlong !== 'function' || j === 0) return false;
+    const perMm = env.airPerMm || 0.01;
+    let px = cur.x, pz = cur.z;
+    for (let q = j; q < steps.length; q++) {
+      const s = steps[q];
+      if (s.g !== 'G1' || s.x < px - 1e-6 || env.planCutsAlong(px, pz, s.x, s.z, perMm)) return false;
+      px = s.x; pz = s.z;
+    }
+    return true;
+  };
+  for (const [j, m] of steps.entries()) {
+    if (tailInAir(j)) break;
     const fx = cur.x, fz = cur.z;
     const words = (Math.abs(m.x - fx) > 1e-6 ? ` X${xDia(m.x)}` : '') + (Math.abs(m.z - fz) > 1e-6 ? ` Z${m.z.toFixed(3)}` : '');
     if (!words) continue;
