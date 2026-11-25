@@ -29,6 +29,11 @@ export function emitZigzagPass(pass, env, simCounter) {
   // (rychloposuv nad zbytek, posledních 0,5 mm posuvem).
   if (pass.wallClean && typeof env.planCutsAlong === 'function') {
     const perMm = env.airPerMm || 0.01;
+    // Neubere-li nic ani jeden pohyb (wall-steps průchod 67: jen sjezd po
+    // stěně 11,4 mm, kterou už vrstvy projely), průchod se nevydá vůbec.
+    const cuts = mv.some((m, j) => j > 0 && m.g === 'G1'
+      && env.planCutsAlong(mv[j - 1].x, mv[j - 1].z, m.x, m.z, perMm));
+    if (!cuts) return simCounter;
     let k = 0;
     while (mv.length - k > 2 && mv[k + 1].g === 'G1'
       && !env.planCutsAlong(mv[k].x, mv[k].z, mv[k + 1].x, mv[k + 1].z, perMm)) k++;

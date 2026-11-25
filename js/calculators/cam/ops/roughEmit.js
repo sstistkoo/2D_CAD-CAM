@@ -65,13 +65,17 @@ export function emitRoughing(E) {
   // Plánovací zbytek se ubírá celou destičkou (noteCutPts), takže zná i to,
   // co z klínku u stěny vzala hlavní hrana. Ubere úsečka víc než perMm mm²/mm?
   let visFoot = null;
-  const planCutsAlong = (x1, z1, x2, z2, perMm) => {
-    if (!rapidStockPlan) return true;
+  // Plocha (mm²), kterou úsečka ubere z plánovacího zbytku; null = nelze změřit.
+  const planCutArea = (x1, z1, x2, z2) => {
+    if (!rapidStockPlan) return null;
     try {
       visFoot = visFoot || toolFootprintVisual(prms);
-      const a = Math.abs(polyArea(rapidStockPlan.collide(toolSweep(visFoot, [{ x: x1, z: z1 }, { x: x2, z: z2 }]))));
-      return a >= perMm * Math.hypot(x2 - x1, z2 - z1);
-    } catch { return true; }   // chyba = bráno jako řez (dojezd zůstane)
+      return Math.abs(polyArea(rapidStockPlan.collide(toolSweep(visFoot, [{ x: x1, z: z1 }, { x: x2, z: z2 }]))));
+    } catch { return null; }
+  };
+  const planCutsAlong = (x1, z1, x2, z2, perMm) => {
+    const a = planCutArea(x1, z1, x2, z2);
+    return a === null || a >= perMm * Math.hypot(x2 - x1, z2 - z1);   // nelze změřit = řez (dojezd zůstane)
   };
   // Pojistka: zbytek zná tělo průchodu z PLÁNU (`noteCutPass` až po
   // `pass.zEnd`). Když emise tělo ukončila jinde, mohl by být optimistický —
@@ -129,24 +133,75 @@ export function emitRoughing(E) {
   // koncem v tom Z není zbytek blíž než Stop rychloposuvu (`rapidStopXAt`) —
   // jinak by posuv sjížděl svisle do materiálu (pravidlo 6) — a obě rychlé
   // dráhy nenarazí ani nic neuberou. Vrací true = vydáno.
-  const emitLeadInHeadRapid = (seg) => {
-    if (seg.type !== 'line' || typeof rapidStopXAt !== 'function') return false;
-    const perMm = insGc.shape === 'polygon' ? 0.01 : 0.002;
-    if (planCutsAlong(cur.x, cur.z, seg.x2, seg.z2, perMm)) return false;
+  const airPerMm = insGc.shape === 'polygon' ? 0.01 : 0.002;
+  // Po osách vzduchem k bodu (xT, zT): `G0 Z`, `G0 X` na 0,5 nad něj a
+  // posledních 0,5 posuvem. Vrací false (nic nevydáno), když by rychlé
+  // dráhy narazily nebo něco ubraly, nebo by posuv sjížděl svisle přes zbytek.
+  const rapidAxesTo = (xT, zT) => {
     // Kulatá: zastavení podle kružnice nosu bývá nad cílem víc než 0,5
     // (stock-valley R 10: 0,86) — posuv pak dojede zbytek, nejvýš 2 mm.
-    const stop = rapidStopXAt(seg.z2);
-    const xs = Math.max(seg.x2 + 0.5, stop ?? -Infinity);
-    if (xs > seg.x2 + 2 + 1e-6 || xs > cur.x - 0.5) return false;
-    const clear = (x1, z1, x2, z2) => !rapidHitsStock(x1, z1, x2, z2) && !rapidHitsPlan(x1, z1, x2, z2) && !planCutsAlong(x1, z1, x2, z2, perMm);
-    const moveZ = Math.abs(seg.z2 - cur.z) > 1e-6;
-    if (moveZ && !clear(cur.x, cur.z, cur.x, seg.z2)) return false;
-    if (!clear(cur.x, seg.z2, xs, seg.z2)) return false;
-    if (moveZ) { simCounter += 1; addN(`G0 Z${seg.z2.toFixed(3)}`, simCounter); setPos(cur.x, seg.z2); }
+    const stop = rapidStopXAt(zT);
+    const xs = Math.max(xT + 0.5, stop ?? -Infinity);
+    if (xs > xT + 2 + 1e-6 || xs > cur.x - 0.5) return false;
+    const clear = (x1, z1, x2, z2) => !rapidHitsStock(x1, z1, x2, z2) && !rapidHitsPlan(x1, z1, x2, z2) && !planCutsAlong(x1, z1, x2, z2, airPerMm);
+    const moveZ = Math.abs(zT - cur.z) > 1e-6;
+    if (moveZ && !clear(cur.x, cur.z, cur.x, zT)) return false;
+    if (!clear(cur.x, zT, xs, zT)) return false;
+    if (moveZ) { simCounter += 1; addN(`G0 Z${zT.toFixed(3)}`, simCounter); setPos(cur.x, zT); }
     simCounter += 1; addN(`G0 X${xDia(xs)}`, simCounter); setPos(xs, cur.z);
-    simCounter += 1; addN(`G1 X${xDia(seg.x2)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
-    noteCutMove(xs, seg.z2, seg.x2, seg.z2);
+    simCounter += 1; addN(`G1 X${xDia(xT)} F${prms.feed}`, simCounter); setPos(xT, zT);
+    noteCutMove(xs, zT, xT, zT);
     return true;
+  };
+  const emitLeadInHeadRapid = (seg) => {
+    if (seg.type !== 'line' || typeof rapidStopXAt !== 'function') return false;
+    if (planCutsAlong(cur.x, cur.z, seg.x2, seg.z2, airPerMm)) return false;
+    return rapidAxesTo(seg.x2, seg.z2);
+  };
+  // ÚVODNÍ VZDUCH RAMPY (audit CAM 25. 11. 2026, pravidlo 5): vzduch rampy
+  // se pozná jen podle obrysu polotovaru (`planTopXAtZ`), ne podle toho, co
+  // už ubraly předchozí vrstvy. Rampa poslední vrstvy hump-first `N4970`
+  // leží přesně na rampě vrstvy před ní — 15,5 mm posuvem, ubráno 0. Úvodní
+  // kus rampy, který z plánovacího zbytku nic neubere (po 1 mm), se objede
+  // po osách (`rapidAxesTo`) do bodu na rampě; dál rampa jede jako dřív.
+  // Poslední milimetr zůstává rampou vždy. Jen kus delší než 3 mm (mez P5).
+  const emitRampHeadRapid = (x1, z1) => {
+    if (typeof rapidStopXAt !== 'function') return;
+    const x0 = cur.x, z0 = cur.z, len = Math.hypot(x1 - x0, z1 - z0);
+    const n = Math.ceil(len);
+    if (n < 4) return;
+    const at = (t) => ({ x: x0 + (x1 - x0) * t, z: z0 + (z1 - z0) * t });
+    let k = 0;
+    for (; k < n - 1; k++) {
+      const a = at(k / n), b = at((k + 1) / n);
+      if (planCutsAlong(a.x, a.z, b.x, b.z, airPerMm)) break;
+    }
+    const p = at(k / n);
+    if (Math.hypot(p.x - x0, p.z - z0) < 3) return;
+    if (planCutsAlong(x0, z0, p.x, p.z, airPerMm)) return;
+    rapidAxesTo(p.x, p.z);
+  };
+  // PRÁZDNÝ ČELNÍ PRŮCHOD (audit CAM 25. 11. 2026, pravidlo 5): poslední
+  // vrstva čelně za koncem polotovaru (round-r10-face-small-fillet Z−14,783:
+  // zápich 14,8 mm + dojezd 4,7 mm, ubráno 0, plánovací zbytek 0,009 mm²).
+  // Ubere-li zápich s dojezdem dohromady z plánovacího zbytku méně než mez
+  // vzduchu na mm, průchod se nevydá vůbec. Dojezd s obloukem → měří se dál
+  // po staru (průchod zůstane). Nejde o vynechání dojezdu (to drží
+  // `faceLeadOutInAir`, „dojezd vždy"), ale celého průchodu bez řezu.
+  const facePassInAir = (pass) => {
+    if (pass.type !== 'face' || !Number.isFinite(pass.xStart) || !Number.isFinite(pass.xEnd)) return false;
+    const pts = [{ x: pass.xStart, z: pass.z }, { x: pass.xEnd, z: pass.z }];
+    for (const sg of pass.contourLeadOut || []) {
+      if (sg.type !== 'line') return false;
+      pts.push({ x: sg.x2, z: sg.z2 });
+    }
+    let a = 0, len = 0;
+    for (let k = 1; k < pts.length; k++) {
+      const c = planCutArea(pts[k - 1].x, pts[k - 1].z, pts[k].x, pts[k].z);
+      if (c === null) return false;
+      a += c; len += Math.hypot(pts[k].x - pts[k - 1].x, pts[k].z - pts[k - 1].z);
+    }
+    return len > 0 && a < airPerMm * len;
   };
   let simCounter = E.simCounter;
   let holderShallowBodies = E.holderShallowBodies;
@@ -325,6 +380,7 @@ export function emitRoughing(E) {
 // faceTransitGuard.js. Jednou pro celou emisi (obrysy těl se staví jen jednou).
 const transitHitsPlan = makeFaceTransitGuard(prms, rapidStockPlan);
 calc.passes.forEach((pass, i) => {
+  if (facePassInAir(pass)) return;
   // Dojezd „bez schodků" tohoto průchodu (čelní, který nic neubere, odpadne).
   const leadOutNow = (pass.type === 'face' && pass.contourLeadOut
     && (!faceLeadOutCuts(pass) || faceLeadOutUnderFlat(pass)))
@@ -486,6 +542,7 @@ calc.passes.forEach((pass, i) => {
       // pass.zStart), segmenty stejného druhu (rapid/posuv) se slévají →
       // diagonální G0/G1 (stejný vzor jako safeRapidTo). Bez křížení siluety
       // (rampa celá v materiálu) vydá PŘESNĚ původní jeden `G1 X.. Z..`.
+      if (!pass.rampAllFeed) emitRampHeadRapid(pass.x, pass.zStart);
       const x0 = cur.x, z0 = cur.z, x1 = pass.x, z1 = pass.zStart;
       // Musí rampa DOLETĚT přesně na (pass.x, pass.zStart)? Jen když na ni
       // navazuje tělový řez (zStart≠zEnd) nebo leadOut — ty čtou `cur` a
