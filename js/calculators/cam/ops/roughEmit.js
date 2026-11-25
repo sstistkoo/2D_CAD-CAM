@@ -99,6 +99,55 @@ export function emitRoughing(E) {
     }
     return n === segs.length ? segs : segs.slice(0, n);
   };
+  // ÚVODNÍ VZDUCH DOJEZDU (audit CAM 25. 11. 2026, pravidlo 5): dojezd
+  // nejdřív vystoupá po stěně, kterou už hlavní hrana ubrala, a teprve další
+  // úsek řeže (lathe-zigzag-v-insert-size `N1750` 4,6 mm, ubráno 0; hned za
+  // ním 121 mm²). Úvodní úsečka ven od osy, která z plánovacího zbytku nic
+  // neubere, se jede rychloposuvem JEN V X (ne dvouosý G0 — Fanuc ho nejede
+  // po přímce) o 0,5 mm pod její konec; zbytek posuvem (pravidlo „rychloposuv
+  // končí 0,5 nad materiálem"). Jen když rychloposuv nenarazí ani do zbytku,
+  // ani do plánovacího zbytku a sám nic neubere. Vrací true = vydáno.
+  const emitLeadOutHeadRapid = (seg) => {
+    if (seg.type !== 'line') return false;
+    const xs = seg.x2 - 0.5;
+    if (xs < cur.x + 0.5) return false;
+    const perMm = insGc.shape === 'polygon' ? 0.01 : 0.002;
+    if (planCutsAlong(cur.x, cur.z, seg.x2, seg.z2, perMm)) return false;
+    if (rapidHitsStock(cur.x, cur.z, xs, cur.z) || rapidHitsPlan(cur.x, cur.z, xs, cur.z)) return false;
+    if (planCutsAlong(cur.x, cur.z, xs, cur.z, perMm)) return false;
+    simCounter += 1; addN(`G0 X${xDia(xs)}`, simCounter); setPos(xs, cur.z);
+    const fx = cur.x, fz = cur.z;
+    simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+    noteCutMove(fx, fz, seg.x2, seg.z2);
+    return true;
+  };
+  // ÚVODNÍ VZDUCH NÁJEZDU PO KONTUŘE (audit CAM 25. 11. 2026, pravidlo 5):
+  // nájezd začíná nad obrobenou stěnou a první úsečka sjíždí posuvem
+  // vzduchem (lathe-zigzag-stock-valley `N2700` 45° 4 mm, ubráno 0). Když
+  // z plánovacího zbytku nic neubere, jede se po osách: `G0 Z` na její
+  // konec, `G0 X` na 0,5 nad něj a posledních 0,5 posuvem. Jen když nad
+  // koncem v tom Z není zbytek blíž než Stop rychloposuvu (`rapidStopXAt`) —
+  // jinak by posuv sjížděl svisle do materiálu (pravidlo 6) — a obě rychlé
+  // dráhy nenarazí ani nic neuberou. Vrací true = vydáno.
+  const emitLeadInHeadRapid = (seg) => {
+    if (seg.type !== 'line' || typeof rapidStopXAt !== 'function') return false;
+    const perMm = insGc.shape === 'polygon' ? 0.01 : 0.002;
+    if (planCutsAlong(cur.x, cur.z, seg.x2, seg.z2, perMm)) return false;
+    // Kulatá: zastavení podle kružnice nosu bývá nad cílem víc než 0,5
+    // (stock-valley R 10: 0,86) — posuv pak dojede zbytek, nejvýš 2 mm.
+    const stop = rapidStopXAt(seg.z2);
+    const xs = Math.max(seg.x2 + 0.5, stop ?? -Infinity);
+    if (xs > seg.x2 + 2 + 1e-6 || xs > cur.x - 0.5) return false;
+    const clear = (x1, z1, x2, z2) => !rapidHitsStock(x1, z1, x2, z2) && !rapidHitsPlan(x1, z1, x2, z2) && !planCutsAlong(x1, z1, x2, z2, perMm);
+    const moveZ = Math.abs(seg.z2 - cur.z) > 1e-6;
+    if (moveZ && !clear(cur.x, cur.z, cur.x, seg.z2)) return false;
+    if (!clear(cur.x, seg.z2, xs, seg.z2)) return false;
+    if (moveZ) { simCounter += 1; addN(`G0 Z${seg.z2.toFixed(3)}`, simCounter); setPos(cur.x, seg.z2); }
+    simCounter += 1; addN(`G0 X${xDia(xs)}`, simCounter); setPos(xs, cur.z);
+    simCounter += 1; addN(`G1 X${xDia(seg.x2)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+    noteCutMove(xs, seg.z2, seg.x2, seg.z2);
+    return true;
+  };
   let simCounter = E.simCounter;
   let holderShallowBodies = E.holderShallowBodies;
   // PŘEJEZD VZDUCHEM SE DOTÝKÁ JEN MÍSTY (24. 9. 2026). Mezera ve vzduchu
@@ -410,7 +459,8 @@ calc.passes.forEach((pass, i) => {
       safeRapidTo(entry.x, entry.z, true, false, true,
         stop === null ? null : Math.min(rapidStopX, Math.max(stop - entry.x, 0)));
     }
-    for (const seg of li) {
+    for (const [k, seg] of li.entries()) {
+      if (k === 0 && li.length > 1 && !pass.wallPlunge && emitLeadInHeadRapid(seg)) continue;
       const fx = cur.x, fz = cur.z;
       // Úsek nájezdu po už projeté dráze (`overCut`, viz roughLong.js) =
       // rychloposuv, stejně jako u dojezdu. Kulatá R 10 na dílu uživatele
@@ -645,8 +695,9 @@ calc.passes.forEach((pass, i) => {
       // kontuře dojet až tam, kde nad nástrojem polotovar dávno nesahá.
       const loSegs = dropAirTail(trimLeadOutToStock(pass.contourLeadOut, tipRGc), pass);
       leadOutClimb(loSegs, zDir);
-      for (const seg of loSegs) {
+      for (const [k, seg] of loSegs.entries()) {
         if (seg.type === 'line') {
+          if (k === 0 && loSegs.length > 1 && emitLeadOutHeadRapid(seg)) continue;
           emitLeadOutLine(seg);
         } else {
           const fx = cur.x, fz = cur.z;
@@ -860,8 +911,9 @@ calc.passes.forEach((pass, i) => {
       // Bez schodků: dál po kontuře (G1/G2/G3) až na hloubku dalšího
       // průchodu místo okamžitého odskoku — schod se obrobí přímo.
       leadOutClimb(leadOutSegs, zDir);
-      for (const seg of leadOutSegs) {
+      for (const [k, seg] of leadOutSegs.entries()) {
         if (seg.type === 'line') {
+          if (k === 0 && leadOutSegs.length > 1 && emitLeadOutHeadRapid(seg)) continue;
           // AXIÁLNÍ úsek (konstantní hloubka — typicky rovné pokračování
           // vrstvy přes údolí za dosednutím rampy) se stejně jako tělo
           // průchodu rozseká na rychloposuv(vzduch)/posuv(materiál): nad
