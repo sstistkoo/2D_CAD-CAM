@@ -132,7 +132,19 @@ export function emitRoughing(E) {
     const xs = seg.x2 - 0.5;
     if (xs < cur.x + 0.5) return false;
     const perMm = insGc.shape === 'polygon' ? 0.01 : 0.002;
-    if (planCutsAlong(cur.x, cur.z, seg.x2, seg.z2, perMm)) return false;
+    // Úsečka smí ubrat i víc než přísný práh kulaté, když to, co náhradní
+    // dráha (rychloposuv v X + posuv posledních 0,5 mm) nevezme, je v průměru
+    // tenčí než 0,005 mm — úsečka se tu nezahazuje, jen se její začátek jede
+    // rychloposuvem. Karusel R5 ap 6 `N1060` (audit 25. 11. 2026): výstup
+    // 4,4 mm po stěně se v Z stáčí o 0,15 mm ke stěně a škrtne o ni
+    // 0,014 mm² (tloušťka 0,003 mm).
+    const len = Math.hypot(seg.x2 - cur.x, seg.z2 - cur.z);
+    const aSeg = planCutArea(cur.x, cur.z, seg.x2, seg.z2);
+    if (aSeg === null) return false;
+    if (aSeg >= perMm * len) {
+      const aTail = planCutArea(xs, cur.z, seg.x2, seg.z2);
+      if (aTail === null || aSeg - aTail > 0.005 * len) return false;
+    }
     if (rapidHitsStock(cur.x, cur.z, xs, cur.z) || rapidHitsPlan(cur.x, cur.z, xs, cur.z)) return false;
     if (planCutsAlong(cur.x, cur.z, xs, cur.z, perMm)) return false;
     simCounter += 1; addN(`G0 X${xDia(xs)}`, simCounter); setPos(xs, cur.z);
