@@ -76,6 +76,15 @@ export function emitRoughing(E) {
   // Pojistka: zbytek zná tělo průchodu z PLÁNU (`noteCutPass` až po
   // `pass.zEnd`). Když emise tělo ukončila jinde, mohl by být optimistický —
   // pak se nic nezahazuje.
+  // PRVNÍ ÚSEK SE MĚŘÍ ODKUD SE OPRAVDU JEDE (audit 25. 11. 2026): dojezd
+  // začíná na obrysu, často kousek POD koncem vrstvy (part-13 X75,766 proti
+  // vrstvě X75,922, polygon-ramp-exit-nose o 0,015 mm). Emise jede z konce
+  // vrstvy rovnou na konec úsečky (výš jen radiálně, `leadOutClimb`), ale
+  // měřila se úsečka od obrysu — ta ukousla roh materiálu, kam program
+  // nikdy nesjede (part-13 `N600`: 0,40 mm² místo 0,07), a dojezd zůstal
+  // jako posuv vzduchem. Jen polygon: u kulaté plán nevidí celý řez kružnicí
+  // nosu a dojezd zahozený takhle nechal schodek u stěny
+  // (cam-round-left-full-steps, Z194,5).
   const dropAirTail = (segs, pass) => {
     if (!segs) return segs;
     if (!pass || Math.abs(cur.z - pass.zEnd) > 0.05) return segs;
@@ -83,7 +92,9 @@ export function emitRoughing(E) {
     while (n > 0) {
       const s = segs[n - 1];
       if (s.type !== 'line') break;
-      if (planCutsAlong(s.x1, s.z1, s.x2, s.z2, insGc.shape === 'polygon' ? 0.01 : 0.002)) break;
+      const first = n === 1 && insGc.shape === 'polygon' && Math.abs(s.z1 - cur.z) <= LEADOUT_CLIMB_DZ;
+      const x1 = first ? Math.max(s.x1, cur.x) : s.x1, z1 = first ? cur.z : s.z1;
+      if (planCutsAlong(x1, z1, s.x2, s.z2, insGc.shape === 'polygon' ? 0.01 : 0.002)) break;
       n--;
     }
     return n === segs.length ? segs : segs.slice(0, n);
@@ -283,7 +294,7 @@ calc.passes.forEach((pass, i) => {
     feedTrack.tag.chipK = chipRatio(prms, ap) || undefined;
   }
   // Cik cak: hotová řada pohybů, směr se střídá (ops/zigzagEmit.js).
-  if (pass.type === 'zigzag') { simCounter = emitZigzagPass(pass, { addN, xDia, cur, setPos, safeRapidTo, noteCutMove, prms, rDist, rDistZ, residualTopXAtZ, rapidStopXAt, rapidStopX, rapidHitsStock, rapidHitsPlan }, simCounter); return; }
+  if (pass.type === 'zigzag') { simCounter = emitZigzagPass(pass, { addN, xDia, cur, setPos, safeRapidTo, noteCutMove, prms, rDist, rDistZ, residualTopXAtZ, rapidStopXAt, rapidStopX, rapidHitsStock, rapidHitsPlan, planCutsAlong, airPerMm: insGc.shape === 'polygon' ? 0.01 : 0.002 }, simCounter); return; }
   if (pass.type === 'long' && (pass.contourLeadIn || pass.ramp || pass.pocketClean)) {
     // Kapsa za bossem kontury: namísto odskoku a rychloposuvu přes
     // vršek polotovaru se kopíruje samotná kontura (G1/G2/G3) až k

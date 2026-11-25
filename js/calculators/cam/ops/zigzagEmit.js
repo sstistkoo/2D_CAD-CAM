@@ -19,8 +19,21 @@ import { chipThinActive, chipRatio, chipMargin, moveDepth } from '../feedTuning.
  */
 export function emitZigzagPass(pass, env, simCounter) {
   const { addN, xDia, cur, setPos, safeRapidTo, noteCutMove, prms, rDist, rDistZ } = env;
-  const mv = pass.moves || [];
+  let mv = pass.moves || [];
   if (mv.length < 2) return simCounter;
+  // JÍZDA PO STĚNĚ NEZAČÍNÁ VZDUCHEM (audit CAM 25. 11. 2026, pravidlo 5).
+  // Začíná na vršku stěny (`xSafe`), ale horní kus stěny už projely vrstvy:
+  // lathe-zigzag-left-10 `N2540 G1 X62.883` 8 mm posuvem, ubráno 0,001 mm².
+  // Úvodní úseky, které z plánovacího zbytku neuberou nic (prahy jako
+  // `dropAirTail`), se nejedou — příjezd jde rovnou nad první řezající bod
+  // (rychloposuv nad zbytek, posledních 0,5 mm posuvem).
+  if (pass.wallClean && typeof env.planCutsAlong === 'function') {
+    const perMm = env.airPerMm || 0.01;
+    let k = 0;
+    while (mv.length - k > 2 && mv[k + 1].g === 'G1'
+      && !env.planCutsAlong(mv[k].x, mv[k].z, mv[k + 1].x, mv[k + 1].z, perMm)) k++;
+    if (k > 0) mv = [{ ...mv[k], g: 'G0' }, ...mv.slice(k + 1)];
+  }
   if (pass.chain && cur.x > mv[0].x) {
     // Navazující obrácená vrstva (uživatel 1. 11. 2026): po odskoku
     // rychloposuvem rovnou nad vjezd (projetá výška, vlevo vzduch), dolů ve
