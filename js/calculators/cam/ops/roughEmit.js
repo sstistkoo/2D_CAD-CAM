@@ -141,6 +141,41 @@ export function emitRoughing(E) {
     noteCutMove(fx, fz, seg.x2, seg.z2);
     return true;
   };
+  // ÚVODNÍ VZDUCH ČELNÍHO DOJEZDU POLYGONU (audit CAM 25. 11. 2026, pravidlo 5):
+  // hlavní hrana natočené destičky (PSKNR −15°) vezme při čelním řezu schod
+  // u stěny rovnoběžné s ní celý — dojezd po té stěně o vrstvu nahoru pak jede
+  // posuvem vzduchem (part-25 `N1360`, face-psknr `N1320`,
+  // lathe-face-casting-axial `N740`, ~3 mm, ubráno 0). Tělo vrstvy se do
+  // plánovacího zbytku zapíše až na konci průchodu → měří se až po zápisu těla.
+  // Úvodní úsečka, která nic neubere, se objede: `G0 Z` (jen jedna osa) o 0,5
+  // před její konec a zbytek posuvem. Jen polygon — kulatá drží „dojezd vždy"
+  // (uživatel 13. 10. 2026, `faceLeadOutInAir`). Vrací true = vydáno.
+  const emitFaceLeadOutHeadRapid = (seg, pass, xBody0) => {
+    if (insGc.shape !== 'polygon' || seg.type !== 'line') return false;
+    const dirZ = pass.faceLeft ? -1 : 1;
+    const zs = seg.z2 - dirZ * 0.5;
+    if (dirZ * (zs - cur.z) < 0.5) return false;
+    if (xBody0 - cur.x > 1e-6) noteCutMove(xBody0, cur.z, cur.x, cur.z);
+    if (planCutsAlong(cur.x, cur.z, seg.x2, seg.z2, airPerMm)) return false;
+    if (rapidHitsPlan(cur.x, cur.z, cur.x, zs) || planCutsAlong(cur.x, cur.z, cur.x, zs, airPerMm)) return false;
+    // Syrový zbytek se ubírá jen stadionem kolem nosu (`toolFootprint`) — klín,
+    // který vzala hlavní hrana, v něm stojí dál a `rapidHitsStock` by tu hlásil
+    // dotyk vždy (0,8 mm²/mm pásem pod nosem). Rychloposuv je proto bezpečný,
+    // když skutečný obrys destičky (`toolFootprintVisual`) při něm do syrového
+    // zbytku nezabere NIC NAVÍC proti tomu, kde destička po řezu už stojí.
+    if (!rapidStock) return false;
+    try {
+      visFoot = visFoot || toolFootprintVisual(prms);
+      const at = (pts) => Math.abs(polyArea(rapidStock.collide(toolSweep(visFoot, pts))));
+      const p0 = { x: cur.x, z: cur.z };
+      if (at([p0, { x: cur.x, z: zs }]) - at([p0, { x: cur.x, z: cur.z + dirZ * 1e-3 }]) > 0.05) return false;
+    } catch { return false; }
+    simCounter += 1; addN(`G0 Z${zs.toFixed(3)}`, simCounter); setPos(cur.x, zs);
+    const fx = cur.x, fz = cur.z;
+    simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
+    noteCutMove(fx, fz, seg.x2, seg.z2);
+    return true;
+  };
   // ÚVODNÍ VZDUCH NÁJEZDU PO KONTUŘE (audit CAM 25. 11. 2026, pravidlo 5):
   // nájezd začíná nad obrobenou stěnou a první úsečka sjíždí posuvem
   // vzduchem (lathe-zigzag-stock-valley `N2700` 45° 4 mm, ubráno 0). Když
@@ -1118,14 +1153,16 @@ calc.passes.forEach((pass, i) => {
     // (xEnd = offset kontury) NAD povrch polotovaru a sjezd „na povrch" by
     // nos zavezl o celý rádius hlouběji — až na hotovou konturu, tj. i
     // přes celý přídavek (reálný nález s R 8 mm).
+    const xBody0 = cur.x;
     const xTouch = Math.max(pass.xSurface, pass.xEnd);
     if (cur.x - xTouch > 1e-6) { simCounter += 1; addN(`G1 X${xDia(xTouch)} F${prms.feed}`, simCounter); setPos(xTouch, pass.z); }
     if (Math.abs(cur.x - pass.xEnd) > 1e-6) { simCounter += 1; addN(`G1 X${xDia(pass.xEnd)} F${prms.feed}`, simCounter); setPos(pass.xEnd, pass.z); }
     if (leadOutNow) {
       // Bez schodků: dál po kontuře (G1/G2/G3) v pásu Z∈[z−ap, z]
       // místo okamžitého odskoku — schod se obrobí přímo po obrysu.
-      for (const seg of leadOutNow) {
+      for (const [k, seg] of leadOutNow.entries()) {
         const fx = cur.x, fz = cur.z;
+        if (k === 0 && leadOutNow.length > 1 && emitFaceLeadOutHeadRapid(seg, pass, xBody0)) continue;
         if (seg.type === 'line') {
           simCounter += 1; addN(`G1 X${xDia(seg.x2)} Z${seg.z2.toFixed(3)} F${prms.feed}`, simCounter); setPos(seg.x2, seg.z2);
           noteCutMove(fx, fz, seg.x2, seg.z2);
