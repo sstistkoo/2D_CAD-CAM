@@ -1,5 +1,5 @@
 {
-  "total": 265,
+  "total": 264,
   "parts": {
     "carousel-center-axis.camprog": {
       "P2 kolize": 0,
@@ -114,7 +114,7 @@
       "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 1,
-      "P5 posuv vzduchem": 1,
+      "P5 posuv vzduchem": 0,
       "P6 zanoření strměji než dovoleno": 0,
       "P7 přes hrb dřív, než je pravá strana hotová": 0,
       "P7 vrstva přes hrb vcelku až na konec": 0,

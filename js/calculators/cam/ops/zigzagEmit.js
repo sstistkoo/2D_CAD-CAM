@@ -83,7 +83,9 @@ export function emitZigzagPass(pass, env, simCounter) {
   // zbytku (už bez těla téže vrstvy — noteCutMove níž) neuberou nic, nejedou
   // se — odskok jde rovnou z konce vrstvy. Měří se až tady, ne předem.
   const tailInAir = (j) => {
-    if (!pass.reversedLayer || typeof env.planCutsAlong !== 'function' || j === 0) return false;
+    // Totéž na konci každé řady před výjezdem (karusel u3-beyond `N400` 18 mm,
+    // ubráno 0,018 mm²) — výjezd jde rovnou z konce posledního řezu.
+    if (typeof env.planCutsAlong !== 'function' || j === 0) return false;
     const perMm = env.airPerMm || 0.01;
     let px = cur.x, pz = cur.z;
     for (let q = j; q < steps.length; q++) {
@@ -93,8 +95,53 @@ export function emitZigzagPass(pass, env, simCounter) {
     }
     return true;
   };
+  // VZDUCH UPROSTŘED ŘADY (audit CAM 25. 11. 2026, pravidlo 5): krok cik
+  // caku o vrstvu níž vede tam, kde už nic nestojí (karusel u3-beyond `N190`
+  // 11,3 mm, ubráno 0), a teprve další pohyb řeže. Souvislý úsek G1 delší
+  // než 3 mm, který z aktuálního plánovacího zbytku nic neubere a za nímž
+  // následuje řez, se jede rychloposuvem PO OSÁCH (ne dvouosý G0 — Fanuc ho
+  // nejede po přímce) a posledních 0,5 mm posuvem. Jen když obě rychlé dráhy
+  // nenarazí ani do zbytku, ani do plánovacího zbytku a nic neuberou.
+  const airRun = (j) => {
+    if (j === 0 || typeof env.planCutsAlong !== 'function' || !env.rapidHitsStock || !env.rapidHitsPlan) return null;
+    const perMm = env.airPerMm || 0.01;
+    let px = cur.x, pz = cur.z, len = 0, q = j;
+    for (; q < steps.length; q++) {
+      const s = steps[q];
+      if (s.g !== 'G1') return null;
+      if (env.planCutsAlong(px, pz, s.x, s.z, perMm)) break;
+      len += Math.hypot(s.x - px, s.z - pz); px = s.x; pz = s.z;
+    }
+    if (q >= steps.length || len <= 3) return null;
+    const clear = (x1, z1, x2, z2) => !env.rapidHitsStock(x1, z1, x2, z2) && !env.rapidHitsPlan(x1, z1, x2, z2)
+      && !env.planCutsAlong(x1, z1, x2, z2, perMm);
+    // Dvě pořadí os; posledních 0,5 mm druhé osy posuvem.
+    for (const xFirst of [true, false]) {
+      const mid = xFirst ? { x: px, z: cur.z } : { x: cur.x, z: pz };
+      const d2 = xFirst ? pz - cur.z : px - cur.x;
+      if (Math.abs(d2) <= 0.5) continue;
+      const stop = xFirst ? { x: px, z: pz - Math.sign(d2) * 0.5 } : { x: px - Math.sign(d2) * 0.5, z: pz };
+      if (clear(cur.x, cur.z, mid.x, mid.z) && clear(mid.x, mid.z, stop.x, stop.z)) return { q, mid, stop, end: { x: px, z: pz } };
+    }
+    return null;
+  };
+  let skipTo = -1;
   for (const [j, m] of steps.entries()) {
+    if (j < skipTo) continue;
     if (tailInAir(j)) break;
+    const run = airRun(j);
+    if (run) {
+      for (const p of [run.mid, run.stop]) {
+        const w = (Math.abs(p.x - cur.x) > 1e-6 ? ` X${xDia(p.x)}` : '') + (Math.abs(p.z - cur.z) > 1e-6 ? ` Z${p.z.toFixed(3)}` : '');
+        if (w) { simCounter += 1; addN(`G0${w}`, simCounter); setPos(p.x, p.z); }
+      }
+      const fx = cur.x, fz = cur.z, e = run.end;
+      const w = (Math.abs(e.x - fx) > 1e-6 ? ` X${xDia(e.x)}` : '') + (Math.abs(e.z - fz) > 1e-6 ? ` Z${e.z.toFixed(3)}` : '');
+      simCounter += 1; addN(`G1${w} F${prms.feed}`, simCounter); setPos(e.x, e.z);
+      noteCutMove(fx, fz, e.x, e.z);
+      skipTo = run.q;
+      continue;
+    }
     const fx = cur.x, fz = cur.z;
     const words = (Math.abs(m.x - fx) > 1e-6 ? ` X${xDia(m.x)}` : '') + (Math.abs(m.z - fz) > 1e-6 ? ` Z${m.z.toFixed(3)}` : '');
     if (!words) continue;
