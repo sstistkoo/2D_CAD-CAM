@@ -127,6 +127,11 @@ export function emitRoughing(E) {
   // po přímce) o 0,5 mm pod její konec; zbytek posuvem (pravidlo „rychloposuv
   // končí 0,5 nad materiálem"). Jen když rychloposuv nenarazí ani do zbytku,
   // ani do plánovacího zbytku a sám nic neubere. Vrací true = vydáno.
+  // Dojezd z JEDINÉ úsečky jen nad 3 mm (výstup kulaté po stěně o vrstvu výš —
+  // round-r10-chain-beyond-section `N890` 4 mm, ubráno 0; audit 26. 11. 2026):
+  // zbytek 0,5 mm jede posuvem, „dojezd vždy" zůstane. Krátký výstup na schod
+  // (2,5 mm, cam-round-left-full-steps) zahlazuje schodek jedním posuvem.
+  const longHead = (seg) => Math.hypot(seg.x2 - cur.x, seg.z2 - cur.z) > 3;
   const emitLeadOutHeadRapid = (seg) => {
     if (seg.type !== 'line') return false;
     const xs = seg.x2 - 0.5;
@@ -866,7 +871,7 @@ calc.passes.forEach((pass, i) => {
       for (const [k, seg] of loSegs.entries()) {
         if (leadOutRestInAir(loSegs, k)) break;
         if (seg.type === 'line') {
-          if (k === 0 && loSegs.length > 1 && emitLeadOutHeadRapid(seg)) continue;
+          if (k === 0 && (loSegs.length > 1 || longHead(seg)) && emitLeadOutHeadRapid(seg)) continue;
           emitLeadOutLine(seg);
         } else {
           const fx = cur.x, fz = cur.z;
@@ -1083,7 +1088,7 @@ calc.passes.forEach((pass, i) => {
       for (const [k, seg] of leadOutSegs.entries()) {
         if (leadOutRestInAir(leadOutSegs, k)) break;
         if (seg.type === 'line') {
-          if (k === 0 && leadOutSegs.length > 1 && emitLeadOutHeadRapid(seg)) continue;
+          if (k === 0 && (leadOutSegs.length > 1 || longHead(seg)) && emitLeadOutHeadRapid(seg)) continue;
           // AXIÁLNÍ úsek (konstantní hloubka — typicky rovné pokračování
           // vrstvy přes údolí za dosednutím rampy) se stejně jako tělo
           // průchodu rozseká na rychloposuv(vzduch)/posuv(materiál): nad
