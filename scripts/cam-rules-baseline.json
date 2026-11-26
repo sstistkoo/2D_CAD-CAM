@@ -1,5 +1,5 @@
 {
-  "total": 239,
+  "total": 238,
   "parts": {
     "carousel-center-axis.camprog": {
       "P2 kolize": 0,
@@ -135,7 +135,7 @@
     },
     "carousel-zigzag-po-x.camprog": {
       "P2 kolize": 0,
-      "P3 tříska větší než ap": 1,
+      "P3 tříska větší než ap": 0,
       "P3 tenká vrstva uprostřed": 0,
       "P3 zbytek na dně (chybí poslední vrstva)": 0,
       "P5 posuv vzduchem": 0,

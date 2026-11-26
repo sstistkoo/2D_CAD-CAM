@@ -389,7 +389,10 @@ async function check(file) {
       // u stěny). Jízda po stěně cik caku sbírá schody mezi vrstvami — to
       // není vrstva, tříska se jí neměří (`N1690` po offsetu stěny).
       const zz = P.roughingStrategy === 'zigzag' && !face;
-      const zzLayer = zz && Math.abs(b.x - a.x) < 1e-6 && len > 1;
+      // Vrstva cik caku po dně spodku stoupá/klesá mírně se dnem (carousel-
+      // zigzag-po-x `N4450` Z108,201 → 108,609 na 9,5 mm) — pořád je to vrstva
+      // a pod trojúhelníkem rampy vrstvy nad ní platí totéž (audit 26. 11. 2026).
+      const zzLayer = zz && Math.abs(b.x - a.x) <= 0.1 * Math.abs(b.z - a.z) && len > 1;
       const zzZone = ap / Math.tan(Math.max(1, Math.min(plungeLimit, 89)) * Math.PI / 180) + lift;
       const inZzEnd = (z) => zzLayer && Math.min(Math.abs(z - a.z), Math.abs(z - b.z)) < zzZone;
       let worstChip = 0;
