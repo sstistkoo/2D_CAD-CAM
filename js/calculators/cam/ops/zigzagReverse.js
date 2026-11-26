@@ -248,6 +248,13 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
       // Bez napojení zbytek zůstává a jede sám → jeho úsek je „projetý".
       if (!viaTarget && target) w = walk(lz, lim, same.map(span));
       if (!viaTarget) w = slopeOn(w, X, lim, target ? same.map(span) : same.filter((q) => !isTarget(q)).map(span), walk);
+      // Jízda po offsetu narazila na stěnu → vyjede po ní o vrstvu nahoru (pravidlo 20),
+      // jinak u paty stěny pod koncem vrstvy o ap výš zůstal klín (karusel Od středu
+      // ap 10, r672 h48–57, audit 26. 11. 2026).
+      if (!viaTarget && w.wall && w.back === null && w.pts.length) {
+        const p = w.pts[w.pts.length - 1], zt = wallRight(X + step, p.z, p.z + 2 * step + 2 * noseR);
+        if (zt !== null) for (const q of wallStep(p.x, p.z, X + step, zt)) w.pts.push({ g: 'G1', x: q.x, z: q.z });
+      }
       moves.push(...w.pts);
       if (w.back === null) break;
       moves.push({ g: 'G1', x: X, z: w.back });
@@ -270,7 +277,15 @@ export function reverseAirLayers({ passes, start = 0, raw, guided, stock, noseR,
   const slopeRedo = [];
   const zRawEnd = Math.max(-Infinity, ...(raw || []).map((sg) => (sg.type === 'arc' ? sg.cz + sg.r : Math.max(sg.p1 ? sg.p1.z : -Infinity, sg.p2 ? sg.p2.z : -Infinity))));
   const slopeOn = (w, X, lim, covered, walk) => {
-    if (!w.lim || w.back !== null || !w.pts.length || !Number.isFinite(lim)) return w;
+    if (!w.lim || w.back !== null || !Number.isFinite(lim)) return w;
+    // Jízda nezačala vůbec (nad svahem zatím neubráno — vrstva o ap výš vznikne
+    // až v dalším kole): přepočet po druhém kole (`slopeRedo`), jinak pás pod
+    // vrstvou o ap výš nevzal nikdo (karusel Od středu ap 10, r672–733, 8,7 mm).
+    if (!w.pts.length) {
+      const f = fR(w.end + 0.5);
+      if (f > X + 0.02 && f <= X + step) slopeShort = true;
+      return w;
+    }
     const last = w.pts[w.pts.length - 1], first = w.pts[0];
     if (!(last.x > first.x + 0.05)) return w;   // rovný vršek → beze změny
     const hi = Math.min(zBeyond !== null && lim > zHi ? zBeyond + 1 : zHi, zRawEnd);
