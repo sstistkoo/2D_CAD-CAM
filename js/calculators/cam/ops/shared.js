@@ -58,11 +58,19 @@ export const SKIM_MIN_LAYER = 0.1;
 // nepřejelo za sousední (mělčí) hloubku maxX — tam je materiál obroben už mělčím
 // průchodem. Segmenty drží x1/z1 (vyšší Z) → x2/z2 (nižší Z). Šikmé úseky se
 // nechávají (ty ořezal findLeadOutEndZ v ose Z); mění se pole na místě.
-export function clipLeadOutToDepth(segs, maxX) {
+//
+// `minX` (volitelně) = hloubka průchodu, ze které dojezd začíná. Čelo vydá
+// traceOffsetPath CELÉ, tedy i od osy (part-1 dojezd X25,94 → [0 → 28,94]);
+// emise jede od konce průchodu, ale model dráhy (pravidlo 9, realStock.js)
+// bral, že dojezd přejel celé čelo až od osy — další průchody pod ním pak
+// vyšly „nic neuberou" a zahodily se (audit CAM 26. 11. 2026). Začátek
+// vodorovného úseku ven od osy se proto ořízne na `minX`.
+export function clipLeadOutToDepth(segs, maxX, minX = -Infinity) {
   const eps = 0.02;
   const out = [];
-  for (const s of segs) {
+  for (let s of segs) {
     if (s.type === 'line' && Math.abs(s.z1 - s.z2) < 1e-6) {
+      if (out.length === 0 && s.x2 > s.x1 && s.x1 < minX - eps && s.x2 > minX) s = { ...s, x1: minX };
       if (s.x1 > maxX + eps && s.x2 > maxX + eps) break;         // celé čelo za sousedem
       if (s.x2 > maxX + eps && s.x2 > s.x1) { out.push({ ...s, x2: maxX }); break; } // ven přes souseda
       out.push(s);

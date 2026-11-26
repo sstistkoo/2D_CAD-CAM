@@ -68,7 +68,7 @@ export function emitOpenInterval(D) {
         traceOffsetPath(zL, findLeadOutEndZ(zL, q.x, -Infinity, traceFloorL)),
         xL, zL), true);
       while (lo.length > 0 && lo[0].x2 <= xL + 0.02) lo.shift();
-      clipLeadOutToDepth(lo, q.x);
+      clipLeadOutToDepth(lo, q.x, xL);
       if (lo.length > 0) cand.contourLeadOut = lo;
     }
     if (holderFitAreaAlong(cand) > 0.05) return null;
@@ -527,7 +527,7 @@ export function emitOpenInterval(D) {
     // U šikmé kontury to řeší findLeadOutEndZ (v ose Z), ale VODOROVNÉ
     // čelo (konstantní Z) vydá traceOffsetPath celé až k bossu → oříznout
     // na prevX (jinak dojezd zbytečně přejede celé čelo ven až na buben).
-    if (prevX !== null && Number.isFinite(prevX)) clipLeadOutToDepth(leadOut, prevX);
+    clipLeadOutToDepth(leadOut, (prevX !== null && Number.isFinite(prevX)) ? prevX : Infinity, currentX);
     // „i u čelního" (viz isFaceLeadOut výš): bez zaškrtnutí se dojezd
     // po čelní/radiální stěně vynechá — průchod skončí u stěny a
     // odskočí, schod dobere čelní operace.

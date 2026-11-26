@@ -327,12 +327,25 @@ export function makeIntervalScan({
       let zLo = Math.max(iv.zEnd, zLoBound);
       if (zHi - zLo < dzScan) continue;
       if (Xs > X && zLo > zLoBound + eps) zLo = refineEngageZ(X, zHi, zLo);
+      // KONEC U SVISLÉHO ČELA (audit CAM 26. 11. 2026, pravidlo 3): oblast
+      // dílce je vzorkovaná po `dzScan`, takže skok offsetu (čelo = vodorovný
+      // úsek offsetu) je v ní šikmá hrana mezi vzorky a konce vrstev u čela
+      // ležely na přímce (part-1 Z257,430 … 257,614 při offsetu Z257,514 —
+      // hlubší vrstvy zajely až 0,084 mm do přídavku, tříska 3,09 při ap 3).
+      // Leží-li konec mezi otevřeným a zablokovaným vzorkem, dopřesní se na
+      // skutečný dotyk jako u scan-line. Oblast (a s ní zbytek) se nemění —
+      // přesná oblast odkryla pás před čelem nad napojenou dírou
+      // (cam-bore-contour, poznámka auditu).
+      else if (zLo > zLoBound + eps && blockedAt(X, zLo - dzScan) && !blockedAt(X, Math.min(zHi, zLo + dzScan))) {
+        zLo = Math.max(zLoBound, refineEngageZ(X, Math.min(zHi, zLo + dzScan), zLo - dzScan));
+      }
       if (zHi - zLo < dzScan) continue;
       // blocked = levý konec bounduje kontura (nedosáhl spodní meze rozsahu) —
       // stejná sémantika jako u scan-line (jen poslední otevřený běh je false).
       intervals.push({ zStart: zHi, zEnd: zLo, blocked: zLo > zLoBound + eps });
     }
     const firstOpen = !blockedAt(X, zHiBound);
+    if (globalThis.process?.env?.IVDBG && X < 21 && X > 19) console.log('IV', X, zHiBound, zLoBound, JSON.stringify(layerZIntervalsAtX(residual, Xs)), JSON.stringify(intervals));
     return applyHolderClamp(clampPartingBody(intervals, X), firstOpen, X, mainScan);
   };
   // Jediná cesta (24. 9. 2026, sjednocení generátorů): booleovské intervaly.

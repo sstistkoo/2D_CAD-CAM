@@ -220,7 +220,13 @@ describe('ResidualTracker nelže o materiálu', () => {
   //
   // POZOR: tohle NENÍ povolení mez snižovat dál. Až i `part-13` spadne na
   // nulu, patří sem NOVÁ fixture s převisem, ne menší číslo.
-  const TAB_MIN = 0.5;
+  //
+  // 0,5 → 0,4 (uživatel 27. 11. 2026): pole na part-13 podřezává 0,473 mm
+  // (tracker 0,305). Pokles z 0,849 nezpůsobil zmizelý převis, ale oprava
+  // MODELU dojezdu po čele: traceOffsetPath vydával čelo celé od osy (x1 = 0)
+  // a pole tím na Z čela „vykopalo" sloupec až k ose (audit CAM 26. 11. 2026,
+  // `clipLeadOutToDepth` s minX). Pro další snižování platí POZOR výš.
+  const TAB_MIN = 0.4;
   for (const name of ['part-13-zleva-flange']) {
     it(`${name}: tracker je proti výškovému poli měřitelně lepší`, async () => {
       const { worstTrk, worstTab } = await measure(name);
