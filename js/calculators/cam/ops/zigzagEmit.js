@@ -54,8 +54,13 @@ export function emitZigzagPass(pass, env, simCounter) {
     // `G0 X149.000` → `G1 X143.000`, audit 23. 11. 2026). Stejně jako rampa
     // podélného hrubování (`rampEntryClear`, roughEmit.js).
     const stop = typeof env.rapidStopXAt === 'function' ? env.rapidStopXAt(mv[0].z) : null;
+    // Pod nosem v tom Z žádný zbytek (`stop` null, vjezd vedle dílu) → rychloposuv
+    // až 0,5 nad vrstvu; dřív výchozí vůle a 3 mm posuvem vzduchem
+    // (lathe-zigzag-wall-steps `N6430`, audit 26. 11. 2026).
+    const noStock = stop === null && typeof env.rapidStopXAt === 'function';
     safeRapidTo(mv[0].x, mv[0].z, true, false, true,
-      stop === null || !Number.isFinite(env.rapidStopX) ? null : Math.min(env.rapidStopX, Math.max(stop - mv[0].x, 0)));
+      !Number.isFinite(env.rapidStopX) ? null : noStock ? Math.min(env.rapidStopX, 0.5)
+        : stop === null ? null : Math.min(env.rapidStopX, Math.max(stop - mv[0].x, 0)));
     // `safeRapidTo` někdy zůstane ve výšce přejezdu (karusel wall-steps:
     // X114,38 nad začátkem rampy X78,22) a první pohyb průchodu pak jel z ní
     // jedním strmým G1 (`N2400` 78°, posledních 10 mm v materiálu; audit
