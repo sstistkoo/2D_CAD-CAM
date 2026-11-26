@@ -52,7 +52,7 @@ const PLUNGE_MIN_CUT = 0.5;   // mm² — P6: dotek bokem bez materiálu pod nos
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const imp = (p) => import(pathToFileURL(join(root, p)).href);
 const { runCamProg } = await imp('tests/helpers/camHeadless.mjs');
-const { MaterialRemoval, toolFootprint, toolFootprintVisual, insertExtent } = await imp('js/calculators/cam/materialRemoval.js');
+const { MaterialRemoval, toolFootprint, toolFootprintVisual, insertExtent, insertWorldLoop } = await imp('js/calculators/cam/materialRemoval.js');
 const { validateToolpath, holderWorldLoop } = await imp('js/calculators/cam/collisionValidator.js');
 const { offsetSilhouetteLoop } = await imp('js/calculators/cam/toolEnvelope.js');
 const { getEffectivePlungeAngle, plungeDisabled, wallPlungeOn, topXOnLoop } = await imp('js/calculators/cam/camMath.js');
@@ -324,6 +324,38 @@ async function check(file) {
     if (P.roughingSide === 'left') rangeZ[1] = Math.min(rangeZ[1], r.calc.rangeEndZ);
     else rangeZ[0] = Math.max(rangeZ[0], r.calc.rangeEndZ);
   }
+  // SCHOD OD MATERIÁLU NAD VRSTVOU (pravidlo 6 „Čelně", audit 26. 11. 2026):
+  // první schod na přechodu z mezní čáry nemá nad sebou konec mělčí vrstvy —
+  // mělčí vrstvy tam nejsou, protože pod mezní čarou nic nebraly (face-psknr
+  // `N950`: vrstvy Z272,9–292,9 vynechané, nad koncem stojí válec odlitku X21,8).
+  // Konec je fyzikální, když by OBRYS DESTIČKY o 1 mm dál zajel do materiálu
+  // výš než horní hrana téže vrstvy (edge + ap) — ten vrstva brát nemá.
+  // Tolerance ±0,15 jako u schodu podle úhlu: generátor (face/insertGuard.js)
+  // měří mez od konců mělčích vrstev, ne od skutečného materiálu, a končí
+  // 0,35–1,1 mm před dotykem (face-psknr `N950` 1,10, casting-axial `N2080` 1,05).
+  const insLoopT = (() => {
+    try {
+      const l = insertWorldLoop(P, P.roughingSide === 'left');
+      if (!l || l.length < 3) return null;
+      const out = [];
+      for (let k = 0; k < l.length; k++) {
+        const a = T(l[k]), b = T(l[(k + 1) % l.length]);
+        const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.25));
+        for (let j = 0; j < n; j++) out.push({ x: a.x + (b.x - a.x) * j / n, z: a.z + (b.z - a.z) * j / n });
+      }
+      return out;
+    } catch { return null; }
+  })();
+  const blockedAbove = (q, loops) => {
+    if (!insLoopT) return false;
+    const zN = q.e + q.dir * 1.15, top = q.edge + ap + TOL_AP;
+    for (const p of insLoopT) {
+      const pt = { x: q.d + p.x, z: zN + p.z };
+      if (pt.x <= top) continue;
+      for (const l of loops) if (pointInLoop(pt, l) === 'inside') return true;
+    }
+    return false;
+  };
   const pastRange = (q) => !face && (q.dir < 0
     ? q.e - 1 - extR.zNeg < rangeZ[0] - 0.05
     : q.e + 1 + extR.zPos > rangeZ[1] + 0.05);
@@ -597,7 +629,8 @@ async function check(file) {
         const stair = !partingOk && (layerEnds.some(L => L.dir === q.dir && Math.abs(L.d - (q.d + ap)) < 0.1
           && stepNoms.some(s => Math.abs((L.e - q.e) * q.dir - s) <= 0.15))
           || (holderStair && top !== null && top - q.edge <= ap + TOL_AP));
-        if (top !== null && top > q.edge + 0.2 && (offX === null || offX < q.edge + lift - 0.2) && !stair && !partingPlungeOut && !pastRange(q))
+        if (top !== null && top > q.edge + 0.2 && (offX === null || offX < q.edge + lift - 0.2) && !stair && !partingPlungeOut && !pastRange(q)
+          && !blockedAbove(q, TL(rm.model.loops)))
           found.endMid.push({ i: q.i, v: top - q.edge });
         layerEnds.push(q);
       }
