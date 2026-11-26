@@ -93,6 +93,14 @@ tenčí, je ta poslední — a ta se udělá vždy.**
   offsetovou čarou polotovaru (pravidlo 9) a první vrstvou mřížky se dělí
   rovnoměrně (face-cylinder Z51 → 49,5 → 48 po 1,5 při ap 2), ne na plnou
   vrstvu a tenký zbytek.
+- **Výjimka — kulatá čelně pod osazením (uživatel 26. 11. 2026):** první
+  kroky sestupu pod úhlem zanoření (pravidlo 6) hned pod osazením smí vzít
+  víc než ap, nejvýš rádius nosu. Vrstvy nad nimi kvůli osazení nedojely
+  a krok bere horní půlkou nosu sloupec pod osazením (part-23 R10 9,2 mm
+  při ap 4, part-18 R8 5,6 / 4,9 / 3,5 mm při ap 3; další kroky už ap).
+  Menší záběr by chtěl krok v X ~0,2 mm (≈ 20× víc průchodů); zkrácení
+  průchodů se řetězí a nechá velký zbytek (zkoušeno a vráceno). Aplikace
+  varuje („Zanoření do plného materiálu … zkráceno“).
 
 ---
 

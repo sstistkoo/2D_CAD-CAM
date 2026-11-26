@@ -498,7 +498,21 @@ async function check(file) {
         const zm = (a.z + b.z) / 2, tb = topAt(loopsBefore, zm), ts = topAt(SL, zm);
         return tb !== null && ts !== null && Math.abs(tb - ts) < 0.05;
       };
-      if (!finishLine && !partingPlunge && chipV > ap + TOL_AP && cut > 0.05 && !polyFirst()) found.chip.push({ i, v: chipV, line: sp[i].originalLineIdx });
+      // Výjimka pravidla 3 (uživatel 26. 11. 2026): kulatá čelně — první kroky
+      // sestupu pod úhlem zanoření pod osazením. Krok vezme horní půlkou nosu
+      // sloupec, který vrstvy nad ním kvůli osazení nechaly (part-23 R10 `N2180`
+      // 9,2 mm při ap 4, part-18 R8 `N2770` 5,6 při ap 3); jemnější krok by musel
+      // být ~0,2 mm. Smí nejvýš rádius nosu. Krok = konec o vrstvu (ap) mělčí
+      // vrstvy minus tento konec, 0,2 … ap·tan(zanoření) + 0,15 směrem k ose.
+      const roundDescent = () => {
+        if (!face || !ins.faceDescentAtPlungeAngle || !(chipV <= (parseFloat(P.toolRadius) || 0) + TOL_AP)) return false;
+        const dzT = b.z - a.z;
+        if (!(Math.abs(b.x - a.x) < 1e-6 && Math.abs(dzT) > 1)) return false;
+        const dirT = Math.sign(dzT), maxStep = ap * Math.tan(Math.min(89, plungeLimit) * Math.PI / 180) + 0.15;
+        return layerEnds.some(L => L.dir === dirT && Math.abs(L.d - (b.x + ap)) < 0.1
+          && (b.z - L.e) * dirT > 0.2 && (b.z - L.e) * dirT <= maxStep);
+      };
+      if (!finishLine && !partingPlunge && chipV > ap + TOL_AP && cut > 0.05 && !polyFirst() && !roundDescent()) found.chip.push({ i, v: chipV, line: sp[i].originalLineIdx });
       // Vrstva = navazující vodorovné řádky na tomtéž X (cik cak u stěny dojede
       // kus vrstvy jiným posuvem — v-insert-size `N2590 G1 Z583.210` +
       // `N2600 G1 Z593.410 F0.053`; ten kus sám by vyšel „tenký").
