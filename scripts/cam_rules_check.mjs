@@ -144,7 +144,7 @@ const distToPoly = (polys, x, z) => {
 // (tvar plátku, `toolFootprintVisual`), když střed nosu jede po kontuře
 // (`paths` = offset dílu o rádius nosu — do drážky užší než nos nevjede),
 // + přídavek. Mřížka z = z0 + k·dz.
-function toolReach(P, paths, allow, z0, dz, n) {
+function toolReach(P, paths, allow, z0, dz, n, czLim = [-Infinity, Infinity]) {
   if (!paths || !(n > 0)) return null;
   const fp = toolFootprintVisual(P) || toolFootprint(P);
   if (!fp || fp.length < 3) return null;
@@ -172,7 +172,10 @@ function toolReach(P, paths, allow, z0, dz, n) {
   for (const pl of paths) for (let i = 1; i < pl.length; i++) {
     const a = pl[i - 1], b = pl[i], L = Math.hypot(b.x - a.x, b.z - a.z), s = Math.max(1, Math.ceil(L / 0.1));
     // Střed nosu za osou nejede nikdy (offset uzavírací čáry po ose X−R).
-    for (let j = 0; j <= s; j++) { const cx = a.x + (b.x - a.x) * j / s; if (cx >= 0) stamp(cx, a.z + (b.z - a.z) * j / s); }
+    for (let j = 0; j <= s; j++) {
+      const cx = a.x + (b.x - a.x) * j / s, cz = a.z + (b.z - a.z) * j / s;
+      if (cx >= 0 && cz >= czLim[0] && cz <= czLim[1]) stamp(cx, cz);
+    }
   }
   return out;
 }
@@ -756,8 +759,19 @@ async function check(file) {
   const zl = zLim;
   const rng = !face && zl.rangeActive && Number.isFinite(zl.rangeStart) && Number.isFinite(zl.rangeEnd)
     ? [Math.min(zl.rangeStart, zl.rangeEnd), Math.max(zl.rangeStart, zl.rangeEnd)] : null;
-  const fLo = rng ? Math.max(rng[0], Math.min(zLo, sLo)) : Math.min(zLo, sLo);
-  const fHi = rng ? Math.min(rng[1], Math.max(zHi, sHi)) : Math.max(zHi, sHi);
+  let fLo = rng ? Math.max(rng[0], Math.min(zLo, sLo)) : Math.min(zLo, sLo);
+  let fHi = rng ? Math.min(rng[1], Math.max(zHi, sHi)) : Math.max(zHi, sHi);
+  // STĚNA POD X MAX (pravidlo 12, `rangeEndZ`): za stěnou se neobrábí vůbec
+  // a u ní smí střed nosu jen tam, kde obrys destičky stěnu nepřejede — jako
+  // u P4 (`pastRange`). Klín pod spodní hranou destičky mezi stěnou a koncem
+  // vrstev (xmax-wall Z269,6…272,9, konce vrstev = stěna + přesah 3,3) je
+  // dosah destičky, ne chybějící vrstva (audit 26. 11. 2026). `rangeEndZ` je
+  // i konec ručního rozsahu, který úsek zkrátil (range-end-leadout Z61,1…64,6).
+  let czLim = [-Infinity, Infinity];
+  if (!face && Number.isFinite(r.calc.rangeEndZ)) {
+    if (P.roughingSide === 'left') { fHi = Math.min(fHi, r.calc.rangeEndZ); czLim = [-Infinity, r.calc.rangeEndZ - extR.zPos]; }
+    else { fLo = Math.max(fLo, r.calc.rangeEndZ); czLim = [r.calc.rangeEndZ + extR.zNeg, Infinity]; }
+  }
   // Dráha středu nosu čistě GEOMETRICKY (offset dílu o rádius nosu, úzké
   // drážky offset sám zavře) — ne `finishRefPath`: ta je u podélného
   // napojená na čáru zanoření a schovala by klín pod ní, který P3 hlásí.
@@ -765,7 +779,7 @@ async function check(file) {
   if (!face && liftR > 0) {
     try { const o = polyOffset([partR], liftR); if (o && o[0]) { const l = o.sort((u, v) => v.length - u.length)[0]; nosePath = [[...l, l[0]]]; } } catch { /* bez dosahu */ }
   }
-  const reach = face ? null : toolReach(P, nosePath, allow, fLo + 0.25, 0.25, Math.ceil((fHi - fLo) / 0.25));
+  const reach = face ? null : toolReach(P, nosePath, allow, fLo + 0.25, 0.25, Math.ceil((fHi - fLo) / 0.25), czLim);
   for (let k = 0, z = fLo + 0.25; z < fHi; k++, z += 0.25) {
     const ptRaw = topXOnLoop(allowLoop, z);
     // Čelně: řádek nad průměrem dílu nemá přídavkovou čáru (podélně tam je osa = 0).
