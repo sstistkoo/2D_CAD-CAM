@@ -27,7 +27,7 @@ const BUDGET = {
   'storage/fileIO.js': 1811,
   'calculators/camEditor.js': 1168,   // 10. 11.: G90↔G91, hlavička, parser → gcodeCoordConvert/gcodeEditorHeader/gcodeEditorParser (dřív 1595)
   'events.js': 1762,
-  'calculators/cam/gcodeEmit.js': 1290,
+  'calculators/cam/gcodeEmit.js': 1280,
 };
 
 function walk(dir, out = []) {

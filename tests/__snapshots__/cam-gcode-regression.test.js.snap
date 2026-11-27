@@ -1093,7 +1093,7 @@ N3490 G1 X41.018 ; Výjezd v X (stěna)
 ; Průchod 81
 N3500 G0 X43.039 ; Výjezd nad konturu
 N3510 G0 Z107.932
-N3520 G0 X41.780
+N3520 G0 X41.716
 N3530 G1 X38.317 F0.25
 N3540 G1 X40.317 ; Výjezd v X (stěna)
 ; Průchod 82
@@ -7424,7 +7424,7 @@ N3490 G1 X41.018 ; Výjezd v X (stěna)
 ; Průchod 81
 N3500 G0 X43.039 ; Výjezd nad konturu
 N3510 G0 Z107.932
-N3520 G0 X41.780
+N3520 G0 X41.716
 N3530 G1 X38.317 F0.25
 N3540 G1 X40.317 ; Výjezd v X (stěna)
 ; Průchod 82
@@ -10130,7 +10130,7 @@ N3820 G1 X34.513 ; Výjezd v X (stěna)
 ; Průchod 88
 N3830 G0 X43.039 ; Výjezd nad konturu
 N3840 G0 Z107.932
-N3850 G0 X41.780
+N3850 G0 X41.716
 N3860 G1 X24.103 F0.25
 N3870 G1 X26.103 ; Výjezd v X (stěna)
 ; Průchod 89

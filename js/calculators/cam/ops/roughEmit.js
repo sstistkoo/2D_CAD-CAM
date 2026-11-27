@@ -505,6 +505,7 @@ calc.passes.forEach((pass, i) => {
   // (zleva doprava, `backside`). Nájezd před řez a odskok po řezu jdou
   // vždy PROTI směru řezu (−zDir), dojezd „do vzduchu" za koncem po směru.
   const zDir = pass.backside ? 1 : -1;
+  if (typeof E.setPartingSide === 'function') E.setPartingSide(zDir);   // tělo upichováku v rapidStopXAt jen na skutečné straně
   // Osa a směr HLOUBKY průchodu pro „Posuv při zanoření“ (cam/feedTuning.js):
   // podélně / cik cak do hloubky = k ose (−X), čelně = −Z (zleva zrcadlově +Z).
   if (feedTrack) feedTrack.tag = pass.type === 'face' ? { axis: 'z', sign: pass.faceLeft ? 1 : -1 } : { axis: 'x', sign: -1 };

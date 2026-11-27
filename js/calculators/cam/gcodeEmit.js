@@ -13,7 +13,7 @@ import { getEffectivePlungeAngle, intersectVerticalLineArc, intersectVerticalLin
 import { holderWorldLoop } from './collisionValidator.js';
 import { segmentHitsPath } from './contourBuild.js';
 import { buildStockLoopRaw, insertExtent, offsetStockLoop, toolFootprint, toolFootprintSlim, toolFootprintVisual } from './materialRemoval.js';
-import { getInsert } from './inserts/index.js';
+import { getInsert } from './inserts/index.js'; import { partingBodyOffsets } from './partingSide.js';
 import { ROUGHING_STRATEGIES } from './roughingStrategies.js';
 import { roughingKey, mirrorsWorldZ, computeCalculation } from './calculatePipeline.js';
 import { mergeCollinearMoves } from './gcodeCollapse.js'; import { tuneFeeds, createFeedTrack } from './feedTuning.js';
@@ -301,15 +301,7 @@ function generateAutoGCodeRaw(S, calc) {
   //   syrový zbytek + Vůle + R   (dosavadní pravidlo)
   //   plánovací zbytek + R + gap  (odstup od offsetové čáry — exaktní i na šikmé
   //                                stěně, kde je čára v X výš než povrch + Vůle)
-  let _partingSpan;
-  const partingBodySpanGc = () => {
-    if (_partingSpan === undefined) {
-      const ins = getInsert(prms);
-      _partingSpan = ins.cutsFullWidth && ins.bodyZ
-        ? Math.max(Math.abs(ins.bodyZ.lo), Math.abs(ins.bodyZ.hi)) : 0;
-    }
-    return _partingSpan;
-  };
+  let partingSideZDir = 0, _insRS;   // směr řezu průchodu hrubování pro tělo upichováku (setPartingSide z roughEmit), 0 = souměrně
   const rapidStopXAt = (z) => {
     const raw = residualTopXAtZ(z);
     let need = null;
@@ -328,11 +320,9 @@ function generateAutoGCodeRaw(S, calc) {
       const cand = quantizeUp(plan + Math.sqrt(Math.max(R * R - dz * dz, 0)) + feedGapGc);
       if (need === null || cand > need) need = cand;
     }
-    // TĚLO UPICHOVÁKU: rovné dno plátku je `bodyZ` široké, ne jen nos R.
-    // Bere se na obě strany (souměrně — parita zrcadlení zleva/zprava).
-    // part-17: `G0 X17.381` těsně u svahu polotovaru, 2,5 mm² proti offsetové čáře.
-    const span = partingBodySpanGc();
-    for (let d = -span; span > 0 && d <= span + 1e-9; d += 0.5) {
+    // TĚLO UPICHOVÁKU: rovné dno plátku je `bodyZ` široké, ne jen nos R — jen na straně
+    // plátku (cam/partingSide.js). part-17: `G0 X17.381` u svahu polotovaru, 2,5 mm².
+    for (const d of partingBodyOffsets(_insRS ??= getInsert(prms), partingSideZDir)) {
       const plan = planResidualTopXAtZ(z + d);
       if (plan === null) continue;
       const cand = quantizeUp(plan + feedGapGc);
@@ -1248,9 +1238,9 @@ function generateAutoGCodeRaw(S, calc) {
     holderHitsStock, holderPlanAreaAt,
     noteCutMove, noteCutArc, noteCutPass, residualTopXAtZ,
     entryAngleDegGc, stepGc, tipRGc, rDist, rDistZ,
-    simCounter, holderShallowBodies, feedTrack,
+    simCounter, holderShallowBodies, feedTrack, setPartingSide: (d) => { partingSideZDir = d; },
   };
-  ({ simCounter, holderShallowBodies } = emitRoughing(_E));
+  ({ simCounter, holderShallowBodies } = emitRoughing(_E)); partingSideZDir = 0;
 
   // Emise DOKONČOVÁNÍ — celá operace v ops/finishEmit.js.
   emitFinish({
