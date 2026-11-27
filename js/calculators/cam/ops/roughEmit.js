@@ -1016,8 +1016,27 @@ calc.passes.forEach((pass, i) => {
     // po zanoření do kapsy může nástroj stát hluboko, přímý přejezd by řízl stěnu).
     safeRapidTo(cur.x, zApproachVal);
     safeRapidTo(pass.x, zApproachVal);
+    // ÚVODNÍ VZDUCH (audit CAM 27. 11. 2026, pravidlo 5): `firstCutZ` (a tělo
+    // za ním) se měří ze STATICKÉHO plánovacího obrysu, jenže materiál před
+    // vrstvou mohly vzít vrstvy výš — kulatá R10 bokem nosu (part-22 `N1510
+    // G1 Z356.336` z Z380,35: 21 mm posuvem vzduchem). Rychloposuvem až na
+    // Vůli Z před prvním dotykem stopy se zbytkem (skutečným i plánovacím),
+    // nejdál na konec prvního řezného úseku; dál posuvem.
+    {
+      const s0 = emitSegs[0];
+      const zLim = s0 && s0.kind !== 'G0' ? s0.z : firstCutZ;
+      const span = (zLim - cur.z) * zDir;
+      if (span > 3 + rapidClrZGc) {
+        const hitTo = (d) => rapidHitsStock(pass.x, cur.z, pass.x, cur.z + zDir * d) || rapidHitsPlan(pass.x, cur.z, pass.x, cur.z + zDir * d);
+        let free;
+        if (!hitTo(span)) free = span;
+        else { let lo = 0, hi = span; for (let k = 0; k < 20; k++) { const m = (lo + hi) / 2; if (hitTo(m)) hi = m; else lo = m; } free = lo; }
+        const dRapid = Math.min(free - rapidClrZGc, span);
+        if (dRapid > 3) { const zR = cur.z + zDir * dRapid; simCounter += 1; addN(`G0 Z${zR.toFixed(3)}`, simCounter); setPos(pass.x, zR); }
+      }
+    }
     // Bezpečný dotek: sjezd přes clearance na hranu polotovaru pracovním posuvem.
-    simCounter += 1; addN(`G1 Z${firstCutZ.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, firstCutZ);
+    if ((firstCutZ - cur.z) * zDir > 1e-6) { simCounter += 1; addN(`G1 Z${firstCutZ.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, firstCutZ); }
     for (const s of emitSegs) {
       simCounter += 1;
       // „Vzduch" podle STATICKÉ siluety odlitku nemusí být vzduch doopravdy:
@@ -1218,6 +1237,20 @@ calc.passes.forEach((pass, i) => {
     // (xEnd = offset kontury) NAD povrch polotovaru a sjezd „na povrch" by
     // nos zavezl o celý rádius hlouběji — až na hotovou konturu, tj. i
     // přes celý přídavek (reálný nález s R 8 mm).
+    // ÚVODNÍ VZDUCH TĚLA (audit CAM 27. 11. 2026, pravidlo 5): `xStart` je
+    // obrys POLOTOVARU + vůle, jenže materiál v tomto Z mohly vzít vrstvy výš
+    // (kulatá R8/R10 bere bokem nosu ±R) — part-18 `N3060 G1 X45.807` z X74,37
+    // jel 26,8 mm posuvem vzduchem, part-23 až 30,8 mm. Rychloposuvem až na
+    // Stop nad zbytkem (`rapidStopXAt`, skutečný i plánovací, celá šířka nosu),
+    // jen když tam rychloposuv do ničeho nenarazí; zbytek těla posuvem.
+    if (typeof rapidStopXAt === 'function') {
+      const stop = rapidStopXAt(pass.z);
+      const tgt = stop === null ? null : Math.max(stop, pass.xEnd);
+      if (tgt !== null && cur.x - tgt > 3
+        && !rapidHitsStock(cur.x, pass.z, tgt, pass.z) && !rapidHitsPlan(cur.x, pass.z, tgt, pass.z)) {
+        simCounter += 1; addN(`G0 X${xDia(tgt)}`, simCounter); setPos(tgt, pass.z);
+      }
+    }
     const xBody0 = cur.x;
     const xTouch = Math.max(pass.xSurface, pass.xEnd);
     if (cur.x - xTouch > 1e-6) { simCounter += 1; addN(`G1 X${xDia(xTouch)} F${prms.feed}`, simCounter); setPos(xTouch, pass.z); }
