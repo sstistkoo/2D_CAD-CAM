@@ -817,10 +817,14 @@ async function check(file) {
   // vrstev (xmax-wall Z269,6…272,9, konce vrstev = stěna + přesah 3,3) je
   // dosah destičky, ne chybějící vrstva (audit 26. 11. 2026). `rangeEndZ` je
   // i konec ručního rozsahu, který úsek zkrátil (range-end-leadout Z61,1…64,6).
+  // Totéž ruční rozsah 📐 (`rangeZ`, jako `pastRange` u P4; pravidlo 16 „meze
+  // platí pro obrys plátku"): round-r10-finish-steep-arc u konce rozsahu
+  // Z101,9 — Z102–116 je stín kulaté R10, střed nosu smí nejvýš na mez + přesah
+  // (audit 27. 11. 2026; dřív vráceno jako „nečitelné", po rozboru oprávněné).
   let czLim = [-Infinity, Infinity];
-  if (!face && Number.isFinite(r.calc.rangeEndZ)) {
-    if (P.roughingSide === 'left') { fHi = Math.min(fHi, r.calc.rangeEndZ); czLim = [-Infinity, r.calc.rangeEndZ - extR.zPos]; }
-    else { fLo = Math.max(fLo, r.calc.rangeEndZ); czLim = [r.calc.rangeEndZ + extR.zNeg, Infinity]; }
+  if (!face) {
+    fLo = Math.max(fLo, rangeZ[0]); fHi = Math.min(fHi, rangeZ[1]);
+    czLim = [rangeZ[0] + extR.zNeg, rangeZ[1] - extR.zPos];
   }
   // Dráha středu nosu čistě GEOMETRICKY (offset dílu o rádius nosu, úzké
   // drážky offset sám zavře) — ne `finishRefPath`: ta je u podélného
