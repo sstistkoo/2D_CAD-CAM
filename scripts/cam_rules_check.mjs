@@ -96,6 +96,25 @@ const topAt = (loops, z) => {
   return top;
 };
 
+// MATERIÁL V PÁSU VRSTVY (P4, audit 27. 11. 2026): úseky materiálu na svislici
+// z (sudo-liché pravidlo přes všechny smyčky); vrátí horní konec nejnižšího
+// úseku, který zasahuje do pásu (x0, x1), nebo null. `topAt` bere vrch CELÉHO
+// sloupce — čelně (prohozené osy) u dílu s převisem je to materiál nebo díl
+// o stovky mm dál (part-19: konec vrstvy Z71,9, „vrch" sloupce Z256,9)
+// a uměle zkrácená vrstva tak prošla jako „díl tam leží pod břitem".
+const slabTopAt = (loops, z, x0, x1) => {
+  const xs = [];
+  for (const l of loops) {
+    for (let i = 0; i < l.length; i++) {
+      const a = l[i], b = l[(i + 1) % l.length];
+      if ((a.z <= z && b.z > z) || (b.z <= z && a.z > z)) xs.push(a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z)));
+    }
+  }
+  xs.sort((p, q) => p - q);
+  for (let k = 0; k + 1 < xs.length; k += 2) if (xs[k + 1] > x0 && xs[k] < x1) return xs[k + 1];
+  return null;
+};
+
 // Spodní hrana materiálu na souřadnici z (nejnižší průsečík se smyčkami).
 // Délka materiálu ve sloupci z (součet úseků uvnitř, sudo-liché pravidlo).
 const colLen = (loops, z) => {
@@ -617,7 +636,21 @@ async function check(file) {
       for (const q of pendingEnd) {
         // Materiál za koncem, a přitom by tam dráha na téže hloubce ještě mohla jet
         // (offsetová dráha tam leží pod ní) — tedy nebránila kontura ani přídavek.
-        const top = topAt(TL(rm.model.loops), q.zN), offX = offsetXAt(q.zN);
+        // Čelně se měří MÍSTNĚ (`slabTopAt`): materiál v pásu vrstvy a díl
+        // (přídavková smyčka) přímo pod břitem 1 mm za koncem.
+        const top = slabTopAt(TL(rm.model.loops), q.zN, q.edge + 0.05, q.edge + ap + TOL_AP);
+        // Díl brání, když by nos (kružnice rádiusu kolem středu na téže hloubce
+        // 1 mm dál) zajel do přídavkové smyčky — místně, ne vrch sloupce.
+        const noseHits = (() => {
+          const R = Math.max(lift, 0.05);
+          for (let j = 0; j <= 12; j++) {
+            const a = Math.PI * j / 12;
+            const pt = { x: q.d - R * Math.sin(a) + 0.05, z: q.zN + R * Math.cos(a) };
+            if (pointInLoop(pt, allowLoop) === 'inside') return true;
+          }
+          return false;
+        })();
+        const offX = noseHits ? Infinity : null;
         // SCHOD PODLE ÚHLU ZANOŘENÍ (audit 22. 11. 2026, pravidla 4 a 6): vrstva
         // smí skončit nejvýš o ap·tan(úhel zanoření) PŘED koncem vrstvy o ap
         // mělčí — dál by zadní roh / spodní hrana destičky řezala do schodu,
