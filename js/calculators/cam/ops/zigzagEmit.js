@@ -12,6 +12,40 @@ import { formatFeed } from '../arcFeedComp.js';
 import { chipThinActive, chipRatio, chipMargin, moveDepth } from '../feedTuning.js';
 
 /**
+ * Bod na prvním (šikmém, dolů vedoucím) pohybu průchodu, kde začíná řez:
+ * úvodní kus před ním z plánovacího zbytku nic neubere (po 1 mm), je dlouhý
+ * aspoň 3 mm (mez P5) a rychloposuv nad něj skončí nejvýš 2 mm nad ním
+ * (jinak by dojezd posuvem byl delší než ušetřený vzduch). Jinak null.
+ * @param {Array<{g:string,x:number,z:number}>} mv
+ * @param {object} env
+ * @returns {{g:string,x:number,z:number}|null}
+ */
+function slantHead(mv, env) {
+  if (mv.length < 2 || typeof env.planCutsAlong !== 'function' || typeof env.rapidStopXAt !== 'function') return null;
+  const a = mv[0], b = mv[1];
+  if (b.g !== 'G1' || b.x > a.x - 1e-6) return null;
+  // Téměř svislý sjezd (strměji než 85°; carousel-zigzag-po-x průchod 86, jízda po stěně
+  // 88,5°) je „svislé dosednutí" — výjimka pravidla 20 platí jen pro PRVNÍ
+  // posuv po rychloposuvu. Po rozdělení by zbytek sjezdu byl druhý strmý
+  // posuv (P6 89°, úběr 1,9 mm²) → nechat vcelku.
+  if (Math.abs(b.z - a.z) < Math.tan(5 * Math.PI / 180) * (a.x - b.x)) return null;
+  const perMm = env.airPerMm || 0.01;
+  const n = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z));
+  if (n < 4) return null;
+  const at = (t) => ({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t });
+  let k = 0;
+  for (; k < n - 1; k++) {
+    const p = at(k / n), q = at((k + 1) / n);
+    if (env.planCutsAlong(p.x, p.z, q.x, q.z, perMm)) break;
+  }
+  const p = at(k / n);
+  if (Math.hypot(p.x - a.x, p.z - a.z) < 3 || env.planCutsAlong(a.x, a.z, p.x, p.z, perMm)) return null;
+  const stop = env.rapidStopXAt(p.z);
+  if (stop !== null && stop > p.x + 2 + 1e-6) return null;
+  return { g: 'G0', x: p.x, z: p.z };
+}
+
+/**
  * @param {object} pass  { type:'zigzag', moves:[{g,x,z}], xSafe }
  * @param {object} env   addN, xDia, cur, setPos, safeRapidTo, noteCutMove, prms, rDist, rDistZ
  * @param {number} simCounter
@@ -47,31 +81,39 @@ export function emitZigzagPass(pass, env, simCounter) {
     if (cur.x - mv[0].x > 0.5) { simCounter += 1; addN(`G0 X${xDia(mv[0].x + 0.5)}`, simCounter); setPos(mv[0].x + 0.5, cur.z); }
     simCounter += 1; addN(`G1 X${xDia(mv[0].x)} F${prms.feed}`, simCounter); setPos(mv[0].x, cur.z);
   } else {
+    // ÚVODNÍ VZDUCH ŠIKMÉHO VJEZDU (audit CAM 27. 11. 2026, pravidlo 5): první
+    // pohyb vede šikmo dolů a materiálu se dotkne až po kusu vzduchu
+    // (lathe-zigzag-v-insert-size `N3240` 7,2 mm, `N3540` 10,5, `N4220` 14).
+    // Úvodní kus, který z plánovacího zbytku nic neubere (po 1 mm, ≥ 3 mm),
+    // se nejede — příjezd míří rovnou na bod na pohybu (`t`), odkud první pohyb
+    // pokračuje. Jako rampa podélného hrubování (`emitRampHeadRapid`).
+    // Plán posuvu (`zigzagFeedPlan` níž) zůstává z původních bodů.
+    const t = slantHead(mv, env) || mv[0];
     // Rychloposuv se zastaví podle KRUŽNICE NOSU nad skutečným zbytkem
     // (`rapidStopXAt`), ne pevně o Stop rychloposuvu nad začátkem — pravidlo
     // 20 „rychloposuv končí 0,5 nad vrstvou" a pravidlo 5. Dřív se k začátku
     // každé vrstvy sjíždělo 6 mm posuvem vzduchem (lathe-zigzag-left-10
     // `G0 X149.000` → `G1 X143.000`, audit 23. 11. 2026). Stejně jako rampa
     // podélného hrubování (`rampEntryClear`, roughEmit.js).
-    const stop = typeof env.rapidStopXAt === 'function' ? env.rapidStopXAt(mv[0].z) : null;
+    const stop = typeof env.rapidStopXAt === 'function' ? env.rapidStopXAt(t.z) : null;
     // Pod nosem v tom Z žádný zbytek (`stop` null, vjezd vedle dílu) → rychloposuv
     // až 0,5 nad vrstvu; dřív výchozí vůle a 3 mm posuvem vzduchem
     // (lathe-zigzag-wall-steps `N6430`, audit 26. 11. 2026).
     const noStock = stop === null && typeof env.rapidStopXAt === 'function';
-    safeRapidTo(mv[0].x, mv[0].z, true, false, true,
+    safeRapidTo(t.x, t.z, true, false, true,
       !Number.isFinite(env.rapidStopX) ? null : noStock ? Math.min(env.rapidStopX, 0.5)
-        : stop === null ? null : Math.min(env.rapidStopX, Math.max(stop - mv[0].x, 0)));
+        : stop === null ? null : Math.min(env.rapidStopX, Math.max(stop - t.x, 0)));
     // `safeRapidTo` někdy zůstane ve výšce přejezdu (karusel wall-steps:
     // X114,38 nad začátkem rampy X78,22) a první pohyb průchodu pak jel z ní
     // jedním strmým G1 (`N2400` 78°, posledních 10 mm v materiálu; audit
     // 24. 11. 2026). Dojet: rychloposuvem na zastavení nad zbytkem, pak posuvem.
-    if (Math.abs(cur.z - mv[0].z) < 1e-6 && cur.x > mv[0].x + 1e-6) {
-      let xs = stop !== null ? Math.min(cur.x, Math.max(stop, mv[0].x)) : cur.x;
+    if (Math.abs(cur.z - t.z) < 1e-6 && cur.x > t.x + 1e-6) {
+      let xs = stop !== null ? Math.min(cur.x, Math.max(stop, t.x)) : cur.x;
       // Rychloposuv dolů jen když nenarazí do zbytku (ani plánovacího) — jinak posuvem.
       const hit = (x1, x2) => (env.rapidHitsStock && env.rapidHitsStock(x1, cur.z, x2, cur.z)) || (env.rapidHitsPlan && env.rapidHitsPlan(x1, cur.z, x2, cur.z));
       if (xs < cur.x - 1e-6 && hit(cur.x, xs)) xs = cur.x;
       if (xs < cur.x - 1e-6) { simCounter += 1; addN(`G0 X${xDia(xs)}`, simCounter); setPos(xs, cur.z); }
-      if (cur.x > mv[0].x + 1e-6) { simCounter += 1; addN(`G1 X${xDia(mv[0].x)} F${prms.feed}`, simCounter); setPos(mv[0].x, cur.z); }
+      if (cur.x > t.x + 1e-6) { simCounter += 1; addN(`G1 X${xDia(t.x)} F${prms.feed}`, simCounter); setPos(t.x, cur.z); }
     }
   }
   // Posuv u čela (ops/zigzagFeed.js); zanoření řeší cam/feedTuning.js.
