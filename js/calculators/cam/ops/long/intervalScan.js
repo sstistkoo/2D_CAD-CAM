@@ -336,7 +336,9 @@ export function makeIntervalScan({
       // skutečný dotyk jako u scan-line. Oblast (a s ní zbytek) se nemění —
       // přesná oblast odkryla pás před čelem nad napojenou dírou
       // (cam-bore-contour, poznámka auditu).
-      else if (zLo > zLoBound + eps && blockedAt(X, zLo - dzScan) && !blockedAt(X, Math.min(zHi, zLo + dzScan))) {
+      // Platí i po větvi pro osu výš: ta půlí jen mezi zHi a rozmazaným koncem,
+      // k čelu za ním se nedostane (part-1 vrstva X0 končila Z257,614 místo 257,524).
+      if (zLo > zLoBound + eps && blockedAt(X, zLo - dzScan) && !blockedAt(X, Math.min(zHi, zLo + dzScan))) {
         zLo = Math.max(zLoBound, refineEngageZ(X, Math.min(zHi, zLo + dzScan), zLo - dzScan));
       }
       if (zHi - zLo < dzScan) continue;

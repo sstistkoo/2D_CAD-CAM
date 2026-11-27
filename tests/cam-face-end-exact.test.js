@@ -27,8 +27,8 @@ describe('konce vrstev u svislého čela', () => {
   it('part-1: všechny vrstvy pod čelem končí na offsetu čela (do 0,011)', async () => {
     const prog = JSON.parse(readFileSync(join(here, 'fixtures/cam/part-1.camprog'), 'utf8'));
     const r = await runCamProg(prog);
-    const ends = r.calc.passes.filter(p => p.type === 'long' && p.x > 1 && p.x < 31 && p.zEnd > 255 && p.zEnd < 260).map(p => p.zEnd);
-    expect(ends.length).toBeGreaterThanOrEqual(8);
+    const ends = r.calc.passes.filter(p => p.type === 'long' && p.x >= 0 && p.x < 31 && p.zEnd > 255 && p.zEnd < 260).map(p => p.zEnd);
+    expect(ends.length).toBeGreaterThanOrEqual(9);
     for (const z of ends) {
       expect(z, 'vrstva zajela za offset čela').toBeGreaterThanOrEqual(257.514 - 1e-6);
       expect(z, 'vrstva skončila před čelem').toBeLessThanOrEqual(257.514 + 0.011);
