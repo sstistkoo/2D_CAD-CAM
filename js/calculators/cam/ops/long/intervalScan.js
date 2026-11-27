@@ -345,7 +345,6 @@ export function makeIntervalScan({
       intervals.push({ zStart: zHi, zEnd: zLo, blocked: zLo > zLoBound + eps });
     }
     const firstOpen = !blockedAt(X, zHiBound);
-    if (globalThis.process?.env?.IVDBG && X < 21 && X > 19) console.log('IV', X, zHiBound, zLoBound, JSON.stringify(layerZIntervalsAtX(residual, Xs)), JSON.stringify(intervals));
     return applyHolderClamp(clampPartingBody(intervals, X), firstOpen, X, mainScan);
   };
   // Jediná cesta (24. 9. 2026, sjednocení generátorů): booleovské intervaly.

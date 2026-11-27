@@ -190,6 +190,15 @@ export function passPath(p, { leadOut = true } = {}) {
   for (const sg of p.contourLeadIn || []) segs.push(sg);
   if (Number.isFinite(p.x) && Number.isFinite(p.zStart) && Number.isFinite(p.zEnd))
     segs.push({ type: 'line', x1: p.x, z1: p.zStart, x2: p.x, z2: p.zEnd });
-  if (leadOut) for (const sg of p.contourLeadOut || []) segs.push(sg);
+  // Vodorovný úsek dojezdu ven od osy začíná na hloubce průchodu — emise jede
+  // od konce průchodu. traceOffsetPath vydá čelo celé od osy a dráha od osy by
+  // „ubrala" i pás pod dalšími vrstvami, které by se pak zahodily jako
+  // „nic neuberou" (audit CAM 26.–27. 11. 2026; v openPass.js to ořízne
+  // `clipLeadOutToDepth`, tady pojistka pro ostatní výrobce dojezdů).
+  if (leadOut) (p.contourLeadOut || []).forEach((sg, k) => {
+    if (k === 0 && sg && sg.type === 'line' && Number.isFinite(p.x) && Math.abs(sg.z1 - sg.z2) < 1e-6
+      && sg.x2 > sg.x1 && sg.x1 < p.x - 0.02 && sg.x2 > p.x) segs.push({ ...sg, x1: p.x });
+    else segs.push(sg);
+  });
   return segs;
 }

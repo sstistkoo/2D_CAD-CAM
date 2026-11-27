@@ -856,10 +856,7 @@ async function check(file) {
     }
     return pl.length > 1 ? toolReach(P, [pl], allow, fLo + 0.25, 0.25, Math.ceil((fHi - fLo) / 0.25), czLim) : null;
     };
-    for (const rr of plPaths.map(reachOf)) {
-      if (!rr) continue;
-      if (!reachPL) reachPL = rr.slice(); else for (let k = 0; k < rr.length; k++) if (rr[k] > reachPL[k] || !Number.isFinite(reachPL[k])) reachPL[k] = Number.isFinite(rr[k]) ? Math.max(rr[k], Number.isFinite(reachPL[k]) ? reachPL[k] : -Infinity) : reachPL[k];
-    }
+    reachPL = reachOf(plPaths[0]);
   }
   for (let k = 0, z = fLo + 0.25; z < fHi; k++, z += 0.25) {
     const ptRaw = topXOnLoop(allowLoop, z);

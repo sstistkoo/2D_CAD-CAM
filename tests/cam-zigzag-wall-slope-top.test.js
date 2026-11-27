@@ -33,4 +33,20 @@ describe('cik cak: jízda po stěně od vrcholu svahu', () => {
     expect(g0.x - seat.x).toBeLessThanOrEqual(10);
     expect(seat.x).toBeCloseTo(68.2, 1);
   }, 120000);
+
+  // Svislé dosednutí jen do ap: `xTop` může ležet vysoko ve vzduchu a pod ním
+  // víc vrstev — tam se vrchol svahu nebere (po-x: dosednutí bylo 8,9 mm při
+  // ap 2, revize 27. 11. 2026).
+  for (const name of ['carousel-zigzag-center-ap10', 'carousel-zigzag-po-x', 'carousel-zigzag-valley', 'lathe-zigzag-left-10']) {
+    it(`${name}: svislé dosednutí jízdy po stěně nejvýš o ap`, async () => {
+      const prog = JSON.parse(readFileSync(join(DIR, `${name}.camprog`), 'utf8'));
+      const ap = parseFloat(prog.params.depthOfCut);
+      const r = await runCamProg(prog);
+      const c = r.calc._xz ? r.calc._xz.calc : r.calc;
+      for (const p of c.passes.filter(q => q.type === 'zigzag' && q.wallClean)) {
+        const [g0, m1] = p.moves;
+        if (m1 && m1.g === 'G1' && Math.abs(m1.z - g0.z) < 1e-6) expect(g0.x - m1.x, name).toBeLessThanOrEqual(ap + 0.05);
+      }
+    }, 120000);
+  }
 });

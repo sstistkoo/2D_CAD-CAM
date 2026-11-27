@@ -267,13 +267,18 @@ export function zigzagFromLayers({ passes, grp, layers: layersIn, xTop, tanA, re
       return fR(z) > h0 + 0.5 ? z : z0;
     };
     const wallHit = side > 0 ? wallRight(xTop - 0.05, L0.b, L0.b + reach) : wallLeft(xTop - 0.05, L0.a + 0.5, L0.a - reach);
-    const zT = side > 0
-      ? (wallHit !== null ? bTop : slopeTop(L0.b, 1))
-      : (wallHit ?? slopeTop(L0.a, -1));
+    // Vrchol svahu jen tehdy, když svislé dosednutí z `xTop` vyjde nejvýš o ap
+    // (`apZ`); `xTop` může ležet vysoko ve vzduchu (začátek rampy nad čárou
+    // zanoření) a pod ním by mohlo stát víc než jedna vrstva — pak postaru.
+    const zSlope = wallHit === null ? slopeTop(side > 0 ? L0.b : L0.a, side) : null;
+    const slopeOk = zSlope !== null && apZ > 0 && xTop - fR(zSlope) <= apZ + 0.05;
+    const zT = wallHit !== null
+      ? (side > 0 ? bTop : wallHit)
+      : (slopeOk ? zSlope : (side > 0 ? L0.b : L0.a));
     // Z vrcholu svahu se nejdřív svisle dosedne na offset (výjimka pravidla 20:
     // první posuv po rychloposuvu svisle do zbytku u stěny nejvýš o ap) — šikmo
     // 85° by to bylo zanoření strměji než úhel (pravidlo 6).
-    const topSeat = wallHit === null && fR(zT) < xTop - 0.05 ? fR(zT) : null;
+    const topSeat = slopeOk && fR(zT) < xTop - 0.05 ? fR(zT) : null;
     const zB = Lz.follow && fStart && fStart.side === side ? fStart.z : side > 0 ? Lz.b : Lz.a;
     // Pod vrstvou po dně leží dno výš než její nejnižší místo — konec na offsetu.
     const xB = Lz.follow ? Math.min(xTop, fR(zB) + 0.03) : Lz.X;
