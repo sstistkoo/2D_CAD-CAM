@@ -250,7 +250,30 @@ export function zigzagFromLayers({ passes, grp, layers: layersIn, xTop, tanA, re
   const wallPass = (side) => {
     // Horní konec stěny o 0,05 mm pod výškou — viz `bTop` (N4510: jízda po
     // stěně jela nejdřív 6 mm svisle, pak teprve po šikmé stěně).
-    const zT = side > 0 ? bTop : (wallLeft(xTop - 0.05, L0.a + 0.5, L0.a - reach) ?? L0.a);
+    // Stěna NIŽŠÍ než `xTop` (šikmá stěna končí plošinou pod výškou nad první
+    // vrstvou): hledání stěny na výšce `xTop` nic nenajde a jízda začala na
+    // konci první vrstvy — svah nad ní do plošiny nevzal nikdo (karusel
+    // center-ap10: svah 25° r396–447 do plošiny h63, klín r434–447 až 5 mm;
+    // audit CAM 27. 11. 2026, pravidlo 3). Začátek je pak na vrcholu svahu,
+    // kde offset přestane stoupat.
+    const slopeTop = (z0, dir) => {
+      let z = z0;
+      const h0 = fR(z0);
+      for (let k = 0; k < reach / DZ; k++) {
+        const zn = z + dir * DZ;
+        if (!(fR(zn) > fR(z) + 1e-6)) break;
+        z = zn;
+      }
+      return fR(z) > h0 + 0.5 ? z : z0;
+    };
+    const wallHit = side > 0 ? wallRight(xTop - 0.05, L0.b, L0.b + reach) : wallLeft(xTop - 0.05, L0.a + 0.5, L0.a - reach);
+    const zT = side > 0
+      ? (wallHit !== null ? bTop : slopeTop(L0.b, 1))
+      : (wallHit ?? slopeTop(L0.a, -1));
+    // Z vrcholu svahu se nejdřív svisle dosedne na offset (výjimka pravidla 20:
+    // první posuv po rychloposuvu svisle do zbytku u stěny nejvýš o ap) — šikmo
+    // 85° by to bylo zanoření strměji než úhel (pravidlo 6).
+    const topSeat = wallHit === null && fR(zT) < xTop - 0.05 ? fR(zT) : null;
     const zB = Lz.follow && fStart && fStart.side === side ? fStart.z : side > 0 ? Lz.b : Lz.a;
     // Pod vrstvou po dně leží dno výš než její nejnižší místo — konec na offsetu.
     const xB = Lz.follow ? Math.min(xTop, fR(zB) + 0.03) : Lz.X;
@@ -259,6 +282,7 @@ export function zigzagFromLayers({ passes, grp, layers: layersIn, xTop, tanA, re
     }
     if (side * (zT - zB) < 0.5) return null;
     const pts = [{ g: 'G0', x: xTop, z: zT }];
+    if (topSeat !== null) pts.push({ g: 'G1', x: topSeat, z: zT });
     const n = Math.max(2, Math.ceil(Math.abs(zT - zB) / 0.25));
     for (let k = 1; k <= n; k++) {
       const z = zT + (zB - zT) * k / n;
