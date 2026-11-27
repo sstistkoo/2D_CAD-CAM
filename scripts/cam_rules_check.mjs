@@ -59,7 +59,7 @@ const { getEffectivePlungeAngle, plungeDisabled, wallPlungeOn, topXOnLoop } = aw
 const { getInsert } = await imp('js/calculators/cam/inserts/index.js');
 const { stripCodeOwnedParams } = await imp('js/calculators/cam/camDefaults.js');
 const { makePassHelpers } = await imp('js/calculators/cam/passHelpers.js');
-const { polyOffset, pointInLoop, polyUnion, polyArea } = await imp('js/geom/geomCore.js');
+const { polyOffset, pointInLoop, polyUnion, polyArea, polyIntersect } = await imp('js/geom/geomCore.js');
 const { makeOrderChecks } = await imp('scripts/lib/camRuleOrder.mjs');
 const { checkHumpContinuity } = await imp('scripts/lib/camRuleHump.mjs');
 
@@ -231,6 +231,8 @@ async function check(file) {
   // Břit = nejnižší bod stopy nástroje pod programovaným bodem (kulatá R, polygon rádius nosu).
   const lift = Math.max(0, -Math.min(...toolFootprint(P).map(q => T(q).x)));
   const ins = getInsert(P);
+  const airLeadMin = Math.max(AIR_MIN_LEN, (parseFloat(P.retractDistance) || 2) + 4);
+  const airFp = (() => { try { const f = toolFootprint(P); return f && f.length > 2 ? f : null; } catch { return null; } })();
   // Břit ve SKUTEČNÝCH osách (lift výš je čelně v prohozených).
   const liftR = Math.max(0, -Math.min(...toolFootprint(P).map(q => q.x)));
   const partingOk = !!ins.cutsFullWidth;
@@ -391,6 +393,7 @@ async function check(file) {
     const before = Math.abs(rm.model.area());
     const loopsBefore = TL(rm.model.loops);
     const loopsBeforeR = rm.model.loops;   // skutečné osy (P6 nájezd dokončování)
+    const loopsBeforePlanR = rmPlan.model ? rmPlan.model.loops : null;
     if (b.type !== 'G0') {
       // Pohyb jede po hrubovacím offsetu stěny (P3/P6 — viz `offsetPoly`).
       const onWall = () => {
@@ -560,6 +563,32 @@ async function check(file) {
       // dráhy (holder-* díly, audit 23. 11. 2026).
       const finishNoAllow = finishLine && allow < 0.05;
       if (len > AIR_MIN_LEN && Math.max(cut, cutPlan) < AIR_CUT_PER_MM * len && !finishNoAllow) found.air.push({ i, v: len });
+      // P5 — ÚVODNÍ POSUV VZDUCHEM (audit 27. 11. 2026): posuv hned po
+      // rychloposuvu, který jede víc než 3 mm, než se stopa nástroje dotkne
+      // materiálu (skutečného ani plánovacího). Průměr úběru na celý pohyb ho
+      // neodhalí, když materiál stojí až na konci (karusel po-x: svislé
+      // dosednutí 8,9 mm skoro celé vzduchem, `G1 Z108.132` z Z117,062).
+      // Stejné měřítko, jakým emise úvodní vzduch nahrazuje rychloposuvem.
+      else if (len > airLeadMin && !finishLine && sp[i - 1] && sp[i - 1].type === 'G0' && airFp) {
+        const ra = spR[i - 1], rb = spR[i];
+        const touches = (t) => {
+          const cx = ra.x + (rb.x - ra.x) * t, cz = ra.z + (rb.z - ra.z) * t;
+          const fp = airFp.map(q => ({ x: q.x + cx, z: q.z + cz }));
+          for (const L of [loopsBeforeR, loopsBeforePlanR]) {
+            if (!L || !L.length) continue;
+            try { const xs = polyIntersect([fp], L); if (xs && xs.length && Math.abs(polyArea(xs)) > 0.005) return true; } catch { /* dál */ }
+          }
+          return false;
+        };
+        const stepT = 0.25 / len;
+        let t = 0;
+        while (t <= 1 && !touches(t)) t += stepT;
+        const lead = Math.min(t, 1) * len;
+        // Běžný nájezd (rychloposuv zastaví o Bezpečnou vzdálenost nad plánovacím
+        // obrysem, nájezd šikmo / po nosu) má na fixtures 3–5 mm (327 z 361 při
+        // vzdálenosti 2). Hlásí se jen to, co je jasně delší: vzdálenost + 4 mm.
+        if (lead > airLeadMin) found.air.push({ i, v: lead, lead: true });
+      }
       // P6 — kolmé zanoření (pohyb k ose strmější než úhel zanoření)
       const dx = b.x - a.x, dz = b.z - a.z;
       // DOTEK BOKEM ≠ ZANOŘENÍ: pod nosem (sloupec dráhy, `worst`) žádný materiál
@@ -904,7 +933,7 @@ function report(c) {
   row('P3 tříska větší než ap', F.chip, (q) => `${c.N(q.i)}: ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   row('P3 tenká vrstva uprostřed', F.thin, (q) => `${c.N(q.i)}: jen ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   row('P3 zbytek na dně (chybí poslední vrstva)', c.floors, (q) => `Z ${q.z0.toFixed(1)}…${q.z1.toFixed(1)}: až ${q.max.toFixed(2)} mm nad přídavkem${q.maxPL <= TOL_FLOOR ? '  [pod hranicí hrubování]' : ''}`);
-  row('P5 posuv vzduchem', F.air, (q) => `${c.N(q.i)}: ${q.v.toFixed(1)} mm   | ${c.txt(q.i)}`);
+  row('P5 posuv vzduchem', F.air, (q) => `${c.N(q.i)}: ${q.v.toFixed(1)} mm${q.lead ? ' (úvod)' : ''}   | ${c.txt(q.i)}`);
   row('P6 zanoření strměji než dovoleno', F.plunge, (q) => `${c.N(q.i)}: ${q.v.toFixed(0)}° (smí ${q.lim.toFixed(0)}°)${q.depth !== null && q.depth !== undefined ? `, nájezd dokončení do ${q.depth.toFixed(2)} mm` : ''}${showAll && Number.isFinite(q.cut) ? ` [úběr ${q.cut.toFixed(2)} mm², pod nosem ${q.under.toFixed(2)} mm]` : ''}   | ${c.txt(q.i)}`);
   row('P7 přes hrb dřív, než je pravá strana hotová', c.order.found.hump, (q) => `${c.N(q.i)}: za hrbem Z${q.zTop.toFixed(1)}, vpravo ještě ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   row('P7 vrstva přes hrb vcelku až na konec', F.humpBreak, (q) => `${c.N(q.i)}: vrstva X${q.x.toFixed(3)} se na hrbu Z${Math.min(q.h0, q.h1).toFixed(1)}…${Math.max(q.h0, q.h1).toFixed(1)} (vrchol X${q.top.toFixed(2)}) přerušila   | ${c.txt(q.i)}`);
