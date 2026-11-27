@@ -797,6 +797,33 @@ async function check(file) {
     try { const o = polyOffset([partR], liftR); if (o && o[0]) { const l = o.sort((u, v) => v.length - u.length)[0]; nosePath = [[...l, l[0]]]; } } catch { /* bez dosahu */ }
   }
   const reach = face ? null : toolReach(P, nosePath, allow, fLo + 0.25, 0.25, Math.ceil((fHi - fLo) / 0.25), czLim);
+  // TŘÍDĚNÍ (audit 27. 11. 2026, počty se nemění): dosah destičky po HRANICI
+  // HRUBOVÁNÍ (`calc.offsetPath` = offset dílu napojený na čáry zanoření,
+  // pravidlo 1). Zbytek, který vysvětlí celý, leží pod hranicí, ke které
+  // vrstvy jedou — hlásí se dál (klín pod čarou zanoření má být vidět, viz
+  // výš), jen se označí, ať vyniknou nevysvětlené (chybějící vrstvy).
+  // `finishRefPath` vysvětlí míň (6 proti 84): dokončování jede jinudy.
+  let reachPL = null;
+  const plPaths = [r.calc.offsetPath].filter(a => Array.isArray(a) && a.length);
+  if (!face && plPaths.length) {
+    const reachOf = (path) => {
+    const pl = [];
+    for (const sg of path) {
+      if (sg.type === 'line' && sg.p1 && sg.p2) { pl.push({ x: sg.p1.x, z: sg.p1.z }, { x: sg.p2.x, z: sg.p2.z }); continue; }
+      if (sg.type === 'arc' && sg.p1 && sg.p2 && Number.isFinite(sg.cx)) {
+        const a1 = Math.atan2(sg.p1.x - sg.cx, sg.p1.z - sg.cz);
+        let a2 = Math.atan2(sg.p2.x - sg.cx, sg.p2.z - sg.cz);
+        if (sg.dir === 'G2') { while (a2 > a1) a2 -= 2 * Math.PI; } else { while (a2 < a1) a2 += 2 * Math.PI; }
+        for (let j = 0; j <= 16; j++) { const a = a1 + (a2 - a1) * j / 16; pl.push({ x: sg.cx + Math.sin(a) * sg.r, z: sg.cz + Math.cos(a) * sg.r }); }
+      }
+    }
+    return pl.length > 1 ? toolReach(P, [pl], allow, fLo + 0.25, 0.25, Math.ceil((fHi - fLo) / 0.25), czLim) : null;
+    };
+    for (const rr of plPaths.map(reachOf)) {
+      if (!rr) continue;
+      if (!reachPL) reachPL = rr.slice(); else for (let k = 0; k < rr.length; k++) if (rr[k] > reachPL[k] || !Number.isFinite(reachPL[k])) reachPL[k] = Number.isFinite(rr[k]) ? Math.max(rr[k], Number.isFinite(reachPL[k]) ? reachPL[k] : -Infinity) : reachPL[k];
+    }
+  }
   for (let k = 0, z = fLo + 0.25; z < fHi; k++, z += 0.25) {
     const ptRaw = topXOnLoop(allowLoop, z);
     // Čelně: řádek nad průměrem dílu nemá přídavkovou čáru (podélně tam je osa = 0).
@@ -810,8 +837,10 @@ async function check(file) {
     const pt = ptA !== null && reach && Number.isFinite(reach[k]) ? Math.max(ptA, reach[k] + 0.1) : ptA;
     const overA = top !== null && ptA !== null ? top - ptA : 0;
     const over = top !== null && pt !== null ? top - pt : 0;
+    const ptPL = ptA !== null && reachPL && Number.isFinite(reachPL[k]) ? Math.max(pt ?? ptA, reachPL[k] + 0.1) : pt;
+    const overPL = top !== null && ptPL !== null ? top - ptPL : over;
     if (overA > TOL_FLOOR) {
-      if (!run) run = { z0: z, z1: z, max: over }; else { run.z1 = z; run.max = Math.max(run.max, over); }
+      if (!run) run = { z0: z, z1: z, max: over, maxPL: overPL }; else { run.z1 = z; run.max = Math.max(run.max, over); run.maxPL = Math.max(run.maxPL, overPL); }
     } else if (run) { if (run.max > TOL_FLOOR) floors.push(run); run = null; }
   }
   if (run && run.max > TOL_FLOOR) floors.push(run);
@@ -840,7 +869,7 @@ function report(c) {
   row('P2 kolize', c.coll, (q) => `${q.kind} ${q.area.toFixed(1)} mm² @X${q.x.toFixed(2)} Z${q.z.toFixed(2)}`);
   row('P3 tříska větší než ap', F.chip, (q) => `${c.N(q.i)}: ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   row('P3 tenká vrstva uprostřed', F.thin, (q) => `${c.N(q.i)}: jen ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
-  row('P3 zbytek na dně (chybí poslední vrstva)', c.floors, (q) => `Z ${q.z0.toFixed(1)}…${q.z1.toFixed(1)}: až ${q.max.toFixed(2)} mm nad přídavkem`);
+  row('P3 zbytek na dně (chybí poslední vrstva)', c.floors, (q) => `Z ${q.z0.toFixed(1)}…${q.z1.toFixed(1)}: až ${q.max.toFixed(2)} mm nad přídavkem${q.maxPL <= TOL_FLOOR ? '  [pod hranicí hrubování]' : ''}`);
   row('P5 posuv vzduchem', F.air, (q) => `${c.N(q.i)}: ${q.v.toFixed(1)} mm   | ${c.txt(q.i)}`);
   row('P6 zanoření strměji než dovoleno', F.plunge, (q) => `${c.N(q.i)}: ${q.v.toFixed(0)}° (smí ${q.lim.toFixed(0)}°)${q.depth !== null && q.depth !== undefined ? `, nájezd dokončení do ${q.depth.toFixed(2)} mm` : ''}${showAll && Number.isFinite(q.cut) ? ` [úběr ${q.cut.toFixed(2)} mm², pod nosem ${q.under.toFixed(2)} mm]` : ''}   | ${c.txt(q.i)}`);
   row('P7 přes hrb dřív, než je pravá strana hotová', c.order.found.hump, (q) => `${c.N(q.i)}: za hrbem Z${q.zTop.toFixed(1)}, vpravo ještě ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
@@ -848,7 +877,7 @@ function report(c) {
   row('P8 pořadí úseků', c.order.found.order, (q) => `${c.N(q.i)}: úsek Z${q.A.zLo.toFixed(1)}…${q.A.zHi.toFixed(1)} jde pod vrch úseku Z${q.B.zLo.toFixed(1)}…${q.B.zHi.toFixed(1)} (${q.B.top.toFixed(1)}), ten ještě není hotový   | ${c.txt(q.i)}`);
   row('P4 vrstva končí uprostřed materiálu', F.endMid, (q) => `${c.N(q.i)}: za koncem ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   const sum = c.coll.length + F.chip.length + F.thin.length + c.floors.length + F.air.length + F.plunge.length + F.endMid.length + c.order.found.hump.length + c.order.found.order.length + F.humpBreak.length;
-  return { name: c.name, text: lines.join('\n'), cnt, total: sum };
+  return { name: c.name, text: lines.join('\n'), cnt, total: sum, shadow: c.floors.filter(q => q.maxPL <= TOL_FLOOR).length };
 }
 
 // ── PARALELNĚ (23. 11. 2026) ─────────────────────────────────────────
@@ -877,7 +906,8 @@ const runWorker = (f) => new Promise((resolve) => {
 
 let total = 0;
 const counts = {};   // díl → pravidlo → počet (baseline)
-const take = (r) => { log(r.text); counts[r.name] = r.cnt; total += r.total; };
+let shadowTotal = 0;
+const take = (r) => { log(r.text); counts[r.name] = r.cnt; total += r.total; shadowTotal += r.shadow || 0; };
 if (isWorker) {
   process.stdout.write(MARK + JSON.stringify(report(await check(files[0]))));
   process.exit(0);
@@ -906,6 +936,7 @@ if (isWorker) {
   for (const f of files) take(report(await check(f)));
 }
 log(`\nCELKEM porušení: ${total}`);
+log(`  z toho zbytek na dně pod hranicí hrubování (čára zanoření, pravidlo 1): ${shadowTotal}`);
 log('(Čísla N… jsou z programu, který TEĎ vygeneruje aktuální kód — ne z G-kódu uloženého v souboru.)');
 
 if (saveBaseline) {
