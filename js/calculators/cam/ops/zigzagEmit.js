@@ -18,17 +18,19 @@ import { chipThinActive, chipRatio, chipMargin, moveDepth } from '../feedTuning.
  * (jinak by dojezd posuvem byl delší než ušetřený vzduch). Jinak null.
  * @param {Array<{g:string,x:number,z:number}>} mv
  * @param {object} env
- * @returns {{g:string,x:number,z:number}|null}
+ * @returns {{g:string,x:number,z:number,exact?:boolean}|null}
  */
 function slantHead(mv, env) {
   if (mv.length < 2 || typeof env.planCutsAlong !== 'function' || typeof env.rapidStopXAt !== 'function') return null;
   const a = mv[0], b = mv[1];
   if (b.g !== 'G1' || b.x > a.x - 1e-6) return null;
-  // Téměř svislý sjezd (strměji než 85°; carousel-zigzag-po-x průchod 86, jízda po stěně
-  // 88,5°) je „svislé dosednutí" — výjimka pravidla 20 platí jen pro PRVNÍ
-  // posuv po rychloposuvu. Po rozdělení by zbytek sjezdu byl druhý strmý
-  // posuv (P6 89°, úběr 1,9 mm²) → nechat vcelku.
-  if (Math.abs(b.z - a.z) < Math.tan(5 * Math.PI / 180) * (a.x - b.x)) return null;
+  // Téměř svislý sjezd (strměji než 85°; carousel-zigzag-po-x průchod 86, jízda
+  // po stěně 88,5°, 8,3 mm vzduchem) je „svislé dosednutí" — výjimka pravidla 20
+  // platí jen pro PRVNÍ posuv po rychloposuvu. Dojezd posuvem svisle nad bod
+  // řezu by udělal ze zbytku sjezdu druhý strmý posuv (P6 89°, úběr 1,9 mm²).
+  // Proto se rychloposuv dojede PO TÉŽE PŘÍMCE do bodu 0,5 mm před řezem
+  // (`exact`) a sjezd z něj pokračuje jediným posuvem.
+  const steep = Math.abs(b.z - a.z) < Math.tan(5 * Math.PI / 180) * (a.x - b.x);
   const perMm = env.airPerMm || 0.01;
   const n = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z));
   if (n < 4) return null;
@@ -40,6 +42,11 @@ function slantHead(mv, env) {
   }
   const p = at(k / n);
   if (Math.hypot(p.x - a.x, p.z - a.z) < 3 || env.planCutsAlong(a.x, a.z, p.x, p.z, perMm)) return null;
+  if (steep) {
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    const q = at(Math.max(k / n - 0.5 / len, 0));
+    return Math.hypot(q.x - a.x, q.z - a.z) < 3 ? null : { g: 'G0', x: q.x, z: q.z, exact: true };
+  }
   const stop = env.rapidStopXAt(p.z);
   if (stop !== null && stop > p.x + 2 + 1e-6) return null;
   return { g: 'G0', x: p.x, z: p.z };
@@ -100,8 +107,8 @@ export function emitZigzagPass(pass, env, simCounter) {
     // až 0,5 nad vrstvu; dřív výchozí vůle a 3 mm posuvem vzduchem
     // (lathe-zigzag-wall-steps `N6430`, audit 26. 11. 2026).
     const noStock = stop === null && typeof env.rapidStopXAt === 'function';
-    safeRapidTo(t.x, t.z, true, false, true,
-      !Number.isFinite(env.rapidStopX) ? null : noStock ? Math.min(env.rapidStopX, 0.5)
+    safeRapidTo(t.x, t.z, true, false, true, t.exact ? 0
+      : !Number.isFinite(env.rapidStopX) ? null : noStock ? Math.min(env.rapidStopX, 0.5)
         : stop === null ? null : Math.min(env.rapidStopX, Math.max(stop - t.x, 0)));
     // `safeRapidTo` někdy zůstane ve výšce přejezdu (karusel wall-steps:
     // X114,38 nad začátkem rampy X78,22) a první pohyb průchodu pak jel z ní

@@ -1023,9 +1023,10 @@ calc.passes.forEach((pass, i) => {
     // G1 Z356.336` z Z380,35: 21 mm posuvem vzduchem). Rychloposuvem až na
     // Vůli Z před prvním dotykem stopy se zbytkem (skutečným i plánovacím),
     // nejdál na konec prvního řezného úseku; dál posuvem.
-    {
-      const s0 = emitSegs[0];
-      const zLim = s0 && s0.kind !== 'G0' ? s0.z : firstCutZ;
+    // Totéž za vzduchovou mezerou uprostřed vrstvy: řezný úsek za `G0` začíná
+    // podle statické siluety, ale materiál tam mohly vzít vrstvy výš
+    // (lathe-zigzag-v-insert-size `N280 G1 Z-1.000` z Z105,76: 7,7 mm vzduchem).
+    const rapidAhead = (zLim) => {
       const span = (zLim - cur.z) * zDir;
       if (span > 3 + rapidClrZGc) {
         const hitTo = (d) => rapidHitsStock(pass.x, cur.z, pass.x, cur.z + zDir * d) || rapidHitsPlan(pass.x, cur.z, pass.x, cur.z + zDir * d);
@@ -1035,10 +1036,12 @@ calc.passes.forEach((pass, i) => {
         const dRapid = Math.min(free - rapidClrZGc, span);
         if (dRapid > 3) { const zR = cur.z + zDir * dRapid; simCounter += 1; addN(`G0 Z${zR.toFixed(3)}`, simCounter); setPos(pass.x, zR); }
       }
-    }
+    };
+    rapidAhead(emitSegs[0] && emitSegs[0].kind !== 'G0' ? emitSegs[0].z : firstCutZ);
     // Bezpečný dotek: sjezd přes clearance na hranu polotovaru pracovním posuvem.
     if ((firstCutZ - cur.z) * zDir > 1e-6) { simCounter += 1; addN(`G1 Z${firstCutZ.toFixed(3)} F${prms.feed}`, simCounter); setPos(pass.x, firstCutZ); }
-    for (const s of emitSegs) {
+    for (const [si, s] of emitSegs.entries()) {
+      if (si > 0 && s.kind !== 'G0' && emitSegs[si - 1].kind === 'G0') rapidAhead(s.z);
       simCounter += 1;
       // „Vzduch" podle STATICKÉ siluety odlitku nemusí být vzduch doopravdy:
       // silueta nezná materiál, který v tom místě nechal stát dřívější
