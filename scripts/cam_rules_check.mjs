@@ -163,9 +163,12 @@ const distToPoly = (polys, x, z) => {
 // (tvar plátku, `toolFootprintVisual`), když střed nosu jede po kontuře
 // (`paths` = offset dílu o rádius nosu — do drážky užší než nos nevjede),
 // + přídavek. Mřížka z = z0 + k·dz.
-function toolReach(P, paths, allow, z0, dz, n, czLim = [-Infinity, Infinity]) {
+// `T` (čelně): stopa i dráhy jsou v prohozených osách (x' = Z stroje,
+// z' = X stroje) — „za osou" je pak z' < 0, ne x' < 0.
+function toolReach(P, paths, allow, z0, dz, n, czLim = [-Infinity, Infinity], T = null) {
   if (!paths || !(n > 0)) return null;
-  const fp = toolFootprintVisual(P) || toolFootprint(P);
+  const fp0 = toolFootprintVisual(P) || toolFootprint(P);
+  const fp = T && fp0 ? fp0.map(T) : fp0;
   if (!fp || fp.length < 3) return null;
   let fzLo = Infinity, fzHi = -Infinity;
   for (const p of fp) { fzLo = Math.min(fzLo, p.z); fzHi = Math.max(fzHi, p.z); }
@@ -188,14 +191,24 @@ function toolReach(P, paths, allow, z0, dz, n, czLim = [-Infinity, Infinity]) {
       if (lo !== undefined && cx + lo + allow < out[k]) out[k] = cx + lo + allow;
     }
   };
+  const pts = [];
   for (const pl of paths) for (let i = 1; i < pl.length; i++) {
     const a = pl[i - 1], b = pl[i], L = Math.hypot(b.x - a.x, b.z - a.z), s = Math.max(1, Math.ceil(L / 0.1));
     // Střed nosu za osou nejede nikdy (offset uzavírací čáry po ose X−R).
     for (let j = 0; j <= s; j++) {
       const cx = a.x + (b.x - a.x) * j / s, cz = a.z + (b.z - a.z) * j / s;
-      if (cx >= 0 && cz >= czLim[0] && cz <= czLim[1]) stamp(cx, cz);
+      if ((T ? cz >= 0 : cx >= 0) && cz >= czLim[0] && cz <= czLim[1]) pts.push([cx, cz]);
     }
   }
+  // Čelně jen HORNÍ obálka dráhy (z obrobené strany): uzavřená dráha nosu
+  // obsahuje i čelo u čelistí (Z0 − R), které je „pod" vším a dosah by
+  // stáhlo na −R — podélně tuhle roli hraje osa (vyloučená `cx ≥ 0`).
+  let topOf = null;
+  if (T) {
+    topOf = new Map();
+    for (const [cx, cz] of pts) { const k = Math.round(cz / 0.1); if (!(topOf.get(k) >= cx)) topOf.set(k, cx); }
+  }
+  for (const [cx, cz] of pts) if (!topOf || cx >= topOf.get(Math.round(cz / 0.1)) - 0.05) stamp(cx, cz);
   return out;
 }
 
@@ -229,6 +242,14 @@ async function check(file) {
   const limitBite = (() => {
     for (const e of r.errors || []) {
       const m = typeof e === 'object' && e && /první čelní vrstva vezme ([\d.]+) mm/.exec(e.msg || '');
+      if (m) return parseFloat(m[1]);
+    }
+    return null;
+  })();
+  // Z meze z téhož varování („Koník Z 79.37: …") — značka zbytku u meze níž.
+  const limitAt = (() => {
+    for (const e of r.errors || []) {
+      const m = typeof e === 'object' && e && /^(?:Koník|Čelisti) Z (-?[\d.]+): první čelní vrstva/.exec(e.msg || '');
       if (m) return parseFloat(m[1]);
     }
     return null;
@@ -874,11 +895,20 @@ async function check(file) {
   // Dráha středu nosu čistě GEOMETRICKY (offset dílu o rádius nosu, úzké
   // drážky offset sám zavře) — ne `finishRefPath`: ta je u podélného
   // napojená na čáru zanoření a schovala by klín pod ní, který P3 hlásí.
+  // ČELNĚ totéž v prohozených osách (audit 28. 11. 2026): offset o přesah
+  // stopy ve směru řezu (`lift`, Z stroje) a dosah přes `T`. Bez toho se
+  // stín nosu ve vnitřním rohu čela (kulatá R8/R10 u stopky part-18/23,
+  // small-fillet; rádius nosu u face-cylinder, upichovák) hlásil jako
+  // chybějící vrstva.
+  // Čelně se přídavek bere KOLMO (offset o přesah + přídavek, nástroj jede
+  // po přídavkové čáře), ne svisle: u stěny stopky by svislý přídavek dal
+  // kružnici o přídavek blíž ke stěně a zbytek 0,8 mm (part-18 X9,75).
   let nosePath = null;
-  if (!face && liftR > 0) {
-    try { const o = polyOffset([partR], liftR); if (o && o[0]) { const l = o.sort((u, v) => v.length - u.length)[0]; nosePath = [[...l, l[0]]]; } } catch { /* bez dosahu */ }
+  const offR = face ? lift + allow : liftR;
+  if (offR > 0) {
+    try { const o = polyOffset([partR], offR); if (o && o[0]) { const l = o.sort((u, v) => v.length - u.length)[0]; nosePath = TL([[...l, l[0]]]); } } catch { /* bez dosahu */ }
   }
-  const reach = face ? null : toolReach(P, nosePath, allow, fLo + 0.25, 0.25, Math.ceil((fHi - fLo) / 0.25), czLim);
+  const reach = toolReach(P, nosePath, face ? 0 : allow, fLo + 0.25, 0.25, Math.ceil((fHi - fLo) / 0.25), czLim, face ? T : null);
   // TŘÍDĚNÍ (audit 27. 11. 2026, počty se nemění): dosah destičky po HRANICI
   // HRUBOVÁNÍ (`calc.offsetPath` = offset dílu napojený na čáry zanoření,
   // pravidlo 1). Zbytek, který vysvětlí celý, leží pod hranicí, ke které
@@ -919,7 +949,7 @@ async function check(file) {
     const ptPL = ptA !== null && reachPL && Number.isFinite(reachPL[k]) ? Math.max(pt ?? ptA, reachPL[k] + 0.1) : pt;
     const overPL = top !== null && ptPL !== null ? top - ptPL : over;
     if (overA > TOL_FLOOR) {
-      if (!run) run = { z0: z, z1: z, max: over, maxPL: overPL }; else { run.z1 = z; run.max = Math.max(run.max, over); run.maxPL = Math.max(run.maxPL, overPL); }
+      if (!run) run = { z0: z, z1: z, max: over, maxPL: overPL, tLo: ptA, tHi: top }; else { run.z1 = z; run.max = Math.max(run.max, over); run.maxPL = Math.max(run.maxPL, overPL); run.tLo = Math.min(run.tLo, ptA); run.tHi = Math.max(run.tHi, top); }
     } else if (run) { if (run.max > TOL_FLOOR) floors.push(run); run = null; }
   }
   if (run && run.max > TOL_FLOOR) floors.push(run);
@@ -927,17 +957,39 @@ async function check(file) {
   // VĚDOMĚ nechal — varování nese zóny `zones: [{zLo, zHi, x}]`
   // (js/calculators/cam/ops/long/skipZones.js; držák, kapsa bez vjezdu).
   // Zbytek, jehož aspoň polovina délky leží v zóně (± 2 mm), dostane značku.
+  // ČELNĚ (ops/face/faceZones.js) měří kontrola v prohozených osách: zbytek
+  // běží po X stroje (`z0…z1`) a jeho výška (`tLo…tHi`) je Z stroje. Čelní
+  // zóna proto nese rozsah X (`xLo/xHi`) — páruje se podle něj (sjednocení
+  // zón, jejichž pás Z zasahuje do výšky zbytku), pás Z jen ověří polohu.
   const warnZones = [];
   for (const e of r.errors || []) {
     if (!e || typeof e !== 'object' || !Array.isArray(e.zones)) continue;
-    const tag = /držák/i.test(e.msg) ? 'držák' : /rampa|vjezd|zanoř/i.test(e.msg) ? 'bez vjezdu' : 'vynecháno';
-    for (const z of e.zones) warnZones.push({ zLo: z.zLo - 2, zHi: z.zHi + 2, tag });
+    const tag = /držák/i.test(e.msg) ? 'držák' : /^Hlídání (destičky|upichováku)/.test(e.msg) ? 'destička'
+      : /rampa|vjezd|zanoř/i.test(e.msg) ? 'bez vjezdu' : 'vynecháno';
+    for (const z of e.zones) {
+      if (face) {
+        if (!Number.isFinite(z.xLo) || !Number.isFinite(z.xHi)) continue;
+        const a = sF * z.zLo, b = sF * z.zHi;
+        warnZones.push({ zLo: z.xLo - 2, zHi: z.xHi + 2, hLo: Math.min(a, b), hHi: Math.max(a, b), tag });
+      } else if (!Number.isFinite(z.xLo)) warnZones.push({ zLo: z.zLo - 2, zHi: z.zHi + 2, tag });
+    }
   }
   for (const f of floors) {
     if (f.maxPL <= TOL_FLOOR) continue;
     const len = Math.max(f.z1 - f.z0, 0.25);
-    const hit = warnZones.find(w => Math.min(f.z1, w.zHi) - Math.max(f.z0, w.zLo) >= 0.5 * len);
-    if (hit) f.warn = hit.tag;
+    if (!face) {
+      const hit = warnZones.find(w => Math.min(f.z1, w.zHi) - Math.max(f.z0, w.zLo) >= 0.5 * len);
+      if (hit) f.warn = hit.tag;
+      continue;
+    }
+    // Mez čelistí / koníku (pravidlo 16, výjimka pravidla 3 `limitFirst`):
+    // střed nosu smí nejvýš na mez − přesah plátku, materiál za tím zůstane
+    // (round-r10-face-small-fillet u koníku Z79,37, R10 → střed nejvýš 69,37).
+    if (Number.isFinite(limitAt) && f.tHi > sF * (limitAt - sF * (sF > 0 ? extR.zPos : extR.zNeg)) - 0.5) { f.warn = 'mez'; continue; }
+    const ws = warnZones.filter(w => w.hHi > f.tLo - 0.5 && w.hLo < f.tHi + 0.5 && w.zHi > f.z0 && w.zLo < f.z1);
+    let inZ = 0;
+    for (let zq = f.z0; zq <= f.z1 + 1e-9; zq += 0.25) if (ws.some(w => zq >= w.zLo && zq <= w.zHi)) inZ++;
+    if (ws.length && inZ >= 0.5 * (Math.round((f.z1 - f.z0) / 0.25) + 1)) f.warn = ws[0].tag;
   }
 
   const coll = validateToolpath(spR, P, r.calcSim.stockPathSegments,

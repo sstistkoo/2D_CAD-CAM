@@ -10,6 +10,7 @@ import { makeEnforceLayerDepth } from './face/layerDepth.js';
 import { makeRegionRunOut } from './face/regionRunOut.js';
 import { makeHolderGuardFace } from './face/holderGuard.js';
 import { makeFaceDescentLimit } from './face/plungeDescent.js';
+import { makeFaceZones } from './face/faceZones.js';
 import { faceZs, dropLeadOutOverGap } from './face/leadOutOverGap.js';
 import { wallDescents, attachWallDescents } from './face/wallLayers.js';
 
@@ -628,9 +629,11 @@ export function genFacePasses(ctx) {
   }
 
   const zsBeforeGuards = faceZs(passes);
+  // Zóny zkrácených/vynechaných průchodů k varováním hlídání (ops/face/faceZones.js).
+  const fz = makeFaceZones(passes, faceLeft, step), errFrom = foundErrors.length;
   // Hlídání geometrie DESTIČKY (čelně) — viz ops/face/insertGuard.js.
-  guardInsertFace({
-    prms, ins, passes, foundErrors, faceLeft, step, offsetXAt, xTouchAt, planTouchAt, castingOuterAtZ, rapidStartXAt });
+  fz.watch('insert', () => guardInsertFace({
+    prms, ins, passes, foundErrors, faceLeft, step, offsetXAt, xTouchAt, planTouchAt, castingOuterAtZ, rapidStartXAt }));
   // Sjezd po kolmé stěně (pravidlo 3) — ops/face/wallLayers.js. Až ZA hlídáním
   // destičky: to zvedne průchod v toleranci svislice stěny (Z 204,000 u 204,009)
   // na vršek stěny, a teprve takový sjezd potřebuje. Dno na zNew
@@ -654,16 +657,19 @@ export function genFacePasses(ctx) {
   const enforceLayerDepth = makeEnforceLayerDepth({
     prms, ins, passes, foundErrors, faceLeft, step, zList, xTouchAt, planTouchAt,
     castingOuterAtZ, castingOuterOrNull, planOuterOrNull, rTipFC });
-  // Doběh na konci úseku — viz ops/face/regionRunOut.js.
-  const appendRegionRunOut = makeRegionRunOut({
+  // Doběh na konci úseku — viz ops/face/regionRunOut.js. Jeho vytvoření už
+  // jednou pustí hlídání hloubky vrstev (zvedá dna → zóny „depth").
+  const appendRegionRunOut = fz.watch('depth', () => makeRegionRunOut({
     prms, ins, passes, faceLeft, step, zList, xTouchAt, planTouchAt, castingOuterAtZ, planOuterOrNull,
     faceOffsetOut, faceRunOut, clrXFC, rTipFC, contourTargetAt,
-    rapidStartXAt, enforceLayerDepth });
-  // Hlídání DRŽÁKU (čelně) — viz ops/face/holderGuard.js.
-  const holderGuardFace = makeHolderGuardFace({
+    rapidStartXAt, enforceLayerDepth }));
+  // Hlídání DRŽÁKU (čelně) — viz ops/face/holderGuard.js. Vytvoření ho
+  // jednou pustí (před doběhem úseků) → zóny „holder".
+  const holderGuardFace = fz.watch('holder', () => makeHolderGuardFace({
     prms, passes, foundErrors, faceLeft, step, zListAll, xTouchAt, planTouchAt,
-    offsetXAt, castingOuterOrNull, clrXFC, planLoopFC });
-  let runOutAdded = appendRegionRunOut();
+    offsetXAt, castingOuterOrNull, clrXFC, planLoopFC }));
+  // Doběh volá uvnitř i hlídání hloubky vrstev — zvednutá dna se počítají k němu.
+  let runOutAdded = fz.watch('depth', () => appendRegionRunOut());
   const runOutMsg = () => `Doběh na konci úseku: ${runOutAdded} průchodů přidáno, aby na koncích úseků nezůstal schodek.`;
   const runOutWarn = runOutAdded > 0 ? { type: 'warning', msg: runOutMsg() } : null;
   if (runOutWarn) foundErrors.push(runOutWarn);
@@ -673,19 +679,23 @@ export function genFacePasses(ctx) {
   // s hlubšími, než jaká po zvednutí zůstanou.
   const limitDescent = makeFaceDescentLimit({
     prms, ins, passes, foundErrors, zList, xTouchAt, planTouchAt, castingOuterOrNull, planOuterOrNull, rTipFC, faceOffsetOut });
-  limitDescent(false);
-  holderGuardFace(false);
-  limitDescent(true);
-  holderGuardFace(true);
-  enforceLayerDepth();
+  fz.watch('descent', () => limitDescent(false));
+  fz.watch('holder', () => holderGuardFace(false));
+  fz.watch('descent', () => limitDescent(true));
+  fz.watch('holder', () => holderGuardFace(true));
+  fz.watch('depth', () => enforceLayerDepth());
   // Poslední hlídání vrstev umí řetěz ještě ZVEDNOUT (neobrobený pás nad ním
   // se měří k offsetové čáře) a konec úseku tím ustoupí — doběh přidaný výš
   // pak chybí a pod nosem zůstane oblouk (uživatel 31. 10. 2026, part-25
   // Z4,932: „zůstane rádius od nože na polotovaru"). Doplnit znovu na NOVÉ
   // konce úseků a projít TATÁŽ hlídání (u destičky bez kuželu jde doběh na
   // cíl kontury, takže i omezení sjezdu).
-  const runOutLate = appendRegionRunOut();
-  if (runOutLate > 0) { limitDescent(true); holderGuardFace(true); enforceLayerDepth(); }
+  const runOutLate = fz.watch('depth', () => appendRegionRunOut());
+  if (runOutLate > 0) {
+    fz.watch('descent', () => limitDescent(true));
+    fz.watch('holder', () => holderGuardFace(true));
+    fz.watch('depth', () => enforceLayerDepth());
+  }
   if (runOutLate > 0) {
     runOutAdded += runOutLate;
     if (runOutWarn) runOutWarn.msg = runOutMsg();
@@ -693,6 +703,7 @@ export function genFacePasses(ctx) {
   }
   // Dojezd do mezery po vyhozeném průchodu by jel do neobrobeného materiálu.
   dropLeadOutOverGap({ passes, before: zsBeforeGuards, faceLeft, step });
+  fz.attach(foundErrors, errFrom);
 
   // ── Dojezd se zastaví v ROHU (kde zahne do stěny rovnoběžné s osou) ──
   // Dojezd „bez schodků“ sleduje konturu k obrobené straně, aby sloupl schod
