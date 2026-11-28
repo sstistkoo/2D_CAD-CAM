@@ -275,7 +275,7 @@ export function emitOpenInterval(D) {
       // „není problém aby to dojelo, jenom musí přijet kolmo nad to místo".
       const part = partialChainStep();
       if (part) { passes.push(part); rampSt.closed = true; return; }
-      skipCounters.plungeForbidden++;
+      skipCounters.plungeForbidden++; skipCounters.zones?.push({ kind: 'plungeForbidden', zLo: Math.min(iv.zStart, iv.zEnd), zHi: Math.max(iv.zStart, iv.zEnd), x: currentX });
       return;
     }
   }
@@ -360,7 +360,8 @@ export function emitOpenInterval(D) {
       // hloubka se raději úplně vynechá — dál se zanořuje jen po
       // vrstvách, kam rampa doopravdy dosáhne. Zbytek pod Hloubku
       // (ap) dokončí zákrok po skončení celého scanu níž (viz
-      // rampSt.closed).
+      // rampSt.closed). Pravidlo 10: vynechaná vrstva se hlásí (ops/long/skipZones.js).
+      skipCounters.zones?.push({ kind: 'noRamp', zLo: Math.min(iv.zStart, iv.zEnd), zHi: Math.max(iv.zStart, iv.zEnd), x: currentX });
       return;
     }
   }
@@ -762,7 +763,7 @@ export function emitOpenInterval(D) {
       let xFree = currentX;
       if (holderHit) {
         let lo = currentX, hi = currentX + step;
-        if (areaAt(hi) > STRICT) { skipCounters.plungeForbidden++; return; }
+        if (areaAt(hi) > STRICT) { skipCounters.plungeForbidden++; skipCounters.zones?.push({ kind: 'plungeForbidden', zLo: Math.min(iv.zStart, iv.zEnd), zHi: Math.max(iv.zStart, iv.zEnd), x: currentX }); return; }
         for (let k = 0; k < 20; k++) { const m = (lo + hi) / 2; if (areaAt(m) > STRICT) lo = m; else hi = m; }
         xFree = hi;
       }
@@ -773,7 +774,7 @@ export function emitOpenInterval(D) {
       if (matTop - currentX > step + 0.05 || !(zS > passObj.zEnd + 0.05)
           || residEntryArea(cand, [], Infinity) > STRICT
           || holderFitAreaAlong(cand) > HOLDER_FIT_TOL) {
-        skipCounters.plungeForbidden++;
+        skipCounters.plungeForbidden++; skipCounters.zones?.push({ kind: 'plungeForbidden', zLo: Math.min(iv.zStart, iv.zEnd), zHi: Math.max(iv.zStart, iv.zEnd), x: currentX });
         return;
       }
       passObj.ramp = { x0, z0 };

@@ -86,3 +86,34 @@ export class BlockedDepths extends Set {
   /** Zóny daných klíčů (ztracené hloubky). */
   zonesOf(keys) { return keys.flatMap(k => this.where.get(k) || []); }
 }
+
+const layersPhrase = (n) => (n === 1 ? '1 vrstva vynechána' : (n < 5 ? `${n} vrstvy vynechány` : `${n} vrstev vynecháno`));
+
+/**
+ * Varování o vrstvách vynechaných pro vjezd (ops/long/openPass.js), se zónou.
+ *  - `plungeForbidden`: vjezd by musel být kolmý (dosavadní hlášení),
+ *  - `noRamp`: rampa se k vrstvě nedostane (řetěz ramp nedosáhne, z povrchu
+ *    by vzala víc než ap). Dřív se taková vrstva zahodila TIŠE — pravidlo 10
+ *    ale chce „vrstva se vynechá a nahlásí“ (audit CAM 28. 11. 2026:
+ *    polygon-ramp-exit-nose, údolí Z145–195 až 9,75 mm bez jediného varování
+ *    hrubování). Hlásí se jen zóny, které nakonec nepokryl žádný průchod
+ *    na té hloubce nebo hlubší (uzavírací zákrok je může dobrat).
+ * @param {{plungeForbidden:number, zones?:Array<object>}} skipCounters
+ * @param {Array<object>} foundErrors
+ * @param {Array<object>} passes
+ */
+export function rampSkipWarnings(skipCounters, foundErrors, passes) {
+  const zs = skipCounters.zones || [];
+  if (skipCounters.plungeForbidden > 0) {
+    foundErrors.push({ type: 'warning',
+      zones: zs.filter(z => z.kind === 'plungeForbidden').map(z => zoneOf(z.zLo, z.zHi, z.x)),
+      msg: `Zanořování: ${layersPhrase(skipCounters.plungeForbidden)} — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.` });
+  }
+  const covered = (z) => passes.some(p => p && p.type === 'long' && Number.isFinite(p.x) && p.x <= z.x + 0.05
+    && Math.min(Math.max(p.zStart, p.zEnd), z.zHi) - Math.max(Math.min(p.zStart, p.zEnd), z.zLo) > 0.5 * (z.zHi - z.zLo));
+  const noRamp = zs.filter(z => z.kind === 'noRamp' && z.zHi - z.zLo >= 1).map(z => zoneOf(z.zLo, z.zHi, z.x)).filter(z => !covered(z));
+  if (noRamp.length > 0) {
+    foundErrors.push({ type: 'warning', zones: noRamp,
+      msg: `Zanořování: ${layersPhrase(noRamp.length)} — rampa pod úhlem zanoření se k ${noRamp.length === 1 ? 'ní' : 'nim'} nedostane (řetěz ramp nedosáhne, z povrchu by vzala víc než hloubku třísky). Materiál zůstává pro dokončování.` });
+  }
+}

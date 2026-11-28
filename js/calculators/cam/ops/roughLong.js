@@ -38,7 +38,7 @@ import { depthCutClampZ, makeChainRegistry } from './long/cutRegistry.js';
 import { relinkOrphanChainSteps } from './long/chainRelink.js';
 import { makeRealStock, passPath, pathLen } from './long/realStock.js';
 import { collectFloorsAt, plateauFloors, attachPlateauDescent } from './long/floorLayers.js';
-import { uncoveredHolderZones, zoneOf, BlockedDepths } from './long/skipZones.js';
+import { uncoveredHolderZones, zoneOf, BlockedDepths, rampSkipWarnings } from './long/skipZones.js';
 
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
@@ -560,7 +560,7 @@ export function genLongPasses(ctx) {
   let noEntrySkips = 0; const skipZones = [];   // kde se vynechalo (ops/long/skipZones.js)
   // Vrstvy zahozené pravidlem „kolmé zanoření je zakázané" (ops/long/openPass.js).
   // Objekt, ne číslo — `emitOpenInterval` do něj zapisuje zevnitř.
-  const skipCounters = { plungeForbidden: 0, plungeOff: 0 };
+  const skipCounters = { plungeForbidden: 0, plungeOff: 0, zones: [] };
 
   // ── Upichovák (parting) v podélném hrubování ──
   // Zanoření je svislé a tělo plátku (šířka wIns) zasahuje od programovaného
@@ -2416,11 +2416,7 @@ export function genLongPasses(ctx) {
     foundErrors.push({ type: 'warning', zones: skipZones.filter(z => z.kind === 'noEntry').map(z => zoneOf(z.zLo, z.zHi, z.x)), msg: `Zanořování: ${phrase} — do kapsy nevede ani rampa, ani nájezd po kontuře (jinak by se muselo zapíchnout kolmo). Materiál zůstává pro dokončování.` });
   }
   plungeZeroWarning(skipCounters, foundErrors);
-  if (skipCounters.plungeForbidden > 0) {
-    const n = skipCounters.plungeForbidden;
-    const phrase = n === 1 ? '1 vrstva vynechána' : (n < 5 ? `${n} vrstvy vynechány` : `${n} vrstev vynecháno`);
-    foundErrors.push({ type: 'warning', msg: `Zanořování: ${phrase} — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.` });
-  }
+  rampSkipWarnings(skipCounters, foundErrors, passes);   // kolmý vjezd / rampa nedosáhne, se zónou (ops/long/skipZones.js)
   if (plungeShallowed > 0)
     foundErrors.push({ type: 'warning', msg: `POZNÁMKA: Zanořování — ${plungeShallowed} průchodů do kapsy nedosáhlo plné cílové hloubky v jednom kroku (rampa pod ${effPlungeDegL.toFixed(1)}° pokračuje dalším krokem).` });
   if (scanCounters.partingWallDropped > 0)

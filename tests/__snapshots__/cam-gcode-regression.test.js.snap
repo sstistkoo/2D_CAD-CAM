@@ -2569,6 +2569,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-1.camprog → stabiln�
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
   "Zanořování: 1 vrstva vynechána — do kapsy nevede ani rampa, ani nájezd po kontuře (jinak by se muselo zapíchnout kolmo). Materiál zůstává pro dokončování.",
+  "Zanořování: 1 vrstva vynechána — rampa pod úhlem zanoření se k ní nedostane (řetěz ramp nedosáhne, z povrchu by vzala víc než hloubku třísky). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 3 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Bez schodků: vypuštěno 1 úseků dojezdu a 0 nájezdů — vedly po dráze, kterou už dřívější průchod projel.",
   "POZNÁMKA: 1 ramp zkráceno — vedly vyhrubovaným prostorem.",
@@ -2978,6 +2979,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-2.camprog → stabiln�
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 60°, natočení 15°) nedosáhne na 6 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
   "Zanořování: 1 vrstva vynechána — do kapsy nevede ani rampa, ani nájezd po kontuře (jinak by se muselo zapíchnout kolmo). Materiál zůstává pro dokončování.",
+  "Zanořování: 1 vrstva vynechána — rampa pod úhlem zanoření se k ní nedostane (řetěz ramp nedosáhne, z povrchu by vzala víc než hloubku třísky). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 3 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Bez schodků: vypuštěno 1 úseků dojezdu a 0 nájezdů — vedly po dráze, kterou už dřívější průchod projel.",
   "POZNÁMKA: 1 ramp zkráceno — vedly vyhrubovaným prostorem.",
@@ -5194,6 +5196,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camp
 exports[`CAM pipeline regrese (G-kód + struktura) > part-10-zapich-casting.camprog → stabilní G-kód > warnings 1`] = `
 [
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 12 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Zanořování: 2 vrstvy vynechány — rampa pod úhlem zanoření se k nim nedostane (řetěz ramp nedosáhne, z povrchu by vzala víc než hloubku třísky). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 7 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání destičky: 1 hrubovacích průchodů zkráceno, aby boční ostří nezajelo do kontury.",
 ]
@@ -5533,6 +5536,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-11-zleva-casting.campr
 [
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 11 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
   "Z-limity: plátek sahá 4.4 mm před a 13.9 mm za střed nosu — u čelistí (střed nosu nejdál Z 2.15) se neobrábí, aby do nich nevjel. Zbytek tam zůstane.",
+  "Zanořování: 1 vrstva vynechána — rampa pod úhlem zanoření se k ní nedostane (řetěz ramp nedosáhne, z povrchu by vzala víc než hloubku třísky). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 7 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání geometrie (držák): 1 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 20 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
 ]
@@ -5920,6 +5924,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog 
 exports[`CAM pipeline regrese (G-kód + struktura) > part-12-zleva-step.camprog → stabilní G-kód > warnings 1`] = `
 [
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 12 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Zanořování: 1 vrstva vynechána — rampa pod úhlem zanoření se k ní nedostane (řetěz ramp nedosáhne, z povrchu by vzala víc než hloubku třísky). Materiál zůstává pro dokončování.",
   "Hlídání držáku: 1 prohlubeň/prohlubní se nedobírá až na dno — držák se tam nevejde. Dokončování je ze stejného důvodu přemostí rovným průměrem; dno patří jinému nástroji.",
   "Hlídání geometrie (držák): 7 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání geometrie (držák): 1 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 20 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
@@ -6603,6 +6608,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-14-finish-holder.campr
   "Dokončování: 9 kus(ů) kontury klesá k ose strměji než úhel zanoření 15° — nedokončuje se, dál jede rovný průměr (pravidlo 15).",
   "Hlídání geometrie (držák): dokončování vynechá 2 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 12 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Zanořování: 1 vrstva vynechána — rampa pod úhlem zanoření se k ní nedostane (řetěz ramp nedosáhne, z povrchu by vzala víc než hloubku třísky). Materiál zůstává pro dokončování.",
   "Hlídání držáku: 1 prohlubeň/prohlubní se nedobírá až na dno — držák se tam nevejde. Dokončování je ze stejného důvodu přemostí rovným průměrem; dno patří jinému nástroji.",
   "Hlídání geometrie (držák): 7 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání geometrie (držák): 1 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 20 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
@@ -6983,6 +6989,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-15-finish-zprava.campr
   "Hlídání geometrie (držák): dokončování vynechá 1 úsek(ů) — držák by narazil do materiálu (přejezd G0). Zbytek obrobte jiným nástrojem/upnutím.",
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 15 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
   "Zanořování: 1 vrstva vynechána — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.",
+  "Zanořování: 1 vrstva vynechána — rampa pod úhlem zanoření se k ní nedostane (řetěz ramp nedosáhne, z povrchu by vzala víc než hloubku třísky). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 2 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
 ]
 `;
@@ -12690,6 +12697,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > part-21-zleva-insert-shadow
 [
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 12 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
   "Zanořování: 1 vrstva vynechána — do kapsy nevede ani rampa, ani nájezd po kontuře (jinak by se muselo zapíchnout kolmo). Materiál zůstává pro dokončování.",
+  "Zanořování: 1 vrstva vynechána — rampa pod úhlem zanoření se k ní nedostane (řetěz ramp nedosáhne, z povrchu by vzala víc než hloubku třísky). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 9 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Bez schodků: vypuštěno 6 úseků dojezdu a 0 nájezdů — vedly po dráze, kterou už dřívější průchod projel.",
 ]
@@ -15941,6 +15949,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-steep-face.camp
 exports[`CAM pipeline regrese (G-kód + struktura) > range-chain-steep-face.camprog → stabilní G-kód > warnings 1`] = `
 [
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 14 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
+  "Zanořování: 1 vrstva vynechána — rampa pod úhlem zanoření se k ní nedostane (řetěz ramp nedosáhne, z povrchu by vzala víc než hloubku třísky). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 8 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
 ]
 `;
@@ -16156,6 +16165,7 @@ exports[`CAM pipeline regrese (G-kód + struktura) > range-end-leadout.camprog �
 [
   "Tvar destičky (vrchol 90°, natočení 15°) nedosáhne na 14 úsek(ů) kontury (viz zvýrazněná místa na výkrese).",
   "Zanořování: 1 vrstva vynechána — vjezd by musel být kolmý a to tenhle plátek nesmí (rampa se tam nevejde). Materiál zůstává pro dokončování.",
+  "Zanořování: 3 vrstvy vynechány — rampa pod úhlem zanoření se k nim nedostane (řetěz ramp nedosáhne, z povrchu by vzala víc než hloubku třísky). Materiál zůstává pro dokončování.",
   "Hlídání geometrie (držák): 6 hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.",
   "Hlídání geometrie (držák): 1 úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší 5 mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.",
 ]
