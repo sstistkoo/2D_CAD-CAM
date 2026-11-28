@@ -101,6 +101,12 @@ tenčí, je ta poslední — a ta se udělá vždy.**
   Menší záběr by chtěl krok v X ~0,2 mm (≈ 20× víc průchodů); zkrácení
   průchodů se řetězí a nechá velký zbytek (zkoušeno a vráceno). Aplikace
   varuje („Zanoření do plného materiálu … zkráceno“).
+- **Výjimka — první čelní vrstva u meze koníku / čelistí (uživatel 28. 11. 2026):**
+  plátek nesmí za mez a obrys sahá za střed nosu, takže blíž k čelu se vrstva
+  postavit nedá a první vrstva vezme víc než ap (round-r10-face-small-fillet
+  R10 u koníku Z79,37: 10,5 mm při ap 4). Smí nejvýš tolik, kolik hlásí
+  varování aplikace („Koník Z …: první čelní vrstva vezme … mm“). Řešení je
+  v nastavení (mez, menší destička), ne v dráze.
 
 ---
 

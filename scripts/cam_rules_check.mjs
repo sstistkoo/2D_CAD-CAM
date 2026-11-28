@@ -225,6 +225,15 @@ async function check(file) {
   // kódem v prohozených osách — „X" měření = Z stroje (zleva zrcadlo), „Z"
   // měření = X stroje. Model úběru dál běží ve skutečných souřadnicích.
   const face = P.roughingStrategy === 'face';
+  // Varování „Koník/Čelisti Z …: první čelní vrstva vezme B mm" (roughFace.js) → výjimka P3 níž.
+  const limitBite = (() => {
+    for (const e of r.errors || []) {
+      const m = typeof e === 'object' && e && /první čelní vrstva vezme ([\d.]+) mm/.exec(e.msg || '');
+      if (m) return parseFloat(m[1]);
+    }
+    return null;
+  })();
+  const faceZ0 = face ? ((r.calc.passes || []).find(q => q.type === 'face')?.z ?? null) : null;
   const sF = P.roughingSide === 'left' ? -1 : 1;
   const T = face ? (p) => ({ ...p, x: sF * p.z, z: p.x }) : (p) => p;
   const TL = face ? (loops) => loops.map(l => l.map(T)) : (loops) => loops;
@@ -537,7 +546,14 @@ async function check(file) {
         return layerEnds.some(L => L.dir === dirT && Math.abs(L.d - (b.x + ap)) < 0.1
           && (b.z - L.e) * dirT > 0.2 && (b.z - L.e) * dirT <= maxStep);
       };
-      if (!finishLine && !partingPlunge && chipV > ap + TOL_AP && cut > 0.05 && !polyFirst() && !roundDescent()) found.chip.push({ i, v: chipV, line: sp[i].originalLineIdx });
+      // Výjimka pravidla 3 (uživatel 28. 11. 2026): čelně první vrstva u meze
+      // koníku / čelistí. Plátek za mez nesmí a sahá za střed nosu, takže blíž
+      // k čelu se vrstva postavit nedá — aplikace to hlásí varováním „první
+      // čelní vrstva vezme … mm" (roughFace.js). Nehlásí se jen vrstva na Z
+      // prvního čelního průchodu a jen do tloušťky z varování.
+      const limitFirst = () => face && limitBite !== null && faceZ0 !== null
+        && Math.abs(b.x - a.x) < 1e-6 && Math.abs(sF * b.x - faceZ0) < 1e-3 && chipV <= limitBite + TOL_AP;
+      if (!finishLine && !partingPlunge && chipV > ap + TOL_AP && cut > 0.05 && !polyFirst() && !roundDescent() && !limitFirst()) found.chip.push({ i, v: chipV, line: sp[i].originalLineIdx });
       // Vrstva = navazující vodorovné řádky na tomtéž X (cik cak u stěny dojede
       // kus vrstvy jiným posuvem — v-insert-size `N2590 G1 Z583.210` +
       // `N2600 G1 Z593.410 F0.053`; ten kus sám by vyšel „tenký").
