@@ -33,6 +33,7 @@ import { topXOnLoop, topXOnLoopFn } from '../../camMath.js';
 import { polyOffset } from '../../../../geom/geomCore.js';
 import { segAt, subSeg } from './segUtils.js';
 import { joinFloorToLayer, floorShadowedByLayer } from './rule7FloorJoin.js';
+import { zoneOf } from './skipZones.js';
 
 const H = 0.1;        // krok vzorkování offsetu v Z [mm]
 const EPS = 0.01;     // o kolik musí offset přesáhnout vrstvu = kontura vystoupila
@@ -55,6 +56,9 @@ export function genRule7Layers(D) {
     holderClamp, residEntryArea, newCutArea, cutStats, floorAt, entryTol = 0.5, clearX = 0, clearZ = 0, stockLoopRaw = null, foundErrors,
     wallPlunge = false } = D;   // wallPlunge: kolmý vjezd u strmé stěny (pravidlo 6, kulatá)
   let holderSkips = 0, holderShifts = 0, idleSkips = 0;
+  // Zóny k varování držáku (audit CAM 28. 11. 2026): vynechaná vrstva = celý
+  // interval na hloubce, posunutý vjezd = pás od stěny k začátku vrstvy.
+  const holderZones = [];
   let regionTop = Infinity;   // začátek právě obráběné oblasti (rozsah, mez úseku)
 
   // Polotovar pro dotazy „je tu materiál" = CELÝ (ne ořezaný rozsahem 📐):
@@ -509,6 +513,7 @@ export function genRule7Layers(D) {
       }
       return entry;
     };
+    const zWall = f.zStart;
     let entry = findEntry();
     // VJEZD, KTERÝ NIC NEUBERE (pravidla 4 a 5): materiál u stěny zbytku po
     // úseku 1 jde vzít jen z polohy přímo u stěny, kam se vjet nedá — vjezd
@@ -531,8 +536,11 @@ export function genRule7Layers(D) {
         entry = e2;
       }
     }
-    if (!entry) { holderSkips++; return null; }
-    if (entry.ramp && (f.leadIn || !colAir(f.zStart))) holderShifts++;
+    if (!entry) { holderSkips++; holderZones.push(zoneOf(zWall, f.zEnd, d)); return null; }
+    if (entry.ramp && (f.leadIn || !colAir(f.zStart))) {
+      holderShifts++;
+      if (Math.abs(zWall - entry.zStart) >= 0.5) holderZones.push(zoneOf(zWall, entry.zStart, d));
+    }
     f.leadIn = entry.leadIn || null; f.ramp = entry.ramp || null; f.zStart = entry.zStart; f.wallPlunge = !!entry.wallPlunge;
     f.chainLeadIn = !!entry.chainLeadIn;
     // VRSTVA, KTERÁ NIC NEUBERE (pravidlo 5), se nevydá — u osy za čelem
@@ -883,6 +891,6 @@ export function genRule7Layers(D) {
     a.noRetract = true;
   }
   if (foundErrors && (holderSkips || holderShifts))
-    foundErrors.push({ type: 'warning', msg: `Držák (pravidlo 2): ${holderShifts} vrstev vjíždí dál od stěny rampou, ${holderSkips} vrstev vynecháno — u stěny by držák vjel do materiálu. Zbytek obrobte z druhé strany nebo jiným nástrojem.` });
+    foundErrors.push({ type: 'warning', zones: holderZones, msg: `Držák (pravidlo 2): ${holderShifts} vrstev vjíždí dál od stěny rampou, ${holderSkips} vrstev vynecháno — u stěny by držák vjel do materiálu. Zbytek obrobte z druhé strany nebo jiným nástrojem.` });
   if (foundErrors && !passes.length) foundErrors.push({ type: 'warning', msg: 'Pravidlo 7: v úseku nevznikla žádná vrstva (nic k obrobení?).' });
 }
