@@ -34,6 +34,7 @@ import { buildStockLoopRaw, insertExtent, stockPlanLoop } from './materialRemova
 import { resolveRangeX, xMaxWallZ } from './rangeX.js';
 import { splitBoreFromSegments } from './boreContour.js';
 import { applyPreDrillPlan } from './ops/borePreDrill.js';
+import { unmirrorErrorZones } from './ops/long/skipZones.js';
 
 // Typ (podélně/čelně) × směr (zprava/zleva) → klíč strategie v registru.
 //   podélně + zprava → longitudinal     podélně + zleva → backside
@@ -1009,7 +1010,7 @@ export function computeCalculation(S, lightOnly = false, skipRoughing = false) {
   const reachWarn = partOffReachWarning(prms, stockTopX);
   if (reachWarn) foundErrors.push({ type: 'warning', msg: reachWarn });
 
-  S.errors = foundErrors;
+  S.errors = mirZ ? unmirrorErrorZones(foundErrors) : foundErrors;   // zóny varování zpátky z zrcadla (ops/long/skipZones.js)
   // profileModeActive = výpočet drah/hlídání běží po vyřešeném profilu (vždy).
   // profileViewActive = VYKRESLENÍ vyřešeného profilu (ztlumená originál kontura
   //   + zvýrazněný číslovaný profil) — ovládá tlačítko „Auto profil". Bez něj

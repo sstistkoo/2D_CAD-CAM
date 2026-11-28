@@ -923,6 +923,22 @@ async function check(file) {
     } else if (run) { if (run.max > TOL_FLOOR) floors.push(run); run = null; }
   }
   if (run && run.max > TOL_FLOOR) floors.push(run);
+  // TŘÍDĚNÍ 2 (audit 28. 11. 2026, počty se nemění): zbytek, který generátor
+  // VĚDOMĚ nechal — varování nese zóny `zones: [{zLo, zHi, x}]`
+  // (js/calculators/cam/ops/long/skipZones.js; držák, kapsa bez vjezdu).
+  // Zbytek, jehož aspoň polovina délky leží v zóně (± 2 mm), dostane značku.
+  const warnZones = [];
+  for (const e of r.errors || []) {
+    if (!e || typeof e !== 'object' || !Array.isArray(e.zones)) continue;
+    const tag = /držák/i.test(e.msg) ? 'držák' : /rampa|vjezd|zanoř/i.test(e.msg) ? 'bez vjezdu' : 'vynecháno';
+    for (const z of e.zones) warnZones.push({ zLo: z.zLo - 2, zHi: z.zHi + 2, tag });
+  }
+  for (const f of floors) {
+    if (f.maxPL <= TOL_FLOOR) continue;
+    const len = Math.max(f.z1 - f.z0, 0.25);
+    const hit = warnZones.find(w => Math.min(f.z1, w.zHi) - Math.max(f.z0, w.zLo) >= 0.5 * len);
+    if (hit) f.warn = hit.tag;
+  }
 
   const coll = validateToolpath(spR, P, r.calcSim.stockPathSegments,
     { backside: P.roughingSide === 'left', maxIssues: 200 });
@@ -948,7 +964,7 @@ function report(c) {
   row('P2 kolize', c.coll, (q) => `${q.kind} ${q.area.toFixed(1)} mm² @X${q.x.toFixed(2)} Z${q.z.toFixed(2)}`);
   row('P3 tříska větší než ap', F.chip, (q) => `${c.N(q.i)}: ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   row('P3 tenká vrstva uprostřed', F.thin, (q) => `${c.N(q.i)}: jen ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
-  row('P3 zbytek na dně (chybí poslední vrstva)', c.floors, (q) => `Z ${q.z0.toFixed(1)}…${q.z1.toFixed(1)}: až ${q.max.toFixed(2)} mm nad přídavkem${q.maxPL <= TOL_FLOOR ? '  [pod hranicí hrubování]' : ''}`);
+  row('P3 zbytek na dně (chybí poslední vrstva)', c.floors, (q) => `Z ${q.z0.toFixed(1)}…${q.z1.toFixed(1)}: až ${q.max.toFixed(2)} mm nad přídavkem${q.maxPL <= TOL_FLOOR ? '  [pod hranicí hrubování]' : q.warn ? `  [varování: ${q.warn}]` : ''}`);
   row('P5 posuv vzduchem', F.air, (q) => `${c.N(q.i)}: ${q.v.toFixed(1)} mm${q.lead ? ' (úvod)' : ''}   | ${c.txt(q.i)}`);
   row('P6 zanoření strměji než dovoleno', F.plunge, (q) => `${c.N(q.i)}: ${q.v.toFixed(0)}° (smí ${q.lim.toFixed(0)}°)${q.depth !== null && q.depth !== undefined ? `, nájezd dokončení do ${q.depth.toFixed(2)} mm` : ''}${showAll && Number.isFinite(q.cut) ? ` [úběr ${q.cut.toFixed(2)} mm², pod nosem ${q.under.toFixed(2)} mm]` : ''}   | ${c.txt(q.i)}`);
   row('P7 přes hrb dřív, než je pravá strana hotová', c.order.found.hump, (q) => `${c.N(q.i)}: za hrbem Z${q.zTop.toFixed(1)}, vpravo ještě ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
@@ -956,7 +972,8 @@ function report(c) {
   row('P8 pořadí úseků', c.order.found.order, (q) => `${c.N(q.i)}: úsek Z${q.A.zLo.toFixed(1)}…${q.A.zHi.toFixed(1)} jde pod vrch úseku Z${q.B.zLo.toFixed(1)}…${q.B.zHi.toFixed(1)} (${q.B.top.toFixed(1)}), ten ještě není hotový   | ${c.txt(q.i)}`);
   row('P4 vrstva končí uprostřed materiálu', F.endMid, (q) => `${c.N(q.i)}: za koncem ${q.v.toFixed(2)} mm   | ${c.txt(q.i)}`);
   const sum = c.coll.length + F.chip.length + F.thin.length + c.floors.length + F.air.length + F.plunge.length + F.endMid.length + c.order.found.hump.length + c.order.found.order.length + F.humpBreak.length;
-  return { name: c.name, text: lines.join('\n'), cnt, total: sum, shadow: c.floors.filter(q => q.maxPL <= TOL_FLOOR).length };
+  return { name: c.name, text: lines.join('\n'), cnt, total: sum, shadow: c.floors.filter(q => q.maxPL <= TOL_FLOOR).length,
+    warned: c.floors.filter(q => q.maxPL > TOL_FLOOR && q.warn).length };
 }
 
 // ── PARALELNĚ (23. 11. 2026) ─────────────────────────────────────────
@@ -985,8 +1002,8 @@ const runWorker = (f) => new Promise((resolve) => {
 
 let total = 0;
 const counts = {};   // díl → pravidlo → počet (baseline)
-let shadowTotal = 0;
-const take = (r) => { log(r.text); counts[r.name] = r.cnt; total += r.total; shadowTotal += r.shadow || 0; };
+let shadowTotal = 0, warnedTotal = 0;
+const take = (r) => { log(r.text); counts[r.name] = r.cnt; total += r.total; shadowTotal += r.shadow || 0; warnedTotal += r.warned || 0; };
 if (isWorker) {
   process.stdout.write(MARK + JSON.stringify(report(await check(files[0]))));
   process.exit(0);
@@ -1016,6 +1033,7 @@ if (isWorker) {
 }
 log(`\nCELKEM porušení: ${total}`);
 log(`  z toho zbytek na dně pod hranicí hrubování (čára zanoření, pravidlo 1): ${shadowTotal}`);
+log(`  z toho zbytek na dně v zóně, kterou generátor ohlásil (varování se zónou): ${warnedTotal}`);
 log('(Čísla N… jsou z programu, který TEĎ vygeneruje aktuální kód — ne z G-kódu uloženého v souboru.)');
 
 if (saveBaseline) {

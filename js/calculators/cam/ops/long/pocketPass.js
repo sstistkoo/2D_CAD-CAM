@@ -444,7 +444,7 @@ if (!iv.blocked) {
   // nimi zůstával klín).
   const wallOpen = erOpen && !isParting && !pastWall ? wallEntryOpen(currentX, iv) : null;
   let chainOpen = pastWall || (openTooDeep && !wallOpen ? chainFromPrev(currentX, iv) : null);
-  if (openTooDeep && !chainOpen && !wallOpen) { cnt.noEntrySkips++; return; }
+  if (openTooDeep && !chainOpen && !wallOpen) { cnt.noEntrySkips++; cnt.skipZones?.push({ kind: 'noEntry', zLo: iv.zStart, zHi: iv.zEnd, x: currentX }); return; }
   if (wallOpen) {
     passOpen.contourLeadIn = wallOpen;
     passOpen.wallEntry = true;
@@ -467,7 +467,7 @@ if (!iv.blocked) {
     // (part-20-zleva-parting-taper, 24. 9. 2026: 4 kolize, 12,5 mm²).
     if (liOpen.length === 0 && !isParting) {
       chainOpen = chainFromPrev(currentX, iv);
-      if (!chainOpen) { cnt.noEntrySkips++; return; }
+      if (!chainOpen) { cnt.noEntrySkips++; cnt.skipZones?.push({ kind: 'noEntry', zLo: iv.zStart, zHi: iv.zEnd, x: currentX }); return; }
       passOpen.zStart = chainOpen.zStart;
       passOpen.ramp = chainOpen.ramp;
     }
@@ -534,7 +534,7 @@ if (!corner) {
   // mělčí vrstvy tady nejely, kapsa se vynechá (part-17: 7,8 mm při ap 3).
   const flatTooDeep = erFlat && (erFlat.surfX ?? erFlat.x0) - currentX > step + 0.05;
   let chainFlat = flatTooDeep ? chainFromPrev(currentX, iv) : null;
-  if (flatTooDeep && !chainFlat) { cnt.noEntrySkips++; return; }
+  if (flatTooDeep && !chainFlat) { cnt.noEntrySkips++; cnt.skipZones?.push({ kind: 'noEntry', zLo: iv.zStart, zHi: iv.zEnd, x: currentX }); return; }
   if (chainFlat) {
     passFlat.zStart = chainFlat.zStart;
     passFlat.ramp = chainFlat.ramp;
@@ -580,7 +580,7 @@ if (!corner) {
       // vrstvu — platí ten vjezd, který začne víc vpravo (vezme víc vrstvy).
       const viaNose = noseEntryRamp(currentX, iv), viaChain = chainFromPrev(currentX, iv);
       chainFlat = (viaNose && (!viaChain || viaNose.zStart > viaChain.zStart)) ? viaNose : viaChain;
-      if (!chainFlat) { cnt.noEntrySkips++; return; }
+      if (!chainFlat) { cnt.noEntrySkips++; cnt.skipZones?.push({ kind: 'noEntry', zLo: iv.zStart, zHi: iv.zEnd, x: currentX }); return; }
       passFlat.zStart = chainFlat.zStart;
       passFlat.ramp = chainFlat.ramp;
       // Začátek rampy je nad zbytkem celou kružnicí nosu (rampa z povrchu),
@@ -1148,6 +1148,9 @@ if (!skipRiskyPocketEmit && !cleanApproach && (pocketCornerBuried(passes, corner
 if (!skipRiskyPocketEmit && holderClampZEnd?.isForbidden?.(pocketBottomX, pocketBottomZ)) {
   skipRiskyPocketEmit = true;
   cnt.pocketHolderSkips++;
+  // Zóna = dno kapsy, kam se nedojede (dobrání po kontuře), ne celý interval vrstvy.
+  const pz = [pocketBottomZ, ...[...cleanLeadIn, ...cleanLeadOut].flatMap(sg => [sg.z1, sg.z2])].filter(Number.isFinite);
+  cnt.skipZones?.push({ kind: 'pocketHolder', zLo: Math.min(...pz), zHi: Math.max(...pz), x: pocketBottomX });
 }
 if (cleanLeadIn.length > 0 || cleanLeadOut.length > 0) {
   const cleanPass = {

@@ -38,6 +38,7 @@ import { depthCutClampZ, makeChainRegistry } from './long/cutRegistry.js';
 import { relinkOrphanChainSteps } from './long/chainRelink.js';
 import { makeRealStock, passPath, pathLen } from './long/realStock.js';
 import { collectFloorsAt, plateauFloors, attachPlateauDescent } from './long/floorLayers.js';
+import { uncoveredHolderZones, zoneOf } from './long/skipZones.js';
 
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
@@ -556,7 +557,7 @@ export function genLongPasses(ctx) {
   let plungeShallowed = 0;
   let deferredHolderSkips = 0;
   // Kapsové průchody bez rampy i bez nájezdu — viz `noEntrySkips` v pocketPass.js.
-  let noEntrySkips = 0;
+  let noEntrySkips = 0; const skipZones = [];   // kde se vynechalo (ops/long/skipZones.js)
   // Vrstvy zahozené pravidlem „kolmé zanoření je zakázané" (ops/long/openPass.js).
   // Objekt, ne číslo — `emitOpenInterval` do něj zapisuje zevnitř.
   const skipCounters = { plungeForbidden: 0, plungeOff: 0 };
@@ -1429,7 +1430,7 @@ export function genLongPasses(ctx) {
       }
       // Kapsa za bossem kontury — viz ops/long/pocketPass.js. 0° = bez zanořování: do kapsy se nevjede, kus se nahlásí.
       if (prms.plungeRoughing && plungeDisabled(prms)) { skipCounters.plungeOff++; return; }
-      const cnt ={ partingNarrowPockets, plungeShallowed, pocketHolderSkips, noEntrySkips };
+      const cnt ={ partingNarrowPockets, plungeShallowed, pocketHolderSkips, noEntrySkips, skipZones };
       const nBeforePocket = passes.length;
       emitPocketInterval({
         prms, passes, step, dzScan, currentX, idx, intervals, effZMin,
@@ -2412,7 +2413,7 @@ export function genLongPasses(ctx) {
   if (noEntrySkips > 0) {
     const phrase = noEntrySkips === 1 ? '1 vrstva vynechána'
       : (noEntrySkips < 5 ? `${noEntrySkips} vrstvy vynechány` : `${noEntrySkips} vrstev vynecháno`);
-    foundErrors.push({ type: 'warning', msg: `Zanořování: ${phrase} — do kapsy nevede ani rampa, ani nájezd po kontuře (jinak by se muselo zapíchnout kolmo). Materiál zůstává pro dokončování.` });
+    foundErrors.push({ type: 'warning', zones: skipZones.filter(z => z.kind === 'noEntry').map(z => zoneOf(z.zLo, z.zHi, z.x)), msg: `Zanořování: ${phrase} — do kapsy nevede ani rampa, ani nájezd po kontuře (jinak by se muselo zapíchnout kolmo). Materiál zůstává pro dokončování.` });
   }
   plungeZeroWarning(skipCounters, foundErrors);
   if (skipCounters.plungeForbidden > 0) {
@@ -2427,7 +2428,7 @@ export function genLongPasses(ctx) {
   if (partingNarrowPockets > 0)
     foundErrors.push({ type: 'warning', msg: `Upichovák: ${partingNarrowPockets} kapsa/kapes užších než plátek (${wInsL} mm) vynechána — plátek se do nich nevejde.` });
   if (pocketHolderSkips > 0)
-    foundErrors.push({ type: 'warning', msg: `Hlídání držáku: ${pocketHolderSkips} prohlubeň/prohlubní se nedobírá až na dno — držák se tam nevejde. Dokončování je ze stejného důvodu přemostí rovným průměrem; dno patří jinému nástroji.` });
+    foundErrors.push({ type: 'warning', zones: skipZones.filter(z => z.kind === 'pocketHolder').map(z => zoneOf(z.zLo, z.zHi, z.x)), msg: `Hlídání držáku: ${pocketHolderSkips} prohlubeň/prohlubní se nedobírá až na dno — držák se tam nevejde. Dokončování je ze stejného důvodu přemostí rovným průměrem; dno patří jinému nástroji.` });
   // Ztracené hloubky = ty, kde obálka držáku něco zastavila a nakonec z nich
   // NEVZNIKL žádný průchod. Vyhodnocuje se až tady, proti skutečně vydaným
   // průchodům — počítat pokusy uvnitř smyčky nafukuje číslo (viz komentář
@@ -2439,36 +2440,11 @@ export function genLongPasses(ctx) {
     if (lost > 0)
       foundErrors.push({ type: 'warning', msg: `Hlídání geometrie (držák): ${lost} hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.` });
   }
-  // Zóny zahozené obálkou držáku, kam nakonec NIC nezajelo (viz
-  // holderDroppedZones výš). Pokrytí se bere z vydaných průchodů VČETNĚ
-  // sledování obrysu (leadIn/leadOut) — právě tím se většina zahozených
-  // intervalů dobere (dojezd „bez schodků" projede celé údolí za bossem),
-  // takže bez téhle kontroly by hlášení křičelo skoro vždy.
+  // Zóny zahozené obálkou držáku, kam nakonec NIC nezajelo — ops/long/skipZones.js.
   if (holderDroppedZones.length > 0) {
-    const spans = [];
-    for (const p of passes) {
-      if (p.type !== 'long') continue;
-      let lo = Math.min(p.zStart, p.zEnd), hi = Math.max(p.zStart, p.zEnd);
-      for (const key of ['contourLeadIn', 'contourLeadOut']) {
-        for (const s of p[key] || []) {
-          lo = Math.min(lo, s.z1, s.z2); hi = Math.max(hi, s.z1, s.z2);
-        }
-      }
-      spans.push({ lo, hi });
-    }
-    const uncovered = (z) => !spans.some(s => z >= s.lo - 0.2 && z <= s.hi + 0.2);
-    // Zóna se pokládá za neobrobenou, když je bez pokrytí většina její délky
-    // (vzorkuje se v pětinách) — okrajové překryvy dojezdů nic nezachrání.
-    let worst = 0, cnt = 0;
-    for (const zn of holderDroppedZones) {
-      const len = Math.abs(zn.zHi - zn.zLo);
-      if (len < 1) continue;
-      let miss = 0;
-      for (let i = 1; i <= 5; i++) if (uncovered(zn.zLo + (zn.zHi - zn.zLo) * i / 6)) miss++;
-      if (miss >= 3) { cnt++; if (len > worst) worst = len; }
-    }
+    const { cnt, worst, zones } = uncoveredHolderZones(passes, holderDroppedZones);
     if (cnt > 0)
-      foundErrors.push({ type: 'warning', msg: `Hlídání geometrie (držák): ${cnt} úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší ${worst.toFixed(0)} mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.` });
+      foundErrors.push({ type: 'warning', zones, msg: `Hlídání geometrie (držák): ${cnt} úsek(ů) polotovaru zůstalo NEOBROBENO (nejdelší ${worst.toFixed(0)} mm) — držák se k nim nedostane (klín za bossem/přírubou, na který nedosáhne destička). Obrobte je z druhé strany (Hrubování zprava/zleva) nebo jiným nástrojem.` });
   }
 
   // Sjezdy/dojezdy upichováku po OBÁLCE — viz ops/long/partingEnvelope.js.
