@@ -161,12 +161,12 @@ export function makeIntervalScan({
           const stepS = Math.max(dzScan, 0.5);
           for (let zS = iv.zStart - stepS; zS > iv.zEnd + dzScan; zS -= stepS) {
             const nz2 = clampAt(X, zS, iv.zEnd, mainScan);
-            if (nz2 !== null) { iv.zStart = zS; iv.entryShifted = true; nz = nz2; holderBlockedDepths.add(depthKey(X)); break; }
+            if (nz2 !== null) { iv.zStart = zS; iv.entryShifted = true; nz = nz2; holderBlockedDepths.add(depthKey(X), iv); break; }
           }
         }
         if (nz === null) {
           firstSurvived = false;
-          if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderBlockedDepths.add(depthKey(X));
+          if (mainScan && iv.zStart - iv.zEnd >= dzScan) holderBlockedDepths.add(depthKey(X), iv);
           continue;
         }
         // Rezerva obálky (HOLDER_CLAMP_MARGIN) patří DRŽÁKU, ne špičce:

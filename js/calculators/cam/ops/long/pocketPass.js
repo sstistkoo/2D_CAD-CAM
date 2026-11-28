@@ -376,7 +376,7 @@ let skipRiskyPocketEmit = iv.blocked && prms.pocketFinishAtOnce && idx > 1;
 if (iv.blocked) {
   const clamped = holderSpanClamp(currentX, iv);
   if (!clamped) {
-    holderBlockedDepths.add(depthKey(currentX));
+    holderBlockedDepths.add(depthKey(currentX), iv);
     holderDroppedZones.push({ zHi: iv.zStart, zLo: iv.zEnd, x: currentX });
     return;
   }
@@ -420,7 +420,7 @@ if (!iv.blocked) {
     // (b odpadá): vjezd + rampu měří přesný model, tělo dál statická obálka.
     // part-13 i 29 fixtures: validátor beze změny (0 nových kolizí).
     if (nz === null) {
-      holderBlockedDepths.add(depthKey(currentX));
+      holderBlockedDepths.add(depthKey(currentX), iv);
       holderDroppedZones.push({ zHi: iv.zStart, zLo: iv.zEnd, x: currentX });
       return;
     }
@@ -428,7 +428,7 @@ if (!iv.blocked) {
   }
   if ((pastWall ? pastWall.zStart : iv.zStart) - zEndEff < dzScan) {
     // obálka ho zkrátila až pod řezný krok
-    if (zEndEff > iv.zEnd + 1e-9) holderBlockedDepths.add(depthKey(currentX));
+    if (zEndEff > iv.zEnd + 1e-9) holderBlockedDepths.add(depthKey(currentX), iv);
     holderDroppedZones.push({ zHi: iv.zStart, zLo: iv.zEnd, x: currentX });
     return;
   }
@@ -486,7 +486,7 @@ if (!iv.blocked) {
   // nad plochou S12–S13 (4 × 5,5 mm²). Nevejde-li se, průchod se nevydá.
   if (passOpen.contourLeadIn && residEntryArea
       && residEntryArea(passOpen, passOpen.contourLeadIn, RESIDUAL_FIT_TOL) > RESIDUAL_FIT_TOL) {
-    holderBlockedDepths.add(depthKey(currentX));
+    holderBlockedDepths.add(depthKey(currentX), iv);
     cnt.leadInHolderSkips = (cnt.leadInHolderSkips || 0) + 1;
     return;
   }
@@ -748,7 +748,7 @@ if (!prms.pocketFinishAtOnce) {
   // Nulový progres proti dřívější vrstvě u TÉHOŽ rohu → duplicitní
   // zákrok po stejné rampě, nic neodebere — vynech.
   if (pocketPass.holderUnsafe) {
-    holderBlockedDepths.add(depthKey(currentX));
+    holderBlockedDepths.add(depthKey(currentX), iv);
     holderDroppedZones.push({ zHi: iv.zStart, zLo: iv.zEnd, x: currentX });
     return;
   }
@@ -847,7 +847,7 @@ while (safety++ < 500) {
   // Držák se do téhle hloubky nevejde — hlubší zákroky by na tom byly
   // hůř, takže bulk končí tady (stejné vyústění jako holderSpanClamp).
   if (pocketPass.holderUnsafe) {
-    holderBlockedDepths.add(depthKey(localX));
+    holderBlockedDepths.add(depthKey(localX), iv);
     holderDroppedZones.push({ zHi: curIv.zStart, zLo: curIv.zEnd, x: localX });
     break;
   }

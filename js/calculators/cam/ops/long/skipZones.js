@@ -66,3 +66,23 @@ export function unmirrorErrorZones(errors) {
   return errors.map(e => (e && typeof e === 'object' && Array.isArray(e.zones))
     ? { ...e, zones: e.zones.map(z => ({ ...z, zLo: -z.zHi, zHi: -z.zLo })) } : e);
 }
+
+/**
+ * Hloubky, kde obálka držáku něco zastavila (`holderBlockedDepths`). Chová se
+ * jako dosavadní Set klíčů `depthKey` (počítání ztracených hloubek se nemění);
+ * druhý argument `add(key, iv)` — interval vrstvy {zStart, zEnd} — si navíc
+ * zapamatuje, KDE to bylo, pro zóny varování.
+ */
+export class BlockedDepths extends Set {
+  constructor() { super(); this.where = new Map(); }
+  add(key, iv) {
+    super.add(key);
+    if (this.where && iv && Number.isFinite(iv.zStart) && Number.isFinite(iv.zEnd)) {
+      if (!this.where.has(key)) this.where.set(key, []);
+      this.where.get(key).push(zoneOf(iv.zStart, iv.zEnd, key / 1000));
+    }
+    return this;
+  }
+  /** Zóny daných klíčů (ztracené hloubky). */
+  zonesOf(keys) { return keys.flatMap(k => this.where.get(k) || []); }
+}

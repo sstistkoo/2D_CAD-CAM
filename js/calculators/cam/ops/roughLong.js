@@ -38,7 +38,7 @@ import { depthCutClampZ, makeChainRegistry } from './long/cutRegistry.js';
 import { relinkOrphanChainSteps } from './long/chainRelink.js';
 import { makeRealStock, passPath, pathLen } from './long/realStock.js';
 import { collectFloorsAt, plateauFloors, attachPlateauDescent } from './long/floorLayers.js';
-import { uncoveredHolderZones, zoneOf } from './long/skipZones.js';
+import { uncoveredHolderZones, zoneOf, BlockedDepths } from './long/skipZones.js';
 
 export function genLongPasses(ctx) {
   // Pravidla PLÁTKU — viz cam/inserts/index.js.
@@ -593,7 +593,7 @@ export function genLongPasses(ctx) {
   // ačkoli reálně chyběly 4). Ztráta = hloubka, na které nakonec NEVZNIKL
   // žádný průchod; vyhodnotí se až po smyčce proti skutečně vydaným
   // průchodům, takže na tom nezávisí, kolika `continue` se tam došlo.
-  const holderBlockedDepths = new Set();
+  const holderBlockedDepths = new BlockedDepths();   // + kde (zóny varování, ops/long/skipZones.js)
   // Z-ZÓNY, které obálka držáku zahodila celé. Počítání po HLOUBKÁCH
   // (holderBlockedDepths výš) tuhle ztrátu neuvidí: stačí, aby táž hloubka
   // vydala průchod někde jinde, a zóna zmizí bez jediného slova — přesně tak
@@ -1179,7 +1179,7 @@ export function genLongPasses(ctx) {
           //      špičku na POVRCHU), se vejde do držáku.
           const nothingToRampInto = surf0 === null || surf0 <= currentX + 0.05;
           if (!nothingToRampInto || !holderFitsAt(entryZ, currentX)) {
-            holderBlockedDepths.add(depthKey(currentX));
+            holderBlockedDepths.add(depthKey(currentX), { zStart: entryZ, zEnd: effZMin });
             continue;
           }
           // Přímý vjezd na `entryZ` je bezpečný — `emitOpenInterval` níž ale
@@ -1365,7 +1365,7 @@ export function genLongPasses(ctx) {
           const zFloorEntry = Math.max(iv.zEnd + dzScan, iv.zStart - ENTRY_SHIFT_MAX);
           let zTry = iv.zStart;
           while (zTry > zFloorEntry && entryHolderArea(currentX, zTry + approachDz) > ENTRY_FIT_TOL) zTry -= DZ_CAP;
-          if (!(zTry > zFloorEntry)) { holderBlockedDepths.add(depthKey(currentX)); return; }
+          if (!(zTry > zFloorEntry)) { holderBlockedDepths.add(depthKey(currentX), iv); return; }
           if (zTry < iv.zStart - 1e-9) { iv.zStart = zTry; iv.entryShifted = true; }
         }
         const nBefore = passes.length;
@@ -2436,9 +2436,9 @@ export function genLongPasses(ctx) {
   if (holderBlockedDepths.size > 0) {
     const machined = new Set();
     for (const p of passes) if (p.type === 'long') machined.add(depthKey(p.x));
-    const lost = [...holderBlockedDepths].filter(k => !machined.has(k)).length;
+    const lostKeys = [...holderBlockedDepths].filter(k => !machined.has(k)), lost = lostKeys.length;
     if (lost > 0)
-      foundErrors.push({ type: 'warning', msg: `Hlídání geometrie (držák): ${lost} hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.` });
+      foundErrors.push({ type: 'warning', zones: holderBlockedDepths.zonesOf(lostKeys), msg: `Hlídání geometrie (držák): ${lost} hloubka/hloubek se nedá obrobit — držák by narazil do materiálu (čelo u osy, úzká kapsa, prostor za přírubou). Zbytek obrobte jiným nástrojem/upnutím.` });
   }
   // Zóny zahozené obálkou držáku, kam nakonec NIC nezajelo — ops/long/skipZones.js.
   if (holderDroppedZones.length > 0) {
